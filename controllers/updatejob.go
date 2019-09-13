@@ -1,51 +1,55 @@
 package controllers
 
 import (
-	"cron/dto"
-	"cron/misc"
-	"github.com/go-pg/pg"
+	"cron-server/job"
+	"cron-server/repo"
 	"github.com/gorilla/mux"
+	"github.com/robfig/cron"
 	"net/http"
-	"strconv"
+	"strings"
+	"time"
 )
 
 func ActivateJob(writer http.ResponseWriter, request *http.Request) {
-	UpdateJobState(writer, request, dto.ACTIVE_JOB)
+	UpdateJobState(writer, request, job.ActiveJob)
 }
 
 func DeactivateJob(writer http.ResponseWriter, request *http.Request) {
-	UpdateJobState(writer, request, dto.INACTIVE_JOB)
+	UpdateJobState(writer, request, job.InActiveJob)
 }
 
-func UpdateJobState(w http.ResponseWriter, r *http.Request, s dto.JobState) {
-	psgc := misc.GetPostgresCredentials()
+func UpdateJobState(w http.ResponseWriter, r *http.Request, s job.State) {
 	params := mux.Vars(r)
+	jobId := params["job_id"]
 
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+	if len(jobId) < 1 {
+		path := strings.Split(r.URL.Path, "/")
+		jobId = path[2]
+	}
 
-	jobId, err := strconv.ParseInt(params["job_id"], 10, 64)
+	j, err := repo.GetOne(jobId)
 	if err != nil {
 		panic(err)
 	}
 
-	job := dto.Job{}
-	err = db.Model(&job).Where("Job.Id == ", jobId).Select()
+	j.State = s
+
+	if s == job.ActiveJob {
+		schedule, err := cron.ParseStandard(j.CronSpec)
+		if err != nil {
+			panic(err)
+		}
+
+		j.NextTime = schedule.Next(time.Now().UTC())
+	}
+
+	jd, err := repo.UpdateOne(j)
 	if err != nil {
 		panic(err)
 	}
 
-	job.State = s
-	err = db.Update(&job)
-
-	if err != nil {
-		panic(err)
-	}
+	job := jd.ToDto()
 
 	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(job.ToJson()))
 }
