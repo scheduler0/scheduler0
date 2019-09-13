@@ -20,7 +20,7 @@ var psgc = misc.GetPostgresCredentials()
 func ExecuteJobs() {
 	rdc := misc.GetRedisCredentials()
 	client := redis.NewClient(&redis.Options{Addr: rdc.Addr})
-	log.Println("Connected to redis")
+	defer client.Close()
 
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
@@ -74,10 +74,6 @@ func ExecuteJobs() {
 
 			j.NextTime = schedule.Next(j.NextTime)
 			j.TotalExecs = j.TotalExecs + 1
-
-			if j.State == job.StaleJob {
-				j.State = job.ActiveJob
-			}
 
 			_, err = db.Model(&j).Set("next_time = ?next_time").Set("total_execs = ?total_execs").Set("state = ?state").Where("id = ?id").Update()
 
