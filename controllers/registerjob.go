@@ -45,7 +45,7 @@ func RegisterJob(w http.ResponseWriter, r *http.Request) {
 	jd.State = job.InActiveJob
 	jd.NextTime = schedule.Next(jd.StartDate)
 	jd.TotalExecs = -1
-	jd.MinsBetweenExecs = jd.NextTime.Sub(jd.StartDate).Minutes()
+	jd.SecsBetweenExecs = jd.NextTime.Sub(jd.StartDate).Minutes()
 
 	newJD, err := repo.CreateOne(jd)
 	if err != nil {

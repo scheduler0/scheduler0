@@ -29,12 +29,12 @@ func main() {
 	}()
 
 	// Start process to update missed jobs
-	//go func() {
-	//	for {
-	//		go process.FixStaleJobs()
-	//		time.Sleep(time.Second * 1)
-	//	}
-	//}()
+	go func() {
+		for {
+			go process.FixStaleJobs()
+			time.Sleep(time.Second * 1)
+		}
+	}()
 
 	// HTTP router setup
 	router := mux.NewRouter()
