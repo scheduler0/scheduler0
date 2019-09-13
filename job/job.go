@@ -38,7 +38,7 @@ type Job struct {
 	CronSpec         string    `json:"cron_spec,omitempty"`
 	ServiceName      string    `json:"id,omitempty"`
 	TotalExecs       int64     `json:"total_execs,omitempty"`
-	SecsBetweenExecs float64   `json:"secs_between_execs,omitempty"`
+	MinsBetweenExecs float64   `json:"mins_between_execs,omitempty"`
 	Data             string    `json:"data,omitempty"`
 	State            State     `json:"state,omitempty"`
 	StartDate        time.Time `json:"total_execs,omitempty"`
