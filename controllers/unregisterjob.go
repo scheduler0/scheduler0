@@ -1,40 +1,22 @@
 package controllers
 
 import (
-	"cron/dto"
-	"cron/misc"
-	"github.com/go-pg/pg"
+	"cron-server/repo"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
-	"strconv"
 )
 
 func UnRegisterJob(w http.ResponseWriter, r *http.Request) {
-	psgc := misc.GetPostgresCredentials()
-
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
-
 	vars := mux.Vars(r)
-	jobId, err := strconv.ParseInt(vars["job_id"], 10, 64)
+	jobId := vars["job_id"]
 
-	if err == nil {
-		panic(err)
-	}
+	_, err := repo.DeleteOne(jobId)
 
-	job := dto.Job{ID: jobId}
-
-	err = db.Delete(&job)
 	if err != nil {
 		panic(err)
 	}
 
-	log.Println("Unregistered ", job)
+	log.Println("Unregistered job with id :", jobId)
 	w.WriteHeader(http.StatusOK)
 }

@@ -1,7 +1,9 @@
 package misc
 
 import (
+	"fmt"
 	"os"
+	"time"
 )
 
 type PostgresCredentials struct {
@@ -14,6 +16,8 @@ type PostgresCredentials struct {
 type RedisCredentials struct {
 	Addr string
 }
+
+type LogWriter struct{}
 
 func GetPort() string {
 	port := os.Getenv("PORT")
@@ -61,4 +65,8 @@ func GetRedisCredentials() *RedisCredentials {
 	}
 
 	return rc
+}
+
+func (writer LogWriter) Write(bytes []byte) (int, error) {
+	return fmt.Print(time.Now().UTC().Format("2006-01-02 15:04:05") + " [DEBUG] " + string(bytes))
 }

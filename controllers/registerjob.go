@@ -1,74 +1,60 @@
 package controllers
 
 import (
-	"cron/dto"
-	"cron/misc"
-	"fmt"
-	"github.com/go-pg/pg"
+	"cron-server/job"
+	"cron-server/repo"
 	"github.com/robfig/cron"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"time"
 )
 
 func RegisterJob(w http.ResponseWriter, r *http.Request) {
-	psgc := misc.GetPostgresCredentials()
-
 	body, err := ioutil.ReadAll(r.Body)
-	job := dto.JobFromJson(body)
+	j := job.FromJson(body)
 
 	if err != nil {
 		panic(err)
 	}
 
-	if len(job.ServiceName) < 1 {
+	if len(j.ServiceName) < 1 {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Service name is required"))
 		return
 	}
 
-	if len(job.Cron) < 1 {
+	if len(j.CronSpec) < 1 {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Cron is required"))
 		return
 	}
 
-	if job.StartDate.IsZero() {
+	if j.StartDate.IsZero() {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Cron is required"))
 		return
 	}
 
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+	jd := j.ToDomain()
 
-	job.State = dto.INACTIVE_JOB
-	schedule, err := cron.ParseStandard(job.Cron)
-
-	fmt.Println("Current time", time.Now())
-
-	job.NextTime = schedule.Next(job.StartDate)
-
-	fmt.Println("Next time", job.NextTime)
-
+	schedule, err := cron.ParseStandard(jd.CronSpec)
 	if err != nil {
 		panic(err)
 	}
 
-	err = db.Insert(&job)
+	jd.State = job.InActiveJob
+	jd.NextTime = schedule.Next(jd.StartDate)
+	jd.TotalExecs = -1
+	jd.SecsBetweenExecs = jd.NextTime.Sub(jd.StartDate).Minutes()
+
+	newJD, err := repo.CreateOne(jd)
 	if err != nil {
 		panic(err)
 	}
 
-	log.Println("Registered ", job)
+	log.Println("Registered ", jd)
 
-	r.Header.Add("Content-Type", "application/json")
-	r.Header.Add("Location", "jobs"+string(job.ID))
+	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Location", "jobs/"+newJD.ID)
 	w.WriteHeader(http.StatusCreated)
 }
