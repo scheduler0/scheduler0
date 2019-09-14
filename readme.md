@@ -2,7 +2,7 @@
 
 Fault tolerant cron job server.
 
-## Dependants
+## Dependencies
 
     1: Postgres
     2: Redis
