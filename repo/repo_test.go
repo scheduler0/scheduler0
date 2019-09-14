@@ -7,7 +7,6 @@ import (
 )
 
 func TestJobRepo(t *testing.T) {
-
 	t.Log("Repository")
 	{
 		var j job.Dto
@@ -64,5 +63,4 @@ func TestJobRepo(t *testing.T) {
 			}
 		}
 	}
-
 }
