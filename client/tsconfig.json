@@ -10,6 +10,9 @@
       "allowSyntheticDefaultImports": true,
       "experimentalDecorators": true,
       "jsx": "react",
+      "noEmit": true,
+      "pretty": true,
+      "skipLibCheck": true,
       "paths": {
         "*": ["*"]
       },
