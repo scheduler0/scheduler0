@@ -12,6 +12,10 @@ func FetchJob(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	serviceName := params["service_name"]
 
+	if len(serviceName) < 1 {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
 	jds, err := repo.GetAll(serviceName)
 	if err != nil {
 		panic(err)
@@ -27,5 +31,8 @@ func FetchJob(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	w.Write(data)
+	_, err = w.Write(data)
+	if err != nil {
+		panic(err)
+	}
 }

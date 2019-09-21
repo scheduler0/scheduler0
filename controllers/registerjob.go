@@ -19,19 +19,28 @@ func RegisterJob(w http.ResponseWriter, r *http.Request) {
 
 	if len(j.ServiceName) < 1 {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Service name is required"))
+		_, err = w.Write([]byte("Service name is required"))
+		if err != nil {
+			panic(err)
+		}
 		return
 	}
 
 	if len(j.CronSpec) < 1 {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Cron is required"))
+		_, err = w.Write([]byte("Cron is required"))
+		if err != nil {
+			panic(err)
+		}
 		return
 	}
 
 	if j.StartDate.IsZero() {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("Cron is required"))
+		_, err = w.Write([]byte("Cron is required"))
+		if err != nil {
+			panic(err)
+		}
 		return
 	}
 
