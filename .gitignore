@@ -1,3 +1,6 @@
 .idea
+client/.idea
 cron-server
 cron-server.test
+client/node_modules
+client/src/public/dist/
