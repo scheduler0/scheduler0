@@ -45,5 +45,8 @@ func main() {
 	router.HandleFunc("/deactivate/{job_id}", controllers.DeactivateJob).Methods("PUT")
 	router.HandleFunc("/unregister/{job_id}", controllers.UnRegisterJob).Methods("POST")
 
-	http.ListenAndServe(misc.GetPort(), router)
+	err := http.ListenAndServe(misc.GetPort(), router)
+	if err != nil {
+		panic(err)
+	}
 }
