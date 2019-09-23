@@ -11,7 +11,7 @@ const app = express()
 const config = require('../webpack.config.js');
 const compiler = webpack(config);
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 4322;
 const isDev = process.env.NODE_ENV === 'development';
 
 app.use(webpackDevMiddleware(compiler, {
