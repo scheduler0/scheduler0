@@ -1,7 +1,7 @@
 package process
 
 import (
-	"cron-server/job"
+	"cron-server/server/job"
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"

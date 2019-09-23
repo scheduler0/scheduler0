@@ -1,8 +1,8 @@
 package main
 
 import (
-	"cron-server/controllers"
-	"cron-server/job"
+	"cron-server/server/controllers"
+	"cron-server/server/job"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"

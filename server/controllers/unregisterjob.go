@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"cron-server/repo"
+	"cron-server/server/repo"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"

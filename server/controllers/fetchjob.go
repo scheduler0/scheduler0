@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"cron-server/job"
-	"cron-server/repo"
+	"cron-server/server/job"
+	"cron-server/server/repo"
 	"encoding/json"
 	"github.com/gorilla/mux"
 	"net/http"
