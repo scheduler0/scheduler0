@@ -5,7 +5,6 @@ import (
 	"cron-server/server/misc"
 	"fmt"
 	"github.com/go-pg/pg"
-	"github.com/go-redis/redis"
 	"github.com/robfig/cron"
 	"log"
 )
@@ -18,10 +17,6 @@ import (
 var psgc = misc.GetPostgresCredentials()
 
 func ExecuteJobs() {
-	rdc := misc.GetRedisCredentials()
-	client := redis.NewClient(&redis.Options{Addr: rdc.Addr})
-	defer client.Close()
-
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -64,8 +59,7 @@ func ExecuteJobs() {
 			defer db.Close()
 
 			log.Println("Publish message to job", j.ServiceName, j.ID)
-			channel := "job:" + j.ServiceName + ":" + j.ID
-			client.Publish(channel, j)
+			// TODO: Send http request to project callback url
 
 			schedule, err := cron.ParseStandard(j.CronSpec)
 			if err != nil {
