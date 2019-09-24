@@ -4,8 +4,6 @@ const path = require("path")
 const webpack = require('webpack');
 const nodeExternals = require('webpack-node-externals');
 
-console.log('process.env.PORT', process.env.PORT);
-
 module.exports = {
     entry: ['./src/server.tsx'],
     watch: false,
@@ -59,6 +57,7 @@ module.exports = {
             "process.env": {
                 NODE_ENV: JSON.stringify(process.env.NODE_ENV),
                 PORT: JSON.stringify(process.env.PORT),
+                API_ENDPOINT: JSON.stringify(process.env.API_ENDPOINT)
             }
         }),
     ],

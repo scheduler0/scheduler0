@@ -27,6 +27,7 @@ services:
       context: ./client
       args:
         PORT: 4327
+        API_ENDPOINT: "server:5432"
     ports:
       - "4327:4327"
     depends_on:
