@@ -1,7 +1,7 @@
 package repo
 
 import (
-	"cron-server/server/job"
+	"cron-server/server/models"
 	"testing"
 	"time"
 )
@@ -9,11 +9,11 @@ import (
 func TestJobRepo(t *testing.T) {
 	t.Log("Repository")
 	{
-		var j job.Dto
+		var j models.Dto
 
 		t.Logf("\t Create new job")
 		{
-			j = job.Dto{
+			j = models.Dto{
 				StartDate:   time.Now(),
 				ServiceName: "Test",
 				CronSpec:    "* * * * *",

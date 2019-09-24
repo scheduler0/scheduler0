@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"cron-server/server/job"
+	"cron-server/server/models"
 	"cron-server/server/repo"
 	"github.com/gorilla/mux"
 	"github.com/robfig/cron"
@@ -11,14 +11,14 @@ import (
 )
 
 func ActivateJob(writer http.ResponseWriter, request *http.Request) {
-	UpdateJobState(writer, request, job.ActiveJob)
+	UpdateJobState(writer, request, models.ActiveJob)
 }
 
 func DeactivateJob(writer http.ResponseWriter, request *http.Request) {
-	UpdateJobState(writer, request, job.InActiveJob)
+	UpdateJobState(writer, request, models.InActiveJob)
 }
 
-func UpdateJobState(w http.ResponseWriter, r *http.Request, s job.State) {
+func UpdateJobState(w http.ResponseWriter, r *http.Request, s models.State) {
 	params := mux.Vars(r)
 	jobId := params["job_id"]
 
@@ -34,7 +34,7 @@ func UpdateJobState(w http.ResponseWriter, r *http.Request, s job.State) {
 
 	j.State = s
 
-	if s == job.ActiveJob {
+	if s == models.ActiveJob {
 		schedule, err := cron.ParseStandard(j.CronSpec)
 		if err != nil {
 			panic(err)

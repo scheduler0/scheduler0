@@ -2,7 +2,7 @@ package main
 
 import (
 	"cron-server/server/controllers"
-	"cron-server/server/job"
+	"cron-server/server/models"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
@@ -13,11 +13,11 @@ import (
 
 func TestCron(t *testing.T) {
 
-	var j *job.Dto
+	var j *models.Dto
 
 	t.Log("Register and Activate job")
 	{
-		j = &job.Dto{ServiceName: "test"}
+		j = &models.Dto{ServiceName: "test"}
 
 		t.Logf("\t Identify bad request")
 		{

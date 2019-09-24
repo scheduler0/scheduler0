@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"cron-server/server/job"
+	"cron-server/server/models"
 	"cron-server/server/repo"
 	"github.com/robfig/cron"
 	"io/ioutil"
@@ -11,7 +11,7 @@ import (
 
 func RegisterJob(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
-	j := job.FromJson(body)
+	j := models.FromJson(body)
 
 	if err != nil {
 		panic(err)
@@ -51,7 +51,7 @@ func RegisterJob(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	jd.State = job.InActiveJob
+	jd.State = models.InActiveJob
 	jd.NextTime = schedule.Next(jd.StartDate)
 	jd.TotalExecs = -1
 	jd.SecsBetweenExecs = jd.NextTime.Sub(jd.StartDate).Minutes()

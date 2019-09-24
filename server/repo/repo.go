@@ -3,8 +3,8 @@
 package repo
 
 import (
-	"cron-server/server/job"
 	"cron-server/server/misc"
+	"cron-server/server/models"
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
 	"github.com/segmentio/ksuid"
@@ -26,7 +26,7 @@ func Setup() {
 		panic(err)
 	}
 
-	for _, model := range []interface{}{(*job.Job)(nil)} {
+	for _, model := range []interface{}{(*models.Job)(nil)} {
 		err := db.CreateTable(model, &orm.CreateTableOptions{IfNotExists: true})
 		if err != nil {
 			panic(err)
@@ -52,7 +52,7 @@ func Query(response interface{}, query string, params ...interface{}) (pg.Result
 	return res, nil
 }
 
-func CreateOne(jd job.Job) (job.Job, error) {
+func CreateOne(jd models.Job) (models.Job, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -65,13 +65,13 @@ func CreateOne(jd job.Job) (job.Job, error) {
 
 	_, err := db.Model(&jd).Insert()
 	if err != nil {
-		return job.Job{}, err
+		return models.Job{}, err
 	}
 
 	return GetOne(jd.ID)
 }
 
-func GetOne(jobId string) (job.Job, error) {
+func GetOne(jobId string) (models.Job, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -80,7 +80,7 @@ func GetOne(jobId string) (job.Job, error) {
 	})
 	defer db.Close()
 
-	jd := job.Job{}
+	jd := models.Job{}
 
 	err := db.Model(&jd).Where("id = ?", jobId).Select()
 	if err != nil {
@@ -90,7 +90,7 @@ func GetOne(jobId string) (job.Job, error) {
 	return jd, nil
 }
 
-func GetAll(jobServiceName string) ([]job.Job, error) {
+func GetAll(jobServiceName string) ([]models.Job, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -99,7 +99,7 @@ func GetAll(jobServiceName string) ([]job.Job, error) {
 	})
 	defer db.Close()
 
-	var jds []job.Job
+	var jds []models.Job
 
 	err := db.Model(&jds).Where("service_name = ?", jobServiceName).Select()
 	if err != nil {
@@ -109,7 +109,7 @@ func GetAll(jobServiceName string) ([]job.Job, error) {
 	return jds, nil
 }
 
-func UpdateOne(updates job.Job) (job.Job, error) {
+func UpdateOne(updates models.Job) (models.Job, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -133,7 +133,7 @@ func UpdateOne(updates job.Job) (job.Job, error) {
 	return job, nil
 }
 
-func DeleteOne(jobId string) (job.Job, error) {
+func DeleteOne(jobId string) (models.Job, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,

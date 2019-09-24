@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"cron-server/server/job"
+	"cron-server/server/models"
 	"cron-server/server/repo"
 	"encoding/json"
 	"github.com/gorilla/mux"
@@ -21,7 +21,7 @@ func FetchJob(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	var jobs []job.Dto
+	var jobs []models.Dto
 	for _, jd := range jds {
 		jobs = append(jobs, jd.ToDto())
 	}

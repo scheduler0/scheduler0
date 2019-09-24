@@ -9,6 +9,6 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/robfig/cron v1.2.0
 	github.com/segmentio/ksuid v1.0.2
-	github.com/stretchr/testify v1.4.0 // indirect
+	github.com/stretchr/testify v1.4.0
 	mellium.im/sasl v0.2.1 // indirect
 )
