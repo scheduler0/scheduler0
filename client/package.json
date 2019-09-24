@@ -49,7 +49,8 @@
     "tslint": "^5.20.0",
     "typescript": "^3.6.3",
     "webpack": "^4.40.2",
-    "webpack-cli": "^3.3.9"
+    "webpack-cli": "^3.3.9",
+    "webpack-node-externals": "^1.7.2"
   },
   "scripts": {
     "bnode": "babel-node --extensions '.ts,.tsx' src/server.tsx",
@@ -59,9 +60,9 @@
     "type-check": "tsc",
     "lint": "tslint \"./src/**/*.ts(x)\"",
     "build-react": "cross-env NODE_ENV=production webpack --progress -p",
-    "build-node": "babel src -d build --config-file ./babel-node.config.js --copy-files",
+    "build-node": "cross-env NODE_ENV=production webpack --env prod --config config.prod.js",
     "build": "npm install && npm run build-react && npm run build-node",
-    "prod-start": "cross-env NODE_ENV=production NODE_PATH=./build babel-node --extensions '.ts,.tsx' src/server.tsx"
+    "prod-start": "cross-env NODE_ENV=production NODE_PATH=./build node build/server.js"
   },
   "author": "Victor Nwaokocha",
   "license": "ISC"
