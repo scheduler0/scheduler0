@@ -1,3 +1,5 @@
+require('dotenv').config()
+
 import path from 'path'
 import express from 'express'
 import helmet from 'helmet'
@@ -11,7 +13,7 @@ const app = express()
 const config = require('../webpack.config.js');
 const compiler = webpack(config);
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 4323;
 const isDev = process.env.NODE_ENV === 'development';
 
 app.use(webpackDevMiddleware(compiler, {
@@ -21,8 +23,9 @@ app.use(webpackDevMiddleware(compiler, {
     historyApiFallback: true
 }));
 
-app.use(require("webpack-hot-middleware")(compiler));
-
+if (isDev) {
+    app.use(require("webpack-hot-middleware")(compiler));
+}
 
 app.use('/public', express.static(path.join(__dirname, '/public')));
 app.use(helmet());

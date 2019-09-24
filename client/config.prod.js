@@ -2,22 +2,25 @@ require('dotenv').config()
 
 const path = require("path")
 const webpack = require('webpack');
+const nodeExternals = require('webpack-node-externals');
+
+console.log('process.env.PORT', process.env.PORT);
 
 module.exports = {
-    entry: process.env.NODE_ENV === 'development' ? [
-        "webpack-hot-middleware/client?path=http://localhost:"+process.env.PORT+"/__webpack_hmr",
-        "./src/client.tsx",
-    ] : ["./src/client.tsx"],
-    watch: process.env.NODE_ENV === 'development',
-    mode: process.env.NODE_ENV,
-    devtool: "source-map",
-    target: "web",
+    entry: ['./src/server.tsx'],
+    watch: false,
+    mode: "production",
+    target: "node",
+    externals: [nodeExternals()],
+    node: {
+        __filename: true,
+        __dirname: true
+    },
     module: {
         rules: [
             {
                 test: /\.(js|ts)x?$/,
                 use: [
-                    "react-hot-loader/webpack",
                     {
                         loader: "babel-loader",
                         options: {
@@ -28,7 +31,6 @@ module.exports = {
                                 "@babel/preset-typescript"
                             ],
                             plugins: [
-                                "react-hot-loader/babel",
                                 "transform-regenerator",
                                 "@babel/plugin-syntax-dynamic-import",
                                 ["@babel/plugin-transform-runtime", { useESModules: true }],
@@ -52,12 +54,11 @@ module.exports = {
 
     plugins: [
         new webpack.optimize.OccurrenceOrderPlugin(),
-        new webpack.HotModuleReplacementPlugin(),
         new webpack.NoEmitOnErrorsPlugin(),
         new webpack.DefinePlugin({
             "process.env": {
                 NODE_ENV: JSON.stringify(process.env.NODE_ENV),
-                PORT: JSON.stringify(process.env.PORT)
+                PORT: JSON.stringify(process.env.PORT),
             }
         }),
     ],
@@ -71,8 +72,7 @@ module.exports = {
     },
 
     output: {
-        path: path.resolve(__dirname, "src/public/dist"),
-        filename: "bundle.js",
-        publicPath: '/public/dist/'
+        path: path.resolve(__dirname, "build"),
+        filename: "server.js",
     },
-}
+};

@@ -46,7 +46,7 @@ func GetPostgresCredentials() *PostgresCredentials {
 	}
 
 	if len(pass) > 0 {
-		psgc.Password = addr
+		psgc.Password = pass
 	}
 
 	if len(db) > 0 {

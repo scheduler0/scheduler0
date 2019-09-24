@@ -1,7 +1,7 @@
 package repo
 
 import (
-	"cron-server/job"
+	"cron-server/server/job"
 	"testing"
 	"time"
 )

@@ -1,0 +1,52 @@
+version: '3.7'
+
+services:
+
+  server:
+    build:
+      network: host
+      context: ./server
+      dockerfile: Dockerfile.dev
+      args:
+        POSTGRES_ADDRESS: postgres:5432
+        POSTGRES_PASSWORD: postgres
+        POSTGRES_DATABASE: postgres
+    ports:
+      - "4321:4321"
+    depends_on:
+      - postgres
+    networks:
+      - default
+    environment:
+      POSTGRES_ADDRESS: "postgres:5432"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DATABASE: "postgres"
+
+  client:
+    build:
+      context: ./client
+      args:
+        PORT: 4327
+    ports:
+      - "4327:4327"
+    depends_on:
+      - server
+    networks:
+      - default
+
+  postgres:
+    image: mdillon/postgis
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: postgres
+
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

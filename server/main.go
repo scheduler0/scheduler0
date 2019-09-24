@@ -1,10 +1,10 @@
 package main
 
 import (
-	"cron-server/controllers"
-	"cron-server/misc"
-	"cron-server/process"
-	"cron-server/repo"
+	"cron-server/server/controllers"
+	"cron-server/server/misc"
+	"cron-server/server/process"
+	"cron-server/server/repo"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"

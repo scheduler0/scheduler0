@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"cron-server/job"
-	"cron-server/repo"
+	"cron-server/server/job"
+	"cron-server/server/repo"
 	"github.com/robfig/cron"
 	"io/ioutil"
 	"log"

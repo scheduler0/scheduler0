@@ -15,7 +15,7 @@ const htmlString = (body, css, data) => `
         <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/normalize.css@8.0.1/normalize.css" />
         <style id="jss-server-side">${css}</style>
-        <title>Cron</title>
+        <title>Cron Server</title>
     </head>
     <body>
         <noscript>

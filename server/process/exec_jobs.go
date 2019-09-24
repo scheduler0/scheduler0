@@ -1,8 +1,8 @@
 package process
 
 import (
-	"cron-server/job"
-	"cron-server/misc"
+	"cron-server/server/job"
+	"cron-server/server/misc"
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/go-redis/redis"

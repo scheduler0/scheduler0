@@ -19,6 +19,7 @@
     "webpack-hot-middleware": "^2.25.0"
   },
   "devDependencies": {
+    "@babel/cli": "^7.6.0",
     "@babel/core": "^7.6.0",
     "@babel/node": "^7.6.1",
     "@babel/plugin-proposal-class-properties": "^7.5.5",
@@ -48,15 +49,20 @@
     "tslint": "^5.20.0",
     "typescript": "^3.6.3",
     "webpack": "^4.40.2",
-    "webpack-cli": "^3.3.9"
+    "webpack-cli": "^3.3.9",
+    "webpack-node-externals": "^1.7.2"
   },
   "scripts": {
     "bnode": "babel-node --extensions '.ts,.tsx' src/server.tsx",
     "start": "concurrently \"npm run dev-server\" \"npm run dev-bundle\"",
-    "dev-server": "cross-env PORT=4322 NODE_ENV=development NODE_PATH=./src cross-env nodemon --exec \"npm run bnode\" --ignore public/",
+    "dev-server": "cross-env NODE_ENV=development NODE_PATH=./src cross-env nodemon --exec \"npm run bnode\" --ignore public/",
     "dev-bundle": "webpack -wd",
     "type-check": "tsc",
-    "lint": "tslint \"./src/**/*.ts(x)\""
+    "lint": "tslint \"./src/**/*.ts(x)\"",
+    "build-react": "cross-env NODE_ENV=production webpack --progress -p",
+    "build-node": "cross-env NODE_ENV=production webpack --env prod --config config.prod.js",
+    "build": "npm install && npm run build-react && npm run build-node",
+    "prod-start": "cross-env NODE_ENV=production NODE_PATH=./build node build/server.js"
   },
   "author": "Victor Nwaokocha",
   "license": "ISC"

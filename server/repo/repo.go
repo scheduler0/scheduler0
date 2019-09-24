@@ -3,8 +3,8 @@
 package repo
 
 import (
-	"cron-server/job"
-	"cron-server/misc"
+	"cron-server/server/job"
+	"cron-server/server/misc"
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
 	"github.com/segmentio/ksuid"
