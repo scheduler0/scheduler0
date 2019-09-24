@@ -1,0 +1,24 @@
+FROM golang:1.13
+
+MAINTAINER Victor Nwaokocha
+
+RUN mkdir app
+WORKDIR app
+
+ARG PORT
+ARG POSTGRES_ADDRESS
+ARG POSTGRES_PASSWORD
+ARG POSTGRES_DATABASE
+ARG REDIS_ADDRESS
+
+COPY . .
+
+RUN go build
+
+RUN ls
+
+RUN chmod +x ./server
+
+EXPOSE 4321
+
+ENTRYPOINT ./server

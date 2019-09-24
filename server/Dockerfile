@@ -2,8 +2,6 @@ FROM golang:1.13
 
 MAINTAINER Victor Nwaokocha
 
-RUN apt-get install git
-
 RUN mkdir app
 WORKDIR app
 
