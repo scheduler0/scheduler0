@@ -100,3 +100,13 @@ func (_ *JobController) GetOne(w http.ResponseWriter, r *http.Request) {
 func (_ *JobController) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	basicJobController.DeleteOne(w, r)
 }
+
+func (c *JobController) GetAllOrCreateOne(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		c.GetAll(w, r)
+	}
+
+	if r.Method == http.MethodPost {
+		c.CreateOne(w, r)
+	}
+}

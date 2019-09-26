@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-
 	// Setup logging
 	log.SetFlags(0)
 	log.SetOutput(new(misc.LogWriter))
@@ -31,7 +30,7 @@ func main() {
 	// Start process to update missed jobs
 	go func() {
 		for {
-			go process.FixStaleJobs()
+			go process.UpdateMissedJobs()
 			time.Sleep(time.Second * 1)
 		}
 	}()
@@ -44,29 +43,13 @@ func main() {
 	projectController := controllers.ProjectController{}
 
 	// Job Endpoint
-	router.HandleFunc("/jobs/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			jobController.GetAll(w, r)
-		}
-
-		if r.Method == http.MethodPost {
-			jobController.CreateOne(w, r)
-		}
-	}).Methods(http.MethodPost, http.MethodGet)
+	router.HandleFunc("/jobs/", jobController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)
 	router.HandleFunc("/jobs/{id}", jobController.GetOne).Methods(http.MethodGet)
 	router.HandleFunc("/jobs/{id}", jobController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/jobs/{id}", jobController.DeleteOne).Methods(http.MethodDelete)
 
 	// Projects Endpoint
-	router.HandleFunc("/projects", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			projectController.GetAll(w, r)
-		}
-
-		if r.Method == http.MethodPost {
-			projectController.CreateOne(w, r)
-		}
-	}).Methods(http.MethodPost, http.MethodGet)
+	router.HandleFunc("/projects", projectController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)
 	router.HandleFunc("/projects/{id}", projectController.GetOne).Methods(http.MethodGet)
 	router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
