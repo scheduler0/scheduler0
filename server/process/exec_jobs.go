@@ -1,8 +1,8 @@
 package process
 
 import (
-	"cron-server/server/job"
 	"cron-server/server/misc"
+	"cron-server/server/models"
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/go-redis/redis"
@@ -30,7 +30,7 @@ func ExecuteJobs() {
 	})
 	defer db.Close()
 
-	var jobs []job.Job
+	var jobs []models.Job
 
 	query := fmt.Sprintf("SELECT * FROM jobs WHERE "+
 		// Difference in minute
@@ -43,18 +43,15 @@ func ExecuteJobs() {
 		// Difference in day
 		"date_part('day', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') = 0 AND "+
 		// Should be active
-		"jobs.state = %v OR jobs.state = %v", job.ActiveJob, job.StaleJob)
+		"jobs.state = %v OR jobs.state = %v", models.ActiveJob, models.StaleJob)
 
 	r, err := db.Query(&jobs, query)
-
-	if err != nil {
-		panic(err)
-	}
+	misc.CheckErr(err)
 
 	log.Println("Jobs ::", r.RowsReturned())
 
 	for _, jb := range jobs {
-		go func(j job.Job) {
+		go func(j models.Job) {
 			db := pg.Connect(&pg.Options{
 				Addr:     psgc.Addr,
 				User:     psgc.User,
@@ -63,25 +60,19 @@ func ExecuteJobs() {
 			})
 			defer db.Close()
 
-			log.Println("Publish message to job", j.ServiceName, j.ID)
-			channel := "job:" + j.ServiceName + ":" + j.ID
+			log.Println("Publish message to job", j.ProjectId, j.ID)
+			channel := "job:" + j.ProjectId + ":" + j.ID
 			client.Publish(channel, j)
 
 			schedule, err := cron.ParseStandard(j.CronSpec)
-			if err != nil {
-				panic(err)
-			}
+			misc.CheckErr(err)
 
 			j.NextTime = schedule.Next(j.NextTime)
 			j.TotalExecs = j.TotalExecs + 1
 
 			_, err = db.Model(&j).Set("next_time = ?next_time").Set("total_execs = ?total_execs").Set("state = ?state").Where("id = ?id").Update()
-
+			misc.CheckErr(err)
 			log.Println("Updated job with id ", j.ID, " next time to ", j.NextTime)
-
-			if err != nil {
-				panic(err)
-			}
 		}(jb)
 	}
 }

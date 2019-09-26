@@ -4,7 +4,7 @@ import (
 	"cron-server/server/controllers"
 	"cron-server/server/misc"
 	"cron-server/server/process"
-	"cron-server/server/repo"
+	"cron-server/server/repository"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -17,8 +17,8 @@ func main() {
 	log.SetFlags(0)
 	log.SetOutput(new(misc.LogWriter))
 
-	// Create database and set time zone
-	repo.Setup()
+	// Set time zone, create database and run migrations
+	repository.Setup()
 
 	// Start process to execute cron-server jobs
 	go func() {
@@ -39,14 +39,38 @@ func main() {
 	// HTTP router setup
 	router := mux.NewRouter()
 
-	router.HandleFunc("/job/{service_name}", controllers.FetchJob).Methods("GET")
-	router.HandleFunc("/register", controllers.RegisterJob).Methods("POST")
-	router.HandleFunc("/activate/{job_id}", controllers.ActivateJob).Methods("PUT")
-	router.HandleFunc("/deactivate/{job_id}", controllers.DeactivateJob).Methods("PUT")
-	router.HandleFunc("/unregister/{job_id}", controllers.UnRegisterJob).Methods("POST")
+	// Initialize controllers
+	jobController := controllers.JobController{}
+	projectController := controllers.ProjectController{}
+
+	// Job Endpoint
+	router.HandleFunc("/jobs/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			jobController.GetAll(w, r)
+		}
+
+		if r.Method == http.MethodPost {
+			jobController.CreateOne(w, r)
+		}
+	}).Methods(http.MethodPost, http.MethodGet)
+	router.HandleFunc("/jobs/{id}", jobController.GetOne).Methods(http.MethodGet)
+	router.HandleFunc("/jobs/{id}", jobController.UpdateOne).Methods(http.MethodPut)
+	router.HandleFunc("/jobs/{id}", jobController.DeleteOne).Methods(http.MethodDelete)
+
+	// Projects Endpoint
+	router.HandleFunc("/projects", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			projectController.GetAll(w, r)
+		}
+
+		if r.Method == http.MethodPost {
+			projectController.CreateOne(w, r)
+		}
+	}).Methods(http.MethodPost, http.MethodGet)
+	router.HandleFunc("/projects/{id}", projectController.GetOne).Methods(http.MethodGet)
+	router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
+	router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
 
 	err := http.ListenAndServe(misc.GetPort(), router)
-	if err != nil {
-		panic(err)
-	}
+	misc.CheckErr(err)
 }
