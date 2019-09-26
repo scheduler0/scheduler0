@@ -33,6 +33,8 @@ type Job struct {
 	MissedExecs      int64     `json:"missed_execs"`
 	SecsBetweenExecs float64   `json:"secs_between_execs,omitempty"`
 	Data             string    `json:"data,omitempty"`
+	CallbackUrl      string    `json:"callback_url"`
+	LastStatusCode   int       `json:"last_status_code"`
 	State            State     `json:"state,omitempty"`
 	StartDate        time.Time `json:"total_execs,omitempty"`
 	EndDate          time.Time `json:"end_date,omitempty"`

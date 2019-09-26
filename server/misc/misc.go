@@ -15,10 +15,6 @@ type PostgresCredentials struct {
 	Database string
 }
 
-type RedisCredentials struct {
-	Addr string
-}
-
 type LogWriter struct{}
 
 func GetPort() string {
@@ -61,17 +57,6 @@ func GetPostgresCredentials() *PostgresCredentials {
 	}
 
 	return psgc
-}
-
-func GetRedisCredentials() *RedisCredentials {
-	rc := &RedisCredentials{Addr: "localhost:6379"}
-	addr := os.Getenv("REDIS_ADDRESS")
-
-	if len(addr) > 0 {
-		rc.Addr = addr
-	}
-
-	return rc
 }
 
 func (writer LogWriter) Write(bytes []byte) (int, error) {
