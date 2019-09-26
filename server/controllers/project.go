@@ -48,3 +48,13 @@ func (_ *ProjectController) DeleteOne(w http.ResponseWriter, r *http.Request) {
 func (_ *ProjectController) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	basicProjectController.UpdateOne(w, r)
 }
+
+func (c *ProjectController) GetAllOrCreateOne(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		c.GetAll(w, r)
+	}
+
+	if r.Method == http.MethodPost {
+		c.CreateOne(w, r)
+	}
+}
