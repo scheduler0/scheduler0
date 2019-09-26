@@ -3,6 +3,7 @@ package models
 import (
 	"cron-server/server/misc"
 	"encoding/json"
+	"errors"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
 	"reflect"
@@ -41,6 +42,30 @@ type Job struct {
 	NextTime         time.Time `json:"next_time,omitempty"`
 }
 
+type InboundJob struct {
+	ID               string    `json:"id,omitempty"`
+	ProjectId        string    `json:"project_id"`
+	CronSpec         string    `json:"cron_spec,omitempty"`
+	Data             string    `json:"data,omitempty"`
+	CallbackUrl      string    `json:"callback_url"`
+	State            State     `json:"state,omitempty"`
+	StartDate        time.Time `json:"total_execs,omitempty"`
+	EndDate          time.Time `json:"end_date,omitempty"`
+}
+
+func (i *InboundJob) ToModel() Job {
+	return Job{
+		ID: 			i.ID,
+		ProjectId: 		i.ProjectId,
+		CronSpec: 		i.CronSpec,
+		Data: 			i.Data,
+		CallbackUrl: 	i.CallbackUrl,
+		State: 			i.State,
+		StartDate: 		i.StartDate,
+		EndDate: 		i.EndDate,
+	}
+}
+
 var psgc = misc.GetPostgresCredentials()
 
 func (jd *Job) SetId(id string) {
@@ -55,6 +80,11 @@ func (jd *Job) CreateOne() (string, error) {
 		Database: psgc.Database,
 	})
 	defer db.Close()
+
+	if len(jd.ProjectId) > 1 {
+		err := errors.New("project id is not sets")
+		misc.CheckErr(err)
+	}
 
 	jd.ID = ksuid.New().String()
 
