@@ -1,7 +1,11 @@
 package models
 
 import (
+	"cron-server/server/misc"
 	"encoding/json"
+	"github.com/go-pg/pg"
+	"github.com/segmentio/ksuid"
+	"reflect"
 	"time"
 )
 
@@ -11,7 +15,6 @@ import (
 	- InActive: 1
 	- Active:   2
 	- Stale:   -1
-
 */
 type State int
 
@@ -21,23 +24,13 @@ const (
 	StaleJob
 )
 
-// Inbound and outbound data transfer object for job
-type Dto struct {
-	ID          string    `json:"id"`
-	CronSpec    string    `json:"cron_spec"`
-	ServiceName string    `json:"service_name"`
-	Data        string    `json:"data"`
-	NextTime    time.Time `json:"next_time"`
-	StartDate   time.Time `json:"start_date"`
-	EndDate     time.Time `json:"end_date"`
-}
-
 // Job domain internal representation of job
 type Job struct {
 	ID               string    `json:"id,omitempty"`
+	ProjectId        string    `json:"project_id"`
 	CronSpec         string    `json:"cron_spec,omitempty"`
-	ServiceName      string    `json:"id,omitempty"`
 	TotalExecs       int64     `json:"total_execs,omitempty"`
+	MissedExecs      int64     `json:"missed_execs"`
 	SecsBetweenExecs float64   `json:"secs_between_execs,omitempty"`
 	Data             string    `json:"data,omitempty"`
 	State            State     `json:"state,omitempty"`
@@ -46,50 +39,117 @@ type Job struct {
 	NextTime         time.Time `json:"next_time,omitempty"`
 }
 
-func (j *Dto) ToDomain() Job {
-	jd := Job{
-		ID:          j.ID,
-		CronSpec:    j.CronSpec,
-		ServiceName: j.ServiceName,
-		StartDate:   j.StartDate,
-		EndDate:     j.EndDate,
-		Data:        j.Data,
-	}
+var psgc = misc.GetPostgresCredentials()
 
-	return jd
+func (jd *Job) SetId(id string) {
+	jd.ID = id
 }
 
-func (j *Dto) ToJson() string {
-	job, err := json.Marshal(j)
+func (jd *Job) CreateOne() (string, error) {
+	db := pg.Connect(&pg.Options{
+		Addr:     psgc.Addr,
+		User:     psgc.User,
+		Password: psgc.Password,
+		Database: psgc.Database,
+	})
+	defer db.Close()
+
+	jd.ID = ksuid.New().String()
+
+	_, err := db.Model(jd).Insert()
+	if err != nil {
+		return "", err
+	}
+
+	return jd.ID, nil
+}
+
+func (jd *Job) GetOne() error {
+	db := pg.Connect(&pg.Options{
+		Addr:     psgc.Addr,
+		User:     psgc.User,
+		Password: psgc.Password,
+		Database: psgc.Database,
+	})
+	defer db.Close()
+
+	err := db.Model(jd).Where("id = ?", jd.ID).Select()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (jd *Job) GetAll() (interface{}, error) {
+	db := pg.Connect(&pg.Options{
+		Addr:     psgc.Addr,
+		User:     psgc.User,
+		Password: psgc.Password,
+		Database: psgc.Database,
+	})
+	defer db.Close()
+
+	var jobs []Job
+
+	err := db.Model(&jobs).Where("project_id =", jd.ID).Select()
+	if err != nil {
+		return jobs, err
+	}
+
+	vp := reflect.New(reflect.TypeOf(jobs))
+	vp.Elem().Set(reflect.ValueOf(jobs))
+	return vp.Interface(), nil
+}
+
+func (jd *Job) UpdateOne() error {
+	db := pg.Connect(&pg.Options{
+		Addr:     psgc.Addr,
+		User:     psgc.User,
+		Password: psgc.Password,
+		Database: psgc.Database,
+	})
+	defer db.Close()
+
+	err := db.Update(jd)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (jd *Job) DeleteOne() error {
+	db := pg.Connect(&pg.Options{
+		Addr:     psgc.Addr,
+		User:     psgc.User,
+		Password: psgc.Password,
+		Database: psgc.Database,
+	})
+	defer db.Close()
+
+	_, err := db.Model(jd).Where("id = ?", jd.ID).Delete()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (jd *Job) ToJson() []byte {
+	data, err := json.Marshal(jd)
 
 	if err != nil {
 		panic(err)
 	}
 
-	return string(job)
+	return data
 }
 
-func FromJson(body []byte) Dto {
-	job := Dto{}
-	err := json.Unmarshal(body, &job)
+func (jd *Job) FromJson(body []byte) {
+	err := json.Unmarshal(body, &jd)
 
 	if err != nil {
 		panic(err)
 	}
-
-	return job
-}
-
-func (jd *Job) ToDto() Dto {
-	j := Dto{
-		ID:          jd.ID,
-		CronSpec:    jd.CronSpec,
-		NextTime:    jd.NextTime,
-		StartDate:   jd.StartDate,
-		EndDate:     jd.EndDate,
-		Data:        jd.Data,
-		ServiceName: jd.ServiceName,
-	}
-
-	return j
 }
