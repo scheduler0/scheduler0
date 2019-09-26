@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func FixStaleJobs() {
+func UpdateMissedJobs() {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -57,8 +57,13 @@ func FixStaleJobs() {
 
 					j.NextTime = scheduledTimeBasedOnNow
 					j.TotalExecs = execCountToNow
+					j.MissedExecs = j.MissedExecs + execCountDiff
 
-					_, err := db.Model(&j).Set("next_time = ?next_time").Set("total_execs = ?total_execs").Where("id = ?id").Update()
+					_, err := db.Model(&j).
+						Set("next_time = ?next_time").
+						Set("total_execs = ?total_execs").
+						Set("missed_execs =  ?missed_execs").
+						Where("id = ?id").Update()
 
 					if err != nil {
 						panic(err)
