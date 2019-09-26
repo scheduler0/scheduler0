@@ -31,7 +31,7 @@ func main() {
 	// Start process to update missed jobs
 	go func() {
 		for {
-			go process.FixStaleJobs()
+			go process.UpdateMissedJobs()
 			time.Sleep(time.Second * 1)
 		}
 	}()
