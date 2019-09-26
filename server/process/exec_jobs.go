@@ -42,36 +42,40 @@ func ExecuteJobs() {
 		// Should be active
 		"jobs.state = %v OR jobs.state = %v", models.ActiveJob, models.StaleJob)
 
-	r, err := db.Query(&jobs, query)
+	_, err := db.Query(&jobs, query)
 	misc.CheckErr(err)
 
-	log.Println("Jobs ::", r.RowsReturned())
-
 	for _, jb := range jobs {
-		go func(j models.Job) {
-			db := pg.Connect(&pg.Options{
-				Addr:     psgc.Addr,
-				User:     psgc.User,
-				Password: psgc.Password,
-				Database: psgc.Database,
-			})
-			defer db.Close()
+		if len(jb.CallbackUrl) > 1 {
+			go func(job models.Job) {
+				db := pg.Connect(&pg.Options{
+					Addr:     psgc.Addr,
+					User:     psgc.User,
+					Password: psgc.Password,
+					Database: psgc.Database,
+				})
+				defer db.Close()
 
-			if len(j.CallbackUrl) > 1 {
-				r, err := http.Post(http.MethodPost, j.CallbackUrl, strings.NewReader(j.Data))
+				r, err := http.Post(http.MethodPost, job.CallbackUrl, strings.NewReader(job.Data))
 				misc.CheckErr(err)
-				j.LastStatusCode = r.StatusCode
-			}
+				job.LastStatusCode = r.StatusCode
 
-			schedule, err := cron.ParseStandard(j.CronSpec)
-			misc.CheckErr(err)
+				schedule, err := cron.ParseStandard(job.CronSpec)
+				misc.CheckErr(err)
 
-			j.NextTime = schedule.Next(j.NextTime)
-			j.TotalExecs = j.TotalExecs + 1
+				job.NextTime = schedule.Next(job.NextTime)
+				job.TotalExecs = job.TotalExecs + 1
 
-			_, err = db.Model(&j).Set("next_time = ?next_time").Set("total_execs = ?total_execs").Set("state = ?state").Where("id = ?id").Update()
-			misc.CheckErr(err)
-			log.Println("Updated job with id ", j.ID, " next time to ", j.NextTime)
-		}(jb)
+				_, err = db.Model(&job).Set("next_time = ?next_time").
+					Set("total_execs = ?total_execs").
+					Set("state = ?state").
+					Set("last_status_code = ?last_status_code").
+					Where("id = ?id").
+					Update()
+
+				misc.CheckErr(err)
+				log.Println("Updated job with id ", job.ID, " next time to ", job.NextTime)
+			}(jb)
+		}
 	}
 }
