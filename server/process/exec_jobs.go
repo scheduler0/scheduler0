@@ -7,6 +7,8 @@ import (
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
 	"log"
+	"net/http"
+	"strings"
 )
 
 /*
@@ -55,8 +57,11 @@ func ExecuteJobs() {
 			})
 			defer db.Close()
 
-			log.Println("Publish message to job", j.ProjectId, j.ID)
-			// TODO: Send http request to project callback url
+			if len(j.CallbackUrl) > 1 {
+				r, err := http.Post(http.MethodPost, j.CallbackUrl, strings.NewReader(j.Data))
+				misc.CheckErr(err)
+				j.LastStatusCode = r.StatusCode
+			}
 
 			schedule, err := cron.ParseStandard(j.CronSpec)
 			misc.CheckErr(err)
