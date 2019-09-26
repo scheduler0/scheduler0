@@ -1,7 +1,7 @@
 package process
 
 import (
-	"cron-server/server/job"
+	"cron-server/server/models"
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
@@ -18,8 +18,8 @@ func FixStaleJobs() {
 	})
 	defer db.Close()
 
-	var jobs []job.Job
-	query := fmt.Sprintf("SELECT * FROM jobs WHERE jobs.state = %v", job.ActiveJob)
+	var jobs []models.Job
+	query := fmt.Sprintf("SELECT * FROM jobs WHERE jobs.state = %v", models.ActiveJob)
 
 	_, err := db.Query(&jobs, query)
 	if err != nil {
@@ -27,7 +27,7 @@ func FixStaleJobs() {
 	}
 
 	for _, jd := range jobs {
-		go func(j job.Job) {
+		go func(j models.Job) {
 			schedule, err := cron.ParseStandard(j.CronSpec)
 			if err != nil {
 				panic(err)
