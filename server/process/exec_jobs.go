@@ -45,13 +45,8 @@ func ExecuteJobs() {
 		// Should be active
 		"jobs.state = %v OR jobs.state = %v", models.ActiveJob, models.StaleJob)
 
-
-
 	r, err := db.Query(&jobs, query)
-
-	if err != nil {
-		panic(err)
-	}
+	misc.CheckErr(err)
 
 	log.Println("Jobs ::", r.RowsReturned())
 
@@ -65,25 +60,19 @@ func ExecuteJobs() {
 			})
 			defer db.Close()
 
-			log.Println("Publish message to job", j.ServiceName, j.ID)
-			channel := "job:" + j.ServiceName + ":" + j.ID
+			log.Println("Publish message to job", j.ProjectId, j.ID)
+			channel := "job:" + j.ProjectId + ":" + j.ID
 			client.Publish(channel, j)
 
 			schedule, err := cron.ParseStandard(j.CronSpec)
-			if err != nil {
-				panic(err)
-			}
+			misc.CheckErr(err)
 
 			j.NextTime = schedule.Next(j.NextTime)
 			j.TotalExecs = j.TotalExecs + 1
 
 			_, err = db.Model(&j).Set("next_time = ?next_time").Set("total_execs = ?total_execs").Set("state = ?state").Where("id = ?id").Update()
-
+			misc.CheckErr(err)
 			log.Println("Updated job with id ", j.ID, " next time to ", j.NextTime)
-
-			if err != nil {
-				panic(err)
-			}
 		}(jb)
 	}
 }
