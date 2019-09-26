@@ -1,7 +1,9 @@
 package misc
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 )
@@ -38,6 +40,7 @@ func GetPostgresCredentials() *PostgresCredentials {
 	}
 
 	addr := os.Getenv("POSTGRES_ADDRESS")
+	user := os.Getenv("POSTGRES_USER")
 	pass := os.Getenv("POSTGRES_PASSWORD")
 	db := os.Getenv("POSTGRES_DATABASE")
 
@@ -51,6 +54,10 @@ func GetPostgresCredentials() *PostgresCredentials {
 
 	if len(db) > 0 {
 		psgc.Database = db
+	}
+
+	if len(user) > 0 {
+		psgc.User = user
 	}
 
 	return psgc
@@ -69,4 +76,37 @@ func GetRedisCredentials() *RedisCredentials {
 
 func (writer LogWriter) Write(bytes []byte) (int, error) {
 	return fmt.Print(time.Now().UTC().Format("2006-01-02 15:04:05") + " [DEBUG] " + string(bytes))
+}
+
+type Response struct {
+	Data interface{} `json:"data"`
+}
+
+func (r *Response) ToJson() []byte {
+	data, err := json.Marshal(r)
+	if err != nil {
+		panic(err)
+	}
+	return data
+}
+
+func SendJson(w http.ResponseWriter, data interface{}, status int, headers map[string]string) {
+	resObj := Response{Data: data}
+	w.Header().Add("Content-Type", "application/json")
+
+	if headers != nil {
+		for header, val := range headers {
+			w.Header().Add(header, val)
+		}
+	}
+
+	w.WriteHeader(status)
+	_, err := w.Write(resObj.ToJson())
+	CheckErr(err)
+}
+
+func CheckErr(e error) {
+	if e != nil {
+		panic(e)
+	}
 }
