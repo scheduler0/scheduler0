@@ -6,7 +6,6 @@ import (
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
-	"reflect"
 	"time"
 )
 
@@ -43,26 +42,26 @@ type Job struct {
 }
 
 type InboundJob struct {
-	ID               string    `json:"id,omitempty"`
-	ProjectId        string    `json:"project_id"`
-	CronSpec         string    `json:"cron_spec,omitempty"`
-	Data             string    `json:"data,omitempty"`
-	CallbackUrl      string    `json:"callback_url"`
-	State            State     `json:"state,omitempty"`
-	StartDate        time.Time `json:"total_execs,omitempty"`
-	EndDate          time.Time `json:"end_date,omitempty"`
+	ID          string    `json:"id,omitempty"`
+	ProjectId   string    `json:"project_id"`
+	CronSpec    string    `json:"cron_spec,omitempty"`
+	Data        string    `json:"data,omitempty"`
+	CallbackUrl string    `json:"callback_url"`
+	State       State     `json:"state,omitempty"`
+	StartDate   time.Time `json:"total_execs,omitempty"`
+	EndDate     time.Time `json:"end_date,omitempty"`
 }
 
 func (i *InboundJob) ToModel() Job {
 	return Job{
-		ID: 			i.ID,
-		ProjectId: 		i.ProjectId,
-		CronSpec: 		i.CronSpec,
-		Data: 			i.Data,
-		CallbackUrl: 	i.CallbackUrl,
-		State: 			i.State,
-		StartDate: 		i.StartDate,
-		EndDate: 		i.EndDate,
+		ID:          i.ID,
+		ProjectId:   i.ProjectId,
+		CronSpec:    i.CronSpec,
+		Data:        i.Data,
+		CallbackUrl: i.CallbackUrl,
+		State:       i.State,
+		StartDate:   i.StartDate,
+		EndDate:     i.EndDate,
 	}
 }
 
@@ -81,14 +80,31 @@ func (jd *Job) CreateOne() (string, error) {
 	})
 	defer db.Close()
 
-	if len(jd.ProjectId) > 1 {
+	if len(jd.ProjectId) < 1 {
 		err := errors.New("project id is not sets")
-		misc.CheckErr(err)
+		return "", err
+	}
+
+	if jd.StartDate.IsZero() {
+		err := errors.New("start date cannot be zero")
+		return "", err
+	}
+
+	if len(jd.CronSpec) < 1 {
+		err := errors.New("cron spec is required")
+		return "", err
+	}
+
+	projectWithId := Project{ID: jd.ProjectId}
+
+	err := projectWithId.GetOne("id = ?", jd.ProjectId)
+	if err != nil {
+		return "", err
 	}
 
 	jd.ID = ksuid.New().String()
 
-	_, err := db.Model(jd).Insert()
+	_, err = db.Model(jd).Insert()
 	if err != nil {
 		return "", err
 	}
@@ -96,7 +112,7 @@ func (jd *Job) CreateOne() (string, error) {
 	return jd.ID, nil
 }
 
-func (jd *Job) GetOne() error {
+func (jd *Job) GetOne(query string, params interface{}) error {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -105,7 +121,7 @@ func (jd *Job) GetOne() error {
 	})
 	defer db.Close()
 
-	err := db.Model(jd).Where("id = ?", jd.ID).Select()
+	err := db.Model(jd).Where(query, params).Select()
 	if err != nil {
 		return err
 	}
@@ -113,7 +129,7 @@ func (jd *Job) GetOne() error {
 	return nil
 }
 
-func (jd *Job) GetAll() (interface{}, error) {
+func (jd *Job) GetAll(query string, params interface{}) ([]interface{}, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -124,14 +140,18 @@ func (jd *Job) GetAll() (interface{}, error) {
 
 	var jobs []Job
 
-	err := db.Model(&jobs).Where("project_id =", jd.ID).Select()
+	err := db.Model(&jobs).Where(query, params).Select()
 	if err != nil {
-		return jobs, err
+		return []interface{}{}, err
 	}
 
-	vp := reflect.New(reflect.TypeOf(jobs))
-	vp.Elem().Set(reflect.ValueOf(jobs))
-	return vp.Interface(), nil
+	var results = make([]interface{}, len(jobs))
+
+	for i := 0; i < len(jobs); i++ {
+		results[i] = jobs[i]
+	}
+
+	return results, nil
 }
 
 func (jd *Job) UpdateOne() error {
@@ -143,7 +163,16 @@ func (jd *Job) UpdateOne() error {
 	})
 	defer db.Close()
 
-	err := db.Update(jd)
+	var jobPlaceholder Job
+	jobPlaceholder.ID = jd.ID
+
+	err := jobPlaceholder.GetOne("id = ?", jobPlaceholder.ID)
+
+	if jobPlaceholder.CronSpec != jd.CronSpec {
+		return errors.New("cannot update cron spec")
+	}
+
+	err = db.Update(jd)
 	if err != nil {
 		return err
 	}
@@ -151,7 +180,7 @@ func (jd *Job) UpdateOne() error {
 	return nil
 }
 
-func (jd *Job) DeleteOne() error {
+func (jd *Job) DeleteOne() (int, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -160,12 +189,12 @@ func (jd *Job) DeleteOne() error {
 	})
 	defer db.Close()
 
-	_, err := db.Model(jd).Where("id = ?", jd.ID).Delete()
+	r, err := db.Model(jd).Where("id = ?", jd.ID).Delete()
 	if err != nil {
-		return err
+		return -1, err
 	}
 
-	return nil
+	return r.RowsAffected(), nil
 }
 
 func (jd *Job) ToJson() []byte {
