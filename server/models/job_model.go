@@ -28,6 +28,7 @@ const (
 type Job struct {
 	ID               string    `json:"id,omitempty"`
 	ProjectId        string    `json:"project_id"`
+	Description      string    `json:"description"`
 	CronSpec         string    `json:"cron_spec,omitempty"`
 	TotalExecs       int64     `json:"total_execs,omitempty"`
 	MissedExecs      int64     `json:"missed_execs"`
@@ -36,14 +37,16 @@ type Job struct {
 	CallbackUrl      string    `json:"callback_url"`
 	LastStatusCode   int       `json:"last_status_code"`
 	State            State     `json:"state,omitempty"`
-	StartDate        time.Time `json:"total_execs,omitempty"`
+	StartDate        time.Time `json:"start_date,omitempty"`
 	EndDate          time.Time `json:"end_date,omitempty"`
 	NextTime         time.Time `json:"next_time,omitempty"`
+	DateCreated      time.Time `json:"date_created"`
 }
 
 type InboundJob struct {
 	ID          string    `json:"id,omitempty"`
 	ProjectId   string    `json:"project_id"`
+	Description string    `json:"description"`
 	CronSpec    string    `json:"cron_spec,omitempty"`
 	Data        string    `json:"data,omitempty"`
 	CallbackUrl string    `json:"callback_url"`
@@ -97,15 +100,13 @@ func (jd *Job) CreateOne() (string, error) {
 
 	projectWithId := Project{ID: jd.ProjectId}
 
-	err := projectWithId.GetOne("id = ?", jd.ProjectId)
-	if err != nil {
+	if err := projectWithId.GetOne("id = ?", jd.ProjectId); err != nil {
 		return "", err
 	}
 
 	jd.ID = ksuid.New().String()
 
-	_, err = db.Model(jd).Insert()
-	if err != nil {
+	if _, err := db.Model(jd).Insert(); err != nil {
 		return "", err
 	}
 
@@ -121,15 +122,14 @@ func (jd *Job) GetOne(query string, params interface{}) error {
 	})
 	defer db.Close()
 
-	err := db.Model(jd).Where(query, params).Select()
-	if err != nil {
+	if err := db.Model(jd).Where(query, params).Select(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (jd *Job) GetAll(query string, params interface{}) ([]interface{}, error) {
+func (jd *Job) GetAll(query string, params ...string) ([]interface{}, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -140,8 +140,7 @@ func (jd *Job) GetAll(query string, params interface{}) ([]interface{}, error) {
 
 	var jobs []Job
 
-	err := db.Model(&jobs).Where(query, params).Select()
-	if err != nil {
+	if err := db.Model(&jobs).Where(query, params).Select(); err != nil {
 		return []interface{}{}, err
 	}
 
@@ -172,8 +171,7 @@ func (jd *Job) UpdateOne() error {
 		return errors.New("cannot update cron spec")
 	}
 
-	err = db.Update(jd)
-	if err != nil {
+	if err = db.Update(jd); err != nil {
 		return err
 	}
 
@@ -189,12 +187,11 @@ func (jd *Job) DeleteOne() (int, error) {
 	})
 	defer db.Close()
 
-	r, err := db.Model(jd).Where("id = ?", jd.ID).Delete()
-	if err != nil {
+	if r, err := db.Model(jd).Where("id = ?", jd.ID).Delete(); err != nil {
 		return -1, err
+	} else {
+		return r.RowsAffected(), nil
 	}
-
-	return r.RowsAffected(), nil
 }
 
 func (jd *Job) ToJson() []byte {
