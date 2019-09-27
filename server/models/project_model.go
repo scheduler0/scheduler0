@@ -90,6 +90,7 @@ func (p *Project) GetAll(query string, params ...string) ([]interface{}, error) 
 		Database: psgc.Database,
 	})
 	defer db.Close()
+
 	ip := make([]interface{}, len(params))
 
 	for i := 0; i < len(params); i++ {

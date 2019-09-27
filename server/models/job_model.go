@@ -138,9 +138,15 @@ func (jd *Job) GetAll(query string, params ...string) ([]interface{}, error) {
 	})
 	defer db.Close()
 
+	ip := make([]interface{}, len(params))
+
+	for i := 0; i < len(params); i++ {
+		ip[i] = params[i]
+	}
+
 	var jobs []Job
 
-	if err := db.Model(&jobs).Where(query, params).Select(); err != nil {
+	if err := db.Model(&jobs).Where(query, ip...).Select(); err != nil {
 		return []interface{}{}, err
 	}
 
