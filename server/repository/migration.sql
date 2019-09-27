@@ -32,7 +32,7 @@ BEGIN
             WHERE TABLE_NAME='jobs' AND COLUMN_NAME='callback_url')
     THEN
     ELSE
-        ALTER TABLE jobs ADD callback_url int;
+        ALTER TABLE jobs ADD callback_url varchar(255);
     END IF;
 END $$;
 
