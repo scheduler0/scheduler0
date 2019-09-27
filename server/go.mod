@@ -10,5 +10,6 @@ require (
 	github.com/robfig/cron v1.2.0
 	github.com/segmentio/ksuid v1.0.2
 	github.com/stretchr/testify v1.4.0
+	github.com/unrolled/secure v1.0.4
 	mellium.im/sasl v0.2.1 // indirect
 )
