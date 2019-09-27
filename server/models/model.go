@@ -4,10 +4,10 @@ package models
 type Model interface {
 	SetId(id string)
 	CreateOne() (string, error)
-	GetOne() error
-	GetAll() (interface{}, error)
+	GetOne(string, interface{}) error
+	GetAll(string, interface{}) ([]interface{}, error)
 	UpdateOne() error
-	DeleteOne() error
+	DeleteOne() (int, error)
 	FromJson(body []byte)
 	ToJson() []byte
 }
