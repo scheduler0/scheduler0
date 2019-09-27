@@ -6,12 +6,14 @@ import (
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
 	"reflect"
+	"time"
 )
 
 type Project struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	ID          string `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	ID          string    `json:"id"`
+	DateCreated time.Time `json:"date_created"`
 }
 
 func (p *Project) SetId(id string) {
@@ -38,7 +40,7 @@ func (p *Project) CreateOne() (string, error) {
 	}
 
 	var projectWithName = Project{}
-	data, err := projectWithName.GetAll("name LIKE ?", p.Name)
+	data, err := projectWithName.GetAll("name LIKE ?", p.Name+"%")
 
 	vd := reflect.ValueOf(data)
 	projectsWithName := make([]Project, vd.Len())
@@ -53,6 +55,7 @@ func (p *Project) CreateOne() (string, error) {
 	}
 
 	p.ID = ksuid.New().String()
+	p.DateCreated = time.Now().UTC()
 
 	_, err = db.Model(p).Insert()
 	if err != nil {
@@ -79,7 +82,7 @@ func (p *Project) GetOne(query string, params interface{}) error {
 	return nil
 }
 
-func (p *Project) GetAll(query string, params interface{}) ([]interface{}, error) {
+func (p *Project) GetAll(query string, params ...string) ([]interface{}, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -87,9 +90,14 @@ func (p *Project) GetAll(query string, params interface{}) ([]interface{}, error
 		Database: psgc.Database,
 	})
 	defer db.Close()
+	ip := make([]interface{}, len(params))
+
+	for i := 0; i < len(params); i++ {
+		ip[i] = params[i]
+	}
 
 	var projects []Project
-	err := db.Model(&projects).Where(query, params).Select()
+	err := db.Model(&projects).Where(query, ip...).Select()
 	if err != nil {
 		return []interface{}{}, err
 	}
