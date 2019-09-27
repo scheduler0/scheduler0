@@ -57,7 +57,7 @@ func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request
 	}
 
 	model.SetId(id)
-	err := model.GetOne()
+	err := model.GetOne("id = ?", id)
 	misc.CheckErr(err)
 	misc.SendJson(w, model, http.StatusOK, nil)
 }
@@ -65,7 +65,7 @@ func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request
 func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request) {
 	var model = controller.GetModel()
 
-	data, err := model.GetAll()
+	data, err := model.GetAll("", nil)
 	misc.CheckErr(err)
 	misc.SendJson(w, data, http.StatusOK, nil)
 }
@@ -101,7 +101,7 @@ func (controller *BasicController) DeleteOne(w http.ResponseWriter, r *http.Requ
 	}
 
 	model.SetId(id)
-	err := model.DeleteOne()
+	_, err := model.DeleteOne()
 	misc.CheckErr(err)
 	misc.SendJson(w, id, http.StatusOK, nil)
 }

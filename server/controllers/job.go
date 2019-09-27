@@ -63,7 +63,7 @@ func (_ *JobController) UpdateOne(w http.ResponseWriter, r *http.Request) {
 
 	job := models.Job{ID: jobId}
 
-	err := job.GetOne()
+	err := job.GetOne("id = ?", job.ID)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte(job.ToJson()))
