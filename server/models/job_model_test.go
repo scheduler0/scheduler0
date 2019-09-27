@@ -1,7 +1,6 @@
 package models
 
 import (
-	"fmt"
 	"testing"
 	"time"
 )
@@ -68,8 +67,6 @@ func TestJob_CreateOne(t *testing.T) {
 		if err != nil {
 			t.Fatalf("\t\t Could not delete job %v", err)
 		}
-
-		fmt.Println("Rows Affected ", rowsAffected)
 
 		rowsAffected, err = project.DeleteOne()
 		if err != nil && rowsAffected < 1 {
