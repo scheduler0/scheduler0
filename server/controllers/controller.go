@@ -3,15 +3,12 @@ package controllers
 import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"github.com/gorilla/mux"
 	"io/ioutil"
 	"net/http"
 	"reflect"
 )
 
-/*
-	Basic controller can be used to perform all REST operations for an endpoint
-*/
+//  Basic controller can be used to perform all REST operations for an endpoint
 type BasicController struct {
 	model interface{}
 }
@@ -47,63 +44,57 @@ func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Requ
 
 func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request) {
 	var model = controller.GetModel()
-
-	params := mux.Vars(r)
-	id := params["id"]
-
-	if len(id) < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	if id, err := misc.GetRequestParam(r, "id", 2); err != nil {
+		misc.SendJson(w, err, http.StatusBadRequest, nil)
+	} else {
+		model.SetId(id)
+		err := model.GetOne("id = ?", id)
+		misc.CheckErr(err)
+		misc.SendJson(w, model, http.StatusOK, nil)
 	}
-
-	model.SetId(id)
-	err := model.GetOne("id = ?", id)
-	misc.CheckErr(err)
-	misc.SendJson(w, model, http.StatusOK, nil)
 }
 
 func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request) {
 	var model = controller.GetModel()
+	var queryParams = misc.GetRequestQueryString(r.URL.RawQuery)
+	var query = ""
+	params := make([]string, len(queryParams))
 
-	data, err := model.GetAll("", nil)
+	for i := 0; i < len(queryParams); i++ {
+		query += queryParams[i][0] + " = ?"
+		params[i] = queryParams[i][1]
+	}
+
+	data, err := model.GetAll(query, params...)
 	misc.CheckErr(err)
 	misc.SendJson(w, data, http.StatusOK, nil)
 }
 
 func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	var model = controller.GetModel()
-
-	params := mux.Vars(r)
-	id := params["id"]
-
-	if len(id) < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	if id, err := misc.GetRequestParam(r, "id", 2); err != nil {
+		misc.SendJson(w, err, http.StatusBadRequest, nil)
+	} else {
+		body, err := ioutil.ReadAll(r.Body)
+		misc.CheckErr(err)
+		model.FromJson(body)
+		model.SetId(id)
+		err = model.UpdateOne()
+		misc.CheckErr(err)
+		misc.SendJson(w, model, http.StatusOK, nil)
 	}
-
-	body, err := ioutil.ReadAll(r.Body)
-	misc.CheckErr(err)
-	model.FromJson(body)
-	model.SetId(id)
-	err = model.UpdateOne()
-	misc.CheckErr(err)
-	misc.SendJson(w, model, http.StatusOK, nil)
 }
 
 func (controller *BasicController) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	var model = controller.GetModel()
-	params := mux.Vars(r)
-	id := params["id"]
-
-	if len(id) < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	if id, err := misc.GetRequestParam(r, "id", 2); err != nil {
+		misc.SendJson(w, err, http.StatusBadRequest, nil)
+	} else {
+		model.SetId(id)
+		_, err := model.DeleteOne()
+		misc.CheckErr(err)
+		misc.SendJson(w, id, http.StatusOK, nil)
 	}
-
-	model.SetId(id)
-	_, err := model.DeleteOne()
-	misc.CheckErr(err)
-	misc.SendJson(w, id, http.StatusOK, nil)
 }
 
 func (controller *BasicController) GetModel() models.Model {
