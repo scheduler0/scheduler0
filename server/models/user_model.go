@@ -1,6 +1,7 @@
 package models
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
@@ -41,6 +42,10 @@ func (u *User) CreateOne() (string, error) {
 
 	u.ID = ksuid.New().String()
 	u.DateCreated = time.Now().UTC()
+
+	hash := sha256.New()
+
+	hash.BlockSize()
 
 	if _, err := db.Model(u).Insert(); err != nil {
 		return "", err
