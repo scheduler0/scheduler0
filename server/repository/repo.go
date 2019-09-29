@@ -8,6 +8,7 @@ import (
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -45,8 +46,15 @@ func Setup() {
 		(*models.Credential)(nil),
 	} {
 		err := db.CreateTable(model, &orm.CreateTableOptions{IfNotExists: true})
-		misc.CheckErr(err)
-		runMigrations()
+		if err != nil {
+			log.Println("Cannot to database")
+			/*
+				TODO: Send message to client that connection to database failed
+					* Things to consider request would not be available when this happens
+			*/
+		} else {
+			runMigrations()
+		}
 	}
 }
 
