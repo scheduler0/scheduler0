@@ -2,6 +2,7 @@ package models
 
 import (
 	"cron-server/server/misc"
+	"cron-server/server/repository"
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
@@ -74,14 +75,14 @@ func (jd *Job) SetId(id string) {
 	jd.ID = id
 }
 
-func (jd *Job) CreateOne() (string, error) {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (jd *Job) CreateOne(pool *repository.Pool) (string, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return "", err
+	}
+
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
 
 	if len(jd.ProjectId) < 1 {
 		err := errors.New("project id is not sets")
@@ -100,7 +101,7 @@ func (jd *Job) CreateOne() (string, error) {
 
 	projectWithId := Project{ID: jd.ProjectId}
 
-	if err := projectWithId.GetOne("id = ?", jd.ProjectId); err != nil {
+	if err := projectWithId.GetOne(pool, "id = ?", jd.ProjectId); err != nil {
 		return "", err
 	}
 
@@ -113,14 +114,14 @@ func (jd *Job) CreateOne() (string, error) {
 	return jd.ID, nil
 }
 
-func (jd *Job) GetOne(query string, params interface{}) error {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (jd *Job) GetOne(pool *repository.Pool, query string, params interface{}) error {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return err
+	}
+
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
 
 	if err := db.Model(jd).Where(query, params).Select(); err != nil {
 		return err
@@ -129,14 +130,14 @@ func (jd *Job) GetOne(query string, params interface{}) error {
 	return nil
 }
 
-func (jd *Job) GetAll(query string, params ...string) ([]interface{}, error) {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (jd *Job) GetAll(pool *repository.Pool, query string, params ...string) ([]interface{}, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return []interface{}{}, err
+	}
+
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
 
 	ip := make([]interface{}, len(params))
 
@@ -159,19 +160,18 @@ func (jd *Job) GetAll(query string, params ...string) ([]interface{}, error) {
 	return results, nil
 }
 
-func (jd *Job) UpdateOne() error {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (jd *Job) UpdateOne(pool *repository.Pool) error {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return err
+	}
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
 
 	var jobPlaceholder Job
 	jobPlaceholder.ID = jd.ID
 
-	err := jobPlaceholder.GetOne("id = ?", jobPlaceholder.ID)
+	err = jobPlaceholder.GetOne(pool, "id = ?", jobPlaceholder.ID)
 
 	if jobPlaceholder.CronSpec != jd.CronSpec {
 		return errors.New("cannot update cron spec")
@@ -184,14 +184,13 @@ func (jd *Job) UpdateOne() error {
 	return nil
 }
 
-func (jd *Job) DeleteOne() (int, error) {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (jd *Job) DeleteOne(pool *repository.Pool) (int, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return -1, err
+	}
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
 
 	if r, err := db.Model(jd).Where("id = ?", jd.ID).Delete(); err != nil {
 		return -1, err

@@ -3,17 +3,20 @@ package controllers
 import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
+	"cron-server/server/repository"
 	"github.com/robfig/cron"
 	"io/ioutil"
 	"net/http"
 	"time"
 )
 
-type JobController struct{}
+type JobController struct {
+	pool *repository.Pool
+}
 
-var basicJobController = BasicController{model: models.Job{}}
+var basicJobController = BasicController{model: models.Job{}, pool: repository.Pool{}}
 
-func (_ *JobController) CreateOne(w http.ResponseWriter, r *http.Request) {
+func (controller *JobController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	j := models.Job{}
 	j.FromJson(body)
@@ -45,18 +48,19 @@ func (_ *JobController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	j.NextTime = schedule.Next(j.StartDate)
 	j.TotalExecs = -1
 	j.SecsBetweenExecs = j.NextTime.Sub(j.StartDate).Seconds()
-	id, err := j.CreateOne()
+
+	id, err := j.CreateOne(controller.pool)
 	misc.CheckErr(err)
 	misc.SendJson(w, id, http.StatusCreated, nil)
 }
 
-func (_ *JobController) UpdateOne(w http.ResponseWriter, r *http.Request) {
+func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	if id, err := misc.GetRequestParam(r, "id", 2); err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		job := models.Job{ID: id}
 
-		err := job.GetOne("id = ?", job.ID)
+		err := job.GetOne(controller.pool, "id = ?", job.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(job.ToJson()))
@@ -76,7 +80,7 @@ func (_ *JobController) UpdateOne(w http.ResponseWriter, r *http.Request) {
 		}
 
 		jobUpdate.ID = id
-		if err = jobUpdate.UpdateOne(); err != nil {
+		if err = jobUpdate.UpdateOne(controller.pool); err != nil {
 			misc.SendJson(w, err, http.StatusBadRequest, nil)
 		}
 

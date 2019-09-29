@@ -3,15 +3,18 @@ package controllers
 import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
+	"cron-server/server/repository"
 	"io/ioutil"
 	"net/http"
 )
 
-type ProjectController struct{}
+type ProjectController struct {
+	pool *repository.Pool
+}
 
-var basicProjectController = BasicController{model: models.Project{}}
+var basicProjectController = BasicController{model: models.Project{}, pool: repository.Pool{}}
 
-func (_ *ProjectController) CreateOne(w http.ResponseWriter, r *http.Request) {
+func (controller *ProjectController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	misc.CheckErr(err)
 
@@ -24,7 +27,7 @@ func (_ *ProjectController) CreateOne(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := project.CreateOne()
+	id, err := project.CreateOne(controller.pool)
 	if err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	}
@@ -51,12 +54,12 @@ func (_ *ProjectController) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	basicProjectController.UpdateOne(w, r)
 }
 
-func (c *ProjectController) GetAllOrCreateOne(w http.ResponseWriter, r *http.Request) {
+func (controller *ProjectController) GetAllOrCreateOne(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		c.GetAll(w, r)
+		controller.GetAll(w, r)
 	}
 
 	if r.Method == http.MethodPost {
-		c.CreateOne(w, r)
+		controller.CreateOne(w, r)
 	}
 }
