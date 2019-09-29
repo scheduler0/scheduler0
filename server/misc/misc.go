@@ -101,6 +101,7 @@ func CheckErr(e error) {
 	}
 }
 
+// TODO: Make this a middleware
 func GetRequestParam(r *http.Request, paramName string, paramPos int) (string, error) {
 	params := mux.Vars(r)
 	paths := strings.Split(r.URL.Path, "/")
@@ -110,7 +111,7 @@ func GetRequestParam(r *http.Request, paramName string, paramPos int) (string, e
 		param += params[paramName]
 	}
 
-	if len(param) < 1 && len(paths) >= paramPos-1 {
+	if len(param) < 1 && len(paths) > paramPos {
 		param += paths[paramPos]
 	}
 
