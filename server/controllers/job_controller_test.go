@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"cron-server/server/models"
+	"cron-server/server/testutils"
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
@@ -21,6 +22,8 @@ var jobTwo models.Job
 var project models.Project
 
 func TestJobController_CreateOne(t *testing.T) {
+	testutils.TruncateDBBeforeTest()
+
 	t.Log("Respond with status 400 if request body does not contain required values")
 	{
 		jobOne.CronSpec = "* * * * *"
