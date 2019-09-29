@@ -3,6 +3,7 @@ package controllers
 import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"reflect"
@@ -37,9 +38,11 @@ func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Requ
 	misc.CheckErr(err)
 	model.FromJson(body)
 
-	id, err := model.CreateOne()
-	misc.CheckErr(err)
-	misc.SendJson(w, id, http.StatusCreated, nil)
+	if id, err := model.CreateOne(); err != nil {
+		misc.SendJson(w, err, http.StatusBadRequest, nil)
+	} else {
+		misc.SendJson(w, id, http.StatusCreated, nil)
+	}
 }
 
 func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request) {
@@ -48,26 +51,29 @@ func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		model.SetId(id)
-		err := model.GetOne("id = ?", id)
-		misc.CheckErr(err)
-		misc.SendJson(w, model, http.StatusOK, nil)
+		if err := model.GetOne("id = ?", id); err != nil {
+			misc.SendJson(w, err, http.StatusOK, nil)
+		} else {
+			misc.SendJson(w, model, http.StatusOK, nil)
+		}
 	}
 }
 
 func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request) {
 	var model = controller.GetModel()
 	var queryParams = misc.GetRequestQueryString(r.URL.RawQuery)
-	var query = ""
-	params := make([]string, len(queryParams))
+	var query, values = model.SearchToQuery(queryParams)
 
-	for i := 0; i < len(queryParams); i++ {
-		query += queryParams[i][0] + " = ?"
-		params[i] = queryParams[i][1]
+	if len(query) < 1 {
+		misc.SendJson(w, errors.New("no valid query params"), http.StatusBadRequest, nil)
+		return
 	}
 
-	data, err := model.GetAll(query, params...)
-	misc.CheckErr(err)
-	misc.SendJson(w, data, http.StatusOK, nil)
+	if data, err := model.GetAll(query, values...); err != nil {
+		misc.SendJson(w, err, http.StatusBadRequest, nil)
+	} else {
+		misc.SendJson(w, data, http.StatusOK, nil)
+	}
 }
 
 func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Request) {
@@ -79,9 +85,11 @@ func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Requ
 		misc.CheckErr(err)
 		model.FromJson(body)
 		model.SetId(id)
-		err = model.UpdateOne()
-		misc.CheckErr(err)
-		misc.SendJson(w, model, http.StatusOK, nil)
+		if err = model.UpdateOne(); err != nil {
+			misc.SendJson(w, err, http.StatusBadRequest, nil)
+		} else {
+			misc.SendJson(w, model, http.StatusOK, nil)
+		}
 	}
 }
 
@@ -91,9 +99,11 @@ func (controller *BasicController) DeleteOne(w http.ResponseWriter, r *http.Requ
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		model.SetId(id)
-		_, err := model.DeleteOne()
-		misc.CheckErr(err)
-		misc.SendJson(w, id, http.StatusOK, nil)
+		if _, err := model.DeleteOne(); err != nil {
+			misc.SendJson(w, err, http.StatusBadRequest, nil)
+		} else {
+			misc.SendJson(w, id, http.StatusOK, nil)
+		}
 	}
 }
 
