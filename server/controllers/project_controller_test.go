@@ -151,7 +151,7 @@ func TestProjectController_DeleteOne(t *testing.T) {
 		projectOneJobOne.CallbackUrl = "https://time.com"
 
 		if _, err := projectOneJobOne.CreateOne(); err != nil {
-			t.Fatalf("\t\t Could not create job")
+			t.Fatalf("\t\t Could not create job %v", err)
 		} else {
 			if req, err := http.NewRequest("DELETE", "/projects/"+projectOne.ID, nil); err != nil {
 				t.Fatalf("\t\t Request failed %v", err)
@@ -159,6 +159,21 @@ func TestProjectController_DeleteOne(t *testing.T) {
 				w := httptest.NewRecorder()
 				projectController.DeleteOne(w, req)
 				assert.Equal(t, w.Code, http.StatusBadRequest)
+			}
+		}
+	}
+
+	t.Log("Delete project without job")
+	{
+		if _, err := projectOneJobOne.DeleteOne(); err != nil {
+			t.Fatalf("\t\t Could not delete job %v", err)
+		} else {
+			if req, err := http.NewRequest("DELETE", "/projects/"+projectOne.ID, nil); err != nil {
+				t.Fatalf("\t\t Request failed %v", err)
+			} else {
+				w := httptest.NewRecorder()
+				projectController.DeleteOne(w, req)
+				assert.Equal(t, w.Code, http.StatusOK)
 			}
 		}
 	}
