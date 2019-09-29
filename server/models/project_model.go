@@ -121,9 +121,32 @@ func (p *Project) UpdateOne() error {
 	})
 	defer db.Close()
 
-	err := db.Update(p)
-	if err != nil {
+	savedProject := Project{ID: p.ID}
+
+	if err := savedProject.GetOne("id = ?", savedProject.ID); err != nil {
 		return err
+	}
+
+	if len(savedProject.ID) < 1 {
+		return errors.New("project does not exist")
+	}
+
+	if savedProject.Name != p.Name {
+		if projectsWithSameName, err := p.GetAll("name = ? AND id != ?", p.Name, p.ID); err != nil {
+			return err
+		} else {
+			if len(projectsWithSameName) > 0 {
+				return errors.New("project with same name exits")
+			}
+
+			if err := db.Update(p); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := db.Update(p); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -156,6 +179,43 @@ func (p *Project) DeleteOne() (int, error) {
 	}
 
 	return r.RowsAffected(), nil
+}
+
+func (p *Project) SearchToQuery(search [][]string) (string, []string) {
+	var queries []string
+	var values []string
+	var query string
+
+	if len(search) < 1 || search[0] == nil {
+		return query, values
+	}
+
+	for i := 0; i < len(search); i++ {
+		if search[i][0] == "id" {
+			queries = append(queries, "id = ?")
+			values = append(values, search[i][1])
+		}
+
+		if search[i][0] == "name" {
+			queries = append(queries, "name LIKE ?")
+			values = append(values, "%"+search[i][1]+"%")
+		}
+
+		if search[i][0] == "description" {
+			queries = append(queries, "description LIKE ?")
+			values = append(values, "%"+search[i][1]+"%")
+		}
+	}
+
+	for i := 0; i < len(queries); i++ {
+		if i != 0 {
+			query += " AND " + queries[i]
+		} else {
+			query = queries[i]
+		}
+	}
+
+	return query, values
 }
 
 func (p *Project) ToJson() []byte {

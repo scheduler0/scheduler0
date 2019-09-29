@@ -200,6 +200,43 @@ func (jd *Job) DeleteOne() (int, error) {
 	}
 }
 
+func (jd *Job) SearchToQuery(search [][]string) (string, []string) {
+	var queries []string
+	var query string
+	var values []string
+
+	if len(search) < 1 || search[0] == nil {
+		return query, values
+	}
+
+	for i := 0; i < len(search); i++ {
+		if search[i][0] == "id" {
+			queries = append(queries, "id = ?")
+			values = append(values, search[i][1])
+		}
+
+		if search[i][0] == "project_id" {
+			queries = append(queries, "project_id = ?")
+			values = append(values, search[i][1])
+		}
+
+		if search[i][0] == "description" {
+			queries = append(queries, "description LIKE ?")
+			values = append(values, "%"+search[i][1]+"%")
+		}
+	}
+
+	for i := 0; i < len(queries); i++ {
+		if i != 0 {
+			query += " AND " + queries[i]
+		} else {
+			query = queries[i]
+		}
+	}
+
+	return query, values
+}
+
 func (jd *Job) ToJson() []byte {
 	data, err := json.Marshal(jd)
 
