@@ -9,5 +9,6 @@ type Model interface {
 	UpdateOne() error
 	DeleteOne() (int, error)
 	FromJson(body []byte)
+	SearchToQuery([][]string) (string, []string)
 	ToJson() []byte
 }
