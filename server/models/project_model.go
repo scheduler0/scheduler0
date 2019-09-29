@@ -1,6 +1,7 @@
 package models
 
 import (
+	"cron-server/server/repository"
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
@@ -20,14 +21,14 @@ func (p *Project) SetId(id string) {
 	p.ID = id
 }
 
-func (p *Project) CreateOne() (string, error) {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (p *Project) CreateOne(pool *repository.Pool) (string, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return "", err
+	}
+
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
 
 	if len(p.Name) < 1 {
 		err := errors.New("name field is required")
@@ -40,7 +41,7 @@ func (p *Project) CreateOne() (string, error) {
 	}
 
 	var projectWithName = Project{}
-	data, err := projectWithName.GetAll("name LIKE ?", p.Name+"%")
+	data, err := projectWithName.GetAll(pool, "name LIKE ?", p.Name+"%")
 
 	vd := reflect.ValueOf(data)
 	projectsWithName := make([]Project, vd.Len())
@@ -65,16 +66,16 @@ func (p *Project) CreateOne() (string, error) {
 	return p.ID, nil
 }
 
-func (p *Project) GetOne(query string, params interface{}) error {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (p *Project) GetOne(pool *repository.Pool, query string, params interface{}) error {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return err
+	}
 
-	err := db.Model(p).Where(query, params).Select()
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
+
+	err = db.Model(p).Where(query, params).Select()
 	if err != nil {
 		return err
 	}
@@ -82,14 +83,14 @@ func (p *Project) GetOne(query string, params interface{}) error {
 	return nil
 }
 
-func (p *Project) GetAll(query string, params ...string) ([]interface{}, error) {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (p *Project) GetAll(pool *repository.Pool, query string, params ...string) ([]interface{}, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return []interface{}{}, err
+	}
+
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
 
 	ip := make([]interface{}, len(params))
 
@@ -98,7 +99,7 @@ func (p *Project) GetAll(query string, params ...string) ([]interface{}, error) 
 	}
 
 	var projects []Project
-	err := db.Model(&projects).Where(query, ip...).Select()
+	err = db.Model(&projects).Where(query, ip...).Select()
 	if err != nil {
 		return []interface{}{}, err
 	}
@@ -112,18 +113,18 @@ func (p *Project) GetAll(query string, params ...string) ([]interface{}, error) 
 	return results, nil
 }
 
-func (p *Project) UpdateOne() error {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (p *Project) UpdateOne(pool *repository.Pool) error {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return err
+	}
+
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
 
 	savedProject := Project{ID: p.ID}
 
-	if err := savedProject.GetOne("id = ?", savedProject.ID); err != nil {
+	if err := savedProject.GetOne(pool, "id = ?", savedProject.ID); err != nil {
 		return err
 	}
 
@@ -132,7 +133,7 @@ func (p *Project) UpdateOne() error {
 	}
 
 	if savedProject.Name != p.Name {
-		if projectsWithSameName, err := p.GetAll("name = ? AND id != ?", p.Name, p.ID); err != nil {
+		if projectsWithSameName, err := p.GetAll(pool, "name = ? AND id != ?", p.Name, p.ID); err != nil {
 			return err
 		} else {
 			if len(projectsWithSameName) > 0 {
@@ -152,18 +153,17 @@ func (p *Project) UpdateOne() error {
 	return nil
 }
 
-func (p *Project) DeleteOne() (int, error) {
-	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
-	})
-	defer db.Close()
+func (p *Project) DeleteOne(pool *repository.Pool) (int, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return -1, err
+	}
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
 
 	var jobs []Job
 
-	err := db.Model(&jobs).Where("project_id = ?", p.ID).Select()
+	err = db.Model(&jobs).Where("project_id = ?", p.ID).Select()
 	if err != nil {
 		return -1, err
 	}

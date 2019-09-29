@@ -3,6 +3,7 @@ package controllers
 import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
+	"cron-server/server/repository"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 //  Basic controller can be used to perform all REST operations for an endpoint
 type BasicController struct {
 	model interface{}
+	pool  repository.Pool
 }
 
 func CreateProjectModel() *models.Project {
@@ -38,7 +40,7 @@ func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Requ
 	misc.CheckErr(err)
 	model.FromJson(body)
 
-	if id, err := model.CreateOne(); err != nil {
+	if id, err := model.CreateOne(&controller.pool); err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		misc.SendJson(w, id, http.StatusCreated, nil)
@@ -51,7 +53,7 @@ func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		model.SetId(id)
-		if err := model.GetOne("id = ?", id); err != nil {
+		if err := model.GetOne(&controller.pool, "id = ?", id); err != nil {
 			misc.SendJson(w, err, http.StatusOK, nil)
 		} else {
 			misc.SendJson(w, model, http.StatusOK, nil)
@@ -69,7 +71,7 @@ func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if data, err := model.GetAll(query, values...); err != nil {
+	if data, err := model.GetAll(&controller.pool, query, values...); err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		misc.SendJson(w, data, http.StatusOK, nil)
@@ -85,7 +87,7 @@ func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Requ
 		misc.CheckErr(err)
 		model.FromJson(body)
 		model.SetId(id)
-		if err = model.UpdateOne(); err != nil {
+		if err = model.UpdateOne(&controller.pool); err != nil {
 			misc.SendJson(w, err, http.StatusBadRequest, nil)
 		} else {
 			misc.SendJson(w, model, http.StatusOK, nil)
@@ -99,7 +101,7 @@ func (controller *BasicController) DeleteOne(w http.ResponseWriter, r *http.Requ
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		model.SetId(id)
-		if _, err := model.DeleteOne(); err != nil {
+		if _, err := model.DeleteOne(&controller.pool); err != nil {
 			misc.SendJson(w, err, http.StatusBadRequest, nil)
 		} else {
 			misc.SendJson(w, id, http.StatusOK, nil)
