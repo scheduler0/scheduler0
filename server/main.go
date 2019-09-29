@@ -3,39 +3,28 @@ package main
 import (
 	"cron-server/server/controllers"
 	"cron-server/server/misc"
+	"cron-server/server/models"
 	"cron-server/server/process"
 	"cron-server/server/repository"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
 	"log"
 	"net/http"
-	"time"
 )
 
 func main() {
+	pool, err := repository.NewPool(repository.CreateConnection, repository.MaxConnections)
+	misc.CheckErr(err)
 
 	// Setup logging
 	log.SetFlags(0)
 	log.SetOutput(new(misc.LogWriter))
 
 	// Set time zone, create database and run migrations
-	repository.Setup()
+	models.Setup(pool)
 
 	// Start process to execute cron-server jobs
-	go func() {
-		for {
-			go process.ExecuteJobs()
-			time.Sleep(time.Second * 1)
-		}
-	}()
-
-	// Start process to update missed jobs
-	go func() {
-		for {
-			go process.UpdateMissedJobs()
-			time.Sleep(time.Second * 1)
-		}
-	}()
+	go process.Start(pool)
 
 	// HTTP router setup
 	router := mux.NewRouter()
@@ -65,6 +54,6 @@ func main() {
 	router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
 
-	err := http.ListenAndServe(misc.GetPort(), router)
+	err = http.ListenAndServe(misc.GetPort(), router)
 	misc.CheckErr(err)
 }
