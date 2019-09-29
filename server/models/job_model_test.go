@@ -1,6 +1,7 @@
 package models
 
 import (
+	"cron-server/server/testutils"
 	"testing"
 	"time"
 )
@@ -11,6 +12,8 @@ var jobTwo = Job{}
 var jobThree = Job{}
 
 func TestJob_CreateOne(t *testing.T) {
+	testutils.TruncateDBBeforeTest()
+
 	t.Log("Creating job returns error if required inbound fields are nil")
 	{
 		jobOne.CallbackUrl = "http://test-url"
