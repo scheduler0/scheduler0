@@ -52,6 +52,7 @@ func UpdateMissedJobs() {
 						Password: psgc.Password,
 						Database: psgc.Database,
 					})
+					defer db.Close()
 
 					log.Println(j.ID, execCountDiff, j.NextTime, scheduledTimeBasedOnNow)
 
@@ -70,8 +71,6 @@ func UpdateMissedJobs() {
 					}
 
 					log.Println("Fixed job ", j.ID, " to ", j.NextTime)
-
-					db.Close()
 				}
 			}
 		}(jd)

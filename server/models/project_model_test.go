@@ -1,6 +1,7 @@
 package models
 
 import (
+	"cron-server/server/testutils"
 	"testing"
 	"time"
 )
@@ -9,6 +10,8 @@ var projectOne = Project{}
 var projectTwo = Project{Name: "Fake Project One", Description: "another fake project"}
 
 func TestProject_CreateOne(t *testing.T) {
+	testutils.TruncateDBBeforeTest()
+
 	t.Log("Don't create project with name and description empty")
 	{
 		_, err := projectOne.CreateOne()

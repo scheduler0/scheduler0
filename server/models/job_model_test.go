@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fmt"
+	"cron-server/server/testutils"
 	"testing"
 	"time"
 )
@@ -12,6 +12,8 @@ var jobTwo = Job{}
 var jobThree = Job{}
 
 func TestJob_CreateOne(t *testing.T) {
+	testutils.TruncateDBBeforeTest()
+
 	t.Log("Creating job returns error if required inbound fields are nil")
 	{
 		jobOne.CallbackUrl = "http://test-url"
@@ -68,8 +70,6 @@ func TestJob_CreateOne(t *testing.T) {
 		if err != nil {
 			t.Fatalf("\t\t Could not delete job %v", err)
 		}
-
-		fmt.Println("Rows Affected ", rowsAffected)
 
 		rowsAffected, err = project.DeleteOne()
 		if err != nil && rowsAffected < 1 {

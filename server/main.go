@@ -6,12 +6,14 @@ import (
 	"cron-server/server/process"
 	"cron-server/server/repository"
 	"github.com/gorilla/mux"
+	"github.com/unrolled/secure"
 	"log"
 	"net/http"
 	"time"
 )
 
 func main() {
+
 	// Setup logging
 	log.SetFlags(0)
 	log.SetOutput(new(misc.LogWriter))
@@ -38,9 +40,18 @@ func main() {
 	// HTTP router setup
 	router := mux.NewRouter()
 
+	// Security middleware
+	secureMiddleware := secure.New(secure.Options{
+		FrameDeny: true,
+	})
+
 	// Initialize controllers
 	jobController := controllers.JobController{}
 	projectController := controllers.ProjectController{}
+
+	// Mount middleware
+	router.Use(secureMiddleware.Handler)
+	router.Use(mux.CORSMethodMiddleware(router))
 
 	// Job Endpoint
 	router.HandleFunc("/jobs/", jobController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)

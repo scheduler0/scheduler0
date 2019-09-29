@@ -2,9 +2,12 @@ package misc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/gorilla/mux"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -77,6 +80,8 @@ func (r *Response) ToJson() []byte {
 
 func SendJson(w http.ResponseWriter, data interface{}, status int, headers map[string]string) {
 	resObj := Response{Data: data}
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Add("Content-Type", "application/json")
 
 	if headers != nil {
@@ -94,4 +99,46 @@ func CheckErr(e error) {
 	if e != nil {
 		panic(e)
 	}
+}
+
+// TODO: Make this a middleware
+func GetRequestParam(r *http.Request, paramName string, paramPos int) (string, error) {
+	params := mux.Vars(r)
+	paths := strings.Split(r.URL.Path, "/")
+	param := ""
+
+	if len(params[paramName]) > 1 {
+		param += params[paramName]
+	}
+
+	if len(param) < 1 && len(paths) > paramPos {
+		param += paths[paramPos]
+	}
+
+	if len(param) < 1 {
+		return "", errors.New("param does not exist")
+	}
+
+	return param, nil
+}
+
+func GetRequestQueryString(query string) [][]string {
+	pairs := strings.Split(query, "&")
+	params := make([][]string, len(pairs))
+	x := 0
+
+	for i := 0; i < len(pairs); i++ {
+		kv := strings.Split(pairs[i], "=")
+		if len(kv) == 2 {
+			params[x] = []string{kv[0], kv[1]}
+			x++
+		}
+
+		if len(kv) == 1 {
+			params[x] = []string{kv[0], ""}
+			x++
+		}
+	}
+
+	return params
 }

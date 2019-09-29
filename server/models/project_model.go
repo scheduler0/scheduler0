@@ -6,12 +6,14 @@ import (
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
 	"reflect"
+	"time"
 )
 
 type Project struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	ID          string `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	ID          string    `json:"id"`
+	DateCreated time.Time `json:"date_created"`
 }
 
 func (p *Project) SetId(id string) {
@@ -38,7 +40,7 @@ func (p *Project) CreateOne() (string, error) {
 	}
 
 	var projectWithName = Project{}
-	data, err := projectWithName.GetAll("name LIKE ?", p.Name)
+	data, err := projectWithName.GetAll("name LIKE ?", p.Name+"%")
 
 	vd := reflect.ValueOf(data)
 	projectsWithName := make([]Project, vd.Len())
@@ -53,6 +55,7 @@ func (p *Project) CreateOne() (string, error) {
 	}
 
 	p.ID = ksuid.New().String()
+	p.DateCreated = time.Now().UTC()
 
 	_, err = db.Model(p).Insert()
 	if err != nil {
@@ -79,7 +82,7 @@ func (p *Project) GetOne(query string, params interface{}) error {
 	return nil
 }
 
-func (p *Project) GetAll(query string, params interface{}) ([]interface{}, error) {
+func (p *Project) GetAll(query string, params ...string) ([]interface{}, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     psgc.Addr,
 		User:     psgc.User,
@@ -88,8 +91,14 @@ func (p *Project) GetAll(query string, params interface{}) ([]interface{}, error
 	})
 	defer db.Close()
 
+	ip := make([]interface{}, len(params))
+
+	for i := 0; i < len(params); i++ {
+		ip[i] = params[i]
+	}
+
 	var projects []Project
-	err := db.Model(&projects).Where(query, params).Select()
+	err := db.Model(&projects).Where(query, ip...).Select()
 	if err != nil {
 		return []interface{}{}, err
 	}
@@ -112,9 +121,32 @@ func (p *Project) UpdateOne() error {
 	})
 	defer db.Close()
 
-	err := db.Update(p)
-	if err != nil {
+	savedProject := Project{ID: p.ID}
+
+	if err := savedProject.GetOne("id = ?", savedProject.ID); err != nil {
 		return err
+	}
+
+	if len(savedProject.ID) < 1 {
+		return errors.New("project does not exist")
+	}
+
+	if savedProject.Name != p.Name {
+		if projectsWithSameName, err := p.GetAll("name = ? AND id != ?", p.Name, p.ID); err != nil {
+			return err
+		} else {
+			if len(projectsWithSameName) > 0 {
+				return errors.New("project with same name exits")
+			}
+
+			if err := db.Update(p); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := db.Update(p); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -147,6 +179,43 @@ func (p *Project) DeleteOne() (int, error) {
 	}
 
 	return r.RowsAffected(), nil
+}
+
+func (p *Project) SearchToQuery(search [][]string) (string, []string) {
+	var queries []string
+	var values []string
+	var query string
+
+	if len(search) < 1 || search[0] == nil {
+		return query, values
+	}
+
+	for i := 0; i < len(search); i++ {
+		if search[i][0] == "id" {
+			queries = append(queries, "id = ?")
+			values = append(values, search[i][1])
+		}
+
+		if search[i][0] == "name" {
+			queries = append(queries, "name LIKE ?")
+			values = append(values, "%"+search[i][1]+"%")
+		}
+
+		if search[i][0] == "description" {
+			queries = append(queries, "description LIKE ?")
+			values = append(values, "%"+search[i][1]+"%")
+		}
+	}
+
+	for i := 0; i < len(queries); i++ {
+		if i != 0 {
+			query += " AND " + queries[i]
+		} else {
+			query = queries[i]
+		}
+	}
+
+	return query, values
 }
 
 func (p *Project) ToJson() []byte {

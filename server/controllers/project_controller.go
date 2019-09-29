@@ -25,12 +25,14 @@ func (_ *ProjectController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id, err := project.CreateOne()
-	misc.CheckErr(err)
+	if err != nil {
+		misc.SendJson(w, err, http.StatusBadRequest, nil)
+	}
 
 	customHeader := map[string]string{}
-	customHeader["Location"] = "Projects/" + id
+	customHeader["Location"] = "projects/" + id
 
-	misc.SendJson(w, id, http.StatusCreated, customHeader)
+	misc.SendJson(w, id, http.StatusCreated, nil)
 }
 
 func (_ *ProjectController) GetOne(w http.ResponseWriter, r *http.Request) {

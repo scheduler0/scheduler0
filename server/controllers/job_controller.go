@@ -3,11 +3,9 @@ package controllers
 import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"github.com/gorilla/mux"
 	"github.com/robfig/cron"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -46,47 +44,44 @@ func (_ *JobController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	j.State = models.InActiveJob
 	j.NextTime = schedule.Next(j.StartDate)
 	j.TotalExecs = -1
-	j.SecsBetweenExecs = j.NextTime.Sub(j.StartDate).Minutes()
+	j.SecsBetweenExecs = j.NextTime.Sub(j.StartDate).Seconds()
 	id, err := j.CreateOne()
 	misc.CheckErr(err)
 	misc.SendJson(w, id, http.StatusCreated, nil)
 }
 
 func (_ *JobController) UpdateOne(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	jobId := params["id"]
+	if id, err := misc.GetRequestParam(r, "id", 2); err != nil {
+		misc.SendJson(w, err, http.StatusBadRequest, nil)
+	} else {
+		job := models.Job{ID: id}
 
-	if len(jobId) < 1 {
-		path := strings.Split(r.URL.Path, "/")
-		jobId = path[2]
-	}
+		err := job.GetOne("id = ?", job.ID)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(job.ToJson()))
+			return
+		}
 
-	job := models.Job{ID: jobId}
-
-	err := job.GetOne("id = ?", job.ID)
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(job.ToJson()))
-		return
-	}
-
-	body, err := ioutil.ReadAll(r.Body)
-	misc.CheckErr(err)
-	jobUpdate := models.Job{}
-	jobUpdate.FromJson(body)
-
-	if jobUpdate.State == models.ActiveJob {
-		schedule, err := cron.ParseStandard(job.CronSpec)
+		body, err := ioutil.ReadAll(r.Body)
 		misc.CheckErr(err)
+		jobUpdate := models.Job{}
+		jobUpdate.FromJson(body)
 
-		jobUpdate.NextTime = schedule.Next(time.Now().UTC())
+		if jobUpdate.State == models.ActiveJob {
+			schedule, err := cron.ParseStandard(job.CronSpec)
+			misc.CheckErr(err)
+
+			jobUpdate.NextTime = schedule.Next(time.Now().UTC())
+		}
+
+		jobUpdate.ID = id
+		if err = jobUpdate.UpdateOne(); err != nil {
+			misc.SendJson(w, err, http.StatusBadRequest, nil)
+		}
+
+		misc.SendJson(w, jobUpdate, http.StatusOK, nil)
 	}
-
-	jobUpdate.ID = jobId
-
-	err = jobUpdate.UpdateOne()
-	misc.CheckErr(err)
-	misc.SendJson(w, jobUpdate, http.StatusOK, nil)
 }
 
 func (_ *JobController) GetAll(w http.ResponseWriter, r *http.Request) {
