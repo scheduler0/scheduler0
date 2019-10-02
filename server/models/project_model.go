@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"cron-server/server/repository"
 	"encoding/json"
 	"errors"
@@ -21,7 +22,7 @@ func (p *Project) SetId(id string) {
 	p.ID = id
 }
 
-func (p *Project) CreateOne(pool *repository.Pool) (string, error) {
+func (p *Project) CreateOne(pool *repository.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -41,7 +42,7 @@ func (p *Project) CreateOne(pool *repository.Pool) (string, error) {
 	}
 
 	var projectWithName = Project{}
-	data, err := projectWithName.GetAll(pool, "name LIKE ?", p.Name+"%")
+	data, err := projectWithName.GetAll(pool, ctx, "name LIKE ?", p.Name+"%")
 
 	vd := reflect.ValueOf(data)
 	projectsWithName := make([]Project, vd.Len())
@@ -66,7 +67,7 @@ func (p *Project) CreateOne(pool *repository.Pool) (string, error) {
 	return p.ID, nil
 }
 
-func (p *Project) GetOne(pool *repository.Pool, query string, params interface{}) error {
+func (p *Project) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) error {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return err
@@ -83,7 +84,7 @@ func (p *Project) GetOne(pool *repository.Pool, query string, params interface{}
 	return nil
 }
 
-func (p *Project) GetAll(pool *repository.Pool, query string, params ...string) ([]interface{}, error) {
+func (p *Project) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return []interface{}{}, err
@@ -113,7 +114,7 @@ func (p *Project) GetAll(pool *repository.Pool, query string, params ...string) 
 	return results, nil
 }
 
-func (p *Project) UpdateOne(pool *repository.Pool) error {
+func (p *Project) UpdateOne(pool *repository.Pool, ctx context.Context) error {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return err
@@ -124,7 +125,7 @@ func (p *Project) UpdateOne(pool *repository.Pool) error {
 
 	savedProject := Project{ID: p.ID}
 
-	if err := savedProject.GetOne(pool, "id = ?", savedProject.ID); err != nil {
+	if err := savedProject.GetOne(pool, ctx, "id = ?", savedProject.ID); err != nil {
 		return err
 	}
 
@@ -133,7 +134,7 @@ func (p *Project) UpdateOne(pool *repository.Pool) error {
 	}
 
 	if savedProject.Name != p.Name {
-		if projectsWithSameName, err := p.GetAll(pool, "name = ? AND id != ?", p.Name, p.ID); err != nil {
+		if projectsWithSameName, err := p.GetAll(pool, ctx, "name = ? AND id != ?", p.Name, p.ID); err != nil {
 			return err
 		} else {
 			if len(projectsWithSameName) > 0 {
@@ -153,7 +154,7 @@ func (p *Project) UpdateOne(pool *repository.Pool) error {
 	return nil
 }
 
-func (p *Project) DeleteOne(pool *repository.Pool) (int, error) {
+func (p *Project) DeleteOne(pool *repository.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
