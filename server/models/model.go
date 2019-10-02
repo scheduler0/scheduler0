@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"cron-server/server/misc"
 	"cron-server/server/repository"
 	"github.com/go-pg/pg"
@@ -9,16 +10,17 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 )
 
 // Basic model interface
 type Model interface {
 	SetId(id string)
-	CreateOne(pool *repository.Pool) (string, error)
-	GetOne(pool *repository.Pool, query string, params interface{}) error
-	GetAll(pool *repository.Pool, query string, params ...string) ([]interface{}, error)
-	UpdateOne(pool *repository.Pool) error
-	DeleteOne(pool *repository.Pool) (int, error)
+	CreateOne(pool *repository.Pool, ctx context.Context) (string, error)
+	GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) error
+	GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error)
+	UpdateOne(pool *repository.Pool, ctx context.Context) error
+	DeleteOne(pool *repository.Pool, ctx context.Context) (int, error)
 	FromJson(body []byte)
 	SearchToQuery([][]string) (string, []string)
 	ToJson() []byte
@@ -56,6 +58,30 @@ func Setup(pool *repository.Pool) {
 			log.Println("Cannot to database")
 		} else {
 			runMigrations()
+
+			var c = Credential{}
+			var ctx = context.Background()
+
+			credentials, err := c.GetAll(pool, ctx, "date_created < ?", "now()")
+			if err != nil {
+				misc.CheckErr(err)
+			}
+
+			vd := reflect.ValueOf(credentials)
+			credentialsWithName := make([]Credential, vd.Len())
+
+			for i := 0; i < vd.Len(); i++ {
+				credentialsWithName[i] = vd.Index(i).Interface().(Credential)
+			}
+
+			if len(credentialsWithName) < 1 {
+				c.HTTPReferrerRestriction = "*"
+				_, err := c.CreateOne(pool, ctx)
+				log.Println("Created default credentials")
+				if err != nil {
+					misc.CheckErr(err)
+				}
+			}
 		}
 	}
 }
