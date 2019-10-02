@@ -1,6 +1,7 @@
 package process
 
 import (
+	"context"
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
@@ -17,15 +18,17 @@ var psgc = misc.GetPostgresCredentials()
 
 func Start(pool *repository.Pool) {
 	for {
-		jobsToExecute, otherJobs := getJobs(pool)
-		updateMissedJobs(otherJobs, pool)
-		executeJobs(jobsToExecute, pool)
+		ctx := context.Background()
+
+		jobsToExecute, otherJobs := getJobs(pool, ctx)
+		updateMissedJobs(otherJobs, pool, ctx)
+		executeJobs(jobsToExecute, pool, ctx)
 
 		time.Sleep(60 * time.Second)
 	}
 }
 
-func getJobs(pool *repository.Pool) (executions []models.Job, others []models.Job) {
+func getJobs(pool *repository.Pool, ctx context.Context) (executions []models.Job, others []models.Job) {
 	// Infinite loops that queries the database every minute
 	conn, err := pool.Acquire()
 	misc.CheckErr(err)
@@ -67,7 +70,7 @@ func getJobs(pool *repository.Pool) (executions []models.Job, others []models.Jo
 	return jobsToExecute, otherJobs
 }
 
-func executeJobs(jobs []models.Job, pool *repository.Pool) {
+func executeJobs(jobs []models.Job, pool *repository.Pool, ctx context.Context) {
 	for _, jb := range jobs {
 		if len(jb.CallbackUrl) > 1 {
 			go func(job models.Job) {
@@ -82,7 +85,7 @@ func executeJobs(jobs []models.Job, pool *repository.Pool) {
 				job.TotalExecs = job.TotalExecs + 1
 				job.State = models.ActiveJob
 
-				err = jb.UpdateOne(pool)
+				err = jb.UpdateOne(pool, ctx)
 				misc.CheckErr(err)
 
 				log.Println("Updated job with id ", job.ID, " next time to ", job.NextTime)
@@ -91,7 +94,7 @@ func executeJobs(jobs []models.Job, pool *repository.Pool) {
 	}
 }
 
-func updateMissedJobs(jobs []models.Job, pool *repository.Pool) {
+func updateMissedJobs(jobs []models.Job, pool *repository.Pool, ctx context.Context) {
 	for i := 0; i < len(jobs); i++ {
 		go func(jb models.Job) {
 			schedule, err := cron.ParseStandard(jb.CronSpec)
@@ -119,7 +122,7 @@ func updateMissedJobs(jobs []models.Job, pool *repository.Pool) {
 					jb.MissedExecs = jb.MissedExecs + execCountDiff
 				}
 
-				err = jb.UpdateOne(pool)
+				err = jb.UpdateOne(pool, ctx)
 				misc.CheckErr(err)
 			}
 		}(jobs[i])
