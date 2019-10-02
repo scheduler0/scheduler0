@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"cron-server/server/misc"
 	"cron-server/server/repository"
 	"encoding/json"
@@ -75,7 +76,7 @@ func (jd *Job) SetId(id string) {
 	jd.ID = id
 }
 
-func (jd *Job) CreateOne(pool *repository.Pool) (string, error) {
+func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -101,7 +102,7 @@ func (jd *Job) CreateOne(pool *repository.Pool) (string, error) {
 
 	projectWithId := Project{ID: jd.ProjectId}
 
-	if err := projectWithId.GetOne(pool, "id = ?", jd.ProjectId); err != nil {
+	if err := projectWithId.GetOne(pool, ctx, "id = ?", jd.ProjectId); err != nil {
 		return "", err
 	}
 
@@ -114,7 +115,7 @@ func (jd *Job) CreateOne(pool *repository.Pool) (string, error) {
 	return jd.ID, nil
 }
 
-func (jd *Job) GetOne(pool *repository.Pool, query string, params interface{}) error {
+func (jd *Job) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) error {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return err
@@ -130,7 +131,7 @@ func (jd *Job) GetOne(pool *repository.Pool, query string, params interface{}) e
 	return nil
 }
 
-func (jd *Job) GetAll(pool *repository.Pool, query string, params ...string) ([]interface{}, error) {
+func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return []interface{}{}, err
@@ -160,7 +161,7 @@ func (jd *Job) GetAll(pool *repository.Pool, query string, params ...string) ([]
 	return results, nil
 }
 
-func (jd *Job) UpdateOne(pool *repository.Pool) error {
+func (jd *Job) UpdateOne(pool *repository.Pool, ctx context.Context) error {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return err
@@ -171,7 +172,7 @@ func (jd *Job) UpdateOne(pool *repository.Pool) error {
 	var jobPlaceholder Job
 	jobPlaceholder.ID = jd.ID
 
-	err = jobPlaceholder.GetOne(pool, "id = ?", jobPlaceholder.ID)
+	err = jobPlaceholder.GetOne(pool, ctx, "id = ?", jobPlaceholder.ID)
 
 	if jobPlaceholder.CronSpec != jd.CronSpec {
 		return errors.New("cannot update cron spec")
@@ -184,7 +185,7 @@ func (jd *Job) UpdateOne(pool *repository.Pool) error {
 	return nil
 }
 
-func (jd *Job) DeleteOne(pool *repository.Pool) (int, error) {
+func (jd *Job) DeleteOne(pool *repository.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

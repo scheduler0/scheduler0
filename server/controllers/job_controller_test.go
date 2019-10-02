@@ -1,6 +1,8 @@
 package controllers
 
 import (
+	"context"
+	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
 	"cron-server/server/testutils"
@@ -15,14 +17,18 @@ import (
 	"time"
 )
 
-var jobController = JobController{}
-var jobOne models.Job
-var jobTwo models.Job
-var project models.Project
-var jobsPool, _ = repository.NewPool(repository.CreateConnection, 5)
+var (
+	jobController = JobController{}
+	jobOne        models.Job
+	jobTwo        models.Job
+	project       models.Project
+)
 
 func TestJobController_CreateOne(t *testing.T) {
 	testutils.TruncateDBBeforeTest()
+	var jobsPool, err = repository.NewPool(repository.CreateConnection, 1)
+	misc.CheckErr(err)
+	jobController.Pool = *jobsPool
 
 	t.Log("Respond with status 400 if request body does not contain required values")
 	{
@@ -41,7 +47,7 @@ func TestJobController_CreateOne(t *testing.T) {
 	{
 		project.Name = "TestJobController_Project"
 		project.Description = "TestJobController_Project_Description"
-		if id, err := project.CreateOne(jobsPool); err != nil {
+		if id, err := project.CreateOne(&jobController.Pool, context.Background()); err != nil {
 			t.Fatalf("\t\t Cannot create project %v", err)
 		} else {
 			project.ID = id
@@ -90,11 +96,11 @@ func TestJobController_GetAll(t *testing.T) {
 
 		jobTwoCopy := rc.Interface().(*models.Job)
 
-		if _, err := jobTwo.CreateOne(jobsPool); err != nil {
+		if _, err := jobTwo.CreateOne(&jobController.Pool, context.Background()); err != nil {
 			t.Fatalf("\t\t Cannot create job two")
 		}
 
-		if _, err := jobTwoCopy.CreateOne(jobsPool); err != nil {
+		if _, err := jobTwoCopy.CreateOne(&jobController.Pool, context.Background()); err != nil {
 			t.Fatalf("\t\t Cannot create job three")
 		}
 
@@ -105,11 +111,11 @@ func TestJobController_GetAll(t *testing.T) {
 			jobController.GetAll(w, req)
 			assert.Equal(t, w.Code, http.StatusOK)
 
-			if _, err := jobTwo.DeleteOne(jobsPool); err != nil {
+			if _, err := jobTwo.DeleteOne(&jobController.Pool, context.Background()); err != nil {
 				t.Fatalf("\t\t Cannot delete job two")
 			}
 
-			if _, err := jobTwoCopy.DeleteOne(jobsPool); err != nil {
+			if _, err := jobTwoCopy.DeleteOne(&jobController.Pool, context.Background()); err != nil {
 				t.Fatalf("\t\t Cannot delete job two copy")
 			}
 		}
@@ -155,11 +161,11 @@ func TestJobController_DeleteOne(t *testing.T) {
 			jobController.DeleteOne(w, req)
 			assert.Equal(t, w.Code, http.StatusOK)
 
-			if _, err = project.DeleteOne(jobsPool); err != nil {
+			if _, err = project.DeleteOne(&jobController.Pool, context.Background()); err != nil {
 				t.Fatalf("\t\t Cannot delete project %v", err)
 			}
 		}
 	}
 
-	jobsPool.Close()
+	jobController.Pool.Close()
 }

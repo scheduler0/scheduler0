@@ -64,4 +64,6 @@ BEGIN
     ELSE
         ALTER TABLE projects ADD date_created timestamp;
     END IF;
+
+    ALTER TABLE projects DROP COLUMN  IF EXISTS user_id;
 END $$;

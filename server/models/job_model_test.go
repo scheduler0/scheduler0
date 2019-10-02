@@ -1,19 +1,24 @@
 package models
 
 import (
+	"context"
 	"cron-server/server/repository"
 	"cron-server/server/testutils"
 	"testing"
 	"time"
 )
 
-var project = Project{Name: "test project", Description: "test project"}
-var jobOne = Job{}
-var jobTwo = Job{}
-var jobThree = Job{}
-var jobsPool, _ = repository.NewPool(repository.CreateConnection, 5)
+var (
+	project  = Project{Name: "test project", Description: "test project"}
+	jobOne   = Job{}
+	jobTwo   = Job{}
+	jobThree = Job{}
+	jobCtx   = context.Background()
+)
 
 func TestJob_CreateOne(t *testing.T) {
+	var jobsPool, _ = repository.NewPool(repository.CreateConnection, 5)
+	defer jobsPool.Close()
 	testutils.TruncateDBBeforeTest()
 
 	t.Log("Creating job returns error if required inbound fields are nil")
@@ -23,7 +28,7 @@ func TestJob_CreateOne(t *testing.T) {
 		jobOne.ProjectId = ""
 		jobOne.CronSpec = "* * * * *"
 
-		_, err := jobOne.CreateOne(jobsPool)
+		_, err := jobOne.CreateOne(jobsPool, jobCtx)
 
 		if err == nil {
 			t.Fatalf("\t\t  Model should require values")
@@ -38,7 +43,7 @@ func TestJob_CreateOne(t *testing.T) {
 		jobTwo.StartDate = time.Now().Add(600000 * time.Second)
 		jobTwo.CronSpec = "* * * * *"
 
-		id, err := jobTwo.CreateOne(jobsPool)
+		id, err := jobTwo.CreateOne(jobsPool, jobCtx)
 
 		if err == nil {
 			t.Fatalf("\t\t  Invalid project id does not exist but job with %v was created", id)
@@ -47,7 +52,7 @@ func TestJob_CreateOne(t *testing.T) {
 
 	t.Log("Creating job returns new id")
 	{
-		id, err := project.CreateOne(jobsPool)
+		id, err := project.CreateOne(jobsPool, jobCtx)
 		if err != nil {
 			t.Fatalf("\t\t  Cannot create project %v", err)
 		}
@@ -63,17 +68,17 @@ func TestJob_CreateOne(t *testing.T) {
 		jobThree.StartDate = time.Now().Add(600000 * time.Second)
 		jobThree.CronSpec = "* * * * *"
 
-		_, err = jobThree.CreateOne(jobsPool)
+		_, err = jobThree.CreateOne(jobsPool, jobCtx)
 		if err != nil {
 			t.Fatalf("\t\t  Could not create job %v", err)
 		}
 
-		rowsAffected, err := jobThree.DeleteOne(jobsPool)
+		rowsAffected, err := jobThree.DeleteOne(jobsPool, jobCtx)
 		if err != nil {
 			t.Fatalf("\t\t Could not delete job %v", err)
 		}
 
-		rowsAffected, err = project.DeleteOne(jobsPool)
+		rowsAffected, err = project.DeleteOne(jobsPool, jobCtx)
 		if err != nil && rowsAffected < 1 {
 			t.Fatalf("\t\t  Could not delete project %v", err)
 		}
@@ -81,9 +86,12 @@ func TestJob_CreateOne(t *testing.T) {
 }
 
 func TestJob_UpdateOne(t *testing.T) {
+	var jobsPool, _ = repository.NewPool(repository.CreateConnection, 5)
+	defer jobsPool.Close()
+
 	t.Log("Cannot update cron spec on job")
 	{
-		id, err := project.CreateOne(jobsPool)
+		id, err := project.CreateOne(jobsPool, jobCtx)
 		if err != nil {
 			t.Fatalf("\t\t  Cannot create project %v", err)
 		}
@@ -95,19 +103,19 @@ func TestJob_UpdateOne(t *testing.T) {
 		jobThree.ProjectId = id
 		jobThree.CronSpec = "1 * * * *"
 
-		id, err = jobThree.CreateOne(jobsPool)
+		id, err = jobThree.CreateOne(jobsPool, jobCtx)
 		if err != nil {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
 
 		jobThree.CronSpec = "2 * * * *"
-		err = jobThree.UpdateOne(jobsPool)
+		err = jobThree.UpdateOne(jobsPool, jobCtx)
 		if err == nil {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
 
 		jobThreePlaceholder := Job{ID: jobThree.ID}
-		err = jobThreePlaceholder.GetOne(jobsPool, "id = ?", jobThree.ID)
+		err = jobThreePlaceholder.GetOne(jobsPool, jobCtx, "id = ?", jobThree.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get job %v", err)
 		}
@@ -116,12 +124,12 @@ func TestJob_UpdateOne(t *testing.T) {
 			t.Fatalf("\t\t CronSpec should be immutable")
 		}
 
-		_, err = jobThree.DeleteOne(jobsPool)
+		_, err = jobThree.DeleteOne(jobsPool, jobCtx)
 		if err != nil {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
 
-		_, err = project.DeleteOne(jobsPool)
+		_, err = project.DeleteOne(jobsPool, jobCtx)
 		if err != nil {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
@@ -129,18 +137,19 @@ func TestJob_UpdateOne(t *testing.T) {
 }
 
 func TestJob_DeleteOne(t *testing.T) {
+	var jobsPool, _ = repository.NewPool(repository.CreateConnection, 5)
+	defer jobsPool.Close()
+
 	t.Log("Delete jobs")
 	{
-		rowsAffected, err := jobThree.DeleteOne(jobsPool)
+		rowsAffected, err := jobThree.DeleteOne(jobsPool, jobCtx)
 		if err != nil && rowsAffected > 0 {
 			t.Fatalf("\t\t %v", err)
 		}
 
-		rowsAffected, err = project.DeleteOne(jobsPool)
+		rowsAffected, err = project.DeleteOne(jobsPool, jobCtx)
 		if err != nil && rowsAffected > 0 {
 			t.Fatalf("\t\t %v", err)
 		}
 	}
-
-	jobsPool.Close()
 }

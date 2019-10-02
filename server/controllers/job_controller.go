@@ -11,10 +11,10 @@ import (
 )
 
 type JobController struct {
-	pool *repository.Pool
+	Pool repository.Pool
 }
 
-var basicJobController = BasicController{model: models.Job{}, pool: repository.Pool{}}
+var basicJobController = BasicController{model: models.Job{}}
 
 func (controller *JobController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
@@ -49,7 +49,7 @@ func (controller *JobController) CreateOne(w http.ResponseWriter, r *http.Reques
 	j.TotalExecs = -1
 	j.SecsBetweenExecs = j.NextTime.Sub(j.StartDate).Seconds()
 
-	id, err := j.CreateOne(controller.pool)
+	id, err := j.CreateOne(&controller.Pool, r.Context())
 	misc.CheckErr(err)
 	misc.SendJson(w, id, http.StatusCreated, nil)
 }
@@ -60,7 +60,7 @@ func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Reques
 	} else {
 		job := models.Job{ID: id}
 
-		err := job.GetOne(controller.pool, "id = ?", job.ID)
+		err := job.GetOne(&controller.Pool, r.Context(), "id = ?", job.ID)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(job.ToJson()))
@@ -80,7 +80,7 @@ func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Reques
 		}
 
 		jobUpdate.ID = id
-		if err = jobUpdate.UpdateOne(controller.pool); err != nil {
+		if err = jobUpdate.UpdateOne(&controller.Pool, r.Context()); err != nil {
 			misc.SendJson(w, err, http.StatusBadRequest, nil)
 		}
 
@@ -88,24 +88,24 @@ func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func (_ *JobController) GetAll(w http.ResponseWriter, r *http.Request) {
-	basicJobController.GetAll(w, r)
+func (controller *JobController) GetAll(w http.ResponseWriter, r *http.Request) {
+	basicJobController.GetAll(w, r, controller.Pool)
 }
 
-func (_ *JobController) GetOne(w http.ResponseWriter, r *http.Request) {
-	basicJobController.GetOne(w, r)
+func (controller *JobController) GetOne(w http.ResponseWriter, r *http.Request) {
+	basicJobController.GetOne(w, r, controller.Pool)
 }
 
-func (_ *JobController) DeleteOne(w http.ResponseWriter, r *http.Request) {
-	basicJobController.DeleteOne(w, r)
+func (controller *JobController) DeleteOne(w http.ResponseWriter, r *http.Request) {
+	basicJobController.DeleteOne(w, r, controller.Pool)
 }
 
-func (c *JobController) GetAllOrCreateOne(w http.ResponseWriter, r *http.Request) {
+func (controller *JobController) GetAllOrCreateOne(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		c.GetAll(w, r)
+		controller.GetAll(w, r)
 	}
 
 	if r.Method == http.MethodPost {
-		c.CreateOne(w, r)
+		controller.CreateOne(w, r)
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"cron-server/server/controllers"
+	"cron-server/server/middlewares"
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/process"
@@ -30,17 +31,18 @@ func main() {
 	router := mux.NewRouter()
 
 	// Security middleware
-	secureMiddleware := secure.New(secure.Options{
-		FrameDeny: true,
-	})
+	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
-	jobController := controllers.JobController{}
-	projectController := controllers.ProjectController{}
+	jobController := controllers.JobController{Pool: *pool}
+	projectController := controllers.ProjectController{Pool: *pool}
 
 	// Mount middleware
 	router.Use(secureMiddleware.Handler)
 	router.Use(mux.CORSMethodMiddleware(router))
+
+	router.Use(middlewares.Middleware.ContextMiddleware)
+	router.Use(middlewares.Middleware.AuthMiddleware(pool))
 
 	// Job Endpoint
 	router.HandleFunc("/jobs/", jobController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)

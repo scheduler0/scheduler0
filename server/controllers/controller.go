@@ -13,7 +13,6 @@ import (
 //  Basic controller can be used to perform all REST operations for an endpoint
 type BasicController struct {
 	model interface{}
-	pool  repository.Pool
 }
 
 func CreateProjectModel() *models.Project {
@@ -24,7 +23,11 @@ func CreateJobModel() *models.Job {
 	return &models.Job{}
 }
 
-func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Request) {
+func CreateCredentialModel() *models.Credential {
+	return &models.Credential{}
+}
+
+func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
 	var model models.Model
 	var modelType = reflect.TypeOf(controller.model).Name()
 
@@ -40,20 +43,20 @@ func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Requ
 	misc.CheckErr(err)
 	model.FromJson(body)
 
-	if id, err := model.CreateOne(&controller.pool); err != nil {
+	if id, err := model.CreateOne(&pool, r.Context()); err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		misc.SendJson(w, id, http.StatusCreated, nil)
 	}
 }
 
-func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request) {
+func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
 	var model = controller.GetModel()
 	if id, err := misc.GetRequestParam(r, "id", 2); err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		model.SetId(id)
-		if err := model.GetOne(&controller.pool, "id = ?", id); err != nil {
+		if err := model.GetOne(&pool, r.Context(), "id = ?", id); err != nil {
 			misc.SendJson(w, err, http.StatusOK, nil)
 		} else {
 			misc.SendJson(w, model, http.StatusOK, nil)
@@ -61,7 +64,7 @@ func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request) {
+func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
 	var model = controller.GetModel()
 	var queryParams = misc.GetRequestQueryString(r.URL.RawQuery)
 	var query, values = model.SearchToQuery(queryParams)
@@ -71,14 +74,14 @@ func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if data, err := model.GetAll(&controller.pool, query, values...); err != nil {
+	if data, err := model.GetAll(&pool, r.Context(), query, values...); err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		misc.SendJson(w, data, http.StatusOK, nil)
 	}
 }
 
-func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Request) {
+func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
 	var model = controller.GetModel()
 	if id, err := misc.GetRequestParam(r, "id", 2); err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
@@ -87,7 +90,7 @@ func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Requ
 		misc.CheckErr(err)
 		model.FromJson(body)
 		model.SetId(id)
-		if err = model.UpdateOne(&controller.pool); err != nil {
+		if err = model.UpdateOne(&pool, r.Context()); err != nil {
 			misc.SendJson(w, err, http.StatusBadRequest, nil)
 		} else {
 			misc.SendJson(w, model, http.StatusOK, nil)
@@ -95,13 +98,13 @@ func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (controller *BasicController) DeleteOne(w http.ResponseWriter, r *http.Request) {
+func (controller *BasicController) DeleteOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
 	var model = controller.GetModel()
 	if id, err := misc.GetRequestParam(r, "id", 2); err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	} else {
 		model.SetId(id)
-		if _, err := model.DeleteOne(&controller.pool); err != nil {
+		if _, err := model.DeleteOne(&pool, r.Context()); err != nil {
 			misc.SendJson(w, err, http.StatusBadRequest, nil)
 		} else {
 			misc.SendJson(w, id, http.StatusOK, nil)
@@ -119,6 +122,10 @@ func (controller *BasicController) GetModel() models.Model {
 
 	if modelType == "Job" {
 		innerModel = CreateJobModel()
+	}
+
+	if modelType == "Credential" {
+		innerModel = CreateCredentialModel()
 	}
 
 	return innerModel

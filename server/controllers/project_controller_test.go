@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
@@ -15,14 +16,20 @@ import (
 	"time"
 )
 
+var (
+	projectOne       = models.Project{}
+	projectTwo       = models.Project{}
+	projectOneJobOne = models.Job{}
+	ctx              = context.Background()
+)
+
 var projectController = ProjectController{}
-var projectOne = models.Project{}
-var projectTwo = models.Project{}
-var projectOneJobOne = models.Job{}
-var projectsPool, _ = repository.NewPool(repository.CreateConnection, 5)
 
 func TestProjectController_CreateOne(t *testing.T) {
 	testutils.TruncateDBBeforeTest()
+	projectsPool, err := repository.NewPool(repository.CreateConnection, 1)
+	misc.CheckErr(err)
+	projectController.Pool = *projectsPool
 
 	t.Log("Cannot create project without name and description")
 	{
@@ -91,7 +98,7 @@ func TestProjectController_UpdateOne(t *testing.T) {
 		projectTwo.Name = "Untitled Project #2"
 		projectTwo.Description = "untitled project two description"
 
-		if id, err := projectTwo.CreateOne(projectsPool); err != nil {
+		if id, err := projectTwo.CreateOne(&projectController.Pool, ctx); err != nil {
 			t.Fatalf("failed to create project two")
 		} else {
 			projectTwo.ID = id
@@ -151,7 +158,7 @@ func TestProjectController_DeleteOne(t *testing.T) {
 		projectOneJobOne.StartDate = time.Now().Add(90 * time.Second)
 		projectOneJobOne.CallbackUrl = "https://time.com"
 
-		if _, err := projectOneJobOne.CreateOne(projectsPool); err != nil {
+		if _, err := projectOneJobOne.CreateOne(&projectController.Pool, ctx); err != nil {
 			t.Fatalf("\t\t Could not create job %v", err)
 		} else {
 			if req, err := http.NewRequest("DELETE", "/projects/"+projectOne.ID, nil); err != nil {
@@ -166,7 +173,7 @@ func TestProjectController_DeleteOne(t *testing.T) {
 
 	t.Log("Delete project without job")
 	{
-		if _, err := projectOneJobOne.DeleteOne(projectsPool); err != nil {
+		if _, err := projectOneJobOne.DeleteOne(&projectController.Pool, ctx); err != nil {
 			t.Fatalf("\t\t Could not delete job %v", err)
 		} else {
 			if req, err := http.NewRequest("DELETE", "/projects/"+projectOne.ID, nil); err != nil {
@@ -179,5 +186,5 @@ func TestProjectController_DeleteOne(t *testing.T) {
 		}
 	}
 
-	projectsPool.Close()
+	projectController.Pool.Close()
 }
