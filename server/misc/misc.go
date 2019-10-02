@@ -30,6 +30,10 @@ func GetPort() string {
 	return ":" + port
 }
 
+func GetClientHost() string {
+	return os.Getenv("CLIENT_HOST")
+}
+
 func GetPostgresCredentials() *PostgresCredentials {
 	psgc := &PostgresCredentials{
 		Addr:     "localhost:5432",
@@ -63,6 +67,7 @@ func GetPostgresCredentials() *PostgresCredentials {
 }
 
 func (writer LogWriter) Write(bytes []byte) (int, error) {
+	fmt.Println("-----------")
 	return fmt.Print(time.Now().UTC().Format("2006-01-02 15:04:05") + " [DEBUG] " + string(bytes))
 }
 
@@ -101,7 +106,6 @@ func CheckErr(e error) {
 	}
 }
 
-// TODO: Make this a middleware
 func GetRequestParam(r *http.Request, paramName string, paramPos int) (string, error) {
 	params := mux.Vars(r)
 	paths := strings.Split(r.URL.Path, "/")
