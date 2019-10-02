@@ -9,10 +9,10 @@ import (
 )
 
 type ProjectController struct {
-	pool *repository.Pool
+	Pool repository.Pool
 }
 
-var basicProjectController = BasicController{model: models.Project{}, pool: repository.Pool{}}
+var basicProjectController = BasicController{model: models.Project{}}
 
 func (controller *ProjectController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
@@ -27,7 +27,7 @@ func (controller *ProjectController) CreateOne(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	id, err := project.CreateOne(controller.pool)
+	id, err := project.CreateOne(&controller.Pool, r.Context())
 	if err != nil {
 		misc.SendJson(w, err, http.StatusBadRequest, nil)
 	}
@@ -38,20 +38,20 @@ func (controller *ProjectController) CreateOne(w http.ResponseWriter, r *http.Re
 	misc.SendJson(w, id, http.StatusCreated, nil)
 }
 
-func (_ *ProjectController) GetOne(w http.ResponseWriter, r *http.Request) {
-	basicProjectController.GetOne(w, r)
+func (controller *ProjectController) GetOne(w http.ResponseWriter, r *http.Request) {
+	basicProjectController.GetOne(w, r, controller.Pool)
 }
 
-func (_ *ProjectController) GetAll(w http.ResponseWriter, r *http.Request) {
-	basicProjectController.GetAll(w, r)
+func (controller *ProjectController) GetAll(w http.ResponseWriter, r *http.Request) {
+	basicProjectController.GetAll(w, r, controller.Pool)
 }
 
-func (_ *ProjectController) DeleteOne(w http.ResponseWriter, r *http.Request) {
-	basicProjectController.DeleteOne(w, r)
+func (controller *ProjectController) DeleteOne(w http.ResponseWriter, r *http.Request) {
+	basicProjectController.DeleteOne(w, r, controller.Pool)
 }
 
-func (_ *ProjectController) UpdateOne(w http.ResponseWriter, r *http.Request) {
-	basicProjectController.UpdateOne(w, r)
+func (controller *ProjectController) UpdateOne(w http.ResponseWriter, r *http.Request) {
+	basicProjectController.UpdateOne(w, r, controller.Pool)
 }
 
 func (controller *ProjectController) GetAllOrCreateOne(w http.ResponseWriter, r *http.Request) {
