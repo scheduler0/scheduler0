@@ -19,23 +19,22 @@ func (controller *ProjectController) CreateOne(w http.ResponseWriter, r *http.Re
 	misc.CheckErr(err)
 
 	var project models.Project
-
 	project.FromJson(body)
 
 	if len(project.Name) < 1 {
-		misc.SendJson(w, "Project name is required", http.StatusBadRequest, nil)
+		misc.SendJson(w, "project name is required", false, http.StatusBadRequest, nil)
 		return
 	}
 
 	id, err := project.CreateOne(&controller.Pool, r.Context())
 	if err != nil {
-		misc.SendJson(w, err, http.StatusBadRequest, nil)
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	customHeader := map[string]string{}
 	customHeader["Location"] = "projects/" + id
-
-	misc.SendJson(w, id, http.StatusCreated, nil)
+	misc.SendJson(w, id, true, http.StatusCreated, nil)
 }
 
 func (controller *ProjectController) GetOne(w http.ResponseWriter, r *http.Request) {

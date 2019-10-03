@@ -219,20 +219,17 @@ func (p *Project) SearchToQuery(search [][]string) (string, []string) {
 	return query, values
 }
 
-func (p *Project) ToJson() []byte {
-	data, err := json.Marshal(p)
-
-	if err != nil {
-		panic(err)
+func (p *Project) ToJson() ([]byte, error) {
+	if data, err := json.Marshal(p); err != nil {
+		return data, err
+	} else {
+		return data, nil
 	}
-
-	return data
 }
 
-func (p *Project) FromJson(body []byte) {
-	err := json.Unmarshal(body, &p)
-
-	if err != nil {
-		panic(err)
+func (p *Project) FromJson(body []byte) error {
+	if err := json.Unmarshal(body, &p); err != nil {
+		return err
 	}
+	return nil
 }

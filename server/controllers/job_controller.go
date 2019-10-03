@@ -18,74 +18,96 @@ var basicJobController = BasicController{model: models.Job{}}
 
 func (controller *JobController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
-	j := models.Job{}
-	j.FromJson(body)
+	ij := models.InboundJob{}
+
+	if len(body) < 1 {
+		misc.SendJson(w, "no request body", false, http.StatusBadRequest, nil)
+		return
+	}
+
+	err = ij.FromJson(body)
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
+	}
+
+	j, err := ij.ToModel()
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
+	}
 
 	if len(j.ProjectId) < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		_, err = w.Write([]byte("Project Id is required"))
-		misc.CheckErr(err)
+		misc.SendJson(w, "project Id is required", false, http.StatusBadRequest, nil)
 		return
 	}
 
 	if len(j.CronSpec) < 1 {
-		w.WriteHeader(http.StatusBadRequest)
-		_, err = w.Write([]byte("Cron is required"))
-		misc.CheckErr(err)
+		misc.SendJson(w, "cron spec is required", false, http.StatusBadRequest, nil)
+		return
+	}
+
+	if len(j.CallbackUrl) < 1 {
+		misc.SendJson(w, "callback url is required", false, http.StatusBadRequest, nil)
 		return
 	}
 
 	if j.StartDate.IsZero() {
-		w.WriteHeader(http.StatusBadRequest)
-		_, err = w.Write([]byte("Cron is required"))
-		misc.CheckErr(err)
+		misc.SendJson(w, "start date is required", false, http.StatusBadRequest, nil)
 		return
 	}
 
-	schedule, err := cron.ParseStandard(j.CronSpec)
-	misc.CheckErr(err)
-	j.State = models.InActiveJob
-	j.NextTime = schedule.Next(j.StartDate)
-	j.TotalExecs = -1
-	j.SecsBetweenExecs = j.NextTime.Sub(j.StartDate).Seconds()
+	if j.StartDate.Before(time.Now().UTC()) {
+		misc.SendJson(w, "start date cannot be in the past", false, http.StatusBadRequest, nil)
+		return
+	}
 
 	id, err := j.CreateOne(&controller.Pool, r.Context())
-	misc.CheckErr(err)
-	misc.SendJson(w, id, http.StatusCreated, nil)
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
+	}
+
+	misc.SendJson(w, id, true, http.StatusCreated, nil)
 }
 
 func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Request) {
-	if id, err := misc.GetRequestParam(r, "id", 2); err != nil {
-		misc.SendJson(w, err, http.StatusBadRequest, nil)
-	} else {
-		job := models.Job{ID: id}
-
-		err := job.GetOne(&controller.Pool, r.Context(), "id = ?", job.ID)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(job.ToJson()))
-			return
-		}
-
-		body, err := ioutil.ReadAll(r.Body)
-		misc.CheckErr(err)
-		jobUpdate := models.Job{}
-		jobUpdate.FromJson(body)
-
-		if jobUpdate.State == models.ActiveJob {
-			schedule, err := cron.ParseStandard(job.CronSpec)
-			misc.CheckErr(err)
-
-			jobUpdate.NextTime = schedule.Next(time.Now().UTC())
-		}
-
-		jobUpdate.ID = id
-		if err = jobUpdate.UpdateOne(&controller.Pool, r.Context()); err != nil {
-			misc.SendJson(w, err, http.StatusBadRequest, nil)
-		}
-
-		misc.SendJson(w, jobUpdate, http.StatusOK, nil)
+	id, err := misc.GetRequestParam(r, "id", 2)
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
+
+	job := models.Job{ID: id}
+	err = job.GetOne(&controller.Pool, r.Context(), "id = ?", job.ID)
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
+	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	misc.CheckErr(err)
+	jobUpdate := models.Job{}
+	if len(body) > 1 {
+		jobUpdate.FromJson(body)
+	} else {
+		misc.SendJson(w, "no request body", false, http.StatusBadRequest, nil)
+		return
+	}
+
+	if jobUpdate.State == models.ActiveJob {
+		schedule, err := cron.ParseStandard(job.CronSpec)
+		misc.CheckErr(err)
+		jobUpdate.NextTime = schedule.Next(time.Now().UTC())
+	}
+
+	jobUpdate.ID = id
+	if err = jobUpdate.UpdateOne(&controller.Pool, r.Context()); err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
+	}
+
+	misc.SendJson(w, jobUpdate, true, http.StatusOK, nil)
 }
 
 func (controller *JobController) GetAll(w http.ResponseWriter, r *http.Request) {

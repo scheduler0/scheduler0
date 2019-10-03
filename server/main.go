@@ -38,11 +38,12 @@ func main() {
 	projectController := controllers.ProjectController{Pool: *pool}
 
 	// Mount middleware
+	middleware := middlewares.MiddlewareType{}
+
 	router.Use(secureMiddleware.Handler)
 	router.Use(mux.CORSMethodMiddleware(router))
-
-	router.Use(middlewares.Middleware.ContextMiddleware)
-	router.Use(middlewares.Middleware.AuthMiddleware(pool))
+	router.Use(middleware.ContextMiddleware)
+	router.Use(middleware.AuthMiddleware(pool))
 
 	// Job Endpoint
 	router.HandleFunc("/jobs/", jobController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)
@@ -56,6 +57,7 @@ func main() {
 	router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
 
+	log.Println("Server is running on port", misc.GetPort())
 	err = http.ListenAndServe(misc.GetPort(), router)
 	misc.CheckErr(err)
 }

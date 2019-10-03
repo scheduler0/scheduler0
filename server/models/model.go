@@ -15,15 +15,15 @@ import (
 
 // Basic model interface
 type Model interface {
-	SetId(id string)
 	CreateOne(pool *repository.Pool, ctx context.Context) (string, error)
 	GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) error
 	GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error)
 	UpdateOne(pool *repository.Pool, ctx context.Context) error
 	DeleteOne(pool *repository.Pool, ctx context.Context) (int, error)
-	FromJson(body []byte)
 	SearchToQuery([][]string) (string, []string)
-	ToJson() []byte
+	FromJson(body []byte) error
+	ToJson() ([]byte, error)
+	SetId(id string)
 }
 
 func Setup(pool *repository.Pool) {

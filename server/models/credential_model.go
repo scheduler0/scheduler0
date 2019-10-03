@@ -57,7 +57,7 @@ func (c *Credential) GetOne(pool *repository.Pool, ctx context.Context, query st
 	}
 
 	db := conn.(*pg.DB)
-	err = db.Model(&c).Where(query, params).Select()
+	err = db.Model(c).Where(query, params).Select()
 	if err != nil {
 		return err
 	}
@@ -146,16 +146,17 @@ func (c *Credential) SearchToQuery([][]string) (string, []string) {
 	return "", []string{""}
 }
 
-func (c *Credential) ToJson() []byte {
+func (c *Credential) ToJson() ([]byte, error) {
 	if data, err := json.Marshal(c); err != nil {
-		panic(err)
+		return data, err
 	} else {
-		return data
+		return data, nil
 	}
 }
 
-func (c *Credential) FromJson(body []byte) {
+func (c *Credential) FromJson(body []byte) error {
 	if err := json.Unmarshal(body, &c); err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }

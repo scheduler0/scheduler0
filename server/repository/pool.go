@@ -3,7 +3,6 @@ package repository
 import (
 	"errors"
 	"io"
-	"log"
 	"sync"
 )
 
@@ -31,14 +30,12 @@ func (p *Pool) Acquire() (io.Closer, error) {
 	select {
 	// check if we have a connection in the pull
 	case r, ok := <-p.resources:
-		log.Println("Acquire:", "Shared Resource")
 		if !ok {
 			return nil, ErrPoolClosed
 		}
 		return r, nil
 	// otherwise create a new pool
 	default:
-		log.Println("Acquire:", "New Resource")
 		return p.factory()
 	}
 }
@@ -54,9 +51,7 @@ func (p *Pool) Release(r io.Closer) {
 
 	select {
 	case p.resources <- r:
-		log.Println("Release:", "In Queue")
 	default:
-		log.Println("Release:", "Closing")
 		r.Close()
 	}
 }
