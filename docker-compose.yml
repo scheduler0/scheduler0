@@ -11,6 +11,7 @@ services:
         POSTGRES_ADDRESS: postgres:5432
         POSTGRES_PASSWORD: postgres
         POSTGRES_DATABASE: postgres
+        CLIENT_HOST: "client:4327"
     ports:
       - "4321:4321"
     depends_on:
