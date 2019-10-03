@@ -33,7 +33,8 @@ func TestProjectController_CreateOne(t *testing.T) {
 
 	t.Log("Cannot create project without name and description")
 	{
-		projectOneJson := projectOne.ToJson()
+		projectOneJson, err := projectOne.ToJson()
+		misc.CheckErr(err)
 		projectOneJsonStr := strings.NewReader(string(projectOneJson))
 
 		if req, err := http.NewRequest("POST", "/projects", projectOneJsonStr); err != nil {
@@ -41,7 +42,7 @@ func TestProjectController_CreateOne(t *testing.T) {
 		} else {
 			w := httptest.NewRecorder()
 			projectController.CreateOne(w, req)
-			assert.Equal(t, w.Code, http.StatusBadRequest)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
 		}
 	}
 
@@ -50,7 +51,8 @@ func TestProjectController_CreateOne(t *testing.T) {
 		projectOne.Name = "Untitled Project #1"
 		projectOne.Description = "a simple job funnel"
 
-		projectOneJson := projectOne.ToJson()
+		projectOneJson, err := projectOne.ToJson()
+		misc.CheckErr(err)
 		projectOneJsonStr := strings.NewReader(string(projectOneJson))
 
 		if req, err := http.NewRequest("POST", "/projects", projectOneJsonStr); err != nil {
@@ -71,7 +73,7 @@ func TestProjectController_CreateOne(t *testing.T) {
 					t.Fatalf("\t\t Response payload is empty")
 				} else {
 					projectOne.ID = response["data"].(string)
-					assert.Equal(t, w.Code, http.StatusCreated)
+					assert.Equal(t, http.StatusCreated, w.Code)
 				}
 			}
 		}
@@ -79,7 +81,8 @@ func TestProjectController_CreateOne(t *testing.T) {
 
 	t.Log("Cannot create project with the same name")
 	{
-		projectOneJson := projectOne.ToJson()
+		projectOneJson, err := projectOne.ToJson()
+		misc.CheckErr(err)
 		projectOneJsonStr := strings.NewReader(string(projectOneJson))
 
 		if req, err := http.NewRequest("POST", "/projects", projectOneJsonStr); err != nil {
@@ -87,7 +90,7 @@ func TestProjectController_CreateOne(t *testing.T) {
 		} else {
 			w := httptest.NewRecorder()
 			projectController.CreateOne(w, req)
-			assert.Equal(t, w.Code, http.StatusBadRequest)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
 		}
 	}
 }
@@ -103,7 +106,8 @@ func TestProjectController_UpdateOne(t *testing.T) {
 		} else {
 			projectTwo.ID = id
 			projectTwo.Name = "Untitled Project #1"
-			projectTwoJson := projectTwo.ToJson()
+			projectTwoJson, err := projectTwo.ToJson()
+			misc.CheckErr(err)
 			projectTwoJsonStr := strings.NewReader(string(projectTwoJson))
 
 			if req, err := http.NewRequest("PUT", "/projects/"+projectTwo.ID, projectTwoJsonStr); err != nil {
@@ -111,7 +115,7 @@ func TestProjectController_UpdateOne(t *testing.T) {
 			} else {
 				w := httptest.NewRecorder()
 				projectController.UpdateOne(w, req)
-				assert.Equal(t, w.Code, http.StatusBadRequest)
+				assert.Equal(t, http.StatusBadRequest, w.Code)
 			}
 		}
 	}
@@ -119,7 +123,8 @@ func TestProjectController_UpdateOne(t *testing.T) {
 	t.Log("Update name and description of an existing project")
 	{
 		projectTwo.Name = "Project #2"
-		projectTwoJson := projectTwo.ToJson()
+		projectTwoJson, err := projectTwo.ToJson()
+		misc.CheckErr(err)
 		projectTwoJsonStr := strings.NewReader(string(projectTwoJson))
 
 		if req, err := http.NewRequest("PUT", "/projects/"+projectTwo.ID, projectTwoJsonStr); err != nil {
@@ -127,7 +132,7 @@ func TestProjectController_UpdateOne(t *testing.T) {
 		} else {
 			w := httptest.NewRecorder()
 			projectController.UpdateOne(w, req)
-			assert.Equal(t, w.Code, http.StatusOK)
+			assert.Equal(t, http.StatusOK, w.Code)
 		}
 	}
 }
@@ -143,7 +148,7 @@ func TestProjectController_GetAll(t *testing.T) {
 			if _, err := ioutil.ReadAll(w.Body); err != nil {
 				misc.CheckErr(err)
 			} else {
-				assert.Equal(t, w.Code, http.StatusOK)
+				assert.Equal(t, http.StatusOK, w.Code)
 			}
 		}
 	}
@@ -159,14 +164,14 @@ func TestProjectController_DeleteOne(t *testing.T) {
 		projectOneJobOne.CallbackUrl = "https://time.com"
 
 		if _, err := projectOneJobOne.CreateOne(&projectController.Pool, ctx); err != nil {
-			t.Fatalf("\t\t Could not create job %v", err)
+			t.Fatalf("\t\t Could not create job; %v", err)
 		} else {
 			if req, err := http.NewRequest("DELETE", "/projects/"+projectOne.ID, nil); err != nil {
 				t.Fatalf("\t\t Request failed %v", err)
 			} else {
 				w := httptest.NewRecorder()
 				projectController.DeleteOne(w, req)
-				assert.Equal(t, w.Code, http.StatusBadRequest)
+				assert.Equal(t, http.StatusBadRequest, w.Code)
 			}
 		}
 	}
@@ -181,7 +186,7 @@ func TestProjectController_DeleteOne(t *testing.T) {
 			} else {
 				w := httptest.NewRecorder()
 				projectController.DeleteOne(w, req)
-				assert.Equal(t, w.Code, http.StatusOK)
+				assert.Equal(t, http.StatusOK, w.Code)
 			}
 		}
 	}
