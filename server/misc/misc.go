@@ -68,11 +68,12 @@ func GetPostgresCredentials() *PostgresCredentials {
 
 func (writer LogWriter) Write(bytes []byte) (int, error) {
 	fmt.Println("-----------")
-	return fmt.Print(time.Now().UTC().Format("2006-01-02 15:04:05") + " [DEBUG] " + string(bytes))
+	return fmt.Print(time.Now().UTC().Format(time.RFC1123) + " [DEBUG] " + string(bytes))
 }
 
 type Response struct {
-	Data interface{} `json:"data"`
+	Data    interface{} `json:"data"`
+	Success bool        `json:"success"`
 }
 
 func (r *Response) ToJson() []byte {
@@ -83,10 +84,10 @@ func (r *Response) ToJson() []byte {
 	return data
 }
 
-func SendJson(w http.ResponseWriter, data interface{}, status int, headers map[string]string) {
-	resObj := Response{Data: data}
+func SendJson(w http.ResponseWriter, data interface{}, success bool, status int, headers map[string]string) {
+	resObj := Response{Data: data, Success: success}
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	w.Header().Add("Content-Type", "application/json")
 
 	if headers != nil {
