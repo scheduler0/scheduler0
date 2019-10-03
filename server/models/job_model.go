@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
+	"github.com/robfig/cron"
 	"github.com/segmentio/ksuid"
 	"time"
 )
@@ -45,31 +46,6 @@ type Job struct {
 	DateCreated      time.Time `json:"date_created"`
 }
 
-type InboundJob struct {
-	ID          string    `json:"id,omitempty"`
-	ProjectId   string    `json:"project_id"`
-	Description string    `json:"description"`
-	CronSpec    string    `json:"cron_spec,omitempty"`
-	Data        string    `json:"data,omitempty"`
-	CallbackUrl string    `json:"callback_url"`
-	State       State     `json:"state,omitempty"`
-	StartDate   time.Time `json:"total_execs,omitempty"`
-	EndDate     time.Time `json:"end_date,omitempty"`
-}
-
-func (i *InboundJob) ToModel() Job {
-	return Job{
-		ID:          i.ID,
-		ProjectId:   i.ProjectId,
-		CronSpec:    i.CronSpec,
-		Data:        i.Data,
-		CallbackUrl: i.CallbackUrl,
-		State:       i.State,
-		StartDate:   i.StartDate,
-		EndDate:     i.EndDate,
-	}
-}
-
 var psgc = misc.GetPostgresCredentials()
 
 func (jd *Job) SetId(id string) {
@@ -95,6 +71,16 @@ func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, er
 		return "", err
 	}
 
+	if jd.StartDate.Before(time.Now().UTC()) {
+		err := errors.New("start date cannot be in the past")
+		return "", err
+	}
+
+	if len(jd.CallbackUrl) < 1 {
+		err := errors.New("callback url is required")
+		return "", err
+	}
+
 	if len(jd.CronSpec) < 1 {
 		err := errors.New("cron spec is required")
 		return "", err
@@ -103,9 +89,20 @@ func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, er
 	projectWithId := Project{ID: jd.ProjectId}
 
 	if err := projectWithId.GetOne(pool, ctx, "id = ?", jd.ProjectId); err != nil {
+		return "", errors.New("project with id does not exist")
+	}
+
+	schedule, err := cron.ParseStandard(jd.CronSpec)
+	if err != nil {
 		return "", err
 	}
 
+	jd.State = InActiveJob
+	jd.NextTime = schedule.Next(jd.StartDate)
+	jd.TotalExecs = -1
+	jd.DateCreated = time.Now().UTC()
+	jd.StartDate = jd.StartDate.UTC()
+	jd.SecsBetweenExecs = jd.NextTime.UTC().Sub(jd.StartDate.UTC()).Seconds()
 	jd.ID = ksuid.New().String()
 
 	if _, err := db.Model(jd).Insert(); err != nil {
@@ -237,20 +234,17 @@ func (jd *Job) SearchToQuery(search [][]string) (string, []string) {
 	return query, values
 }
 
-func (jd *Job) ToJson() []byte {
-	data, err := json.Marshal(jd)
-
-	if err != nil {
-		panic(err)
+func (jd *Job) ToJson() ([]byte, error) {
+	if data, err := json.Marshal(jd); err != nil {
+		return data, err
+	} else {
+		return data, nil
 	}
-
-	return data
 }
 
-func (jd *Job) FromJson(body []byte) {
-	err := json.Unmarshal(body, &jd)
-
-	if err != nil {
-		panic(err)
+func (jd *Job) FromJson(body []byte) error {
+	if err := json.Unmarshal(body, &jd); err != nil {
+		return err
 	}
+	return nil
 }
