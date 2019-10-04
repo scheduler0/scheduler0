@@ -26,6 +26,25 @@ func CreateCredentialModel() *models.Credential {
 	return &models.Credential{}
 }
 
+func (controller *BasicController) GetModel() models.Model {
+	var innerModel models.Model
+	var modelType = reflect.TypeOf(controller.model).Name()
+
+	if modelType == "Project" {
+		innerModel = CreateProjectModel()
+	}
+
+	if modelType == "Job" {
+		innerModel = CreateJobModel()
+	}
+
+	if modelType == "Credential" {
+		innerModel = CreateCredentialModel()
+	}
+
+	return innerModel
+}
+
 func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
 	var model models.Model
 	var modelType = reflect.TypeOf(controller.model).Name()
@@ -138,23 +157,4 @@ func (controller *BasicController) DeleteOne(w http.ResponseWriter, r *http.Requ
 	}
 
 	misc.SendJson(w, id, true, http.StatusOK, nil)
-}
-
-func (controller *BasicController) GetModel() models.Model {
-	var innerModel models.Model
-	var modelType = reflect.TypeOf(controller.model).Name()
-
-	if modelType == "Project" {
-		innerModel = CreateProjectModel()
-	}
-
-	if modelType == "Job" {
-		innerModel = CreateJobModel()
-	}
-
-	if modelType == "Credential" {
-		innerModel = CreateCredentialModel()
-	}
-
-	return innerModel
 }
