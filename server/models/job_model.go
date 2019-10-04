@@ -46,6 +46,7 @@ type Job struct {
 	DateCreated      time.Time `json:"date_created"`
 }
 
+
 var psgc = misc.GetPostgresCredentials()
 
 func (jd *Job) SetId(id string) {

@@ -100,7 +100,6 @@ func (c *Credential) UpdateOne(pool *repository.Pool, ctx context.Context) error
 
 	var credentialPlaceholder Credential
 	credentialPlaceholder.ID = c.ID
-
 	err = credentialPlaceholder.GetOne(pool, ctx, "id = ?", credentialPlaceholder.ID)
 
 	if credentialPlaceholder.ApiKey != c.ApiKey {
