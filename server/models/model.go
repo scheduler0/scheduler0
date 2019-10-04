@@ -32,22 +32,6 @@ func Setup(pool *repository.Pool) {
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var runMigrations = func() {
-		pwd, err := os.Getwd()
-		misc.CheckErr(err)
-
-		absPath, err := filepath.Abs(pwd + "/server/repository/migration.sql")
-		misc.CheckErr(err)
-
-		sql, err := ioutil.ReadFile(absPath)
-		misc.CheckErr(err)
-
-		if len(sql) > 0 {
-			_, err = db.Exec(string(sql))
-			misc.CheckErr(err)
-		}
-	}
-
 	for _, model := range []interface{}{
 		(*Job)(nil),
 		(*Project)(nil),
@@ -55,33 +39,53 @@ func Setup(pool *repository.Pool) {
 	} {
 		err := db.CreateTable(model, &orm.CreateTableOptions{IfNotExists: true})
 		if err != nil {
-			log.Println("Cannot to database")
-		} else {
-			runMigrations()
+			log.Printf("Cannot to database %v", err)
+		}
+	}
 
-			var c = Credential{}
-			var ctx = context.Background()
+	pwd, err := os.Getwd()
+	misc.CheckErr(err)
 
-			credentials, err := c.GetAll(pool, ctx, "date_created < ?", "now()")
-			if err != nil {
-				misc.CheckErr(err)
-			}
+	var absPath string
+	var sql []byte
 
-			vd := reflect.ValueOf(credentials)
-			credentialsWithName := make([]Credential, vd.Len())
+	absPath, err = filepath.Abs(pwd + "/server/repository/migration.sql")
 
-			for i := 0; i < vd.Len(); i++ {
-				credentialsWithName[i] = vd.Index(i).Interface().(Credential)
-			}
+	sql, err = ioutil.ReadFile(absPath)
+	if err != nil {
+		absPath, err = filepath.Abs(pwd + "/repository/migration.sql")
+		sql, err = ioutil.ReadFile(absPath)
+		if err != nil {
+			panic(err)
+		}
+	}
 
-			if len(credentialsWithName) < 1 {
-				c.HTTPReferrerRestriction = "*"
-				_, err := c.CreateOne(pool, ctx)
-				log.Println("Created default credentials")
-				if err != nil {
-					misc.CheckErr(err)
-				}
-			}
+	if len(sql) > 0 {
+		_, err = db.Exec(string(sql))
+		misc.CheckErr(err)
+	}
+
+	var c = Credential{}
+	var ctx = context.Background()
+
+	credentials, err := c.GetAll(pool, ctx, "date_created < ?", "now()")
+	if err != nil {
+		misc.CheckErr(err)
+	}
+
+	vd := reflect.ValueOf(credentials)
+	credentialsWithName := make([]Credential, vd.Len())
+
+	for i := 0; i < vd.Len(); i++ {
+		credentialsWithName[i] = vd.Index(i).Interface().(Credential)
+	}
+
+	if len(credentialsWithName) < 1 {
+		c.HTTPReferrerRestriction = "*"
+		_, err := c.CreateOne(pool, ctx)
+		log.Println("Created default credentials")
+		if err != nil {
+			misc.CheckErr(err)
 		}
 	}
 }
