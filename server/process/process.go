@@ -121,7 +121,6 @@ func updateMissedJobs(jobs []models.Job, pool *repository.Pool, ctx context.Cont
 
 					jb.NextTime = scheduledTimeBasedOnNow
 					jb.TotalExecs = execCountToNow
-					jb.MissedExecs = jb.MissedExecs + execCountDiff
 					jb.State = models.StaleJob
 				}
 
