@@ -87,8 +87,6 @@ func TestJobController_CreateOne(t *testing.T) {
 			t.Fatalf("\t\t Could unmarsha json response %v", err)
 		}
 
-		log.Println(response)
-
 		if len(response) < 1 {
 			t.Fatalf("\t\t Response payload is empty")
 		}
@@ -154,8 +152,6 @@ func TestJobController_UpdateOne(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		body, err := ioutil.ReadAll(w.Body)
-		log.Println("Response body :", string(body))
 		jobController.UpdateOne(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	}
@@ -178,8 +174,8 @@ func TestJobController_UpdateOne(t *testing.T) {
 		body, err := ioutil.ReadAll(w.Body)
 		if err != nil {
 			t.Fatalf("\t\t Cannot create http request %v", err)
+			log.Println("Response body :", string(body))
 		}
-		log.Println("Response body :", string(body))
 		assert.Equal(t, http.StatusOK, w.Code)
 	}
 }
