@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"cron-server/server/repository"
-	"cron-server/server/testutils"
 	"testing"
 	"time"
 )
@@ -19,7 +18,6 @@ var (
 func TestJob_CreateOne(t *testing.T) {
 	var jobsPool, _ = repository.NewPool(repository.CreateConnection, 5)
 	defer jobsPool.Close()
-	testutils.TruncateDBBeforeTest()
 
 	t.Log("Creating job returns error if required inbound fields are nil")
 	{
