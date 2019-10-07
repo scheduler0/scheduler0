@@ -30,6 +30,24 @@ func GetPort() string {
 	return ":" + port
 }
 
+func GetAuthentication() (string, string) {
+	usernameEnv := os.Getenv("username")
+	passwordEnv := os.Getenv("password")
+
+	username := "admin"
+	password := "admin"
+
+	if len(usernameEnv) == 0 {
+		username += usernameEnv
+	}
+
+	if len(passwordEnv) == 0 {
+		password += passwordEnv
+	}
+
+	return username, password
+}
+
 func GetClientHost() string {
 	return os.Getenv("CLIENT_HOST")
 }
