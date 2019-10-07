@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"cron-server/server/repository"
-	"cron-server/server/testutils"
 	"testing"
 	"time"
 )
@@ -17,7 +16,6 @@ var (
 func TestProject_CreateOne(t *testing.T) {
 	var projectsPool, _ = repository.NewPool(repository.CreateConnection, 1)
 	defer projectsPool.Close()
-	testutils.TruncateDBBeforeTest()
 
 	t.Log("Don't create project with name and description empty")
 	{
