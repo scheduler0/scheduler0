@@ -23,7 +23,7 @@ const htmlString = (body, css, data) => `
         </noscript>
         <div id="root">${body}</div>
         <script type="text/javascript">
-            window.__DATA__ = ${JSON.stringify(data)}
+            window.__INITIAL_DATA__ = ${JSON.stringify(data)}
         </script>
         <script type="text/javascript" src="public/dist/bundle.js"></script>
     </body>
@@ -31,16 +31,16 @@ const htmlString = (body, css, data) => `
 `;
 
 export const serverRender = (initialData) => {
-    const sheets = new ServerStyleSheets()
+    const sheets = new ServerStyleSheets();
 
     const html = ReactDOMServer.renderToString(
         sheets.collect(
         <ThemeProvider theme={theme}>
             <App />
         </ThemeProvider>)
-    )
+    );
 
-    const css = sheets.toString()
+    const css = sheets.toString();
 
     return htmlString(html, css, initialData)
-}
+};
