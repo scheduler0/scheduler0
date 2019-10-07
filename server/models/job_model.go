@@ -228,6 +228,11 @@ func (jd *Job) SearchToQuery(search [][]string) (string, []string) {
 		}
 	}
 
+	if len(query) < 1 && len(values) < 1 {
+		values = append(values, "null")
+		return "id != ?", values
+	}
+
 	return query, values
 }
 

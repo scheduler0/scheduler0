@@ -38,7 +38,6 @@ func TestCredential_CreateOne(t *testing.T) {
 func TestCredential_UpdateOne(t *testing.T) {
 	var pool, _ = repository.NewPool(repository.CreateConnection, 1)
 	defer pool.Close()
-	testutils.TruncateDBBeforeTest()
 
 	var oldApiKey = credentialModel.ApiKey
 
@@ -66,7 +65,6 @@ func TestCredential_UpdateOne(t *testing.T) {
 func TestCredential_DeleteOne(t *testing.T) {
 	var pool, _ = repository.NewPool(repository.CreateConnection, 1)
 	defer pool.Close()
-	testutils.TruncateDBBeforeTest()
 
 	t.Log("Prevent deleting all credential")
 	{

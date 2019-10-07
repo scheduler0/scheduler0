@@ -176,6 +176,7 @@ func TestJobController_UpdateOne(t *testing.T) {
 			t.Fatalf("\t\t Cannot create http request %v", err)
 			log.Println("Response body :", string(body))
 		}
+
 		assert.Equal(t, http.StatusOK, w.Code)
 	}
 }

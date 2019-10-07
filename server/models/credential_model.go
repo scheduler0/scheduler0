@@ -144,7 +144,7 @@ func (c *Credential) DeleteOne(pool *repository.Pool, ctx context.Context) (int,
 }
 
 func (c *Credential) SearchToQuery([][]string) (string, []string) {
-	return "", []string{""}
+	return "api_key != ?", []string{"null"}
 }
 
 func (c *Credential) ToJson() ([]byte, error) {

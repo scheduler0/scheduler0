@@ -15,7 +15,7 @@ var (
 )
 
 func TestProject_CreateOne(t *testing.T) {
-	var projectsPool, _ = repository.NewPool(repository.CreateConnection, 5)
+	var projectsPool, _ = repository.NewPool(repository.CreateConnection, 1)
 	defer projectsPool.Close()
 	testutils.TruncateDBBeforeTest()
 
@@ -45,7 +45,7 @@ func TestProject_CreateOne(t *testing.T) {
 }
 
 func TestProject_GetOne(t *testing.T) {
-	var projectsPool, _ = repository.NewPool(repository.CreateConnection, 5)
+	var projectsPool, _ = repository.NewPool(repository.CreateConnection, 1)
 	defer projectsPool.Close()
 
 	t.Log("Can retrieve as single project")
@@ -64,7 +64,7 @@ func TestProject_GetOne(t *testing.T) {
 }
 
 func TestProject_UpdateOne(t *testing.T) {
-	var projectsPool, _ = repository.NewPool(repository.CreateConnection, 5)
+	var projectsPool, _ = repository.NewPool(repository.CreateConnection, 1)
 	defer projectsPool.Close()
 
 	t.Log("Can update name and description for a project")
@@ -89,7 +89,7 @@ func TestProject_UpdateOne(t *testing.T) {
 }
 
 func TestProject_DeleteOne(t *testing.T) {
-	var projectsPool, _ = repository.NewPool(repository.CreateConnection, 5)
+	var projectsPool, _ = repository.NewPool(repository.CreateConnection, 1)
 	defer projectsPool.Close()
 
 	t.Log("Delete All Projects")
