@@ -1,14 +1,18 @@
-require('dotenv').config()
+import Store from "./models/store";
 
-import path from 'path'
-import express from 'express'
-import helmet from 'helmet'
-import morgan from 'morgan'
-import axios from 'axios'
-import { serverRender } from './renderers/server'
+require('dotenv').config();
+
+import path from 'path';
+import express from 'express';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import axios from 'axios';
+import { serverRender } from './renderers/server';
+
+import credentialRouter from "./routers/credential";
 
 import webpack from 'webpack';
-import webpackDevMiddleware from 'webpack-dev-middleware'
+import webpackDevMiddleware from 'webpack-dev-middleware';
 
 const app = express();
 const config = require('../webpack.config.js');
@@ -17,7 +21,6 @@ const compiler = webpack(config);
 const PORT = process.env.PORT || 4323;
 const isDev = process.env.NODE_ENV === 'development';
 const API_ENDPOINT = process.env.API_ENDPOINT;
-
 const username = process.env.BASIC_AUTH_USER;
 const password = process.env.BASIC_AUTH_PASS;
 
@@ -60,14 +63,20 @@ app.get('/', async (req, res) => {
             fetchJobs
         ]);
 
-        credentials = credentials.data;
-        projects = projects.data;
-        jobs = jobs.data;
+        credentials = [];
+        // projects = projects.data;
+        // jobs = jobs.data;
     } catch (e) {
-        console.error(e)
+        console.error(e);
     }
 
-    res.send(serverRender({ credentials, projects, jobs }))
+    const rootStore = Store;
+
+    rootStore.credentialState.setCredentials([]);
+
+    res.send(serverRender(rootStore))
 });
+
+app.use('/credential', credentialRouter);
 
 app.listen(PORT, () => console.log(`App listening on port ${PORT}`));
