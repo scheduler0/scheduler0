@@ -1,8 +1,10 @@
-import React from 'react'
-import ReactDOMServer from 'react-dom/server'
-import App from '../app'
+import React from 'react';
+import ReactDOMServer from 'react-dom/server';
+import App from '../app';
 import { ServerStyleSheets, ThemeProvider } from '@material-ui/styles';
-import theme from '../theme'
+import theme from '../theme';
+import { Provider } from "mobx-react";
+import {CredentialState} from "../models/credential";
 
 const htmlString = (body, css, data) => `
 <!DOCTYPE html>
@@ -30,17 +32,19 @@ const htmlString = (body, css, data) => `
 </html>
 `;
 
-export const serverRender = (initialData) => {
+export const serverRender = (rootStore) => {
     const sheets = new ServerStyleSheets();
+    let store = new CredentialState();
 
     const html = ReactDOMServer.renderToString(
         sheets.collect(
-        <ThemeProvider theme={theme}>
-            <App />
-        </ThemeProvider>)
+            <ThemeProvider theme={theme}>
+                <App rootStore={store} />
+            </ThemeProvider>
+        )
     );
 
     const css = sheets.toString();
 
-    return htmlString(html, css, initialData)
+    return htmlString(html, css, rootStore)
 };

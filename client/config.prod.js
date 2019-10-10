@@ -1,6 +1,6 @@
-require('dotenv').config()
+require('dotenv').config();
 
-const path = require("path")
+const path = require("path");
 const webpack = require('webpack');
 const nodeExternals = require('webpack-node-externals');
 
@@ -31,8 +31,10 @@ module.exports = {
                             plugins: [
                                 "transform-regenerator",
                                 "@babel/plugin-syntax-dynamic-import",
-                                ["@babel/plugin-transform-runtime", { useESModules: true }],
-                                "transform-class-properties"
+                                "@babel/plugin-transform-runtime",
+                                "transform-class-properties",
+                                ["@babel/plugin-proposal-decorators", { "legacy": true }],
+                                ['@babel/plugin-proposal-class-properties', { loose: true }]
                             ]
                         }
                     }
@@ -57,7 +59,8 @@ module.exports = {
             "process.env": {
                 NODE_ENV: JSON.stringify(process.env.NODE_ENV),
                 PORT: JSON.stringify(process.env.PORT),
-                API_ENDPOINT: JSON.stringify(process.env.API_ENDPOINT)
+                API_ENDPOINT: JSON.stringify(process.env.API_ENDPOINT),
+
             }
         }),
     ],

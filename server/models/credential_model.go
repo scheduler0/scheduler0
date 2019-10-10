@@ -125,7 +125,7 @@ func (c *Credential) DeleteOne(pool *repository.Pool, ctx context.Context) (int,
 
 	var credentials []Credential
 
-	err = db.Model(&credentials).Where("id = ?", c.ID).Select()
+	err = db.Model(&credentials).Where("id != ?", "null").Select()
 	if err != nil {
 		return -1, err
 	}
