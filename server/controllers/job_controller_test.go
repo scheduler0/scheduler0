@@ -5,7 +5,6 @@ import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
-	"cron-server/server/testutils"
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
@@ -26,7 +25,6 @@ var (
 )
 
 func TestJobController_CreateOne(t *testing.T) {
-	testutils.TruncateDBBeforeTest()
 	var jobsPool, err = repository.NewPool(repository.CreateConnection, 1)
 	misc.CheckErr(err)
 	jobController.Pool = *jobsPool
@@ -176,6 +174,7 @@ func TestJobController_UpdateOne(t *testing.T) {
 			t.Fatalf("\t\t Cannot create http request %v", err)
 			log.Println("Response body :", string(body))
 		}
+
 		assert.Equal(t, http.StatusOK, w.Code)
 	}
 }

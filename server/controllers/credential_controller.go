@@ -13,21 +13,31 @@ type CredentialController struct {
 }
 
 func (cc *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request) {
-	basicProjectController.CreateOne(w, r, cc.Pool)
+	basicCredentialController.CreateOne(w, r, cc.Pool)
 }
 
 func (cc *CredentialController) GetOne(w http.ResponseWriter, r *http.Request) {
-	basicProjectController.GetOne(w, r, cc.Pool)
+	basicCredentialController.GetOne(w, r, cc.Pool)
 }
 
 func (cc *CredentialController) UpdateOne(w http.ResponseWriter, r *http.Request) {
-	basicProjectController.GetOne(w, r, cc.Pool)
+	basicCredentialController.GetOne(w, r, cc.Pool)
 }
 
 func (cc *CredentialController) GetAll(w http.ResponseWriter, r *http.Request) {
-	basicProjectController.GetAll(w, r, cc.Pool)
+	basicCredentialController.GetAll(w, r, cc.Pool)
 }
 
 func (cc *CredentialController) DeleteOne(w http.ResponseWriter, r *http.Request) {
-	basicProjectController.DeleteOne(w, r, cc.Pool)
+	basicCredentialController.DeleteOne(w, r, cc.Pool)
+}
+
+func (cc *CredentialController) GetAllOrCreateOne(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		cc.GetAll(w, r)
+	}
+
+	if r.Method == http.MethodPost {
+		cc.CreateOne(w, r)
+	}
 }

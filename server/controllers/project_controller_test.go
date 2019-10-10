@@ -5,7 +5,6 @@ import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
-	"cron-server/server/testutils"
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
@@ -26,7 +25,6 @@ var (
 var projectController = ProjectController{}
 
 func TestProjectController_CreateOne(t *testing.T) {
-	testutils.TruncateDBBeforeTest()
 	projectsPool, err := repository.NewPool(repository.CreateConnection, 1)
 	misc.CheckErr(err)
 	projectController.Pool = *projectsPool

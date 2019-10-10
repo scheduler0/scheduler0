@@ -5,6 +5,7 @@ import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
+	"crypto/subtle"
 	"github.com/segmentio/ksuid"
 	"net/http"
 	"strings"
@@ -33,44 +34,46 @@ func (_ *MiddlewareType) AuthMiddleware(pool *repository.Pool) func(next http.Ha
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			credential := models.Credential{}
-			clientHost := r.Host
 
-			if len(clientHost) > 1 && clientHost == misc.GetClientHost() {
-				next.ServeHTTP(w, r)
-				return
+			username, password := misc.GetAuthentication()
+			user, pass, passBasicAuth := r.BasicAuth()
+
+			if !passBasicAuth || subtle.ConstantTimeCompare([]byte(user), []byte(username)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
+				passBasicAuth = false
 			}
 
 			token := r.Header.Get("x-token")
-			if len(token) < 1 {
+			if !passBasicAuth && len(token) < 1 {
 				misc.SendJson(w, "missing token header", false, http.StatusUnauthorized, nil)
 				return
 			}
 
 			paths := strings.Split(r.URL.Path, "/")
-			if len(paths) < 1 {
+			if !passBasicAuth && len(paths) < 1 {
 				misc.SendJson(w, "endpoint is not supported", false, http.StatusBadRequest, nil)
 				return
 			}
 
-			if paths[1] == "credentials" {
+			if !passBasicAuth && paths[1] == "credentials" {
 				misc.SendJson(w, "credentials are not available", false, http.StatusUnauthorized, nil)
+				return
 			}
 
 			err := credential.GetOne(pool, r.Context(), "api_key = ?", token)
-			if err != nil {
-				misc.SendJson(w, err.Error(), false, http.StatusInternalServerError, nil)
-				return
-			}
-
-			if len(credential.ID) < 1 {
+			if !passBasicAuth && err != nil {
 				misc.SendJson(w, "credential does not exits", false, http.StatusUnauthorized, nil)
 				return
 			}
 
-			if len(credential.HTTPReferrerRestriction) > 1 &&
+			if !passBasicAuth && len(credential.ID) < 1 {
+				misc.SendJson(w, "credential does not exits", false, http.StatusUnauthorized, nil)
+				return
+			}
+
+			if !passBasicAuth && len(credential.HTTPReferrerRestriction) > 1 &&
 				credential.HTTPReferrerRestriction != "*" &&
-				credential.HTTPReferrerRestriction != r.Host {
-				misc.SendJson(w, "credential does not exits", false, http.StatusUnauthorized, nil)
+				credential.HTTPReferrerRestriction != r.URL.Host {
+				misc.SendJson(w, "credential invalid referral", false, http.StatusUnauthorized, nil)
 				return
 			}
 

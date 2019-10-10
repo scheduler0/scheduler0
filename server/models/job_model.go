@@ -29,23 +29,20 @@ const (
 
 // Job domain internal representation of job
 type Job struct {
-	ID               string    `json:"id,omitempty"`
-	ProjectId        string    `json:"project_id"`
-	Description      string    `json:"description"`
-	CronSpec         string    `json:"cron_spec,omitempty"`
-	TotalExecs       int64     `json:"total_execs,omitempty"`
-	MissedExecs      int64     `json:"missed_execs"`
-	SecsBetweenExecs float64   `json:"secs_between_execs,omitempty"`
-	Data             string    `json:"data,omitempty"`
-	CallbackUrl      string    `json:"callback_url"`
-	LastStatusCode   int       `json:"last_status_code"`
-	State            State     `json:"state,omitempty"`
-	StartDate        time.Time `json:"start_date,omitempty"`
-	EndDate          time.Time `json:"end_date,omitempty"`
-	NextTime         time.Time `json:"next_time,omitempty"`
-	DateCreated      time.Time `json:"date_created"`
+	ID             string    `json:"id,omitempty"`
+	ProjectId      string    `json:"project_id"`
+	Description    string    `json:"description"`
+	CronSpec       string    `json:"cron_spec,omitempty"`
+	TotalExecs     int64     `json:"total_execs,omitempty"`
+	Data           string    `json:"data,omitempty"`
+	CallbackUrl    string    `json:"callback_url"`
+	LastStatusCode int       `json:"last_status_code"`
+	State          State     `json:"state,omitempty"`
+	StartDate      time.Time `json:"start_date,omitempty"`
+	EndDate        time.Time `json:"end_date,omitempty"`
+	NextTime       time.Time `json:"next_time,omitempty"`
+	DateCreated    time.Time `json:"date_created"`
 }
-
 
 var psgc = misc.GetPostgresCredentials()
 
@@ -103,7 +100,6 @@ func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, er
 	jd.TotalExecs = -1
 	jd.DateCreated = time.Now().UTC()
 	jd.StartDate = jd.StartDate.UTC()
-	jd.SecsBetweenExecs = jd.NextTime.UTC().Sub(jd.StartDate.UTC()).Seconds()
 	jd.ID = ksuid.New().String()
 
 	if _, err := db.Model(jd).Insert(); err != nil {
@@ -230,6 +226,11 @@ func (jd *Job) SearchToQuery(search [][]string) (string, []string) {
 		} else {
 			query = queries[i]
 		}
+	}
+
+	if len(query) < 1 && len(values) < 1 {
+		values = append(values, "null")
+		return "id != ?", values
 	}
 
 	return query, values

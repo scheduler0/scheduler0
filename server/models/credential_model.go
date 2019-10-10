@@ -30,8 +30,10 @@ func (c *Credential) CreateOne(pool *repository.Pool, ctx context.Context) (stri
 
 	c.DateCreated = time.Now().UTC()
 	c.ID = ksuid.New().String()
+
+	randomId := ksuid.New().String()
 	hash := sha256.New()
-	hash.Write([]byte(c.ID))
+	hash.Write([]byte(randomId))
 	c.ApiKey = hex.EncodeToString(hash.Sum(nil))
 
 	conn, err := pool.Acquire()
@@ -142,7 +144,7 @@ func (c *Credential) DeleteOne(pool *repository.Pool, ctx context.Context) (int,
 }
 
 func (c *Credential) SearchToQuery([][]string) (string, []string) {
-	return "", []string{""}
+	return "api_key != ?", []string{"null"}
 }
 
 func (c *Credential) ToJson() ([]byte, error) {

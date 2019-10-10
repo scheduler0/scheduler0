@@ -4,14 +4,17 @@ services:
 
   server:
     build:
-      network: host
+      network: default
       context: ./server
       dockerfile: Dockerfile.dev
       args:
+        PORT: 4321
         POSTGRES_ADDRESS: postgres:5432
         POSTGRES_PASSWORD: postgres
         POSTGRES_DATABASE: postgres
-        CLIENT_HOST: "client:4327"
+        CLIENT_HOST: client:4327
+        BASIC_AUTH_USER: admin
+        BASIC_AUTH_PASS: admin
     ports:
       - "4321:4321"
     depends_on:
@@ -19,22 +22,38 @@ services:
     networks:
       - default
     environment:
+      PORT: 4321
       POSTGRES_ADDRESS: "postgres:5432"
       POSTGRES_PASSWORD: "postgres"
       POSTGRES_DATABASE: "postgres"
+      CLIENT_HOST: client:4327
+      BASIC_AUTH_USER: admin
+      BASIC_AUTH_PASS: admin
 
   client:
     build:
       context: ./client
+      dockerfile: Dockerfile.dev
       args:
+        NODE_ENV: development
         PORT: 4327
-        API_ENDPOINT: "server:5432"
+        API_ENDPOINT: http://server:4321
+        BASIC_AUTH_USER: admin
+        BASIC_AUTH_PASS: admin
     ports:
       - "4327:4327"
     depends_on:
       - server
     networks:
       - default
+    volumes:
+      - ./client:/usr/src/client
+    environment:
+      NODE_ENV: development
+      PORT: 4327
+      API_ENDPOINT: http://server:4321
+      BASIC_AUTH_USER: admin
+      BASIC_AUTH_PASS: admin
 
   postgres:
     image: mdillon/postgis

@@ -36,6 +36,7 @@ func main() {
 	// Initialize controllers
 	jobController := controllers.JobController{Pool: *pool}
 	projectController := controllers.ProjectController{Pool: *pool}
+	credentialController := controllers.CredentialController{Pool: *pool}
 
 	// Mount middleware
 	middleware := middlewares.MiddlewareType{}
@@ -45,8 +46,14 @@ func main() {
 	router.Use(middleware.ContextMiddleware)
 	router.Use(middleware.AuthMiddleware(pool))
 
+	// Credentials Endpoint
+	router.HandleFunc("/credentials", credentialController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)
+	router.HandleFunc("/credentials/{id}", credentialController.GetOne).Methods(http.MethodGet)
+	router.HandleFunc("/credentials/{id}", credentialController.UpdateOne).Methods(http.MethodPut)
+	router.HandleFunc("/credentials/{id}", credentialController.DeleteOne).Methods(http.MethodDelete)
+
 	// Job Endpoint
-	router.HandleFunc("/jobs/", jobController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)
+	router.HandleFunc("/jobs", jobController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)
 	router.HandleFunc("/jobs/{id}", jobController.GetOne).Methods(http.MethodGet)
 	router.HandleFunc("/jobs/{id}", jobController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/jobs/{id}", jobController.DeleteOne).Methods(http.MethodDelete)
@@ -57,7 +64,7 @@ func main() {
 	router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
 
-	log.Println("Server is running on port", misc.GetPort())
+	log.Println("Server is running on port", misc.GetPort(), misc.GetClientHost())
 	err = http.ListenAndServe(misc.GetPort(), router)
 	misc.CheckErr(err)
 }
