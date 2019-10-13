@@ -42,6 +42,7 @@ services:
         BASIC_AUTH_PASS: admin
     ports:
       - "4327:4327"
+      - "9229:9229"
     depends_on:
       - server
     networks:

@@ -46,16 +46,7 @@ func (controller *BasicController) GetModel() models.Model {
 }
 
 func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
-	var model models.Model
-	var modelType = reflect.TypeOf(controller.model).Name()
-
-	if modelType == "Project" {
-		model = CreateProjectModel()
-	}
-
-	if modelType == "Job" {
-		model = CreateJobModel()
-	}
+	var model = controller.GetModel()
 
 	body, err := ioutil.ReadAll(r.Body)
 	misc.CheckErr(err)
@@ -64,7 +55,11 @@ func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	model.FromJson(body)
+	err = model.FromJson(body)
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
+	}
 	id, err := model.CreateOne(&pool, r.Context())
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)

@@ -2,6 +2,8 @@
 
 Simple cron job server.
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/victorlenerd/cron-server)](https://goreportcard.com/report/github.com/victorlenerd/cron-server)
+
 ## Usage
     
     1: docker-compose build
