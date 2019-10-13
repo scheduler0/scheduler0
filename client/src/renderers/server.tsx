@@ -4,7 +4,7 @@ import App from '../app';
 import { ServerStyleSheets, ThemeProvider } from '@material-ui/styles';
 import theme from '../theme';
 import { Provider } from "react-redux";
-import getStore from "../redux/store";
+import CreateStore from "../redux/store";
 import { CredentialActions } from '../redux/credential'
 
 const htmlString = (body, css, data) => `
@@ -35,12 +35,15 @@ const htmlString = (body, css, data) => `
 
 export const serverRender = (initialData) => {
     const sheets = new ServerStyleSheets();
-    const store = getStore({});
+    const store = CreateStore({});
+
+    debugger;
 
     store.dispatch({
         type: CredentialActions.SET_CREDENTIALS,
         payload: initialData
     });
+
 
     const html = ReactDOMServer.renderToString(
         sheets.collect(
