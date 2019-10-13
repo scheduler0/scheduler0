@@ -1,18 +1,15 @@
+// @ts-ignore
 import React from 'react'
+// @ts-ignore
 import ReactDOM from 'react-dom'
-import {CredentialState} from "../models/credential";
-import Store from "../models/store";
-import {Provider} from "mobx-react";
-
-let store = new CredentialState();
+import getStore from "../redux/store";
+import {Provider} from "react-redux";
 
 declare var window: {
-    __INITIAL_DATA__: typeof Store,
+    __INITIAL_DATA__: any,
 };
 
-if (typeof window != 'undefined') {
-    store.setCredentials([]);
-}
-
-export const clientRender = (Component: React.ElementType) => 
-    ReactDOM.hydrate(<Component rootStore={store} />, document.getElementById('root'));
+export const clientRender = (Component: React.ElementType) => ReactDOM.hydrate(
+    <Provider store={getStore(window.__INITIAL_DATA__)}>
+        <Component />
+    </Provider>, document.getElementById('root'));
