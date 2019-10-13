@@ -1,4 +1,3 @@
-// @ts-ignore
 import React from 'react'
 import { hot } from 'react-hot-loader';
 import {WithStyles, withStyles} from '@material-ui/core/styles';
