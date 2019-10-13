@@ -18,16 +18,17 @@ const defaultState = {
     currentCredentialId: null
 };
 
-const { setCredentials, setCurrentCredentialId } = createActions({
+const { SET_CREDENTIALS, SET_CURRENT_CREDENTIAL_ID } = createActions({
     "SET_CREDENTIALS": (credentials = []) => ({ credentials }),
     "SET_CURRENT_CREDENTIAL_ID": (id: string) => ({ currentCredentialId: id })
 });
 
 export const credentialsReducer = handleActions({
-    [setCredentials]: (state,{ payload: { credentials } }) => {
+    SET_CREDENTIALS: (state,{ payload: { credentials } }) => {
+        console.log('Setting credentials');
         return {...state, credentials };
     },
-    [setCurrentCredentialId]: (state, { payload: { id  } }) => {
+    SET_CURRENT_CREDENTIAL_ID: (state, { payload: { id  } }) => {
         return { ...state, currentCredentialId: id };
     }
 }, defaultState);
