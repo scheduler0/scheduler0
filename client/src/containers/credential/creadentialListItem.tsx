@@ -1,5 +1,5 @@
 import React, {useCallback, useState} from "react";
-import {ICredential} from "../../models/credential";
+import {ICredential} from "../../redux/credential";
 import Divider from "@material-ui/core/Divider";
 import ListItemText from "@material-ui/core/ListItemText";
 import IconButton from "@material-ui/core/IconButton";
@@ -14,11 +14,12 @@ import {ListItem} from "@material-ui/core";
 interface IProps {
     credential: ICredential
     onDelete: (id) => Promise<void>
+    setCurrentCredentialId: () => void
 }
 
 const CredentialListItem = (props: IProps) => {
     const [copied, setCopied] = useState(false);
-    const { credential, onDelete } = props;
+    const { credential, onDelete, setCurrentCredentialId } = props;
     const key = credential.api_key.substr(0, 55);
 
     const handleCopy = useCallback(() => {
@@ -37,7 +38,7 @@ const CredentialListItem = (props: IProps) => {
                     secondary={credential.http_referrer_restriction}
                 />
                 <Tooltip title="Edit">
-                    <IconButton>
+                        <IconButton onClick={setCurrentCredentialId}>
                         <EditIcon />
                     </IconButton>
                 </Tooltip>

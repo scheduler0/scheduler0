@@ -1,13 +1,13 @@
-import React, { useEffect, useState} from "react";
+import React from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import theme from '../../theme';
-import {Typography} from "@material-ui/core";
-import {ICredential} from "../../models/credential";
-import CredentialListItem from "./list-item";
+import {ICredential} from "../../redux/credential";
+import CredentialListItem from "./creadentialListItem";
 
 interface IProps {
     credentials: ICredential[]
     onDelete: (id) => Promise<void>
+    setCurrentCredentialId: (id: string) => () => void
 }
 
 const useStyles = makeStyles(theme => ({
@@ -15,27 +15,33 @@ const useStyles = makeStyles(theme => ({
         padding: theme.spacing(3, 2),
     },
     container: {
-        marginTop: '10px'
+        marginTop: '10px',
+        padding: '20px',
     },
+    header: {
+        height: '50px',
+        display: 'flex',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+    }
 }));
 
 function Credential(props: IProps) {
     const classes = useStyles(theme);
-    const { credentials, onDelete } = props;
+    const { credentials, onDelete, setCurrentCredentialId } = props;
 
     return (
         <>
-            <Typography variant="h5">
-                API Keys
-            </Typography>
             <div className={classes.container}>
                 {credentials && credentials.map((credential) => (
                     <CredentialListItem
                         key={credential.api_key}
                         credential={credential}
                         onDelete={onDelete}
-                    />)
-                )}
+                        setCurrentCredentialId={setCurrentCredentialId(credential.id)}
+                    />
+                ))}
             </div>
         </>
     );
