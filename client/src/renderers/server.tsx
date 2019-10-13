@@ -1,10 +1,11 @@
-import React from 'react';
-import ReactDOMServer from 'react-dom/server';
+import * as React from 'react';
+import * as ReactDOMServer from 'react-dom/server';
 import App from '../app';
 import { ServerStyleSheets, ThemeProvider } from '@material-ui/styles';
 import theme from '../theme';
-import { Provider } from "mobx-react";
-import {CredentialState} from "../models/credential";
+import { Provider } from "react-redux";
+import getStore from "../redux/store";
+import { CredentialActions } from '../redux/credential'
 
 const htmlString = (body, css, data) => `
 <!DOCTYPE html>
@@ -32,19 +33,26 @@ const htmlString = (body, css, data) => `
 </html>
 `;
 
-export const serverRender = (rootStore) => {
+export const serverRender = (initialData) => {
     const sheets = new ServerStyleSheets();
-    let store = new CredentialState();
+    const store = getStore({});
+
+    store.dispatch({
+        type: CredentialActions.SET_CREDENTIALS,
+        payload: initialData
+    });
 
     const html = ReactDOMServer.renderToString(
         sheets.collect(
             <ThemeProvider theme={theme}>
-                <App rootStore={store} />
+                <Provider store={store}>
+                    <App />
+                </Provider>
             </ThemeProvider>
         )
     );
 
     const css = sheets.toString();
 
-    return htmlString(html, css, rootStore)
+    return htmlString(html, css, store.getState())
 };
