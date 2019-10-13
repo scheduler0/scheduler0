@@ -16,18 +16,19 @@ import (
 
 var psgc = misc.GetPostgresCredentials()
 
+// Start the cron job process
 func Start(pool *repository.Pool) {
 	for {
 		ctx := context.Background()
-		jobsToExecute, otherJobs := getJobs(pool, ctx)
-		updateMissedJobs(otherJobs, pool, ctx)
-		executeJobs(jobsToExecute, pool, ctx)
+		jobsToExecute, otherJobs := getJobs(ctx, pool)
+		updateMissedJobs(ctx, otherJobs, pool)
+		executeJobs(ctx, jobsToExecute, pool)
 
 		time.Sleep(1 * time.Second)
 	}
 }
 
-func getJobs(pool *repository.Pool, ctx context.Context) (executions []models.Job, others []models.Job) {
+func getJobs(ctx context.Context, pool *repository.Pool) (executions []models.Job, others []models.Job) {
 	// Infinite loops that queries the database every minute
 	conn, err := pool.Acquire()
 	misc.CheckErr(err)
@@ -69,7 +70,7 @@ func getJobs(pool *repository.Pool, ctx context.Context) (executions []models.Jo
 	return jobsToExecute, otherJobs
 }
 
-func executeJobs(jobs []models.Job, pool *repository.Pool, ctx context.Context) {
+func executeJobs(ctx context.Context, jobs []models.Job, pool *repository.Pool) {
 	for _, jb := range jobs {
 		if len(jb.CallbackUrl) > 1 {
 			go func(job models.Job) {
@@ -96,7 +97,7 @@ func executeJobs(jobs []models.Job, pool *repository.Pool, ctx context.Context) 
 	}
 }
 
-func updateMissedJobs(jobs []models.Job, pool *repository.Pool, ctx context.Context) {
+func updateMissedJobs(ctx context.Context, jobs []models.Job, pool *repository.Pool) {
 	for i := 0; i < len(jobs); i++ {
 		go func(jb models.Job) {
 			schedule, err := cron.ParseStandard(jb.CronSpec)

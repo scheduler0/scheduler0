@@ -1,8 +1,11 @@
-import React from 'react'
-import ReactDOMServer from 'react-dom/server'
-import App from '../app'
+import * as React from 'react';
+import * as ReactDOMServer from 'react-dom/server';
+import App from '../app';
 import { ServerStyleSheets, ThemeProvider } from '@material-ui/styles';
-import theme from '../theme'
+import theme from '../theme';
+import { Provider } from "react-redux";
+import CreateStore from "../redux/store";
+import { CredentialActions } from '../redux/credential'
 
 const htmlString = (body, css, data) => `
 <!DOCTYPE html>
@@ -32,15 +35,27 @@ const htmlString = (body, css, data) => `
 
 export const serverRender = (initialData) => {
     const sheets = new ServerStyleSheets();
+    const store = CreateStore({});
+
+    debugger;
+
+    store.dispatch({
+        type: CredentialActions.SET_CREDENTIALS,
+        payload: initialData
+    });
+
 
     const html = ReactDOMServer.renderToString(
         sheets.collect(
-        <ThemeProvider theme={theme}>
-            <App />
-        </ThemeProvider>)
+            <ThemeProvider theme={theme}>
+                <Provider store={store}>
+                    <App />
+                </Provider>
+            </ThemeProvider>
+        )
     );
 
     const css = sheets.toString();
 
-    return htmlString(html, css, initialData)
+    return htmlString(html, css, store.getState())
 };

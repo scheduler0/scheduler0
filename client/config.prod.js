@@ -1,6 +1,6 @@
-require('dotenv').config()
+require('dotenv').config();
 
-const path = require("path")
+const path = require("path");
 const webpack = require('webpack');
 const nodeExternals = require('webpack-node-externals');
 
@@ -57,7 +57,8 @@ module.exports = {
             "process.env": {
                 NODE_ENV: JSON.stringify(process.env.NODE_ENV),
                 PORT: JSON.stringify(process.env.PORT),
-                API_ENDPOINT: JSON.stringify(process.env.API_ENDPOINT)
+                API_ENDPOINT: JSON.stringify(process.env.API_ENDPOINT),
+
             }
         }),
     ],

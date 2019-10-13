@@ -32,7 +32,8 @@ module.exports = {
                                 "transform-regenerator",
                                 "@babel/plugin-syntax-dynamic-import",
                                 ["@babel/plugin-transform-runtime", { useESModules: true }],
-                                "transform-class-properties"
+                                "transform-class-properties",
+                                ["@babel/plugin-proposal-class-properties", { "loose": true }]
                             ]
                         }
                     }
@@ -58,7 +59,8 @@ module.exports = {
             "process.env": {
                 NODE_ENV: JSON.stringify(process.env.NODE_ENV),
                 PORT: JSON.stringify(process.env.PORT),
-                API_ENDPOINT: JSON.stringify(process.env.API_ENDPOINT)
+                API_ENDPOINT: JSON.stringify(process.env.API_ENDPOINT),
+
             }
         }),
     ],

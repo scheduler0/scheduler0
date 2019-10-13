@@ -7,7 +7,7 @@ if (window) {
 
 if (module.hot) {
     module.hot.accept("./app", () => {
-        const NewApp = require("./app").default
+        const NewApp = require("./app").default;
         clientRender(NewApp)
-    })
+    });
 }
