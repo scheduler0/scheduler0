@@ -63,7 +63,7 @@
 /******/
 /******/ 	var hotApplyOnUpdate = true;
 /******/ 	// eslint-disable-next-line no-unused-vars
-/******/ 	var hotCurrentHash = "3cb5026cb1067aec8716";
+/******/ 	var hotCurrentHash = "d0cee9f1b053e7ccc5f4";
 /******/ 	var hotRequestTimeout = 10000;
 /******/ 	var hotCurrentModuleData = {};
 /******/ 	var hotCurrentChildModule;
@@ -91853,7 +91853,6 @@ var __signature__ = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoader
   return a;
 };
 
-// @ts-ignore
 
 
 
@@ -92027,10 +92026,420 @@ if (true) {
 
 /***/ }),
 
-/***/ "./src/containers/credential/form.tsx":
-/*!********************************************!*\
-  !*** ./src/containers/credential/form.tsx ***!
-  \********************************************/
+/***/ "./src/containers/credential/creadentialListItem.tsx":
+/*!***********************************************************!*\
+  !*** ./src/containers/credential/creadentialListItem.tsx ***!
+  \***********************************************************/
+/*! exports provided: default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* WEBPACK VAR INJECTION */(function(module) {/* harmony import */ var _babel_runtime_helpers_esm_slicedToArray__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @babel/runtime/helpers/esm/slicedToArray */ "./node_modules/@babel/runtime/helpers/esm/slicedToArray.js");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _material_ui_core_Divider__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @material-ui/core/Divider */ "./node_modules/@material-ui/core/esm/Divider/index.js");
+/* harmony import */ var _material_ui_core_ListItemText__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @material-ui/core/ListItemText */ "./node_modules/@material-ui/core/esm/ListItemText/index.js");
+/* harmony import */ var _material_ui_core_IconButton__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @material-ui/core/IconButton */ "./node_modules/@material-ui/core/esm/IconButton/index.js");
+/* harmony import */ var _material_ui_core_Tooltip__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @material-ui/core/Tooltip */ "./node_modules/@material-ui/core/esm/Tooltip/index.js");
+/* harmony import */ var _material_ui_icons_Delete__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @material-ui/icons/Delete */ "./node_modules/@material-ui/icons/Delete.js");
+/* harmony import */ var _material_ui_icons_Delete__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(_material_ui_icons_Delete__WEBPACK_IMPORTED_MODULE_6__);
+/* harmony import */ var _material_ui_icons_FileCopy__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @material-ui/icons/FileCopy */ "./node_modules/@material-ui/icons/FileCopy.js");
+/* harmony import */ var _material_ui_icons_FileCopy__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(_material_ui_icons_FileCopy__WEBPACK_IMPORTED_MODULE_7__);
+/* harmony import */ var _material_ui_icons_Edit__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @material-ui/icons/Edit */ "./node_modules/@material-ui/icons/Edit.js");
+/* harmony import */ var _material_ui_icons_Edit__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(_material_ui_icons_Edit__WEBPACK_IMPORTED_MODULE_8__);
+/* harmony import */ var react_copy_to_clipboard__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! react-copy-to-clipboard */ "./node_modules/react-copy-to-clipboard/lib/index.js");
+/* harmony import */ var react_copy_to_clipboard__WEBPACK_IMPORTED_MODULE_9___default = /*#__PURE__*/__webpack_require__.n(react_copy_to_clipboard__WEBPACK_IMPORTED_MODULE_9__);
+/* harmony import */ var _material_ui_core__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @material-ui/core */ "./node_modules/@material-ui/core/esm/index.js");
+
+
+(function () {
+  var enterModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.enterModule : undefined;
+  enterModule && enterModule(module);
+})();
+
+var __signature__ = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal["default"].signature : function (a) {
+  return a;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+var CredentialListItem = function CredentialListItem(props) {
+  var _useState = Object(react__WEBPACK_IMPORTED_MODULE_1__["useState"])(false),
+      _useState2 = Object(_babel_runtime_helpers_esm_slicedToArray__WEBPACK_IMPORTED_MODULE_0__["default"])(_useState, 2),
+      copied = _useState2[0],
+      setCopied = _useState2[1];
+
+  var credential = props.credential,
+      onDelete = props.onDelete,
+      setCurrentCredentialId = props.setCurrentCredentialId;
+  var key = credential.api_key.substr(0, 55);
+  var handleCopy = Object(react__WEBPACK_IMPORTED_MODULE_1__["useCallback"])(function () {
+    setCopied(function (copied) {
+      return !copied;
+    });
+    setTimeout(function () {
+      setCopied(function (copied) {
+        return !copied;
+      });
+    }, 1000);
+  }, []);
+  return react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement("div", {
+    key: key
+  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_Divider__WEBPACK_IMPORTED_MODULE_2__["default"], null), react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core__WEBPACK_IMPORTED_MODULE_10__["ListItem"], null, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_ListItemText__WEBPACK_IMPORTED_MODULE_3__["default"], {
+    primary: key,
+    secondary: credential.http_referrer_restriction
+  }), react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_Tooltip__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    title: "Edit"
+  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_IconButton__WEBPACK_IMPORTED_MODULE_4__["default"], {
+    onClick: setCurrentCredentialId
+  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_icons_Edit__WEBPACK_IMPORTED_MODULE_8___default.a, null))), react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_Tooltip__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    title: copied ? "Copied" : "Copy"
+  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_IconButton__WEBPACK_IMPORTED_MODULE_4__["default"], null, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(react_copy_to_clipboard__WEBPACK_IMPORTED_MODULE_9__["CopyToClipboard"], {
+    text: credential.api_key,
+    onCopy: handleCopy
+  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_icons_FileCopy__WEBPACK_IMPORTED_MODULE_7___default.a, null)))), react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_Tooltip__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    title: "Delete"
+  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_IconButton__WEBPACK_IMPORTED_MODULE_4__["default"], {
+    onClick: function onClick() {
+      return onDelete(credential.id);
+    }
+  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_icons_Delete__WEBPACK_IMPORTED_MODULE_6___default.a, null)))));
+};
+
+__signature__(CredentialListItem, "useState{[copied, setCopied](false)}\nuseCallback{handleCopy}");
+
+var _default = CredentialListItem;
+/* harmony default export */ __webpack_exports__["default"] = (_default);
+;
+
+(function () {
+  var reactHotLoader = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.default : undefined;
+
+  if (!reactHotLoader) {
+    return;
+  }
+
+  reactHotLoader.register(CredentialListItem, "CredentialListItem", "/usr/src/client/src/containers/credential/creadentialListItem.tsx");
+  reactHotLoader.register(_default, "default", "/usr/src/client/src/containers/credential/creadentialListItem.tsx");
+})();
+
+;
+
+(function () {
+  var leaveModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.leaveModule : undefined;
+  leaveModule && leaveModule(module);
+})();
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../../../node_modules/webpack/buildin/harmony-module.js */ "./node_modules/webpack/buildin/harmony-module.js")(module)))
+
+/***/ }),
+
+/***/ "./src/containers/credential/credentialLlist.tsx":
+/*!*******************************************************!*\
+  !*** ./src/containers/credential/credentialLlist.tsx ***!
+  \*******************************************************/
+/*! exports provided: default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* WEBPACK VAR INJECTION */(function(module) {/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _material_ui_core_styles__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @material-ui/core/styles */ "./node_modules/@material-ui/core/esm/styles/index.js");
+/* harmony import */ var _theme__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../theme */ "./src/theme.ts");
+/* harmony import */ var _creadentialListItem__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./creadentialListItem */ "./src/containers/credential/creadentialListItem.tsx");
+(function () {
+  var enterModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.enterModule : undefined;
+  enterModule && enterModule(module);
+})();
+
+var __signature__ = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal["default"].signature : function (a) {
+  return a;
+};
+
+
+
+
+
+var useStyles = Object(_material_ui_core_styles__WEBPACK_IMPORTED_MODULE_1__["makeStyles"])(function (theme) {
+  return {
+    root: {
+      padding: theme.spacing(3, 2)
+    },
+    container: {
+      marginTop: '10px',
+      padding: '20px'
+    },
+    header: {
+      height: '50px',
+      display: 'flex',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  };
+});
+
+function Credential(props) {
+  var classes = useStyles(_theme__WEBPACK_IMPORTED_MODULE_2__["default"]);
+  var credentials = props.credentials,
+      onDelete = props.onDelete,
+      setCurrentCredentialId = props.setCurrentCredentialId;
+  return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(react__WEBPACK_IMPORTED_MODULE_0___default.a.Fragment, null, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("div", {
+    className: classes.container
+  }, credentials && credentials.map(function (credential) {
+    return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(_creadentialListItem__WEBPACK_IMPORTED_MODULE_3__["default"], {
+      key: credential.api_key,
+      credential: credential,
+      onDelete: onDelete,
+      setCurrentCredentialId: setCurrentCredentialId(credential.id)
+    });
+  })));
+}
+
+__signature__(Credential, "useStyles{classes}", function () {
+  return [useStyles];
+});
+
+var _default = Credential;
+/* harmony default export */ __webpack_exports__["default"] = (_default);
+;
+
+(function () {
+  var reactHotLoader = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.default : undefined;
+
+  if (!reactHotLoader) {
+    return;
+  }
+
+  reactHotLoader.register(useStyles, "useStyles", "/usr/src/client/src/containers/credential/credentialLlist.tsx");
+  reactHotLoader.register(Credential, "Credential", "/usr/src/client/src/containers/credential/credentialLlist.tsx");
+  reactHotLoader.register(_default, "default", "/usr/src/client/src/containers/credential/credentialLlist.tsx");
+})();
+
+;
+
+(function () {
+  var leaveModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.leaveModule : undefined;
+  leaveModule && leaveModule(module);
+})();
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../../../node_modules/webpack/buildin/harmony-module.js */ "./node_modules/webpack/buildin/harmony-module.js")(module)))
+
+/***/ }),
+
+/***/ "./src/containers/credential/index.tsx":
+/*!*********************************************!*\
+  !*** ./src/containers/credential/index.tsx ***!
+  \*********************************************/
+/*! exports provided: FormMode, default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* WEBPACK VAR INJECTION */(function(module) {/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "FormMode", function() { return FormMode; });
+/* harmony import */ var _babel_runtime_helpers_esm_classCallCheck__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @babel/runtime/helpers/esm/classCallCheck */ "./node_modules/@babel/runtime/helpers/esm/classCallCheck.js");
+/* harmony import */ var _babel_runtime_helpers_esm_createClass__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @babel/runtime/helpers/esm/createClass */ "./node_modules/@babel/runtime/helpers/esm/createClass.js");
+/* harmony import */ var _babel_runtime_helpers_esm_possibleConstructorReturn__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @babel/runtime/helpers/esm/possibleConstructorReturn */ "./node_modules/@babel/runtime/helpers/esm/possibleConstructorReturn.js");
+/* harmony import */ var _babel_runtime_helpers_esm_getPrototypeOf__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @babel/runtime/helpers/esm/getPrototypeOf */ "./node_modules/@babel/runtime/helpers/esm/getPrototypeOf.js");
+/* harmony import */ var _babel_runtime_helpers_esm_inherits__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @babel/runtime/helpers/esm/inherits */ "./node_modules/@babel/runtime/helpers/esm/inherits.js");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var react_redux__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! react-redux */ "./node_modules/react-redux/es/index.js");
+/* harmony import */ var _material_ui_core_Grid__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @material-ui/core/Grid */ "./node_modules/@material-ui/core/esm/Grid/index.js");
+/* harmony import */ var _modifyCredentialForm__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./modifyCredentialForm */ "./src/containers/credential/modifyCredentialForm.tsx");
+/* harmony import */ var _credentialLlist__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./credentialLlist */ "./src/containers/credential/credentialLlist.tsx");
+/* harmony import */ var _material_ui_core__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @material-ui/core */ "./node_modules/@material-ui/core/esm/index.js");
+/* harmony import */ var _material_ui_core_styles__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! @material-ui/core/styles */ "./node_modules/@material-ui/core/esm/styles/index.js");
+/* harmony import */ var _material_ui_core_Button__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! @material-ui/core/Button */ "./node_modules/@material-ui/core/esm/Button/index.js");
+/* harmony import */ var _material_ui_core_Box__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! @material-ui/core/Box */ "./node_modules/@material-ui/core/esm/Box/index.js");
+/* harmony import */ var _redux_credential__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ../../redux/credential */ "./src/redux/credential.ts");
+
+
+
+
+
+
+(function () {
+  var enterModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.enterModule : undefined;
+  enterModule && enterModule(module);
+})();
+
+var __signature__ = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal["default"].signature : function (a) {
+  return a;
+};
+
+
+
+
+
+
+
+
+
+
+
+var FormMode;
+
+(function (FormMode) {
+  FormMode["Edit"] = "Edit";
+  FormMode["Create"] = "Create";
+  FormMode["None"] = "None";
+})(FormMode || (FormMode = {}));
+
+var styles = function styles(theme) {
+  return {
+    containerHeader: {
+      height: "50px",
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
+    }
+  };
+};
+
+var CredentialContainer =
+/*#__PURE__*/
+function (_React$Component) {
+  Object(_babel_runtime_helpers_esm_inherits__WEBPACK_IMPORTED_MODULE_4__["default"])(CredentialContainer, _React$Component);
+
+  function CredentialContainer() {
+    var _getPrototypeOf2;
+
+    var _temp, _this;
+
+    Object(_babel_runtime_helpers_esm_classCallCheck__WEBPACK_IMPORTED_MODULE_0__["default"])(this, CredentialContainer);
+
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+
+    return Object(_babel_runtime_helpers_esm_possibleConstructorReturn__WEBPACK_IMPORTED_MODULE_2__["default"])(_this, (_temp = _this = Object(_babel_runtime_helpers_esm_possibleConstructorReturn__WEBPACK_IMPORTED_MODULE_2__["default"])(this, (_getPrototypeOf2 = Object(_babel_runtime_helpers_esm_getPrototypeOf__WEBPACK_IMPORTED_MODULE_3__["default"])(CredentialContainer)).call.apply(_getPrototypeOf2, [this].concat(args))), _this.state = {
+      formMode: FormMode.None
+    }, _this.setMode = function (mode) {
+      return function () {
+        _this.setState({
+          formMode: mode
+        });
+      };
+    }, _this.setCurrentCredentialId = function (id) {
+      return function () {};
+    }, _temp));
+  }
+
+  Object(_babel_runtime_helpers_esm_createClass__WEBPACK_IMPORTED_MODULE_1__["default"])(CredentialContainer, [{
+    key: "render",
+    value: function render() {
+      var formMode = this.state.formMode;
+      var classes = this.props.classes;
+      return react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Grid__WEBPACK_IMPORTED_MODULE_7__["default"], {
+        container: true
+      }, react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Grid__WEBPACK_IMPORTED_MODULE_7__["default"], {
+        item: true,
+        md: 8,
+        lg: 8
+      }, react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Box__WEBPACK_IMPORTED_MODULE_13__["default"], {
+        display: "flex",
+        component: "div",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        style: {
+          paddingLeft: '20px',
+          paddingRight: '20px'
+        }
+      }, react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core__WEBPACK_IMPORTED_MODULE_10__["Typography"], {
+        variant: "h5"
+      }, "API Keys"), react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Button__WEBPACK_IMPORTED_MODULE_12__["default"], {
+        component: "span",
+        onClick: this.setMode(FormMode.Create)
+      }, "Create New Key")), react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_credentialLlist__WEBPACK_IMPORTED_MODULE_9__["default"], {
+        credentials: this.props.credentials,
+        onDelete: function onDelete(id) {
+          return Promise.resolve();
+        },
+        setCurrentCredentialId: this.setCurrentCredentialId
+      })), react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Grid__WEBPACK_IMPORTED_MODULE_7__["default"], {
+        item: true,
+        md: 4,
+        lg: 4
+      }, react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_modifyCredentialForm__WEBPACK_IMPORTED_MODULE_8__["default"], {
+        mode: formMode
+      })));
+    }
+  }, {
+    key: "__reactstandin__regenerateByEval",
+    // @ts-ignore
+    value: function __reactstandin__regenerateByEval(key, code) {
+      // @ts-ignore
+      this[key] = eval(code);
+    }
+  }]);
+
+  return CredentialContainer;
+}(react__WEBPACK_IMPORTED_MODULE_5___default.a.Component);
+
+var mapStateToProps = function mapStateToProps(state) {
+  return {
+    credentials: state.CredentialsReducer.credentials,
+    currentCredentialId: state.CredentialsReducer.currentCredentialId
+  };
+};
+
+var mapDispatchToProps = function mapDispatchToProps(dispatch) {
+  return {
+    setCurrentCredentialId: function setCurrentCredentialId(id) {
+      return dispatch({
+        type: _redux_credential__WEBPACK_IMPORTED_MODULE_14__["CredentialActions"].SET_CREDENTIALS,
+        payload: {
+          id: id
+        }
+      });
+    }
+  };
+};
+
+var _default = Object(react_redux__WEBPACK_IMPORTED_MODULE_6__["connect"])(mapStateToProps, mapDispatchToProps)(Object(_material_ui_core_styles__WEBPACK_IMPORTED_MODULE_11__["withStyles"])(styles)(CredentialContainer));
+
+/* harmony default export */ __webpack_exports__["default"] = (_default);
+;
+
+(function () {
+  var reactHotLoader = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.default : undefined;
+
+  if (!reactHotLoader) {
+    return;
+  }
+
+  reactHotLoader.register(styles, "styles", "/usr/src/client/src/containers/credential/index.tsx");
+  reactHotLoader.register(CredentialContainer, "CredentialContainer", "/usr/src/client/src/containers/credential/index.tsx");
+  reactHotLoader.register(mapStateToProps, "mapStateToProps", "/usr/src/client/src/containers/credential/index.tsx");
+  reactHotLoader.register(mapDispatchToProps, "mapDispatchToProps", "/usr/src/client/src/containers/credential/index.tsx");
+  reactHotLoader.register(_default, "default", "/usr/src/client/src/containers/credential/index.tsx");
+})();
+
+;
+
+(function () {
+  var leaveModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.leaveModule : undefined;
+  leaveModule && leaveModule(module);
+})();
+/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../../../node_modules/webpack/buildin/harmony-module.js */ "./node_modules/webpack/buildin/harmony-module.js")(module)))
+
+/***/ }),
+
+/***/ "./src/containers/credential/modifyCredentialForm.tsx":
+/*!************************************************************!*\
+  !*** ./src/containers/credential/modifyCredentialForm.tsx ***!
+  \************************************************************/
 /*! exports provided: default */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
@@ -92206,414 +92615,11 @@ var _default = Object(react_redux__WEBPACK_IMPORTED_MODULE_4__["connect"])(mapSt
     return;
   }
 
-  reactHotLoader.register(useStyles, "useStyles", "/usr/src/client/src/containers/credential/form.tsx");
-  reactHotLoader.register(CredentialsForm, "CredentialsForm", "/usr/src/client/src/containers/credential/form.tsx");
-  reactHotLoader.register(mapDispatchToProps, "mapDispatchToProps", "/usr/src/client/src/containers/credential/form.tsx");
-  reactHotLoader.register(mapStateToProps, "mapStateToProps", "/usr/src/client/src/containers/credential/form.tsx");
-  reactHotLoader.register(_default, "default", "/usr/src/client/src/containers/credential/form.tsx");
-})();
-
-;
-
-(function () {
-  var leaveModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.leaveModule : undefined;
-  leaveModule && leaveModule(module);
-})();
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../../../node_modules/webpack/buildin/harmony-module.js */ "./node_modules/webpack/buildin/harmony-module.js")(module)))
-
-/***/ }),
-
-/***/ "./src/containers/credential/index.tsx":
-/*!*********************************************!*\
-  !*** ./src/containers/credential/index.tsx ***!
-  \*********************************************/
-/*! exports provided: FormMode, default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* WEBPACK VAR INJECTION */(function(module) {/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "FormMode", function() { return FormMode; });
-/* harmony import */ var _babel_runtime_helpers_esm_classCallCheck__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @babel/runtime/helpers/esm/classCallCheck */ "./node_modules/@babel/runtime/helpers/esm/classCallCheck.js");
-/* harmony import */ var _babel_runtime_helpers_esm_createClass__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @babel/runtime/helpers/esm/createClass */ "./node_modules/@babel/runtime/helpers/esm/createClass.js");
-/* harmony import */ var _babel_runtime_helpers_esm_possibleConstructorReturn__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @babel/runtime/helpers/esm/possibleConstructorReturn */ "./node_modules/@babel/runtime/helpers/esm/possibleConstructorReturn.js");
-/* harmony import */ var _babel_runtime_helpers_esm_getPrototypeOf__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @babel/runtime/helpers/esm/getPrototypeOf */ "./node_modules/@babel/runtime/helpers/esm/getPrototypeOf.js");
-/* harmony import */ var _babel_runtime_helpers_esm_inherits__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @babel/runtime/helpers/esm/inherits */ "./node_modules/@babel/runtime/helpers/esm/inherits.js");
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! react */ "./node_modules/react/index.js");
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_5__);
-/* harmony import */ var react_redux__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! react-redux */ "./node_modules/react-redux/es/index.js");
-/* harmony import */ var _material_ui_core_Grid__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @material-ui/core/Grid */ "./node_modules/@material-ui/core/esm/Grid/index.js");
-/* harmony import */ var _form__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./form */ "./src/containers/credential/form.tsx");
-/* harmony import */ var _list__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./list */ "./src/containers/credential/list.tsx");
-/* harmony import */ var _material_ui_core__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @material-ui/core */ "./node_modules/@material-ui/core/esm/index.js");
-/* harmony import */ var _material_ui_core_styles__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! @material-ui/core/styles */ "./node_modules/@material-ui/core/esm/styles/index.js");
-/* harmony import */ var _material_ui_core_Button__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! @material-ui/core/Button */ "./node_modules/@material-ui/core/esm/Button/index.js");
-/* harmony import */ var _material_ui_core_Box__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! @material-ui/core/Box */ "./node_modules/@material-ui/core/esm/Box/index.js");
-
-
-
-
-
-
-(function () {
-  var enterModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.enterModule : undefined;
-  enterModule && enterModule(module);
-})();
-
-var __signature__ = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal["default"].signature : function (a) {
-  return a;
-};
-
-
-
-
-
-
-
-
-
-
-var FormMode;
-
-(function (FormMode) {
-  FormMode["Edit"] = "Edit";
-  FormMode["Create"] = "Create";
-  FormMode["None"] = "None";
-})(FormMode || (FormMode = {}));
-
-var styles = function styles(theme) {
-  return {
-    containerHeader: {
-      height: "50px",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center"
-    }
-  };
-};
-
-var CredentialContainer =
-/*#__PURE__*/
-function (_React$Component) {
-  Object(_babel_runtime_helpers_esm_inherits__WEBPACK_IMPORTED_MODULE_4__["default"])(CredentialContainer, _React$Component);
-
-  function CredentialContainer() {
-    var _getPrototypeOf2;
-
-    var _temp, _this;
-
-    Object(_babel_runtime_helpers_esm_classCallCheck__WEBPACK_IMPORTED_MODULE_0__["default"])(this, CredentialContainer);
-
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
-    }
-
-    return Object(_babel_runtime_helpers_esm_possibleConstructorReturn__WEBPACK_IMPORTED_MODULE_2__["default"])(_this, (_temp = _this = Object(_babel_runtime_helpers_esm_possibleConstructorReturn__WEBPACK_IMPORTED_MODULE_2__["default"])(this, (_getPrototypeOf2 = Object(_babel_runtime_helpers_esm_getPrototypeOf__WEBPACK_IMPORTED_MODULE_3__["default"])(CredentialContainer)).call.apply(_getPrototypeOf2, [this].concat(args))), _this.state = {
-      formMode: FormMode.None
-    }, _this.setMode = function (mode) {
-      return function () {
-        _this.setState({
-          formMode: mode
-        });
-      };
-    }, _this.setCurrentCredentialId = function (id) {
-      return function () {};
-    }, _temp));
-  }
-
-  Object(_babel_runtime_helpers_esm_createClass__WEBPACK_IMPORTED_MODULE_1__["default"])(CredentialContainer, [{
-    key: "render",
-    value: function render() {
-      var formMode = this.state.formMode;
-      var classes = this.props.classes;
-      return react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Grid__WEBPACK_IMPORTED_MODULE_7__["default"], {
-        container: true
-      }, react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Grid__WEBPACK_IMPORTED_MODULE_7__["default"], {
-        item: true,
-        md: 8,
-        lg: 8
-      }, react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Box__WEBPACK_IMPORTED_MODULE_13__["default"], {
-        display: "flex",
-        component: "div",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        style: {
-          paddingLeft: '20px',
-          paddingRight: '20px'
-        }
-      }, react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core__WEBPACK_IMPORTED_MODULE_10__["Typography"], {
-        variant: "h5"
-      }, "API Keys"), react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Button__WEBPACK_IMPORTED_MODULE_12__["default"], {
-        component: "span",
-        onClick: this.setMode(FormMode.Create)
-      }, "Create New Key")), react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_list__WEBPACK_IMPORTED_MODULE_9__["default"], {
-        credentials: this.props.credentials,
-        onDelete: function onDelete(id) {
-          return Promise.resolve();
-        },
-        setCurrentCredentialId: this.setCurrentCredentialId
-      })), react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_material_ui_core_Grid__WEBPACK_IMPORTED_MODULE_7__["default"], {
-        item: true,
-        md: 4,
-        lg: 4
-      }, react__WEBPACK_IMPORTED_MODULE_5___default.a.createElement(_form__WEBPACK_IMPORTED_MODULE_8__["default"], {
-        mode: formMode
-      })));
-    }
-  }, {
-    key: "__reactstandin__regenerateByEval",
-    // @ts-ignore
-    value: function __reactstandin__regenerateByEval(key, code) {
-      // @ts-ignore
-      this[key] = eval(code);
-    }
-  }]);
-
-  return CredentialContainer;
-}(react__WEBPACK_IMPORTED_MODULE_5___default.a.Component);
-
-var mapStateToProps = function mapStateToProps(state) {
-  return {
-    credentials: state.CredentialsReducer.credentials,
-    currentCredentialId: state.CredentialsReducer.currentCredentialId
-  };
-};
-
-var mapDispatchToProps = function mapDispatchToProps(dispatch) {
-  return {
-    setCurrentCredentialId: function setCurrentCredentialId(id) {
-      return dispatch();
-    }
-  };
-};
-
-var _default = Object(react_redux__WEBPACK_IMPORTED_MODULE_6__["connect"])(mapStateToProps, mapDispatchToProps)(Object(_material_ui_core_styles__WEBPACK_IMPORTED_MODULE_11__["withStyles"])(styles)(CredentialContainer));
-
-/* harmony default export */ __webpack_exports__["default"] = (_default);
-;
-
-(function () {
-  var reactHotLoader = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.default : undefined;
-
-  if (!reactHotLoader) {
-    return;
-  }
-
-  reactHotLoader.register(styles, "styles", "/usr/src/client/src/containers/credential/index.tsx");
-  reactHotLoader.register(CredentialContainer, "CredentialContainer", "/usr/src/client/src/containers/credential/index.tsx");
-  reactHotLoader.register(mapStateToProps, "mapStateToProps", "/usr/src/client/src/containers/credential/index.tsx");
-  reactHotLoader.register(mapDispatchToProps, "mapDispatchToProps", "/usr/src/client/src/containers/credential/index.tsx");
-  reactHotLoader.register(_default, "default", "/usr/src/client/src/containers/credential/index.tsx");
-})();
-
-;
-
-(function () {
-  var leaveModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.leaveModule : undefined;
-  leaveModule && leaveModule(module);
-})();
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../../../node_modules/webpack/buildin/harmony-module.js */ "./node_modules/webpack/buildin/harmony-module.js")(module)))
-
-/***/ }),
-
-/***/ "./src/containers/credential/list-item.tsx":
-/*!*************************************************!*\
-  !*** ./src/containers/credential/list-item.tsx ***!
-  \*************************************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* WEBPACK VAR INJECTION */(function(module) {/* harmony import */ var _babel_runtime_helpers_esm_slicedToArray__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @babel/runtime/helpers/esm/slicedToArray */ "./node_modules/@babel/runtime/helpers/esm/slicedToArray.js");
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! react */ "./node_modules/react/index.js");
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var _material_ui_core_Divider__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @material-ui/core/Divider */ "./node_modules/@material-ui/core/esm/Divider/index.js");
-/* harmony import */ var _material_ui_core_ListItemText__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @material-ui/core/ListItemText */ "./node_modules/@material-ui/core/esm/ListItemText/index.js");
-/* harmony import */ var _material_ui_core_IconButton__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @material-ui/core/IconButton */ "./node_modules/@material-ui/core/esm/IconButton/index.js");
-/* harmony import */ var _material_ui_core_Tooltip__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @material-ui/core/Tooltip */ "./node_modules/@material-ui/core/esm/Tooltip/index.js");
-/* harmony import */ var _material_ui_icons_Delete__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! @material-ui/icons/Delete */ "./node_modules/@material-ui/icons/Delete.js");
-/* harmony import */ var _material_ui_icons_Delete__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(_material_ui_icons_Delete__WEBPACK_IMPORTED_MODULE_6__);
-/* harmony import */ var _material_ui_icons_FileCopy__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @material-ui/icons/FileCopy */ "./node_modules/@material-ui/icons/FileCopy.js");
-/* harmony import */ var _material_ui_icons_FileCopy__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(_material_ui_icons_FileCopy__WEBPACK_IMPORTED_MODULE_7__);
-/* harmony import */ var _material_ui_icons_Edit__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! @material-ui/icons/Edit */ "./node_modules/@material-ui/icons/Edit.js");
-/* harmony import */ var _material_ui_icons_Edit__WEBPACK_IMPORTED_MODULE_8___default = /*#__PURE__*/__webpack_require__.n(_material_ui_icons_Edit__WEBPACK_IMPORTED_MODULE_8__);
-/* harmony import */ var react_copy_to_clipboard__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! react-copy-to-clipboard */ "./node_modules/react-copy-to-clipboard/lib/index.js");
-/* harmony import */ var react_copy_to_clipboard__WEBPACK_IMPORTED_MODULE_9___default = /*#__PURE__*/__webpack_require__.n(react_copy_to_clipboard__WEBPACK_IMPORTED_MODULE_9__);
-/* harmony import */ var _material_ui_core__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! @material-ui/core */ "./node_modules/@material-ui/core/esm/index.js");
-
-
-(function () {
-  var enterModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.enterModule : undefined;
-  enterModule && enterModule(module);
-})();
-
-var __signature__ = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal["default"].signature : function (a) {
-  return a;
-};
-
-
-
-
-
-
-
-
-
-
-
-
-var CredentialListItem = function CredentialListItem(props) {
-  var _useState = Object(react__WEBPACK_IMPORTED_MODULE_1__["useState"])(false),
-      _useState2 = Object(_babel_runtime_helpers_esm_slicedToArray__WEBPACK_IMPORTED_MODULE_0__["default"])(_useState, 2),
-      copied = _useState2[0],
-      setCopied = _useState2[1];
-
-  var credential = props.credential,
-      onDelete = props.onDelete,
-      setCurrentCredentialId = props.setCurrentCredentialId;
-  var key = credential.api_key.substr(0, 55);
-  var handleCopy = Object(react__WEBPACK_IMPORTED_MODULE_1__["useCallback"])(function () {
-    setCopied(function (copied) {
-      return !copied;
-    });
-    setTimeout(function () {
-      setCopied(function (copied) {
-        return !copied;
-      });
-    }, 1000);
-  }, []);
-  return react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement("div", {
-    key: key
-  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_Divider__WEBPACK_IMPORTED_MODULE_2__["default"], null), react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core__WEBPACK_IMPORTED_MODULE_10__["ListItem"], null, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_ListItemText__WEBPACK_IMPORTED_MODULE_3__["default"], {
-    primary: key,
-    secondary: credential.http_referrer_restriction
-  }), react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_Tooltip__WEBPACK_IMPORTED_MODULE_5__["default"], {
-    title: "Edit"
-  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_IconButton__WEBPACK_IMPORTED_MODULE_4__["default"], {
-    onClick: setCurrentCredentialId
-  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_icons_Edit__WEBPACK_IMPORTED_MODULE_8___default.a, null))), react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_Tooltip__WEBPACK_IMPORTED_MODULE_5__["default"], {
-    title: copied ? "Copied" : "Copy"
-  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_IconButton__WEBPACK_IMPORTED_MODULE_4__["default"], null, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(react_copy_to_clipboard__WEBPACK_IMPORTED_MODULE_9__["CopyToClipboard"], {
-    text: credential.api_key,
-    onCopy: handleCopy
-  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_icons_FileCopy__WEBPACK_IMPORTED_MODULE_7___default.a, null)))), react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_Tooltip__WEBPACK_IMPORTED_MODULE_5__["default"], {
-    title: "Delete"
-  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_core_IconButton__WEBPACK_IMPORTED_MODULE_4__["default"], {
-    onClick: function onClick() {
-      return onDelete(credential.id);
-    }
-  }, react__WEBPACK_IMPORTED_MODULE_1___default.a.createElement(_material_ui_icons_Delete__WEBPACK_IMPORTED_MODULE_6___default.a, null)))));
-};
-
-__signature__(CredentialListItem, "useState{[copied, setCopied](false)}\nuseCallback{handleCopy}");
-
-var _default = CredentialListItem;
-/* harmony default export */ __webpack_exports__["default"] = (_default);
-;
-
-(function () {
-  var reactHotLoader = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.default : undefined;
-
-  if (!reactHotLoader) {
-    return;
-  }
-
-  reactHotLoader.register(CredentialListItem, "CredentialListItem", "/usr/src/client/src/containers/credential/list-item.tsx");
-  reactHotLoader.register(_default, "default", "/usr/src/client/src/containers/credential/list-item.tsx");
-})();
-
-;
-
-(function () {
-  var leaveModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.leaveModule : undefined;
-  leaveModule && leaveModule(module);
-})();
-/* WEBPACK VAR INJECTION */}.call(this, __webpack_require__(/*! ./../../../node_modules/webpack/buildin/harmony-module.js */ "./node_modules/webpack/buildin/harmony-module.js")(module)))
-
-/***/ }),
-
-/***/ "./src/containers/credential/list.tsx":
-/*!********************************************!*\
-  !*** ./src/containers/credential/list.tsx ***!
-  \********************************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* WEBPACK VAR INJECTION */(function(module) {/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "./node_modules/react/index.js");
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _material_ui_core_styles__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @material-ui/core/styles */ "./node_modules/@material-ui/core/esm/styles/index.js");
-/* harmony import */ var _theme__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../theme */ "./src/theme.ts");
-/* harmony import */ var _list_item__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./list-item */ "./src/containers/credential/list-item.tsx");
-(function () {
-  var enterModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.enterModule : undefined;
-  enterModule && enterModule(module);
-})();
-
-var __signature__ = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal["default"].signature : function (a) {
-  return a;
-};
-
-
-
-
-
-var useStyles = Object(_material_ui_core_styles__WEBPACK_IMPORTED_MODULE_1__["makeStyles"])(function (theme) {
-  return {
-    root: {
-      padding: theme.spacing(3, 2)
-    },
-    container: {
-      marginTop: '10px',
-      padding: '20px'
-    },
-    header: {
-      height: '50px',
-      display: 'flex',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center'
-    }
-  };
-});
-
-function Credential(props) {
-  var classes = useStyles(_theme__WEBPACK_IMPORTED_MODULE_2__["default"]);
-  var credentials = props.credentials,
-      onDelete = props.onDelete,
-      setCurrentCredentialId = props.setCurrentCredentialId;
-  return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(react__WEBPACK_IMPORTED_MODULE_0___default.a.Fragment, null, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("div", {
-    className: classes.container
-  }, credentials && credentials.map(function (credential) {
-    return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(_list_item__WEBPACK_IMPORTED_MODULE_3__["default"], {
-      key: credential.api_key,
-      credential: credential,
-      onDelete: onDelete,
-      setCurrentCredentialId: setCurrentCredentialId(credential.id)
-    });
-  })));
-}
-
-__signature__(Credential, "useStyles{classes}", function () {
-  return [useStyles];
-});
-
-var _default = Credential;
-/* harmony default export */ __webpack_exports__["default"] = (_default);
-;
-
-(function () {
-  var reactHotLoader = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.default : undefined;
-
-  if (!reactHotLoader) {
-    return;
-  }
-
-  reactHotLoader.register(useStyles, "useStyles", "/usr/src/client/src/containers/credential/list.tsx");
-  reactHotLoader.register(Credential, "Credential", "/usr/src/client/src/containers/credential/list.tsx");
-  reactHotLoader.register(_default, "default", "/usr/src/client/src/containers/credential/list.tsx");
+  reactHotLoader.register(useStyles, "useStyles", "/usr/src/client/src/containers/credential/modifyCredentialForm.tsx");
+  reactHotLoader.register(CredentialsForm, "CredentialsForm", "/usr/src/client/src/containers/credential/modifyCredentialForm.tsx");
+  reactHotLoader.register(mapDispatchToProps, "mapDispatchToProps", "/usr/src/client/src/containers/credential/modifyCredentialForm.tsx");
+  reactHotLoader.register(mapStateToProps, "mapStateToProps", "/usr/src/client/src/containers/credential/modifyCredentialForm.tsx");
+  reactHotLoader.register(_default, "default", "/usr/src/client/src/containers/credential/modifyCredentialForm.tsx");
 })();
 
 ;
@@ -92651,8 +92657,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-
-var _handleActions;
 
 (function () {
   var enterModule = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoaderGlobal.enterModule : undefined;
@@ -92694,20 +92698,24 @@ var _createActions = Object(redux_actions__WEBPACK_IMPORTED_MODULE_3__["createAc
     };
   }
 }),
-    setCredentials = _createActions.setCredentials,
-    setCurrentCredentialId = _createActions.setCurrentCredentialId;
+    SET_CREDENTIALS = _createActions.SET_CREDENTIALS,
+    SET_CURRENT_CREDENTIAL_ID = _createActions.SET_CURRENT_CREDENTIAL_ID;
 
-var credentialsReducer = Object(redux_actions__WEBPACK_IMPORTED_MODULE_3__["handleActions"])((_handleActions = {}, Object(_babel_runtime_helpers_esm_defineProperty__WEBPACK_IMPORTED_MODULE_2__["default"])(_handleActions, setCredentials, function (state, _ref) {
-  var credentials = _ref.payload.credentials;
-  return _objectSpread({}, state, {
-    credentials: credentials
-  });
-}), Object(_babel_runtime_helpers_esm_defineProperty__WEBPACK_IMPORTED_MODULE_2__["default"])(_handleActions, setCurrentCredentialId, function (state, _ref2) {
-  var id = _ref2.payload.id;
-  return _objectSpread({}, state, {
-    currentCredentialId: id
-  });
-}), _handleActions), defaultState);
+var credentialsReducer = Object(redux_actions__WEBPACK_IMPORTED_MODULE_3__["handleActions"])({
+  SET_CREDENTIALS: function SET_CREDENTIALS(state, _ref) {
+    var credentials = _ref.payload.credentials;
+    console.log('Setting credentials');
+    return _objectSpread({}, state, {
+      credentials: credentials
+    });
+  },
+  SET_CURRENT_CREDENTIAL_ID: function SET_CURRENT_CREDENTIAL_ID(state, _ref2) {
+    var id = _ref2.payload.id;
+    return _objectSpread({}, state, {
+      currentCredentialId: id
+    });
+  }
+}, defaultState);
 var FetchCredentials = function FetchCredentials() {
   return (
     /*#__PURE__*/
@@ -92865,8 +92873,8 @@ var DeleteCredential = function DeleteCredential(id) {
   }
 
   reactHotLoader.register(defaultState, "defaultState", "/usr/src/client/src/redux/credential.ts");
-  reactHotLoader.register(setCredentials, "setCredentials", "/usr/src/client/src/redux/credential.ts");
-  reactHotLoader.register(setCurrentCredentialId, "setCurrentCredentialId", "/usr/src/client/src/redux/credential.ts");
+  reactHotLoader.register(SET_CREDENTIALS, "SET_CREDENTIALS", "/usr/src/client/src/redux/credential.ts");
+  reactHotLoader.register(SET_CURRENT_CREDENTIAL_ID, "SET_CURRENT_CREDENTIAL_ID", "/usr/src/client/src/redux/credential.ts");
   reactHotLoader.register(credentialsReducer, "credentialsReducer", "/usr/src/client/src/redux/credential.ts");
   reactHotLoader.register(FetchCredentials, "FetchCredentials", "/usr/src/client/src/redux/credential.ts");
   reactHotLoader.register(CreateCredential, "CreateCredential", "/usr/src/client/src/redux/credential.ts");
@@ -92910,14 +92918,20 @@ var __signature__ = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoader
 
 var reducers = Object(redux__WEBPACK_IMPORTED_MODULE_0__["combineReducers"])({
   CredentialsReducer: _credential__WEBPACK_IMPORTED_MODULE_2__["credentialsReducer"]
-});
+}); // Add redux-dev-tools on client side only middleware
 
-var getStore = function getStore() {
-  var preloadState = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
+function CreateStore(preloadState) {
+  if (typeof window !== "undefined") {
+    console.log('Client side store setup');
+    var composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || redux__WEBPACK_IMPORTED_MODULE_0__["compose"];
+    return Object(redux__WEBPACK_IMPORTED_MODULE_0__["createStore"])(reducers, preloadState, composeEnhancers(Object(redux__WEBPACK_IMPORTED_MODULE_0__["applyMiddleware"])(redux_thunk__WEBPACK_IMPORTED_MODULE_1__["default"])));
+  }
+
+  console.log('Server side store setup');
   return Object(redux__WEBPACK_IMPORTED_MODULE_0__["createStore"])(reducers, preloadState, Object(redux__WEBPACK_IMPORTED_MODULE_0__["applyMiddleware"])(redux_thunk__WEBPACK_IMPORTED_MODULE_1__["default"]));
-};
+}
 
-var _default = getStore;
+var _default = CreateStore;
 /* harmony default export */ __webpack_exports__["default"] = (_default);
 ;
 
@@ -92929,7 +92943,7 @@ var _default = getStore;
   }
 
   reactHotLoader.register(reducers, "reducers", "/usr/src/client/src/redux/store.ts");
-  reactHotLoader.register(getStore, "getStore", "/usr/src/client/src/redux/store.ts");
+  reactHotLoader.register(CreateStore, "CreateStore", "/usr/src/client/src/redux/store.ts");
   reactHotLoader.register(_default, "default", "/usr/src/client/src/redux/store.ts");
 })();
 
@@ -92975,6 +92989,7 @@ var __signature__ = typeof reactHotLoaderGlobal !== 'undefined' ? reactHotLoader
 
 
 var clientRender = function clientRender(Component) {
+  console.log(window.__INITIAL_DATA__);
   return react_dom__WEBPACK_IMPORTED_MODULE_1___default.a.hydrate(react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(react_redux__WEBPACK_IMPORTED_MODULE_3__["Provider"], {
     store: Object(_redux_store__WEBPACK_IMPORTED_MODULE_2__["default"])(window.__INITIAL_DATA__)
   }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(Component, null)), document.getElementById('root'));
