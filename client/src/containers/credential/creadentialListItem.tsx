@@ -1,6 +1,5 @@
 import React, {useCallback, useState} from "react";
 import {ICredential} from "../../redux/credential";
-import Divider from "@material-ui/core/Divider";
 import ListItemText from "@material-ui/core/ListItemText";
 import IconButton from "@material-ui/core/IconButton";
 import Tooltip from "@material-ui/core/Tooltip"
@@ -13,7 +12,7 @@ import {ListItem} from "@material-ui/core";
 
 interface IProps {
     credential: ICredential
-    onDelete: (id) => Promise<void>
+    onDelete: (id) => void
     setCurrentCredentialId: () => void
 }
 
@@ -30,16 +29,15 @@ const CredentialListItem = (props: IProps) => {
     }, []);
 
     return (
-        <div key={key}>
-            <Divider />
+        <div key={key} style={{ borderTop: '1px solid rgba(0,0,0, 0.1)' }}>
             <ListItem>
                 <ListItemText
                     primary={key}
                     secondary={credential.http_referrer_restriction}
                 />
                 <Tooltip title="Edit">
-                        <IconButton onClick={setCurrentCredentialId}>
-                        <EditIcon />
+                    <IconButton onClick={setCurrentCredentialId}>
+                        <EditIcon/>
                     </IconButton>
                 </Tooltip>
                 <Tooltip title={copied ? "Copied" : "Copy"}>
