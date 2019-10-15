@@ -21,7 +21,7 @@ func (cc *CredentialController) GetOne(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cc *CredentialController) UpdateOne(w http.ResponseWriter, r *http.Request) {
-	basicCredentialController.GetOne(w, r, cc.Pool)
+	basicCredentialController.UpdateOne(w, r, cc.Pool)
 }
 
 func (cc *CredentialController) GetAll(w http.ResponseWriter, r *http.Request) {
