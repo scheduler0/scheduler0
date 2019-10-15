@@ -14,6 +14,7 @@
     "mobx": "^5.14.0",
     "morgan": "^1.9.1",
     "normalize.css": "^8.0.1",
+    "notistack": "^0.9.4",
     "react": "^16.9.0",
     "react-copy-to-clipboard": "^5.0.1",
     "react-dom": "^16.9.0",
@@ -64,7 +65,7 @@
     "webpack-node-externals": "^1.7.2"
   },
   "scripts": {
-    "bnode": "babel-node --inspect-brk=0.0.0.0 --extensions '.ts,.tsx' src/server.tsx",
+    "bnode": "babel-node --inspect=0.0.0.0 --extensions '.ts,.tsx' src/server.tsx",
     "start": "concurrently \"npm run dev-server\" \"npm run dev-bundle\"",
     "dev-server": "nodemon --exec \"npm run bnode\" --ignore public/",
     "dev-bundle": "webpack -wd",
