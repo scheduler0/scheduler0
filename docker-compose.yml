@@ -21,6 +21,8 @@ services:
       - postgres
     networks:
       - default
+    volumes:
+      - ./server:/app
     environment:
       PORT: 4321
       POSTGRES_ADDRESS: "postgres:5432"
@@ -29,6 +31,7 @@ services:
       CLIENT_HOST: client:4327
       BASIC_AUTH_USER: admin
       BASIC_AUTH_PASS: admin
+    command: "go run main.go"
 
   client:
     build:
