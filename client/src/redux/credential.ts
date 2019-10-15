@@ -18,47 +18,85 @@ const defaultState = {
     currentCredentialId: null
 };
 
-const { SET_CREDENTIALS, SET_CURRENT_CREDENTIAL_ID } = createActions({
-    "SET_CREDENTIALS": (credentials = []) => ({ credentials }),
-    "SET_CURRENT_CREDENTIAL_ID": (id: string) => ({ currentCredentialId: id })
+createActions({
+    [CredentialActions.SET_CREDENTIALS]: (credentials = []) => ({ credentials }),
+    [CredentialActions.SET_CURRENT_CREDENTIAL_ID]: (id: string) => ({ currentCredentialId: id })
 });
 
 export const credentialsReducer = handleActions({
-    SET_CREDENTIALS: (state,{ payload: { credentials } }) => {
-        console.log('Setting credentials');
+    [CredentialActions.SET_CREDENTIALS]: (state,{ payload: { credentials } }) => {
         return {...state, credentials };
     },
-    SET_CURRENT_CREDENTIAL_ID: (state, { payload: { id  } }) => {
+    [CredentialActions.SET_CURRENT_CREDENTIAL_ID]: (state, { payload: { id  } }) => {
         return { ...state, currentCredentialId: id };
     }
 }, defaultState);
 
-export const FetchCredentials = () => async (state, action) => {
-    const data = await axios.get('/credentials')
-};
-
-export const CreateCredential = (credential: Partial<ICredential>) => async (dispatch, getState) => {
-    const state = getState();
-    const { CredentialsReducer: { credentials } } = state;
-    debugger;
-
+export const FetchCredentials = () => async (dispatch) => {
     try {
-        const { data: { data = null, success = false} } = await axios.post('/credentials', credential);
+        const { data: { data: credentials, success } } = await axios.get('/credentials');
         if (success) {
-
-            debugger
-
-            dispatch({ type: CredentialActions.SET_CREDENTIALS, payload: [data].concat(credentials) });
-        } else {
-            throw new Error(data);
+            dispatch({
+                type: CredentialActions.SET_CREDENTIALS,
+                payload: { credentials: credentials }
+            });
         }
     } catch (e) {
         throw e;
     }
 };
 
-export const UpdateCredential = (credential: Partial<Credential>) => async (state, action) => {
+export const CreateCredential = (credential: Partial<ICredential>) => async (dispatch, getState) => {
+    const state = getState();
+    const { CredentialsReducer: { credentials } } = state;
 
+    try {
+        const { data: { data: newCredentialId = null, success = false} } = await axios.post('/credentials', credential);
+        if (success) {
+            const { data: { data: newCredential = null, success = false } } = await axios.get(`/credentials/${newCredentialId}`);
+            dispatch({
+                type: CredentialActions.SET_CREDENTIALS,
+                payload: { credentials: credentials.concat(newCredential) }
+            });
+        }
+    } catch (e) {
+        throw e;
+    }
 };
 
-export const DeleteCredential = (id: string) => async (state, action) => {};
+export const UpdateCredential = (credential: Partial<Credential>) => async (dispatch, getState) => {
+    const state = getState();
+    const { CredentialsReducer: { credentials, currentCredentialId } } = state;
+    const credentialIndex = credentials.findIndex(({ id: credentialId }) => credentialId == currentCredentialId);
+
+    try {
+        const { data: { data: updatedCredential = null, success = false} } = await axios.put(`/credentials/${currentCredentialId}`, credential);
+        const updatedCredentials = [...credentials, updatedCredential];
+        updatedCredentials[credentialIndex] = updatedCredential;
+
+        if (success) {
+            dispatch({
+                type: CredentialActions.SET_CREDENTIALS,
+                payload: { credentials: updatedCredentials }
+            });
+        }
+    } catch (e) {
+        throw e;
+    }
+};
+
+export const DeleteCredential = (id: string) => async (dispatch, getState) => {
+    const state = getState();
+    const { CredentialsReducer: { credentials } } = state;
+    try {
+        const { data: { success = false} } = await axios.delete(`/credentials/${id}`);
+        if (success) {
+            dispatch({
+                type: CredentialActions.SET_CREDENTIALS,
+                payload: { credentials: credentials.filter(({ id: credentialId }) => credentialId != id )}
+            });
+        }
+    } catch (e) {
+        throw e;
+    }
+};
