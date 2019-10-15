@@ -13,10 +13,10 @@ import (
 )
 
 type Credential struct {
-	ID                      string    `json:"id"`
-	ApiKey                  string    `json:"api_key"`
-	HTTPReferrerRestriction string    `json:"http_referrer_restriction"`
-	DateCreated             time.Time `json:"date_created"`
+	ID                      string    `json:"id" pg:",notnull"`
+	ApiKey                  string    `json:"api_key" pg:",notnull"`
+	HTTPReferrerRestriction string    `json:"http_referrer_restriction" pg:",notnull"`
+	DateCreated             time.Time `json:"date_created" pg:",notnull"`
 }
 
 func (c *Credential) SetId(id string) {
@@ -78,7 +78,10 @@ func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query st
 	var credentials []Credential
 
 	db := conn.(*pg.DB)
-	err = db.Model(&credentials).Where(query, params).Select()
+	err = db.Model(&credentials).
+		Where(query, params).
+		Order("date_created DESC").
+		Select()
 	if err != nil {
 		return []interface{}{}, err
 	}
@@ -104,9 +107,12 @@ func (c *Credential) UpdateOne(pool *repository.Pool, ctx context.Context) error
 	credentialPlaceholder.ID = c.ID
 	err = credentialPlaceholder.GetOne(pool, ctx, "id = ?", credentialPlaceholder.ID)
 
-	if credentialPlaceholder.ApiKey != c.ApiKey {
+	if credentialPlaceholder.ApiKey != c.ApiKey && len(c.ApiKey) > 1 {
 		return errors.New("cannot update api key")
 	}
+
+	c.ApiKey = credentialPlaceholder.ApiKey
+	c.DateCreated = credentialPlaceholder.DateCreated
 
 	if err = db.Update(c); err != nil {
 		return err
