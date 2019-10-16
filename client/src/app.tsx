@@ -7,6 +7,7 @@ import AppBar from '@material-ui/core/AppBar';
 import Toolbar from '@material-ui/core/Toolbar';
 import Typography from '@material-ui/core/Typography';
 import CredentialContainer from './containers/credential';
+import NotificationContainer from './containers/notification';
 import Drawer from '@material-ui/core/Drawer';
 import {List} from "@material-ui/core";
 import ListItem from "@material-ui/core/ListItem";
@@ -53,6 +54,7 @@ class App extends React.Component<Props> {
         return (
             <>
                 <CssBaseline />
+                <NotificationContainer />
                 <section className={classes.root}>
                     <AppBar position="fixed" className={classes.appBar}>
                         <Toolbar variant="dense">
