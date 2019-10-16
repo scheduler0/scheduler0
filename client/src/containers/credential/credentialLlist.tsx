@@ -50,7 +50,10 @@ function CredentialList(props: IProps) {
                  justifyContent="space-between"
                  style={{ paddingLeft: '20px', paddingRight: '20px', marginBottom: '10px' }}>
                 <Typography variant="h5">Credentials</Typography>
-                <Button component="span" onClick={setMode(FormMode.Create)}>Create New Key</Button>
+                <Button component="span" onClick={() => {
+                    setCurrentCredentialId(null);
+                    setMode(FormMode.Create)();
+                }}>Create New Key</Button>
             </Box>
             <div>
                 {credentials && credentials.map((credential, index) => (
@@ -58,7 +61,10 @@ function CredentialList(props: IProps) {
                         key={`credential-${index}`}
                         credential={credential}
                         onDelete={handleDelete}
-                        setCurrentCredentialId={() => setCurrentCredentialId(credential.id)}
+                        setCurrentCredentialId={() => {
+                            setCurrentCredentialId(credential.id);
+                            setMode(FormMode.Edit)();
+                        }}
                     />
                 ))}
             </div>
