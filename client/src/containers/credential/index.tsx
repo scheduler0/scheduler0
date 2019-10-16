@@ -5,8 +5,8 @@ import Grid from '@material-ui/core/Grid';
 import ModifyCredentialForm from "./modifyCredentialForm"
 import CredentialList from './credentialLlist';
 import {createStyles} from "@material-ui/core";
-import { WithStyles, withStyles } from "@material-ui/core/styles"
-import {CredentialActions, DeleteCredential} from '../../redux/credential'
+import {WithStyles, withStyles} from "@material-ui/core/styles"
+import {setCurrentCredentialId, DeleteCredential} from '../../redux/credential'
 
 export enum FormMode {
     Edit = "Edit",
@@ -48,29 +48,6 @@ class CredentialContainer extends React.Component<Props> {
         });
     };
 
-    componentDidUpdate(prevProps: Readonly<Props>) {
-        const {currentCredentialId: oldCurrentCredentialId} = prevProps;
-        const {currentCredentialId: newCurrentCredentialId} = this.props;
-
-        if ((!!oldCurrentCredentialId &&
-            oldCurrentCredentialId.length > 1 &&
-            newCurrentCredentialId === null)) {
-            this.setState({
-                formMode: FormMode.None
-            });
-
-            return;
-        }
-
-        if (!!newCurrentCredentialId &&
-            newCurrentCredentialId.length > 1 &&
-            newCurrentCredentialId !== oldCurrentCredentialId) {
-            this.setState({
-                formMode: FormMode.Edit
-            });
-        }
-    }
-
     render() {
         const {formMode} = this.state;
         const {credentials, currentCredentialId, deleteCredential, setCurrentCredentialId} = this.props;
@@ -110,10 +87,7 @@ const mapStateToProps = (state) => ({
 });
 
 const mapDispatchToProps = (dispatch) => ({
-    setCurrentCredentialId: (id: string) => dispatch({
-        type: CredentialActions.SET_CURRENT_CREDENTIAL_ID,
-        payload: { id }
-    }),
+    setCurrentCredentialId: (id: string) => dispatch(setCurrentCredentialId(id)),
     deleteCredential: (id: string) => dispatch(DeleteCredential(id))
 });
 
