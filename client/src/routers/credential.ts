@@ -6,7 +6,6 @@ const router = express.Router();
 
 router.route("/")
     .post((req, res) => {
-        console.log(req.body);
         axiosInstance
             .post('/credentials', req.body)
             .then((resp) => {
@@ -28,13 +27,27 @@ router.route("/")
 
 router.route("/:id")
     .delete(async (req, res) => {
-
-        axiosInstance.delete('/credentials/' + req.params.id)
+        axiosInstance.delete(`/credentials/${req.params.id}`)
             .then((resp) => {
                 res.status(resp.status).send(resp.data);
-            })
-            .catch((reason) => {
-                res.status(400).send(reason.message);
+            }).catch((e) => {
+                res.status(e.response.status).send(e.response.data);
+            });
+    })
+    .get(async (req, res) => {
+        await axiosInstance.get(`/credentials/${req.params.id}`)
+            .then((resp) => {
+                res.status(resp.status).send(resp.data);
+            }).catch((e) => {
+                res.status(e.response.status).send(e.response.data);
+            });
+    })
+    .put(async (req, res) => {
+        await axiosInstance.put(`/credentials/${req.params.id}`, req.body)
+            .then((resp) => {
+                res.status(resp.status).send(resp.data);
+            }).catch((e) => {
+                res.status(e.response.status).send(e.response.data);
             });
     });
 

@@ -124,7 +124,12 @@ func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	model.FromJson(body)
+	err = model.FromJson(body)
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
+	}
+
 	model.SetId(id)
 	err = model.UpdateOne(&pool, r.Context())
 

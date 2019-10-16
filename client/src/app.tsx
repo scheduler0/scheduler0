@@ -1,10 +1,13 @@
+// @ts-ignore
 import React from 'react'
 import { hot } from 'react-hot-loader';
+import CssBaseline from '@material-ui/core/CssBaseline';
 import {WithStyles, withStyles} from '@material-ui/core/styles';
 import AppBar from '@material-ui/core/AppBar';
 import Toolbar from '@material-ui/core/Toolbar';
 import Typography from '@material-ui/core/Typography';
 import CredentialContainer from './containers/credential';
+import NotificationContainer from './containers/notification';
 import Drawer from '@material-ui/core/Drawer';
 import {List} from "@material-ui/core";
 import ListItem from "@material-ui/core/ListItem";
@@ -25,8 +28,7 @@ const styles = theme => ({
       marginRight: theme.spacing(2),
     },
     mainContainer: {
-        flexGrow: 1,
-        paddingTop: '60px'
+        flexGrow: 1
     },
     drawer: {
         width: drawerWidth,
@@ -48,39 +50,44 @@ class App extends React.Component<Props> {
 
     render() {
         const { classes } = this.props;
+
         return (
-            <section className={classes.root}>
-                <AppBar position="fixed" className={classes.appBar}>
-                    <Toolbar variant="dense">
-                        <Typography variant="h6" color="inherit">
-                            Cron Server
-                        </Typography>
-                    </Toolbar>
-                </AppBar>
-                <Drawer
-                    className={classes.drawer}
-                    variant="permanent"
-                    classes={{ paper: classes.drawerPaper }}
-                    anchor="left"
-                >
-                    <List>
-                        <ListItem button key={"API Keys"}>
-                            <ListItemText primary={"API Keys"} />
-                        </ListItem>
-                        <ListItem button key={"Projects"}>
-                            <ListItemText primary={"Projects"} />
-                        </ListItem>
-                        <ListItem button key={"Jobs"}>
-                            <ListItemText primary={"Jobs"} />
-                        </ListItem>
-                    </List>
-                </Drawer>
-                <main className={classes.mainContainer}>
-                    <CredentialContainer />
-                </main>
-            </section>
+            <>
+                <CssBaseline />
+                <NotificationContainer />
+                <section className={classes.root}>
+                    <AppBar position="fixed" className={classes.appBar}>
+                        <Toolbar variant="dense">
+                            <Typography variant="h6" color="inherit">
+                                Cron Server
+                            </Typography>
+                        </Toolbar>
+                    </AppBar>
+                    <Drawer
+                        className={classes.drawer}
+                        variant="permanent"
+                        classes={{ paper: classes.drawerPaper }}
+                        anchor="left"
+                    >
+                        <List>
+                            <ListItem button key={"Credentials"}>
+                                <ListItemText primary={"Credentials"} />
+                            </ListItem>
+                            <ListItem button key={"Projects"}>
+                                <ListItemText primary={"Projects"} />
+                            </ListItem>
+                            <ListItem button key={"Jobs"}>
+                                <ListItemText primary={"Jobs"} />
+                            </ListItem>
+                        </List>
+                    </Drawer>
+                    <main className={classes.mainContainer}>
+                        <CredentialContainer />
+                    </main>
+                </section>
+            </>
         );
     }
 }
 
-export default hot(module)(withStyles(styles)(App));
+export default hot(module)(withStyles(styles)(App as any as React.ComponentType));

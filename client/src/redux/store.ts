@@ -1,14 +1,16 @@
 import {combineReducers, createStore, applyMiddleware, compose} from "redux";
 import reduxThunk from "redux-thunk"
+
 import {credentialsReducer} from "./credential";
+import {notificationReducer} from "./notification";
 
 declare var window: {
     __REDUX_DEVTOOLS_EXTENSION_COMPOSE__: any,
 };
 
-
 const reducers = combineReducers({
-    CredentialsReducer: credentialsReducer
+    CredentialsReducer: credentialsReducer,
+    NotificationReducer: notificationReducer
 });
 
 // Add redux-dev-tools on client side only middleware

@@ -1,13 +1,12 @@
+// @ts-ignore
 import React from "react";
 import { connect } from "react-redux";
 import Grid from '@material-ui/core/Grid';
 import ModifyCredentialForm from "./modifyCredentialForm"
 import CredentialList from './credentialLlist';
-import {Typography} from "@material-ui/core";
-import { WithStyles, withStyles } from "@material-ui/core/styles"
-import Button from "@material-ui/core/Button";
-import Box from "@material-ui/core/Box";
-import { CredentialActions } from '../../redux/credential'
+import {createStyles} from "@material-ui/core";
+import {WithStyles, withStyles} from "@material-ui/core/styles"
+import {setCurrentCredentialId, DeleteCredential} from '../../redux/credential'
 
 export enum FormMode {
     Edit = "Edit",
@@ -19,12 +18,12 @@ interface IState {
     formMode: FormMode
 }
 
-const styles = theme => ({
+const styles = theme => createStyles({
     containerHeader: {
         height: "50px",
         display: "flex",
         justifyContent: "space-between",
-        alignItems: "center"
+        alignItems: "center",
     }
 });
 
@@ -33,6 +32,7 @@ type Props = ReturnType<typeof mapStateToProps>
     & ReturnType<typeof mapDispatchToProps>
 
 class CredentialContainer extends React.Component<Props> {
+
     state: IState = {
         formMode: FormMode.None
     };
@@ -40,57 +40,56 @@ class CredentialContainer extends React.Component<Props> {
     setMode = (mode: FormMode) => () => {
         this.setState({
             formMode: mode
+        }, () => {
+            const { currentCredentialId, setCurrentCredentialId } = this.props;
+            if (this.state.formMode == FormMode.None && currentCredentialId) {
+                setCurrentCredentialId(null);
+            }
         });
     };
 
-    setCurrentCredentialId = (id: string) => () => {
-
-    };
-
     render() {
-        const { formMode } = this.state;
-        const { classes } = this.props;
+        const {formMode} = this.state;
+        const {credentials, currentCredentialId, deleteCredential, setCurrentCredentialId} = this.props;
+
+        const currentCredential = (formMode == FormMode.Edit)
+            ? credentials.find(({ id }) => id == currentCredentialId)
+            : null;
 
         return (
             <Grid container>
                 <Grid item md={8} lg={8}>
-                    <Box display="flex"
-                        component="div"
-                        flexDirection="row"
-                        alignItems="center"
-                        justifyContent="space-between"
-                        style={{ paddingLeft: '20px', paddingRight: '20px' }}>
-                        <Typography variant="h5">
-                            API Keys
-                        </Typography>
-                        <Button component="span" onClick={this.setMode(FormMode.Create)}>Create New Key</Button>
-                    </Box>
                     <CredentialList
-                        credentials={this.props.credentials}
-                        onDelete={(id) => Promise.resolve()}
-                        setCurrentCredentialId={this.setCurrentCredentialId}
+                        credentials={credentials}
+                        formMode={formMode}
+                        setMode={this.setMode}
+                        deleteCredential={deleteCredential}
+                        setCurrentCredentialId={setCurrentCredentialId}
                     />
                 </Grid>
                 <Grid item md={4} lg={4}>
-                    <ModifyCredentialForm mode={formMode} />
+                    <ModifyCredentialForm
+                        formMode={formMode}
+                        currentCredentialId={currentCredentialId}
+                        setCurrentCredentialId={setCurrentCredentialId}
+                        setMode={this.setMode}
+                        currentCredential={currentCredential}
+                    />
                 </Grid>
             </Grid>
         );
     }
 }
 
-const mapStateToProps = (state) => {
-    return {
-        credentials: state.CredentialsReducer.credentials,
-        currentCredentialId: state.CredentialsReducer.currentCredentialId
-    }
-};
+const mapStateToProps = (state) => ({
+    credentials: state.CredentialsReducer.credentials,
+    currentCredentialId: state.CredentialsReducer.currentCredentialId
+});
 
-const mapDispatchToProps = (dispatch) => {
-    return {
-        setCurrentCredentialId: (id: string) => dispatch({ type: CredentialActions.SET_CREDENTIALS, payload: { id } })
-    }
-};
+const mapDispatchToProps = (dispatch) => ({
+    setCurrentCredentialId: (id: string) => dispatch(setCurrentCredentialId(id)),
+    deleteCredential: (id: string) => dispatch(DeleteCredential(id))
+});
 
 export default connect(mapStateToProps, mapDispatchToProps)
     (withStyles(styles)(CredentialContainer)) as any as React.ComponentType;

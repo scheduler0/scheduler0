@@ -5,5 +5,3 @@ cron-server.test
 client/node_modules
 client/src/public/dist/
 client/build
-client/src/public/dist/bundle.js.map
-client/src/public/dist/bundle.js
