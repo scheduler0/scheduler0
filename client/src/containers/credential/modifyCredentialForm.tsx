@@ -78,9 +78,7 @@ const CredentialsForm = (props: IProps & ReturnType<typeof mapDispatchToProps>) 
             setCurrentCredentialId(null);
         }
 
-        if (formMode == FormMode.Create) {
-            setMode(FormMode.None)();
-        }
+        setMode(FormMode.None)();
     }, [formMode]);
 
     if (formMode == FormMode.None) {
