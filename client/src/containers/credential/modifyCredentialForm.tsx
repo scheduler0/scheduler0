@@ -13,7 +13,7 @@ interface IProps {
     currentCredentialId?: string
     http_referrer_restriction?: string
     setCurrentCredentialId?: (id: string) => void
-    setMode: (mode: FormMode) => () => void
+    setMode: (mode: FormMode) => void
     currentCredential?: ICredential
 }
 
@@ -78,7 +78,7 @@ const CredentialsForm = (props: IProps & ReturnType<typeof mapDispatchToProps>) 
             setCurrentCredentialId(null);
         }
 
-        setMode(FormMode.None)();
+        setMode(FormMode.None);
     }, [formMode]);
 
     if (formMode == FormMode.None) {

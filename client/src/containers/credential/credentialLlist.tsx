@@ -13,7 +13,7 @@ interface IProps {
     setCurrentCredentialId: (id: string) => void
     formMode: FormMode
     deleteCredential: (id: string) => Promise<void>
-    setMode: (mode: FormMode) => () => void
+    setMode: (mode: FormMode) => void
 }
 
 const useStyles = makeStyles(theme => ({
@@ -52,7 +52,7 @@ function CredentialList(props: IProps) {
                 <Typography variant="h5">Credentials</Typography>
                 <Button component="span" onClick={() => {
                     setCurrentCredentialId(null);
-                    setMode(FormMode.Create)();
+                    setMode(FormMode.Create);
                 }}>Create New Key</Button>
             </Box>
             <div>
@@ -63,7 +63,7 @@ function CredentialList(props: IProps) {
                         onDelete={handleDelete}
                         setCurrentCredentialId={() => {
                             setCurrentCredentialId(credential.id);
-                            setMode(FormMode.Edit)();
+                            setMode(FormMode.Edit);
                         }}
                     />
                 ))}

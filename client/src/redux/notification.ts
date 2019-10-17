@@ -1,9 +1,17 @@
 import uuidv1 from "uuid/v1";
 import {createActions, handleActions} from "redux-actions";
 
+export enum NotificationVariant {
+    Default = "Default",
+    Success = "Success",
+    Error = "Error",
+    Info = "Info"
+}
+
 export interface INotification {
     id: string,
     message: string
+    variant: NotificationVariant,
 }
 
 export enum NotificationActions {
@@ -12,11 +20,12 @@ export enum NotificationActions {
 }
 
 export const { addNotification, removeNotification } = createActions({
-    [NotificationActions.ADD]: (notification: string) => {
+    [NotificationActions.ADD]: (message: string, variant: NotificationVariant = NotificationVariant.Success) => {
         return {
             notification: {
-                message: notification,
-                id: uuidv1()
+                id: uuidv1(),
+                message,
+                variant,
             }
         }
     },

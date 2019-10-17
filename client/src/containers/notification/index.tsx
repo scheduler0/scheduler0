@@ -12,11 +12,11 @@ const Notification = (props: Props) => {
     const [notificationsMap, setNotifications] = useState(new Map<string, INotification>());
 
     useEffect(() => {
-
         notifications.forEach((notification) => {
             if (!notificationsMap.has(notification.id)) {
                 enqueueSnackbar(notification.message, {
                     key: notification.id,
+                    variant: notification.variant,
                     onClose: ((N) => () => {
                         closeSnackbar(notification.id);
                         notificationsMap.delete(N.id);
