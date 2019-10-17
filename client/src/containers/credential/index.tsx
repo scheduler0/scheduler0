@@ -37,7 +37,7 @@ class CredentialContainer extends React.Component<Props> {
         formMode: FormMode.None
     };
 
-    setMode = (mode: FormMode) => () => {
+    setMode = (mode: FormMode) => {
         this.setState({
             formMode: mode
         }, () => {
