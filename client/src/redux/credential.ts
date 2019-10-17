@@ -1,5 +1,5 @@
 import { createActions, handleActions } from "redux-actions";
-import { addNotification } from './notification';
+import {addNotification, NotificationVariant} from './notification';
 import axios from "axios";
 
 export enum CredentialActions {
@@ -24,7 +24,6 @@ export const {setCredentials, setCurrentCredentialId} = createActions({
     [CredentialActions.SET_CURRENT_CREDENTIAL_ID]: (id: string) => ({ id })
 });
 
-
 export const credentialsReducer = handleActions({
     [CredentialActions.SET_CREDENTIALS]: (state,{ payload: { credentials } }) => {
         return {...state, credentials };
@@ -41,7 +40,7 @@ export const FetchCredentials = () => async (dispatch) => {
             dispatch(setCredentials(credentials));
         }
     } catch (e) {
-        throw e;
+        dispatch(addNotification(e.response.data.data, NotificationVariant.Error));
     }
 };
 
@@ -56,7 +55,7 @@ export const CreateCredential = (credential: Partial<ICredential>) => async (dis
             dispatch(addNotification("Successfully credential created!"));
         }
     } catch (e) {
-        throw e;
+        dispatch(addNotification(e.response.data.data, NotificationVariant.Error));
     }
 };
 
@@ -74,7 +73,7 @@ export const UpdateCredential = (credential: Partial<Credential>) => async (disp
             dispatch(addNotification("Successfully updated credential!"));
         }
     } catch (e) {
-        throw e;
+        dispatch(addNotification(e.response.data.data, NotificationVariant.Error));
     }
 };
 
@@ -82,12 +81,12 @@ export const DeleteCredential = (id: string) => async (dispatch, getState) => {
     const state = getState();
     const { CredentialsReducer: { credentials } } = state;
     try {
-        const { data: { success = false} } = await axios.delete(`/credentials/${id}`);
+        const { data: {success = false} } = await axios.delete(`/credentials/${id}`);
         if (success) {
             dispatch(setCredentials(credentials.filter(({ id: credentialId }) => credentialId != id )));
             dispatch(addNotification("Successfully deleted credential!"));
         }
     } catch (e) {
-        throw e;
+        dispatch(addNotification(e.response.data.data, NotificationVariant.Error));
     }
 };
