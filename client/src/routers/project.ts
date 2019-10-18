@@ -1,3 +1,3 @@
 import { generateRouter } from './generateRouter'
-const router = generateRouter('credentials');
+const router = generateRouter('projects');
 export default router;

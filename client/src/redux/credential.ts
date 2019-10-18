@@ -35,7 +35,7 @@ export const credentialsReducer = handleActions({
 
 export const FetchCredentials = () => async (dispatch) => {
     try {
-        const { data: { data: credentials, success } } = await axios.get('/credentials');
+        const { data: { data: credentials, success } } = await axios.get('/api/credentials');
         if (success) {
             dispatch(setCredentials(credentials));
         }
@@ -48,9 +48,9 @@ export const CreateCredential = (credential: Partial<ICredential>) => async (dis
     const state = getState();
     const { CredentialsReducer: { credentials } } = state;
     try {
-        const { data: { data: newCredentialId = null, success = false} } = await axios.post('/credentials', credential);
+        const { data: { data: newCredentialId = null, success = false} } = await axios.post('/api/credentials', credential);
         if (success) {
-            const { data: { data: newCredential = null } } = await axios.get(`/credentials/${newCredentialId}`);
+            const { data: { data: newCredential = null } } = await axios.get(`/api/credentials/${newCredentialId}`);
             dispatch(setCredentials(credentials.concat(newCredential)));
             dispatch(addNotification("Successfully credential created!"));
         }
@@ -65,7 +65,7 @@ export const UpdateCredential = (credential: Partial<Credential>) => async (disp
     const credentialIndex = credentials.findIndex(({ id: credentialId }) => credentialId == currentCredentialId);
 
     try {
-        const { data: { data: updatedCredential = null, success = false} } = await axios.put(`/credentials/${currentCredentialId}`, credential);
+        const { data: { data: updatedCredential = null, success = false} } = await axios.put(`/api/credentials/${currentCredentialId}`, credential);
         const updatedCredentials = [...credentials];
         updatedCredentials[credentialIndex] = updatedCredential;
         if (success) {
@@ -81,7 +81,7 @@ export const DeleteCredential = (id: string) => async (dispatch, getState) => {
     const state = getState();
     const { CredentialsReducer: { credentials } } = state;
     try {
-        const { data: {success = false} } = await axios.delete(`/credentials/${id}`);
+        const { data: {success = false} } = await axios.delete(`/api/credentials/${id}`);
         if (success) {
             dispatch(setCredentials(credentials.filter(({ id: credentialId }) => credentialId != id )));
             dispatch(addNotification("Successfully deleted credential!"));

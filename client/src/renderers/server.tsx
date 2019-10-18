@@ -5,7 +5,12 @@ import { ServerStyleSheets, ThemeProvider } from '@material-ui/styles';
 import theme from '../theme';
 import { Provider } from "react-redux";
 import CreateStore from "../redux/store";
-import { CredentialActions } from '../redux/credential'
+import { StaticRouter } from "react-router-dom";
+
+import {setJobs} from '../redux/jobs'
+import {setCredentials} from '../redux/credential';
+import {setProjects} from "../redux/projects";
+
 
 const htmlString = (body, css, data) => `
 <!DOCTYPE html>
@@ -32,23 +37,21 @@ const htmlString = (body, css, data) => `
 </html>
 `;
 
-export const serverRender = (initialData) => {
+export const serverRender = (initialData, url) => {
     const sheets = new ServerStyleSheets();
     const store = CreateStore({});
 
-    debugger;
-
-    store.dispatch({
-        type: CredentialActions.SET_CREDENTIALS,
-        payload: initialData
-    });
-
+    store.dispatch(setCredentials(initialData.credentials));
+    store.dispatch(setProjects(initialData.projects));
+    store.dispatch(setJobs(initialData.jobs));
 
     const html = ReactDOMServer.renderToString(
         sheets.collect(
             <ThemeProvider theme={theme}>
                 <Provider store={store}>
-                    <App />
+                    <StaticRouter location={url} context={{}}>
+                        <App />
+                    </StaticRouter>
                 </Provider>
             </ThemeProvider>
         )

@@ -7,11 +7,15 @@ import AppBar from '@material-ui/core/AppBar';
 import Toolbar from '@material-ui/core/Toolbar';
 import Typography from '@material-ui/core/Typography';
 import CredentialContainer from './containers/credential';
+import ProjectsContainer from './containers/project';
+import JobContainer from './containers/job';
 import NotificationContainer from './containers/notification';
 import Drawer from '@material-ui/core/Drawer';
 import {List} from "@material-ui/core";
 import ListItem from "@material-ui/core/ListItem";
 import ListItemText from "@material-ui/core/ListItemText";
+import NoSsr from '@material-ui/core/NoSsr';
+import { withRouter, Switch, Route } from 'react-router-dom';
 
 const drawerWidth = 240;
 
@@ -49,12 +53,15 @@ class App extends React.Component<Props> {
     };
 
     render() {
-        const { classes } = this.props;
+        // @ts-ignore:
+        const { classes, history } = this.props;
 
         return (
             <>
                 <CssBaseline />
-                <NotificationContainer />
+                <NoSsr>
+                    <NotificationContainer />
+                </NoSsr>
                 <section className={classes.root}>
                     <AppBar position="fixed" className={classes.appBar}>
                         <Toolbar variant="dense">
@@ -70,19 +77,23 @@ class App extends React.Component<Props> {
                         anchor="left"
                     >
                         <List>
-                            <ListItem button key={"Credentials"}>
+                            <ListItem button key={"Credentials"} onClick={() => history.push('/credentials')}>
                                 <ListItemText primary={"Credentials"} />
                             </ListItem>
-                            <ListItem button key={"Projects"}>
+                            <ListItem button key={"Projects"}  onClick={() => history.push('/projects')}>
                                 <ListItemText primary={"Projects"} />
                             </ListItem>
-                            <ListItem button key={"Jobs"}>
+                            <ListItem button key={"Jobs"} onClick={() => history.push('/jobs')}>
                                 <ListItemText primary={"Jobs"} />
                             </ListItem>
                         </List>
                     </Drawer>
                     <main className={classes.mainContainer}>
-                        <CredentialContainer />
+                        <Switch>
+                            <Route path="/credentials" render={() => <CredentialContainer />} />
+                            <Route path="/projects" render={() => <ProjectsContainer />} />
+                            <Route path="/jobs" render={() => <JobContainer />} />
+                        </Switch>
                     </main>
                 </section>
             </>
@@ -90,4 +101,6 @@ class App extends React.Component<Props> {
     }
 }
 
-export default hot(module)(withStyles(styles)(App as any as React.ComponentType));
+export default hot(module)(
+    withStyles(styles)(withRouter((App as any as React.ComponentType)))
+);

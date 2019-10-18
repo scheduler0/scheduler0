@@ -1,8 +1,8 @@
 // @ts-ignore:
 import React, {useEffect, useState} from 'react';
-import { useSnackbar } from 'notistack';
-import { connect } from 'react-redux';
-import { removeNotification, INotification } from '../../redux/notification'
+import {useSnackbar} from 'notistack';
+import {connect} from 'react-redux';
+import {removeNotification, INotification} from '../../redux/notification'
 
 type Props = ReturnType<typeof mapStateToProps> & ReturnType<typeof mapDispatchToProps>
 
