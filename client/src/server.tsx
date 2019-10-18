@@ -13,6 +13,8 @@ import axios from 'axios';
 import { serverRender } from './renderers/server';
 
 import credentialRouter from "./routers/credential";
+import projectRouter from "./routers/project";
+import jobRouter from "./routers/job";
 
 // @ts-ignore
 import webpack from 'webpack';
@@ -52,7 +54,7 @@ app.use(helmet());
 app.use(morgan("combined"));
 app.use(bodyParser.json());
 
-app.get('/', async (req, res) => {
+app.get("(/|/projects|/jobs|/credentials)", async (req, res) => {
     const fetchCredentials = axiosInstance.get(`${API_ENDPOINT}/credentials`);
     const fetchProjects = axiosInstance.get(`${API_ENDPOINT}/projects`);
     const fetchJobs = axiosInstance.get(`${API_ENDPOINT}/jobs`);
@@ -75,9 +77,11 @@ app.get('/', async (req, res) => {
         console.error(e);
     }
 
-    res.send(serverRender({ credentials, projects, jobs }))
+    res.send(serverRender({ credentials, projects, jobs }, req.url))
 });
 
-app.use('/credentials', credentialRouter);
+app.use('/api/credentials', credentialRouter);
+app.use('/api/projects', projectRouter);
+app.use('/api/jobs', jobRouter);
 
 app.listen(PORT, () => console.log(`App listening on port ${PORT}`));
