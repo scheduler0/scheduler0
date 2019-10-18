@@ -2,10 +2,10 @@ import uuidv1 from "uuid/v1";
 import {createActions, handleActions} from "redux-actions";
 
 export enum NotificationVariant {
-    Default = "Default",
-    Success = "Success",
-    Error = "Error",
-    Info = "Info"
+    Default = "default",
+    Success = "success",
+    Error = "error",
+    Info = "info"
 }
 
 export interface INotification {
