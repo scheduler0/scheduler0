@@ -2,6 +2,8 @@ import {combineReducers, createStore, applyMiddleware, compose} from "redux";
 import reduxThunk from "redux-thunk"
 
 import {credentialsReducer} from "./credential";
+import {projectsReducer} from "./projects";
+import {jobsReducer} from "./jobs";
 import {notificationReducer} from "./notification";
 
 declare var window: {
@@ -10,7 +12,9 @@ declare var window: {
 
 const reducers = combineReducers({
     CredentialsReducer: credentialsReducer,
-    NotificationReducer: notificationReducer
+    NotificationReducer: notificationReducer,
+    ProjectsReducer: projectsReducer,
+    JobsReducer: jobsReducer
 });
 
 // Add redux-dev-tools on client side only middleware
