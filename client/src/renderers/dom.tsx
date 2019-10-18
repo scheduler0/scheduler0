@@ -4,6 +4,7 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import CreateStore from "../redux/store";
 import {Provider} from "react-redux";
+import {BrowserRouter} from "react-router-dom";
 import {SnackbarProvider} from "notistack";
 
 declare var window: {
@@ -14,7 +15,9 @@ export const clientRender = (Component: React.ElementType) => {
     return ReactDOM.hydrate(
         <Provider store={CreateStore(window.__INITIAL_DATA__)}>
             <SnackbarProvider maxSnack={5}>
-                <Component/>
+                <BrowserRouter>
+                    <Component/>
+                </BrowserRouter>
             </SnackbarProvider>
         </Provider>, document.getElementById('root'));
 };
