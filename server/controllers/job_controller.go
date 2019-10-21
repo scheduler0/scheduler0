@@ -89,7 +89,11 @@ func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Reques
 	misc.CheckErr(err)
 	jobUpdate := models.Job{}
 	if len(body) > 1 {
-		jobUpdate.FromJson(body)
+		err := jobUpdate.FromJson(body)
+		if err != nil {
+			misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+			return
+		}
 	} else {
 		misc.SendJson(w, "no request body", false, http.StatusBadRequest, nil)
 		return
