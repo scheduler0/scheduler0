@@ -36,6 +36,7 @@ func Setup(pool *repository.Pool) {
 		(*Job)(nil),
 		(*Project)(nil),
 		(*Credential)(nil),
+		(*Execution)(nil),
 	} {
 		err := db.CreateTable(model, &orm.CreateTableOptions{IfNotExists: true})
 		if err != nil {
