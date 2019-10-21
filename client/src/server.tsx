@@ -50,6 +50,7 @@ if (isDev) {
 }
 
 app.use('/public', express.static(path.join(__dirname, '/public')));
+app.use('/static', express.static(path.join(__dirname, '/static')));
 app.use(helmet());
 app.use(morgan("combined"));
 app.use(bodyParser.json());
