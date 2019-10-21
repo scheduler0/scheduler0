@@ -23,6 +23,7 @@ func (IJ *InboundJob) ToModel() (Job, error) {
 		ProjectId:   IJ.ProjectId,
 		CronSpec:    IJ.CronSpec,
 		Data:        IJ.Data,
+		Description: IJ.Description,
 		CallbackUrl: IJ.CallbackUrl,
 	}
 
