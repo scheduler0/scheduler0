@@ -3,7 +3,7 @@ import React from "react";
 import { connect } from "react-redux";
 import Grid from '@material-ui/core/Grid';
 import ModifyCredentialForm from "./modifyCredentialForm"
-import CredentialList from './credentialLlist';
+import CredentialList from './credentialList';
 import {createStyles} from "@material-ui/core";
 import {WithStyles, withStyles} from "@material-ui/core/styles"
 import {setCurrentCredentialId, DeleteCredential} from '../../redux/credential'
