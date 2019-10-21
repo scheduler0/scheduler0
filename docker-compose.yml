@@ -22,7 +22,7 @@ services:
     networks:
       - default
     volumes:
-      - ./server:/app
+      - ./server:/usr/src/server
     environment:
       PORT: 4321
       POSTGRES_ADDRESS: "postgres:5432"
