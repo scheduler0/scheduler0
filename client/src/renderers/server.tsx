@@ -33,6 +33,19 @@ const htmlString = (body, css, data) => `
             window.__INITIAL_DATA__ = ${JSON.stringify(data)}
         </script>
         <script type="text/javascript" src="public/dist/bundle.js"></script>
+        <script type="text/javascript" src="static/wasm_exec.js"></script>
+        <script type="text/javascript">
+            (function() {
+                const go = new Go();
+                let mod, inst;
+                WebAssembly.instantiateStreaming(fetch("static/main.wasm"), go.importObject).then(
+                  async result => {
+                    mod = result.module;
+                    inst = result.instance;
+                    await go.run(inst);
+                  });              
+            })()
+        </script>
     </body>
 </html>
 `;
