@@ -7,6 +7,11 @@ import Box from "@material-ui/core/Box";
 import {Typography} from "@material-ui/core";
 import Button from "@material-ui/core/Button";
 import {FormMode} from "./index";
+import Table from "@material-ui/core/Table";
+import TableHead from "@material-ui/core/TableHead";
+import TableRow from "@material-ui/core/TableRow";
+import TableCell from "@material-ui/core/TableCell";
+import TableBody from "@material-ui/core/TableBody";
 
 interface IProps {
     credentials: ICredential[]
@@ -55,19 +60,30 @@ function CredentialList(props: IProps) {
                     setMode(FormMode.Create);
                 }}>Create New Key</Button>
             </Box>
-            <div>
-                {credentials && credentials.map((credential, index) => (
-                    <CredentialListItem
-                        key={`credential-${index}`}
-                        credential={credential}
-                        onDelete={handleDelete}
-                        setCurrentCredentialId={() => {
-                            setCurrentCredentialId(credential.id);
-                            setMode(FormMode.Edit);
-                        }}
-                    />
-                ))}
-            </div>
+            <Table>
+                <TableHead>
+                    <TableRow>
+                        <TableCell>API Key</TableCell>
+                        <TableCell align="right">HTTP Referral Restriction</TableCell>
+                        <TableCell align="right"></TableCell>
+                        <TableCell align="right"></TableCell>
+                        <TableCell align="right"></TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {credentials && credentials.map((credential, index) => (
+                        <CredentialListItem
+                            key={`credential-${index}`}
+                            credential={credential}
+                            onDelete={handleDelete}
+                            setCurrentCredentialId={() => {
+                                setCurrentCredentialId(credential.id);
+                                setMode(FormMode.Edit);
+                            }}
+                        />
+                    ))}
+                </TableBody>
+            </Table>
         </div>
     );
 }
