@@ -2,8 +2,8 @@ FROM golang:1.13
 
 MAINTAINER Victor Nwaokocha
 
-RUN mkdir app
-WORKDIR app
+RUN mkdir -p /usr/src/server
+WORKDIR /usr/src/server
 
 ARG PORT
 ARG POSTGRES_ADDRESS
@@ -13,7 +13,7 @@ ARG CLIENT_HOST
 ARG BASIC_AUTH_USER
 ARG BASIC_AUTH_PASS
 
-COPY . .
+COPY . /usr/src/server
 
 ENV PORT $PORT
 ENV POSTGRES_ADDRESS $POSTGRES_ADDRESS
