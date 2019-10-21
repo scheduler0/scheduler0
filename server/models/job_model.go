@@ -37,6 +37,7 @@ type Job struct {
 	Data           string    `json:"data,omitempty"`
 	CallbackUrl    string    `json:"callback_url" pg:",notnull"`
 	LastStatusCode int       `json:"last_status_code"`
+	Timezone       string    `json:"timezone"`
 	State          State     `json:"state,omitempty" pg:",notnull"`
 	StartDate      time.Time `json:"start_date,omitempty" pg:",notnull"`
 	EndDate        time.Time `json:"end_date,omitempty"`
