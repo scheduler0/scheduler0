@@ -1,3 +1,4 @@
+// @ts-ignore:
 import React, {useCallback, useEffect, useState} from "react";
 import {connect} from "react-redux";
 import {CreateProject, IProject, UpdateProject} from "../../redux/projects";
@@ -96,6 +97,7 @@ const ProjectsForm = (props: IProps & ReturnType<typeof mapDispatchToProps>) => 
 
         setMode(FormMode.None);
     }, [formMode]);
+
     const setFormValue = useCallback((formName, value) => {
         if (formName === 'project_name') {
             setState((state) => ({ ...state, "name": value }));

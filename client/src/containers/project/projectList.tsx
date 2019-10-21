@@ -7,6 +7,11 @@ import Box from "@material-ui/core/Box";
 import {Typography} from "@material-ui/core";
 import Button from "@material-ui/core/Button";
 import {FormMode} from "./index";
+import Table from "@material-ui/core/Table";
+import TableHead from "@material-ui/core/TableHead";
+import TableRow from "@material-ui/core/TableRow";
+import TableCell from "@material-ui/core/TableCell";
+import TableBody from "@material-ui/core/TableBody";
 
 interface IProps {
     projects: IProject[]
@@ -55,19 +60,29 @@ function ProjectList(props: IProps) {
                     setMode(FormMode.Create);
                 }}>Create New Project</Button>
             </Box>
-            <div>
-                {projects && projects.map((project, index) => (
-                    <ProjectListItem
-                        key={`project-${index}`}
-                        project={project}
-                        onDelete={handleDelete}
-                        setCurrentProjectId={() => {
-                            setCurrentProjectId(project.id);
-                            setMode(FormMode.Edit);
-                        }}
-                    />
-                ))}
-            </div>
+            <Table>
+                <TableHead>
+                    <TableRow>
+                        <TableCell>Name</TableCell>
+                        <TableCell align="right">Description</TableCell>
+                        <TableCell align="right"></TableCell>
+                        <TableCell align="right"></TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {projects && projects.map((project, index) => (
+                        <ProjectListItem
+                            key={`project-${index}`}
+                            project={project}
+                            onDelete={handleDelete}
+                            setCurrentProjectId={() => {
+                                setCurrentProjectId(project.id);
+                                setMode(FormMode.Edit);
+                            }}
+                        />
+                    ))}
+                </TableBody>
+            </Table>
         </div>
     );
 }

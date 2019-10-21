@@ -6,6 +6,8 @@ import Tooltip from "@material-ui/core/Tooltip"
 import DeleteIcon from '@material-ui/icons/Delete';
 import EditIcon from "@material-ui/icons/Edit";
 import {ListItem} from "@material-ui/core";
+import TableRow from "@material-ui/core/TableRow";
+import TableCell from "@material-ui/core/TableCell";
 
 
 interface IProps {
@@ -18,24 +20,28 @@ const ProjectListItem = (props: IProps) => {
     const { project, onDelete, setCurrentProjectId } = props;
 
     return (
-        <div style={{ borderTop: '1px solid rgba(0,0,0, 0.1)' }}>
-            <ListItem>
-                <ListItemText
-                    primary={project.name}
-                    secondary={project.description}
-                />
+        <TableRow>
+            <TableCell>
+                {project.name}
+            </TableCell>
+            <TableCell align="right">
+                {project.description}
+            </TableCell>
+            <TableCell align="right">
                 <Tooltip title="Edit">
                     <IconButton onClick={setCurrentProjectId}>
                         <EditIcon/>
                     </IconButton>
                 </Tooltip>
+            </TableCell>
+            <TableCell align="right">
                 <Tooltip title="Delete">
                     <IconButton onClick={() => onDelete(project.id)}>
                         <DeleteIcon />
                     </IconButton>
                 </Tooltip>
-            </ListItem>
-        </div>
+            </TableCell>
+        </TableRow>
     );
 };
 
