@@ -64,7 +64,7 @@ export const FetchJobs = () => async (dispatch) => {
 export const CreateJob = (job: Partial<IJob>) => async (dispatch, getState) => {
     const state = getState();
     const { JobsReducer: { jobs } } = state;
-    debugger;
+
     try {
         const { data: { data: newJobId = null, success = false} } = await axios.post('/api/jobs', job);
         if (success) {
