@@ -1,4 +1,5 @@
 .idea
+.DS_Store
 client/.idea
 cron-server
 cron-server.test
