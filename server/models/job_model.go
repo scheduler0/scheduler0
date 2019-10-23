@@ -9,6 +9,7 @@ import (
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
 	"github.com/segmentio/ksuid"
+	"log"
 	"time"
 )
 
@@ -72,6 +73,11 @@ func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, er
 
 	if jd.StartDate.Before(time.Now().UTC()) {
 		err := errors.New("start date cannot be in the past")
+		return "", err
+	}
+
+	if !jd.EndDate.IsZero() && jd.EndDate.UTC().Before(jd.StartDate.UTC()) {
+		err := errors.New("end date cannot be in the past")
 		return "", err
 	}
 
@@ -153,6 +159,8 @@ func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, 
 		results[i] = jobs[i]
 	}
 
+	log.Println("results--", results)
+
 	return results, nil
 }
 
@@ -171,6 +179,16 @@ func (jd *Job) UpdateOne(pool *repository.Pool, ctx context.Context) error {
 
 	if jobPlaceholder.CronSpec != jd.CronSpec {
 		return errors.New("cannot update cron spec")
+	}
+
+	if !jd.EndDate.IsZero() && jd.EndDate.UTC().Before(jobPlaceholder.StartDate.UTC()) {
+		err := errors.New("end date cannot be in the past")
+		return err
+	}
+
+	if !jd.EndDate.IsZero() && len(jd.EndDate.String()) < 1 {
+		err := errors.New("end date cannot be in the past")
+		return err
 	}
 
 	if err = db.Update(jd); err != nil {
