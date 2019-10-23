@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useCallback} from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import theme from '../../theme';
 import {IJob} from "../../redux/jobs";
@@ -7,8 +7,6 @@ import Box from "@material-ui/core/Box";
 import {Typography} from "@material-ui/core";
 import Button from "@material-ui/core/Button";
 import {FormMode} from "./index";
-import Grid from "@material-ui/core/Grid";
-import {IProject} from "../../redux/projects";
 import Table from "@material-ui/core/Table";
 import TableHead from "@material-ui/core/TableHead";
 import TableRow from "@material-ui/core/TableRow";
@@ -67,7 +65,8 @@ function JobList(props: IProps) {
                     <TableRow>
                         <TableCell>Description</TableCell>
                         <TableCell align="right">Cron Spec</TableCell>
-                        <TableCell align="right">Last Status Code</TableCell>
+                        <TableCell align="right">Start Date</TableCell>
+                        <TableCell align="right">End Date</TableCell>
                         <TableCell align="right">Next Time</TableCell>
                         <TableCell align="right">Callback Url</TableCell>
                         <TableCell align="right"></TableCell>

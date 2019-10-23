@@ -7,7 +7,7 @@ import DeleteIcon from '@material-ui/icons/Delete';
 import EditIcon from "@material-ui/icons/Edit";
 import TableRow from "@material-ui/core/TableRow";
 import TableCell from "@material-ui/core/TableCell";
-
+import { formatDistanceToNow } from "date-fns";
 
 interface IProps {
     job: IJob
@@ -18,7 +18,7 @@ interface IProps {
 const JobListItem = (props: IProps) => {
     const {job, onDelete, setCurrentJobId} = props;
 
-    const { description, cron_spec, last_status_code, next_time, callback_url } = job;
+    const { description, cron_spec, start_date, end_date, next_time, callback_url } = job;
 
 
     return (
@@ -30,13 +30,25 @@ const JobListItem = (props: IProps) => {
                 {cron_spec}
             </TableCell>
             <TableCell align="right">
-                <p>{last_status_code}</p>
+                {start_date}
+                <br />
+                <br />
+                {formatDistanceToNow(new Date(start_date), {addSuffix: true, includeSeconds: true})}
             </TableCell>
             <TableCell align="right">
-                <p>{next_time}</p>
+                {end_date}
+                <br />
+                <br />
+                {formatDistanceToNow(new Date(end_date), {addSuffix: true, includeSeconds: true})}
             </TableCell>
             <TableCell align="right">
-                <p>{callback_url}</p>
+                {next_time}
+                <br />
+                <br />
+                {formatDistanceToNow(new Date(next_time), {addSuffix: true, includeSeconds: true})}
+            </TableCell>
+            <TableCell align="right">
+                {callback_url}
             </TableCell >
             <TableCell align="right">
                 <Tooltip title="Edit">
