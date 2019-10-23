@@ -1,8 +1,8 @@
 import React, {useCallback} from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import theme from '../../theme';
-import {IProject} from "../../redux/projects";
-import ProjectListItem from "./projectListItem";
+import {IJob} from "../../redux/jobs";
+import JobListItem from "./jobListItem";
 import Box from "@material-ui/core/Box";
 import {Typography} from "@material-ui/core";
 import Button from "@material-ui/core/Button";
@@ -14,10 +14,10 @@ import TableCell from "@material-ui/core/TableCell";
 import TableBody from "@material-ui/core/TableBody";
 
 interface IProps {
-    projects: IProject[]
-    setCurrentProjectId: (id: string) => void
+    jobs: IJob[]
+    setCurrentJobId: (id: string) => void
     formMode: FormMode
-    deleteProject: (id: string) => Promise<void>
+    deleteJob: (id: string) => Promise<void>
     setMode: (mode: FormMode) => void
 }
 
@@ -38,12 +38,12 @@ const useStyles = makeStyles(theme => ({
     }
 }));
 
-function ProjectList(props: IProps) {
+function JobList(props: IProps) {
     const classes = useStyles(theme);
-    const { projects, deleteProject, setCurrentProjectId, setMode } = props;
+    const { jobs, deleteJob, setCurrentJobId, setMode } = props;
 
-    const handleDelete = useCallback((projectId) => {
-        deleteProject(projectId);
+    const handleDelete = useCallback((jobId) => {
+        deleteJob(jobId);
     }, []);
 
     return (
@@ -54,29 +54,33 @@ function ProjectList(props: IProps) {
                  alignItems="center"
                  justifyContent="space-between"
                  style={{ paddingLeft: '20px', paddingRight: '20px', marginBottom: '10px' }}>
-                <Typography variant="h5">Projects</Typography>
+                <Typography variant="h5">Jobs</Typography>
                 <Button component="span" onClick={() => {
-                    setCurrentProjectId(null);
+                    setCurrentJobId(null);
                     setMode(FormMode.Create);
-                }}>Create New Project</Button>
+                }}>Create New Job</Button>
             </Box>
             <Table>
                 <TableHead>
                     <TableRow>
-                        <TableCell>Name</TableCell>
-                        <TableCell align="right">Description</TableCell>
+                        <TableCell>Description</TableCell>
+                        <TableCell align="right">Cron Spec</TableCell>
+                        <TableCell align="right">Start Date</TableCell>
+                        <TableCell align="right">End Date</TableCell>
+                        <TableCell align="right">Next Time</TableCell>
+                        <TableCell align="right">Callback Url</TableCell>
                         <TableCell align="right"></TableCell>
                         <TableCell align="right"></TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {projects && projects.map((project, index) => (
-                        <ProjectListItem
-                            key={`project-${index}`}
-                            project={project}
+                    {jobs && jobs.map((job, index) => (
+                        <JobListItem
+                            key={`job-${index}`}
+                            job={job}
                             onDelete={handleDelete}
-                            setCurrentProjectId={() => {
-                                setCurrentProjectId(project.id);
+                            setCurrentJobId={() => {
+                                setCurrentJobId(job.id);
                                 setMode(FormMode.Edit);
                             }}
                         />
@@ -87,4 +91,4 @@ function ProjectList(props: IProps) {
     );
 }
 
-export default ProjectList;
+export default JobList;

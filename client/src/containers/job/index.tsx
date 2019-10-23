@@ -2,11 +2,11 @@
 import React from "react";
 import { connect } from "react-redux";
 import Grid from '@material-ui/core/Grid';
-import ModifyCredentialForm from "./modifyCredentialForm"
-import CredentialList from './credentialList';
+import JobList from './jobList';
 import {createStyles} from "@material-ui/core";
 import {WithStyles, withStyles} from "@material-ui/core/styles"
-import {setCurrentCredentialId, DeleteCredential} from '../../redux/credential'
+import {setCurrentJobId, DeleteJob} from '../../redux/jobs'
+import ModifyJobForm from "../job/modifyJobForm";
 
 export enum FormMode {
     Edit = "Edit",
@@ -31,7 +31,7 @@ type Props = ReturnType<typeof mapStateToProps>
     & WithStyles<ReturnType<typeof styles>>
     & ReturnType<typeof mapDispatchToProps>
 
-class CredentialContainer extends React.Component<Props> {
+class JobContainer extends React.Component<Props> {
 
     state: IState = {
         formMode: FormMode.None
@@ -41,39 +41,40 @@ class CredentialContainer extends React.Component<Props> {
         this.setState({
             formMode: mode
         }, () => {
-            const { currentCredentialId, setCurrentCredentialId } = this.props;
-            if (this.state.formMode == FormMode.None && currentCredentialId) {
-                setCurrentCredentialId(null);
+            const { currentJobId, setCurrentJobId } = this.props;
+            if (this.state.formMode == FormMode.None && currentJobId) {
+                setCurrentJobId(null);
             }
         });
     };
 
     render() {
         const {formMode} = this.state;
-        const {credentials, currentCredentialId, deleteCredential, setCurrentCredentialId} = this.props;
+        const {jobs, projects, currentJobId, deleteJob, setCurrentJobId} = this.props;
 
-        const currentCredential = (formMode == FormMode.Edit)
-            ? credentials.find(({ id }) => id == currentCredentialId)
+        const currentJob = (formMode == FormMode.Edit)
+            ? jobs.find(({ id }) => id == currentJobId)
             : null;
 
         return (
             <Grid container>
                 <Grid item md={8} lg={8}>
-                    <CredentialList
-                        credentials={credentials}
+                    <JobList
+                        jobs={jobs}
                         formMode={formMode}
                         setMode={this.setMode}
-                        deleteCredential={deleteCredential}
-                        setCurrentCredentialId={setCurrentCredentialId}
+                        deleteJob={deleteJob}
+                        setCurrentJobId={setCurrentJobId}
                     />
                 </Grid>
                 <Grid item md={4} lg={4}>
-                    <ModifyCredentialForm
+                    <ModifyJobForm
+                        projects={projects}
                         formMode={formMode}
-                        currentCredentialId={currentCredentialId}
-                        setCurrentCredentialId={setCurrentCredentialId}
+                        currentJobId={currentJobId}
+                        setCurrentJobId={setCurrentJobId}
                         setMode={this.setMode}
-                        currentCredential={currentCredential}
+                        currentJob={currentJob}
                     />
                 </Grid>
             </Grid>
@@ -82,14 +83,15 @@ class CredentialContainer extends React.Component<Props> {
 }
 
 const mapStateToProps = (state) => ({
-    credentials: state.CredentialsReducer.credentials,
-    currentCredentialId: state.CredentialsReducer.currentCredentialId
+    jobs: state.JobsReducer.jobs,
+    projects: state.ProjectsReducer.projects,
+    currentJobId: state.JobsReducer.currentJobId
 });
 
 const mapDispatchToProps = (dispatch) => ({
-    setCurrentCredentialId: (id: string) => dispatch(setCurrentCredentialId(id)),
-    deleteCredential: (id: string) => dispatch(DeleteCredential(id))
+    setCurrentJobId: (id: string) => dispatch(setCurrentJobId(id)),
+    deleteJob: (id: string) => dispatch(DeleteJob(id))
 });
 
 export default connect(mapStateToProps, mapDispatchToProps)
-    (withStyles(styles)(CredentialContainer)) as any as React.ComponentType;
+(withStyles(styles)(JobContainer)) as any as React.ComponentType;

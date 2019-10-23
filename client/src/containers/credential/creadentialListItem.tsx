@@ -8,6 +8,8 @@ import FileCopyIcon from '@material-ui/icons/FileCopy';
 import EditIcon from "@material-ui/icons/Edit";
 import {CopyToClipboard} from 'react-copy-to-clipboard';
 import {ListItem} from "@material-ui/core";
+import TableRow from "@material-ui/core/TableRow";
+import TableCell from "@material-ui/core/TableCell";
 
 
 interface IProps {
@@ -29,17 +31,21 @@ const CredentialListItem = (props: IProps) => {
     }, []);
 
     return (
-        <div key={key} style={{ borderTop: '1px solid rgba(0,0,0, 0.1)' }}>
-            <ListItem>
-                <ListItemText
-                    primary={key}
-                    secondary={credential.http_referrer_restriction}
-                />
+        <TableRow>
+            <TableCell>
+                {credential.api_key}
+            </TableCell>
+            <TableCell align="right">
+                {credential.http_referrer_restriction}
+            </TableCell>
+            <TableCell align="right">
                 <Tooltip title="Edit">
                     <IconButton onClick={setCurrentCredentialId}>
                         <EditIcon/>
                     </IconButton>
                 </Tooltip>
+            </TableCell>
+            <TableCell align="right">
                 <Tooltip title={copied ? "Copied" : "Copy"}>
                     <IconButton>
                         <CopyToClipboard
@@ -49,13 +55,15 @@ const CredentialListItem = (props: IProps) => {
                         </CopyToClipboard>
                     </IconButton>
                 </Tooltip>
+            </TableCell>
+            <TableCell align="right">
                 <Tooltip title="Delete">
                     <IconButton onClick={() => onDelete(credential.id)}>
                         <DeleteIcon />
                     </IconButton>
                 </Tooltip>
-            </ListItem>
-        </div>
+            </TableCell>
+        </TableRow>
     );
 };
 

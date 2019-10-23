@@ -4,7 +4,6 @@ import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
-	"github.com/robfig/cron"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -87,27 +86,36 @@ func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Reques
 
 	body, err := ioutil.ReadAll(r.Body)
 	misc.CheckErr(err)
-	jobUpdate := models.Job{}
+	inboundJob := models.InboundJob{}
 	if len(body) > 1 {
-		jobUpdate.FromJson(body)
+		err := inboundJob.FromJson(body)
+		if err != nil {
+			misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+			return
+		}
 	} else {
 		misc.SendJson(w, "no request body", false, http.StatusBadRequest, nil)
 		return
 	}
 
-	if jobUpdate.State == models.ActiveJob {
-		schedule, err := cron.ParseStandard(job.CronSpec)
-		misc.CheckErr(err)
-		jobUpdate.NextTime = schedule.Next(time.Now().UTC())
-	}
-
-	jobUpdate.ID = id
-	if err = jobUpdate.UpdateOne(&controller.Pool, r.Context()); err != nil {
+	jobUpdate, err := inboundJob.ToModel()
+	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
 	}
 
-	misc.SendJson(w, jobUpdate, true, http.StatusOK, nil)
+	job.Timezone = jobUpdate.Timezone
+	job.CallbackUrl = jobUpdate.CallbackUrl
+	job.Description = jobUpdate.Description
+	job.Data = jobUpdate.Data
+	job.EndDate = jobUpdate.EndDate
+
+	if err = job.UpdateOne(&controller.Pool, r.Context()); err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
+	}
+
+	misc.SendJson(w, job, true, http.StatusOK, nil)
 }
 
 func (controller *JobController) GetAll(w http.ResponseWriter, r *http.Request) {

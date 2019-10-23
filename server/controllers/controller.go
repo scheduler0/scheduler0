@@ -60,6 +60,7 @@ func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Requ
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
 	}
+
 	id, err := model.CreateOne(&pool, r.Context())
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)

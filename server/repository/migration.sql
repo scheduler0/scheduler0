@@ -52,6 +52,21 @@ BEGIN
     ELSE
         ALTER TABLE jobs ADD date_created timestamp;
     END IF;
+
+    IF EXISTS (
+            SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME='jobs' AND COLUMN_NAME='missed_execs')
+    THEN
+        ALTER TABLE jobs DROP COLUMN missed_execs;
+    END IF;
+
+    IF EXISTS (
+            SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME='jobs' AND COLUMN_NAME='timezone')
+    THEN
+    ELSE
+        ALTER TABLE jobs ADD timezone varchar(255) NOT NULL default 'UTC';
+    END IF;
 END $$;
 
 -- Project schema migrations
@@ -67,3 +82,17 @@ BEGIN
 
     ALTER TABLE projects DROP COLUMN  IF EXISTS user_id;
 END $$;
+
+-- Executions schema migrations
+DO $$
+    BEGIN
+        IF EXISTS (
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME='executions' AND COLUMN_NAME='date_created')
+        THEN
+        ELSE
+            ALTER TABLE executions ADD date_created timestamp;
+        END IF;
+
+        ALTER TABLE executions DROP COLUMN  IF EXISTS user_id;
+    END $$;

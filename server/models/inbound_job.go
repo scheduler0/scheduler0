@@ -12,6 +12,7 @@ type InboundJob struct {
 	Description string `json:"description"`
 	CronSpec    string `json:"cron_spec,omitempty"`
 	Data        string `json:"data,omitempty"`
+	Timezone    string `json:"timezone, omitempty"`
 	CallbackUrl string `json:"callback_url"`
 	StartDate   string `json:"start_date,omitempty"`
 	EndDate     string `json:"end_date,omitempty"`
@@ -23,7 +24,9 @@ func (IJ *InboundJob) ToModel() (Job, error) {
 		ProjectId:   IJ.ProjectId,
 		CronSpec:    IJ.CronSpec,
 		Data:        IJ.Data,
+		Description: IJ.Description,
 		CallbackUrl: IJ.CallbackUrl,
+		Timezone:    IJ.Timezone,
 	}
 
 	if len(IJ.StartDate) < 1 {
@@ -37,7 +40,7 @@ func (IJ *InboundJob) ToModel() (Job, error) {
 	jd.StartDate = startTime
 
 	if len(IJ.EndDate) > 1 {
-		endTime, err := time.Parse(time.RFC1123, IJ.StartDate)
+		endTime, err := time.Parse(time.RFC1123, IJ.EndDate)
 		if err != nil {
 			return Job{}, err
 		}

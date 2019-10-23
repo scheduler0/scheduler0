@@ -118,7 +118,7 @@ func updateMissedJobs(ctx context.Context, jobs []models.Job, pool *repository.P
 				execCountDiff := execCountToNow - jb.TotalExecs
 
 				if execCountDiff > 0 {
-					log.Println("Update job next exec time ", jobs[i].ID, execCountDiff, jb.NextTime, scheduledTimeBasedOnNow)
+					log.Println("Update job next exec time ", jb.ID, execCountDiff, jb.NextTime, scheduledTimeBasedOnNow)
 
 					jb.NextTime = scheduledTimeBasedOnNow
 					jb.TotalExecs = execCountToNow
