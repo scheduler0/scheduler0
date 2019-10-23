@@ -12,11 +12,11 @@ Simple cron job server.
 ## Dashboard
 
 ### Credentials
-!["Manage Credentials"](./screenshots/credentials.png?s=200)
+!["Manage Credentials"](./screenshots/credentials.png?h=200)
 ### Projects
-!["Manage Projects"](./screenshots/projects.png?s=200)
+!["Manage Projects"](./screenshots/projects.png?h=200)
 ### Jobs
-!["Manage Jobs"](./screenshots/jobs.png?s=200)
+!["Manage Jobs"](./screenshots/jobs.png?h=200)
 
     
 # License
