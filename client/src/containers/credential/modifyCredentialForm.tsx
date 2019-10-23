@@ -1,3 +1,4 @@
+// @ts-ignore:
 import React, {useCallback, useEffect, useState} from "react";
 import {connect} from "react-redux";
 import {CreateCredential, ICredential, UpdateCredential} from "../../redux/credential";
@@ -73,6 +74,7 @@ const CredentialsForm = (props: IProps & ReturnType<typeof mapDispatchToProps>) 
             setState({ http_referrer_restriction: "" });
         }
     }, [formMode]);
+
     const cancelCallback = useCallback(() => {
         if (formMode == FormMode.Edit) {
             setCurrentCredentialId(null);
