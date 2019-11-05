@@ -81,6 +81,7 @@ func executeJobs(ctx context.Context, jobs []models.Job, pool *repository.Pool) 
 
 				startSecs := time.Now()
 
+				// TODO: Encrypt the data
 				r, err := http.Post(http.MethodPost, job.CallbackUrl, strings.NewReader(job.Data))
 				if err != nil {
 					response = err.Error()
@@ -150,10 +151,14 @@ func updateMissedJobs(ctx context.Context, jobs []models.Job, pool *repository.P
 					jb.TotalExecs = execCountToNow
 					jb.State = models.StaleJob
 				}
-
-				err = jb.UpdateOne(pool, ctx)
-				misc.CheckErr(err)
+			} else {
+				scheduledNextTime := schedule.Next(time.Now())
+				jb.NextTime = scheduledNextTime
+				jb.State = models.StaleJob
 			}
+
+			err = jb.UpdateOne(pool, ctx)
+			misc.CheckErr(err)
 		}(jobs[i])
 	}
 }
