@@ -26,6 +26,10 @@ func CreateCredentialModel() *models.Credential {
 	return &models.Credential{}
 }
 
+func CreateExecutionModel() *models.Execution {
+	return &models.Execution{}
+}
+
 func (controller *BasicController) GetModel() models.Model {
 	var innerModel models.Model
 	var modelType = reflect.TypeOf(controller.model).Name()
@@ -40,6 +44,10 @@ func (controller *BasicController) GetModel() models.Model {
 
 	if modelType == "Credential" {
 		innerModel = CreateCredentialModel()
+	}
+
+	if modelType == "Execution" {
+		innerModel = CreateExecutionModel()
 	}
 
 	return innerModel

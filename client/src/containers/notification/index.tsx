@@ -1,4 +1,3 @@
-// @ts-ignore:
 import React, {useEffect, useState} from 'react';
 import {useSnackbar} from 'notistack';
 import {connect} from 'react-redux';

@@ -8,15 +8,11 @@ Simple cron job server.
     
     1: docker-compose build
     2: docker-compose up
-    
-## Dashboard
 
-### Credentials
-!["Manage Credentials"](./screenshots/credentials.png?h=200)
-### Projects
-!["Manage Projects"](./screenshots/projects.png?h=200)
-### Jobs
-!["Manage Jobs"](./screenshots/jobs.png?h=200)
+## API Documentation
+
+## Dashboard
+![""](./screenshots/executions.png)
 
     
 # License

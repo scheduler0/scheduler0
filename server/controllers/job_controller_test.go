@@ -156,8 +156,10 @@ func TestJobController_UpdateOne(t *testing.T) {
 
 	t.Log("Respond with status 200 if update body is valid")
 	{
+		inboundJob.StartDate = time.Now().UTC().Format(time.RFC1123)
 		inboundJob.CronSpec = "1 * * * *"
 		inboundJob.Description = "some job description"
+		inboundJob.Timezone = "UTC"
 		jobByte, err := inboundJob.ToJson()
 		misc.CheckErr(err)
 		jobStr := string(jobByte)
@@ -176,6 +178,7 @@ func TestJobController_UpdateOne(t *testing.T) {
 		}
 
 		assert.Equal(t, http.StatusOK, w.Code)
+		log.Println("Response body :", string(body))
 	}
 }
 

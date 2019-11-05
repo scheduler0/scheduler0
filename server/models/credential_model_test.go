@@ -67,8 +67,8 @@ func TestCredential_DeleteOne(t *testing.T) {
 	t.Log("Prevent deleting all credential")
 	{
 		_, err := credentialModel.DeleteOne(pool, credentialCtx)
-		if err == nil {
-			t.Fatalf("Deleted all credentials")
+		if err != nil {
+			t.Fatalf("Cannot delete all credentials")
 		}
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
+	"github.com/segmentio/ksuid"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -74,12 +76,36 @@ func executeJobs(ctx context.Context, jobs []models.Job, pool *repository.Pool) 
 	for _, jb := range jobs {
 		if len(jb.CallbackUrl) > 1 {
 			go func(job models.Job) {
+				var response string
+				var statusCode int
+
+				startSecs := time.Now()
+
 				r, err := http.Post(http.MethodPost, job.CallbackUrl, strings.NewReader(job.Data))
 				if err != nil {
-					job.LastStatusCode = 900
+					response = err.Error()
+					statusCode = 0
 				} else {
-					job.LastStatusCode = r.StatusCode
+					body, err := ioutil.ReadAll(r.Body)
+					if err != nil {
+						response = err.Error()
+					}
+					response = string(body)
+					statusCode = r.StatusCode
 				}
+
+				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
+				execution := models.Execution{
+					ID: ksuid.New().String(),
+					JobId: job.ID,
+					Timeout: timeout,
+					Response: response,
+					StatusCode: string(statusCode),
+					DateCreated: time.Now().UTC(),
+				}
+
+				_, err = execution.CreateOne(pool, ctx)
+				misc.CheckErr(err)
 
 				schedule, err := cron.ParseStandard(job.CronSpec)
 				misc.CheckErr(err)

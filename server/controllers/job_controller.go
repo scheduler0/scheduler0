@@ -5,6 +5,7 @@ import (
 	"cron-server/server/models"
 	"cron-server/server/repository"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 )
@@ -56,7 +57,9 @@ func (controller *JobController) CreateOne(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if j.StartDate.Before(time.Now().UTC()) {
+	log.Println("Start Date, Time", j.StartDate.UTC(), time.Now().UTC())
+
+	if j.StartDate.UTC().Before(time.Now().UTC()) {
 		misc.SendJson(w, "start date cannot be in the past", false, http.StatusBadRequest, nil)
 		return
 	}

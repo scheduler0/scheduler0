@@ -4,6 +4,7 @@ import reduxThunk from "redux-thunk"
 import {credentialsReducer} from "./credential";
 import {projectsReducer} from "./projects";
 import {jobsReducer} from "./jobs";
+import {executionsReducer} from "./executions";
 import {notificationReducer} from "./notification";
 
 declare var window: {
@@ -11,6 +12,7 @@ declare var window: {
 };
 
 const reducers = combineReducers({
+    ExecutionsReducer: executionsReducer,
     CredentialsReducer: credentialsReducer,
     NotificationReducer: notificationReducer,
     ProjectsReducer: projectsReducer,

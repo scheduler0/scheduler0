@@ -71,7 +71,7 @@ func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, er
 		return "", err
 	}
 
-	if jd.StartDate.Before(time.Now().UTC()) {
+	if jd.StartDate.UTC().Before(time.Now().UTC()) {
 		err := errors.New("start date cannot be in the past")
 		return "", err
 	}

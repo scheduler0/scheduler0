@@ -100,7 +100,7 @@ func TestProjectController_UpdateOne(t *testing.T) {
 		projectTwo.Description = "untitled project two description"
 
 		if id, err := projectTwo.CreateOne(&projectController.Pool, ctx); err != nil {
-			t.Fatalf("failed to create project two")
+			t.Fatalf("failed to create project two %v", err.Error())
 		} else {
 			projectTwo.ID = id
 			projectTwo.Name = "Untitled Project #1"
@@ -186,6 +186,14 @@ func TestProjectController_DeleteOne(t *testing.T) {
 				projectController.DeleteOne(w, req)
 				assert.Equal(t, http.StatusOK, w.Code)
 			}
+		}
+	}
+
+	t.Log("Delete project two")
+	{
+		_, err := projectTwo.DeleteOne(&projectController.Pool, ctx)
+		if err != nil {
+			t.Fatalf("\t\t Could not delete job %v", err)
 		}
 	}
 

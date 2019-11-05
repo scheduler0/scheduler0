@@ -33,14 +33,14 @@ func (IJ *InboundJob) ToModel() (Job, error) {
 		return Job{}, errors.New("start date is required")
 	}
 
-	startTime, err := time.Parse(time.RFC1123, IJ.StartDate)
+	startTime, err := time.Parse(time.RFC3339, IJ.StartDate)
 	if err != nil {
 		return Job{}, err
 	}
 	jd.StartDate = startTime
 
 	if len(IJ.EndDate) > 1 {
-		endTime, err := time.Parse(time.RFC1123, IJ.EndDate)
+		endTime, err := time.Parse(time.RFC3339, IJ.EndDate)
 		if err != nil {
 			return Job{}, err
 		}

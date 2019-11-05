@@ -6,6 +6,7 @@ import {WithStyles, withStyles} from '@material-ui/core/styles';
 import AppBar from '@material-ui/core/AppBar';
 import Toolbar from '@material-ui/core/Toolbar';
 import Typography from '@material-ui/core/Typography';
+import ExecutionsContainer from './containers/executions';
 import CredentialContainer from './containers/credential';
 import ProjectsContainer from './containers/project';
 import JobContainer from './containers/job';
@@ -77,6 +78,9 @@ class App extends React.Component<Props> {
                         anchor="left"
                     >
                         <List>
+                            <ListItem button key={"Executions"} onClick={() => history.push('/')}>
+                                <ListItemText primary={"Executions"} />
+                            </ListItem>
                             <ListItem button key={"Credentials"} onClick={() => history.push('/credentials')}>
                                 <ListItemText primary={"Credentials"} />
                             </ListItem>
@@ -90,6 +94,7 @@ class App extends React.Component<Props> {
                     </Drawer>
                     <main className={classes.mainContainer}>
                         <Switch>
+                            <Route path="/" exact render={() => <ExecutionsContainer />} />
                             <Route path="/credentials" render={() => <CredentialContainer />} />
                             <Route path="/projects" render={() => <ProjectsContainer />} />
                             <Route path="/jobs" render={() => <JobContainer />} />

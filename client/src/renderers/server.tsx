@@ -10,7 +10,7 @@ import { StaticRouter } from "react-router-dom";
 import {setJobs} from '../redux/jobs'
 import {setCredentials} from '../redux/credential';
 import {setProjects} from "../redux/projects";
-
+import {setExecutions} from "../redux/executions";
 
 const htmlString = (body, css, data) => `
 <!DOCTYPE html>
@@ -57,6 +57,7 @@ export const serverRender = (initialData, url) => {
     store.dispatch(setCredentials(initialData.credentials));
     store.dispatch(setProjects(initialData.projects));
     store.dispatch(setJobs(initialData.jobs));
+    store.dispatch(setExecutions(initialData.executions));
 
     const html = ReactDOMServer.renderToString(
         sheets.collect(
