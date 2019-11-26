@@ -14,7 +14,6 @@ const styles = theme => createStyles({
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        marginTop: '50px',
         padding: '20px'
     }
 });
@@ -28,9 +27,6 @@ const Executions = (props: Props) => {
     return (
         <Grid container>
             <Grid item md={8} lg={8}>
-                <div className={props.classes.containerHeader}>
-                    <Typography variant="h5">Executions</Typography>
-                </div>
                 <Table>
                     <TableHead>
                         <TableRow>

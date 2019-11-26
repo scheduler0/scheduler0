@@ -27,7 +27,6 @@ interface IProps {
 
 const useStyles = makeStyles((theme) => ({
     container: {
-        marginTop: '50px',
         backgroundColor: '#f1f1f1',
         height: 'calc(100vh - 50px)',
         padding: '30px',
