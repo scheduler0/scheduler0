@@ -1,13 +1,11 @@
 import React, {useCallback, useState} from "react";
 import {ICredential} from "../../redux/credential";
-import ListItemText from "@material-ui/core/ListItemText";
 import IconButton from "@material-ui/core/IconButton";
 import Tooltip from "@material-ui/core/Tooltip"
 import DeleteIcon from '@material-ui/icons/Delete';
 import FileCopyIcon from '@material-ui/icons/FileCopy';
 import EditIcon from "@material-ui/icons/Edit";
 import {CopyToClipboard} from 'react-copy-to-clipboard';
-import {ListItem} from "@material-ui/core";
 import TableRow from "@material-ui/core/TableRow";
 import TableCell from "@material-ui/core/TableCell";
 
