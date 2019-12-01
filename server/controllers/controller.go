@@ -103,12 +103,16 @@ func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request
 	var queryParams = misc.GetRequestQueryString(r.URL.RawQuery)
 	var query, values = model.SearchToQuery(queryParams)
 
+	var offset = 0
+	var limit = 10
+	var orderBy = "date_created DESC"
+
 	if len(query) < 1 {
 		misc.SendJson(w, "no valid query params", false, http.StatusBadRequest, nil)
 		return
 	}
 
-	data, err := model.GetAll(&pool, r.Context(), query, values...)
+	data, err := model.GetAll(&pool, r.Context(), query, offset, limit, orderBy, values...)
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return

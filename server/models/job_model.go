@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
+	"github.com/go-pg/pg/orm"
 	"github.com/robfig/cron"
 	"github.com/segmentio/ksuid"
 	"log"
@@ -132,7 +133,7 @@ func (jd *Job) GetOne(pool *repository.Pool, ctx context.Context, query string, 
 	return nil
 }
 
-func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
+func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) ([]interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return []interface{}{}, err
@@ -149,7 +150,17 @@ func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, 
 
 	var jobs []Job
 
-	if err := db.Model(&jobs).Where(query, ip...).Select(); err != nil {
+	if err := db.Model(&jobs).
+		WhereGroup(func(query *orm.Query) (query2 *orm.Query, e error) {
+			for i := 0; i < len(params); i++ {
+				query.WhereOr(params[i])
+			}
+			return  query, nil
+		}).
+		Order(orderBy).
+		Offset(offset).
+		Limit(limit).
+		Select(); err != nil {
 		return []interface{}{}, err
 	}
 

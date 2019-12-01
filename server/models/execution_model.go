@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
+	"github.com/go-pg/pg/orm"
 	"time"
 )
 
@@ -66,7 +67,7 @@ func (exec *Execution) GetOne(pool *repository.Pool, ctx context.Context, query 
 	return nil
 }
 
-func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
+func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) ([]interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return []interface{}{}, err
@@ -83,7 +84,18 @@ func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query 
 
 	var execs []Execution
 
-	if err := db.Model(&execs).Where(query, ip...).Select(); err != nil {
+	if err := db.
+		Model(&execs).
+		WhereGroup(func(query *orm.Query) (query2 *orm.Query, e error) {
+			for i := 0; i < len(params); i++ {
+				query.WhereOr(params[i])
+			}
+			return  query, nil
+		}).
+		Order(orderBy).
+		Offset(offset).
+		Limit(limit).
+		Select(); err != nil {
 		return []interface{}{}, err
 	}
 
@@ -133,42 +145,46 @@ func (exec *Execution) DeleteOne(pool *repository.Pool, ctx context.Context) (in
 }
 
 func (exec *Execution) SearchToQuery(search [][]string) (string, []string) {
+	var searchParams = []string{"id", "job_id", "timeout", "status_code", "created_at"}
+
 	var queries []string
 	var query string
 	var values []string
+	var paginate []string
 
 	if len(search) < 1 || search[0] == nil {
 		return query, values
 	}
 
-	for i := 0; i < len(search); i++ {
-		if search[i][0] == "id" {
-			queries = append(queries, "id = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "job_id" {
-			queries = append(queries, "job_id = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "timeout" {
-			queries = append(queries, "timeout = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "status_code" {
-			queries = append(queries, "status_code = ?")
+	for i := 0; i < len(searchParams); i++ {
+		if search[i][0] == searchParams[i] {
+			queries = append(queries, searchParams[i]+" = ?")
 			values = append(values, search[i][1])
 		}
 	}
 
-	for i := 0; i < len(queries); i++ {
-		if i != 0 {
-			query += " AND " + queries[i]
-		} else {
+	if len(queries) > 0 {
+		query += " AND " + queries[0]
+
+		for i := 1; i < len(queries); i++ {
 			query = queries[i]
 		}
+	}
+
+	if len(queries) < len(search) {
+		for i := 0; i < len(search); i++ {
+			if search[i][0] == "offset" {
+				paginate = append(paginate, "offset = ?")
+			}
+
+			if search[i][0] == "limit" {
+				paginate = append(paginate, "limit = ?")
+			}
+		}
+	}
+
+	for i := 0; i < len(paginate); i++ {
+		query = paginate[i]
 	}
 
 	if len(query) < 1 && len(values) < 1 {

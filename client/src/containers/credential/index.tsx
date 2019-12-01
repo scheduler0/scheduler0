@@ -1,12 +1,13 @@
-// @ts-ignore
 import React from "react";
 import { connect } from "react-redux";
 import Grid from '@material-ui/core/Grid';
+import {createStyles, WithStyles, withStyles} from "@material-ui/core/styles"
+import {setCurrentCredentialId, DeleteCredential} from '../../redux/credential'
+import Paper from "@material-ui/core/Paper";
+import { compose } from "recompose";
+
 import ModifyCredentialForm from "./modifyCredentialForm"
 import CredentialList from './credentialList';
-import {createStyles} from "@material-ui/core";
-import {WithStyles, withStyles} from "@material-ui/core/styles"
-import {setCurrentCredentialId, DeleteCredential} from '../../redux/credential'
 
 export enum FormMode {
     Edit = "Edit",
@@ -24,6 +25,11 @@ const styles = theme => createStyles({
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+    },
+    paper: {
+        height: '100vh',
+        paddingTop: '60px',
+        marginTop: '-60px'
     }
 });
 
@@ -50,7 +56,7 @@ class CredentialContainer extends React.Component<Props> {
 
     render() {
         const {formMode} = this.state;
-        const {credentials, currentCredentialId, deleteCredential, setCurrentCredentialId} = this.props;
+        const {classes, credentials, currentCredentialId, deleteCredential, setCurrentCredentialId} = this.props;
 
         const currentCredential = (formMode == FormMode.Edit)
             ? credentials.find(({ id }) => id == currentCredentialId)
@@ -59,13 +65,15 @@ class CredentialContainer extends React.Component<Props> {
         return (
             <Grid container>
                 <Grid item md={8} lg={8}>
-                    <CredentialList
-                        credentials={credentials}
-                        formMode={formMode}
-                        setMode={this.setMode}
-                        deleteCredential={deleteCredential}
-                        setCurrentCredentialId={setCurrentCredentialId}
-                    />
+                    <Paper className={classes.paper}>
+                        <CredentialList
+                            credentials={credentials}
+                            formMode={formMode}
+                            setMode={this.setMode}
+                            deleteCredential={deleteCredential}
+                            setCurrentCredentialId={setCurrentCredentialId}
+                        />
+                    </Paper>
                 </Grid>
                 <Grid item md={4} lg={4}>
                     <ModifyCredentialForm
@@ -91,5 +99,9 @@ const mapDispatchToProps = (dispatch) => ({
     deleteCredential: (id: string) => dispatch(DeleteCredential(id))
 });
 
-export default connect(mapStateToProps, mapDispatchToProps)
-    (withStyles(styles)(CredentialContainer)) as any as React.ComponentType;
+
+
+export default compose(
+    connect(mapStateToProps, mapDispatchToProps),
+    withStyles(styles)
+)(CredentialContainer) as any as React.ComponentType;

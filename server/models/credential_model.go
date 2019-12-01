@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
+	"github.com/go-pg/pg/orm"
 	"github.com/segmentio/ksuid"
 	"time"
 )
@@ -67,7 +68,7 @@ func (c *Credential) GetOne(pool *repository.Pool, ctx context.Context, query st
 	return nil
 }
 
-func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
+func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) ([]interface{}, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -79,8 +80,15 @@ func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query st
 
 	db := conn.(*pg.DB)
 	err = db.Model(&credentials).
-		Where(query, params).
-		Order("date_created DESC").
+		WhereGroup(func(query *orm.Query) (query2 *orm.Query, e error) {
+			for i := 0; i < len(params); i++ {
+				query.WhereOr(params[i])
+			}
+			return  query, nil
+		}).
+		Order(orderBy).
+		Offset(offset).
+		Limit(limit).
 		Select()
 	if err != nil {
 		return []interface{}{}, err

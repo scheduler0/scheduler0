@@ -38,10 +38,12 @@ func (_ *MiddlewareType) AuthMiddleware(pool *repository.Pool) func(next http.Ha
 			username, password := misc.GetAuthentication()
 			user, pass, passBasicAuth := r.BasicAuth()
 
+			// Check for basic authentication
 			if !passBasicAuth || subtle.ConstantTimeCompare([]byte(user), []byte(username)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
 				passBasicAuth = false
 			}
 
+			// Check for api key
 			token := r.Header.Get("x-token")
 			if !passBasicAuth && len(token) < 1 {
 				misc.SendJson(w, "missing token header", false, http.StatusUnauthorized, nil)
@@ -50,12 +52,15 @@ func (_ *MiddlewareType) AuthMiddleware(pool *repository.Pool) func(next http.Ha
 
 			paths := strings.Split(r.URL.Path, "/")
 			if !passBasicAuth && len(paths) < 1 {
-				misc.SendJson(w, "endpoint is not supported", false, http.StatusBadRequest, nil)
+				misc.SendJson(w, "endpoint is not supported", false, http.StatusNotImplemented, nil)
 				return
 			}
 
-			if !passBasicAuth && paths[1] == "credentials" {
-				misc.SendJson(w, "credentials are not available", false, http.StatusUnauthorized, nil)
+			var restrictedPaths = strings.Join([]string{"credentials", "projects", "executions"}, ",")
+
+
+			if !passBasicAuth && strings.Contains(restrictedPaths, strings.ToLower(paths[1])) {
+				misc.SendJson(w, paths[1]+" are not available", false, http.StatusUnauthorized, nil)
 				return
 			}
 

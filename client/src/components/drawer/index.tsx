@@ -1,4 +1,3 @@
-// @ts-ignore:
 import React from 'react';
 import clsx from 'clsx';
 import {createStyles, useTheme, withStyles, WithStyles} from '@material-ui/core/styles';
@@ -21,6 +20,7 @@ import AccessTimeIcon from '@material-ui/icons/AccessTime';
 import VpnKeyIcon from '@material-ui/icons/VpnKey';
 
 import { RouteComponentProps, withRouter } from 'react-router-dom';
+import {Grid} from "@material-ui/core";
 
 const drawerWidth = 240;
 
@@ -84,6 +84,17 @@ const styles = (theme) => createStyles({
         width: '100%',
         flexGrow: 1
     },
+    sideMenuHeader: {
+        marginLeft: '20px'
+    },
+    appName: {
+        color: 'rgba(0,0,0, 0.6)',
+        fontSize: '14px'
+    },
+    versionText: {
+        color: 'rgba(0,0,0, 0.3)',
+        fontSize: '12px'
+    }
 });
 
 interface IProps {
@@ -153,7 +164,10 @@ function MiniDrawerWrapper(props: Props) {
                 open={open}
             >
                 <div className={classes.toolbar}>
-                    <Typography variant="h6">CronServer</Typography>
+                    <Grid className={classes.sideMenuHeader}>
+                        <Typography className={classes.appName}>CronServer</Typography>
+                        <Typography variant="body1" className={classes.versionText}>0.0.1</Typography>
+                    </Grid>
                     <IconButton onClick={handleDrawerClose}>
                         {theme.direction === 'rtl' ? <ChevronRightIcon /> : <ChevronLeftIcon />}
                     </IconButton>

@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
+	"github.com/go-pg/pg/orm"
 	"github.com/segmentio/ksuid"
-	"reflect"
 	"time"
 )
 
@@ -42,16 +42,12 @@ func (p *Project) CreateOne(pool *repository.Pool, ctx context.Context) (string,
 	}
 
 	var projectWithName = Project{}
-	data, err := projectWithName.GetAll(pool, ctx, "name LIKE ?", p.Name+"%")
-
-	vd := reflect.ValueOf(data)
-	projectsWithName := make([]Project, vd.Len())
-
-	for i := 0; i < vd.Len(); i++ {
-		projectsWithName[i] = vd.Index(i).Interface().(Project)
+	err = projectWithName.GetOne(pool, ctx, "name LIKE ?", []string{p.Name+"%"})
+	if err != nil {
+		return "", err
 	}
 
-	if err == nil && len(projectsWithName) > 0 {
+	if err == nil && len(projectWithName.ID) > 0 {
 		err := errors.New("projects exits with the same name")
 		return "", err
 	}
@@ -84,7 +80,7 @@ func (p *Project) GetOne(pool *repository.Pool, ctx context.Context, query strin
 	return nil
 }
 
-func (p *Project) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
+func (p *Project) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) ([]interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return []interface{}{}, err
@@ -100,7 +96,18 @@ func (p *Project) GetAll(pool *repository.Pool, ctx context.Context, query strin
 	}
 
 	var projects []Project
-	err = db.Model(&projects).Where(query, ip...).Select()
+	err = db.Model(&projects).
+		WhereGroup(func(query *orm.Query) (query2 *orm.Query, e error) {
+			for i := 0; i < len(params); i++ {
+				query.WhereOr(params[i])
+			}
+			return  query, nil
+		}).
+		Order(orderBy).
+		Offset(offset).
+		Limit(limit).
+		Select()
+
 	if err != nil {
 		return []interface{}{}, err
 	}
@@ -134,21 +141,22 @@ func (p *Project) UpdateOne(pool *repository.Pool, ctx context.Context) error {
 	}
 
 	if savedProject.Name != p.Name {
-		if projectsWithSameName, err := p.GetAll(pool, ctx, "name = ? AND id != ?", p.Name, p.ID); err != nil {
-			return err
-		} else {
-			if len(projectsWithSameName) > 0 {
-				return errors.New("project with same name exits")
-			}
+		var filters = []string{p.Name, p.ID}
 
-			if err := db.Update(p); err != nil {
-				return err
-			}
-		}
-	} else {
-		if err := db.Update(p); err != nil {
+		var projectWithSimilarName = Project{}
+
+		err := projectWithSimilarName.GetOne(pool, ctx, "name = ? AND id != ?", filters)
+		if  err != nil {
 			return err
 		}
+
+		if len(projectWithSimilarName.ID) < 1 {
+			return errors.New("project with same name exits")
+		}
+	}
+
+	if err := db.Update(p); err != nil {
+		return err
 	}
 
 	return nil

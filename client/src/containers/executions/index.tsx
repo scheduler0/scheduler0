@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import { connect } from "react-redux";
 import { createStyles, WithStyles, withStyles } from "@material-ui/core/styles";
 import Grid from "@material-ui/core/Grid";
@@ -15,6 +15,8 @@ import MenuItem from '@material-ui/core/MenuItem';
 import InputLabel from "@material-ui/core/InputLabel";
 import RefreshIcon from '@material-ui/icons/Refresh';
 import Button  from "@material-ui/core/Button";
+import {TablePagination} from "@material-ui/core";
+import { compose } from "recompose";
 
 const styles = theme => createStyles({
     containerHeader: {
@@ -87,6 +89,10 @@ const Executions = (props: Props) => {
             [filter]: e.target.value
         }));
     };
+
+    const handleChangePage = useCallback(() => {}, []);
+    const handleChangeRowsPerPage = useCallback(() => {}, []);
+
     return (
         <Grid container>
             <Grid container className={classes.filterContainer} justify="center" alignItems="center">
@@ -96,14 +102,6 @@ const Executions = (props: Props) => {
                             <Typography>Refresh</Typography>
                             <RefreshIcon />
                         </Button>
-                    </Grid>
-                    <Grid item md={3} lg={3}>
-                        <FormControl className={classes.formControl} fullWidth>
-                            <InputLabel>Results Per. Page</InputLabel>
-                            <Select onChange={setFilterCallback("results")} value={results}>
-                                {ResultsPerPageEntries.map(([k, v], i) => (<MenuItem value={k} key={i}>{v}</MenuItem>))}
-                            </Select>
-                        </FormControl>
                     </Grid>
                     <Grid item md={3} lg={3}>
                         <FormControl className={classes.formControl} fullWidth>
@@ -143,31 +141,42 @@ const Executions = (props: Props) => {
                 <Grid item md={4} lg={4}>
                     <Grid container justify={"center"}>
                         <Paper className={classes.paper}>
-                            <Typography className={classes.label} variant={'body1'}>Avg. Timeouts</Typography>
+                            <Typography className={classes.label} variant={'body1'}>Avg. Timeouts(ms)</Typography>
                             <Typography variant={'h4'}>0</Typography>
                         </Paper>
                     </Grid>
                 </Grid>
             </Grid>
             <Grid item md={12} lg={12}>
-                <Table>
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>Status Code</TableCell>
-                            <TableCell>Job ID</TableCell>
-                            <TableCell>Timeouts</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {executions.map((execution, i) => (
-                            <TableRow key={`execution-${i}`}>
-                                <TableCell>{execution.status_code}</TableCell>
-                                <TableCell>{execution.job_id}</TableCell>
-                                <TableCell>{execution.timeout}</TableCell>
+                <Paper>
+                    <TablePagination
+                        rowsPerPageOptions={[5, 10, 25]}
+                        component="div"
+                        count={0}
+                        rowsPerPage={10}
+                        page={0}
+                        onChangePage={handleChangePage}
+                        onChangeRowsPerPage={handleChangeRowsPerPage}
+                    />
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell>Status Code</TableCell>
+                                <TableCell>Job ID</TableCell>
+                                <TableCell>Timeouts</TableCell>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHead>
+                        <TableBody>
+                            {executions.map((execution, i) => (
+                                <TableRow key={`execution-${i}`}>
+                                    <TableCell>{execution.status_code}</TableCell>
+                                    <TableCell>{execution.job_id}</TableCell>
+                                    <TableCell>{execution.timeout}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </Paper>
             </Grid>
         </Grid>
     )
@@ -177,8 +186,9 @@ const mapStateToProps = (state) => ({
     executions: state.ExecutionsReducer.executions
 });
 
-const mapDispatchToProps = (_) => ({
+const mapDispatchToProps = (_) => ({});
 
-});
-
-export default connect(mapStateToProps, mapDispatchToProps)(withStyles(styles)(Executions)) as any as React.ComponentType;
+export default compose(
+    connect(mapStateToProps, mapDispatchToProps),
+    withStyles(styles)
+)(Executions) as any as React.ComponentType;
