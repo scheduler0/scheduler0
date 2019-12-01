@@ -13,6 +13,8 @@ import Paper from "@material-ui/core/Paper";
 import Select from "@material-ui/core/Select";
 import MenuItem from '@material-ui/core/MenuItem';
 import InputLabel from "@material-ui/core/InputLabel";
+import RefreshIcon from '@material-ui/icons/Refresh';
+import Button  from "@material-ui/core/Button";
 
 const styles = theme => createStyles({
     containerHeader: {
@@ -83,6 +85,10 @@ const Executions = (props: Props) => {
         <Grid container>
             <Grid container className={classes.filterContainer} justify="center" alignItems="center">
                 <Grid container className={classes.filterContainer} justify="flex-end" alignItems="center">
+                    <Button>
+                        <Typography>Refresh</Typography>
+                        <RefreshIcon />
+                    </Button>
                     <FormControl className={classes.formControl}>
                         <InputLabel>Filter By. Time</InputLabel>
                         <Select onChange={setFilterCallback("time")} value={time}>
