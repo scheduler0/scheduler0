@@ -65,15 +65,29 @@ enum JobStatus {
     Fail = "Fail"
 }
 
+enum ResultsPerPage {
+    "10" = "10",
+    "50" = "50",
+    "100" = "100",
+    "150" = "150",
+    "200" = "200",
+    "ALL" = "ALL"
+}
+
 const Executions = (props: Props) => {
 
     const { executions, classes } = props;
 
     const TimeFilterEntries = Object.entries(TimeFilters);
     const JobStatusEntries = Object.entries(JobStatus);
+    const ResultsPerPageEntries = Object.entries(ResultsPerPage);
 
-    const [filters, setFilters] = useState({ time: TimeFilterEntries[0][0], status: JobStatus.Success });
-    const { time, status } = filters;
+    const [filters, setFilters] = useState({
+        results: ResultsPerPageEntries[0][0],
+        time: TimeFilterEntries[0][0],
+        status: JobStatus.Success,
+    });
+    const { results, time, status } = filters;
 
     const setFilterCallback = (filter: "time" | "status") => (e: React.ChangeEvent<{ value: unknown }>) => {
         setFilters((state) => ({
@@ -84,11 +98,17 @@ const Executions = (props: Props) => {
     return (
         <Grid container>
             <Grid container className={classes.filterContainer} justify="center" alignItems="center">
-                <Grid container className={classes.filterContainer} justify="flex-end" alignItems="center">
+                <Grid container flexDirection="row" className={classes.filterContainer} justify="space-between" alignItems="center">
                     <Button>
                         <Typography>Refresh</Typography>
                         <RefreshIcon />
                     </Button>
+                    <FormControl className={classes.formControl}>
+                        <InputLabel>Results Per. Page</InputLabel>
+                        <Select onChange={setFilterCallback("results")} value={results}>
+                            {ResultsPerPageEntries.map(([k, v], i) => (<MenuItem value={k} key={i}>{v}</MenuItem>))}
+                        </Select>
+                    </FormControl>
                     <FormControl className={classes.formControl}>
                         <InputLabel>Filter By. Time</InputLabel>
                         <Select onChange={setFilterCallback("time")} value={time}>
