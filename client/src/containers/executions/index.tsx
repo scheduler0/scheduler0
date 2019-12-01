@@ -36,8 +36,7 @@ const styles = theme => createStyles({
         boxSizing: 'border-box'
     },
     formControl: {
-        margin: theme.spacing(1),
-        minWidth: 120,
+        minWidth: 120
     },
     filterContainer: {
         margin: '25px'
@@ -65,14 +64,7 @@ enum JobStatus {
     Fail = "Fail"
 }
 
-enum ResultsPerPage {
-    "10" = "10",
-    "50" = "50",
-    "100" = "100",
-    "150" = "150",
-    "200" = "200",
-    "ALL" = "ALL"
-}
+const ResultsPerPage = [10, 50, 100, 150, 200, "ALL"];
 
 const Executions = (props: Props) => {
 
@@ -89,7 +81,7 @@ const Executions = (props: Props) => {
     });
     const { results, time, status } = filters;
 
-    const setFilterCallback = (filter: "time" | "status") => (e: React.ChangeEvent<{ value: unknown }>) => {
+    const setFilterCallback = (filter: "time" | "status" | "results") => (e: React.ChangeEvent<{ value: unknown }>) => {
         setFilters((state) => ({
             ...state,
             [filter]: e.target.value
@@ -98,29 +90,37 @@ const Executions = (props: Props) => {
     return (
         <Grid container>
             <Grid container className={classes.filterContainer} justify="center" alignItems="center">
-                <Grid container flexDirection="row" className={classes.filterContainer} justify="space-between" alignItems="center">
-                    <Button>
-                        <Typography>Refresh</Typography>
-                        <RefreshIcon />
-                    </Button>
-                    <FormControl className={classes.formControl}>
-                        <InputLabel>Results Per. Page</InputLabel>
-                        <Select onChange={setFilterCallback("results")} value={results}>
-                            {ResultsPerPageEntries.map(([k, v], i) => (<MenuItem value={k} key={i}>{v}</MenuItem>))}
-                        </Select>
-                    </FormControl>
-                    <FormControl className={classes.formControl}>
-                        <InputLabel>Filter By. Time</InputLabel>
-                        <Select onChange={setFilterCallback("time")} value={time}>
-                            {TimeFilterEntries.map(([k, v], i) => (<MenuItem value={k} key={i}>{v}</MenuItem>))}
-                        </Select>
-                    </FormControl>
-                    <FormControl className={classes.formControl}>
-                        <InputLabel>Job Status</InputLabel>
-                        <Select onChange={setFilterCallback("status")} value={status}>
-                            {JobStatusEntries.map(([k, v], i) => (<MenuItem value={k} key={i}>{v}</MenuItem>))}
-                        </Select>
-                    </FormControl>
+                <Grid container direction="row" className={classes.filterContainer} justify="space-between" alignItems="center">
+                    <Grid item md={3} lg={3}>
+                        <Button>
+                            <Typography>Refresh</Typography>
+                            <RefreshIcon />
+                        </Button>
+                    </Grid>
+                    <Grid item md={3} lg={3}>
+                        <FormControl className={classes.formControl} fullWidth>
+                            <InputLabel>Results Per. Page</InputLabel>
+                            <Select onChange={setFilterCallback("results")} value={results}>
+                                {ResultsPerPageEntries.map(([k, v], i) => (<MenuItem value={k} key={i}>{v}</MenuItem>))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item md={3} lg={3}>
+                        <FormControl className={classes.formControl} fullWidth>
+                            <InputLabel>Filter By. Time</InputLabel>
+                            <Select onChange={setFilterCallback("time")} value={time}>
+                                {TimeFilterEntries.map(([k, v], i) => (<MenuItem value={k} key={i}>{v}</MenuItem>))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item md={3} lg={3}>
+                        <FormControl className={classes.formControl} fullWidth>
+                            <InputLabel>Job Status</InputLabel>
+                            <Select onChange={setFilterCallback("status")} value={status}>
+                                {JobStatusEntries.map(([k, v], i) => (<MenuItem value={k} key={i}>{v}</MenuItem>))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
                 </Grid>
             </Grid>
             <Grid container className={classes.tagsContainer}>
