@@ -43,7 +43,7 @@ func TestCredential_UpdateOne(t *testing.T) {
 	{
 		credentialModel.ApiKey = "13455"
 
-		err := credentialModel.UpdateOne(pool, credentialCtx)
+		_, err := credentialModel.UpdateOne(pool, credentialCtx)
 		if err == nil {
 			t.Fatalf("Cannot update credential key")
 		}
@@ -68,7 +68,7 @@ func TestCredential_DeleteOne(t *testing.T) {
 	{
 		_, err := credentialModel.DeleteOne(pool, credentialCtx)
 		if err != nil {
-			t.Fatalf("Cannot delete all credentials")
+			t.Fatalf("Cannot delete all credentials %v", err.Error())
 		}
 	}
 }

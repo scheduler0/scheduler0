@@ -6,6 +6,7 @@ import (
 	"cron-server/server/models"
 	"cron-server/server/repository"
 	"encoding/json"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"net/http"
@@ -113,6 +114,14 @@ func TestProjectController_UpdateOne(t *testing.T) {
 			} else {
 				w := httptest.NewRecorder()
 				projectController.UpdateOne(w, req)
+
+				body, err := ioutil.ReadAll(w.Body)
+				if err != nil {
+					t.Fatalf("\t\t %v", err.Error())
+				}
+
+				fmt.Println(string(body))
+
 				assert.Equal(t, http.StatusBadRequest, w.Code)
 			}
 		}

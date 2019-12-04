@@ -81,7 +81,7 @@ func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Reques
 	}
 
 	job := models.Job{ID: id}
-	err = job.GetOne(&controller.Pool, r.Context(), "id = ?", job.ID)
+	_, err = job.GetOne(&controller.Pool, r.Context(), "id = ?", job.ID)
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
@@ -113,7 +113,7 @@ func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Reques
 	job.Data = jobUpdate.Data
 	job.EndDate = jobUpdate.EndDate
 
-	if err = job.UpdateOne(&controller.Pool, r.Context()); err != nil {
+	if _, err = job.UpdateOne(&controller.Pool, r.Context()); err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
 	}

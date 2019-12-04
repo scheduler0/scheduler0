@@ -4,6 +4,7 @@ import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"reflect"
@@ -88,7 +89,7 @@ func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request
 	}
 
 	model.SetId(id)
-	err = model.GetOne(&pool, r.Context(), "id = ?", id)
+	_, err = model.GetOne(&pool, r.Context(), "id = ?", id)
 
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
@@ -112,13 +113,20 @@ func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	data, err := model.GetAll(&pool, r.Context(), query, offset, limit, orderBy, values...)
+	fmt.Println(query, values)
+
+	count, data, err := model.GetAll(&pool, r.Context(), query, offset, limit, orderBy, values...)
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
 	}
 
-	misc.SendJson(w, data, true, http.StatusOK, nil)
+	var Response = struct {
+		data []interface{}
+		count int
+	}{ data: data, count:count }
+
+	misc.SendJson(w, Response, true, http.StatusOK, nil)
 }
 
 func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
@@ -144,7 +152,7 @@ func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Requ
 	}
 
 	model.SetId(id)
-	err = model.UpdateOne(&pool, r.Context())
+	_, err = model.UpdateOne(&pool, r.Context())
 
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)

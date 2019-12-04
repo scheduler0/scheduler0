@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"cron-server/server/repository"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -19,7 +20,8 @@ func TestProject_CreateOne(t *testing.T) {
 
 	t.Log("Don't create project with name and description empty")
 	{
-		_, err := projectOne.CreateOne(projectsPool, projectCtx)
+		pid, err := projectOne.CreateOne(projectsPool, projectCtx)
+		fmt.Println("pid", pid)
 		if err == nil {
 			t.Fatalf("\t\t Cannot create project without name and descriptions")
 		}
@@ -27,15 +29,17 @@ func TestProject_CreateOne(t *testing.T) {
 
 	t.Log("Create project with name and description not empty")
 	{
-		_, err := projectTwo.CreateOne(projectsPool, projectCtx)
+		pid, err := projectTwo.CreateOne(projectsPool, projectCtx)
+		fmt.Println("pid", pid)
 		if err != nil {
-			t.Fatalf("\t\t %v", err)
+			t.Fatalf("\t\t Error creating project %v", err)
 		}
 	}
 
 	t.Log("Don't create project with existing name")
 	{
-		_, err := projectTwo.CreateOne(projectsPool, projectCtx)
+		pid, err := projectTwo.CreateOne(projectsPool, projectCtx)
+		fmt.Println("pid", pid)
 		if err == nil {
 			t.Fatalf("\t\t Cannot create project with existing name")
 		}
@@ -50,7 +54,7 @@ func TestProject_GetOne(t *testing.T) {
 	{
 		projectTwoPlaceholder := Project{ID: projectTwo.ID}
 
-		err := projectTwoPlaceholder.GetOne(projectsPool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
+		_, err := projectTwoPlaceholder.GetOne(projectsPool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get project %v", err)
 		}
@@ -69,13 +73,13 @@ func TestProject_UpdateOne(t *testing.T) {
 	{
 		projectTwo.Name = "some new name"
 
-		err := projectTwo.UpdateOne(projectsPool, projectCtx)
+		_, err := projectTwo.UpdateOne(projectsPool, projectCtx)
 		if err != nil {
 			t.Fatalf("\t\t Could not update project %v", err)
 		}
 
 		projectTwoPlaceholder := Project{ID: projectTwo.ID}
-		err = projectTwoPlaceholder.GetOne(projectsPool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
+		_, err = projectTwoPlaceholder.GetOne(projectsPool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get project with id %v", projectTwoPlaceholder.ID)
 		}

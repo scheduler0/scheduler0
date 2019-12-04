@@ -107,13 +107,13 @@ func TestJob_UpdateOne(t *testing.T) {
 		}
 
 		jobThree.CronSpec = "2 * * * *"
-		err = jobThree.UpdateOne(jobsPool, jobCtx)
+		_, err = jobThree.UpdateOne(jobsPool, jobCtx)
 		if err == nil {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
 
 		jobThreePlaceholder := Job{ID: jobThree.ID}
-		err = jobThreePlaceholder.GetOne(jobsPool, jobCtx, "id = ?", jobThree.ID)
+		_, err = jobThreePlaceholder.GetOne(jobsPool, jobCtx, "id = ?", jobThree.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get job %v", err)
 		}
