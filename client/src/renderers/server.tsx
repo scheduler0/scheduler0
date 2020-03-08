@@ -22,7 +22,7 @@ const htmlString = (body, css, data) => `
         <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />  
         <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
         <style id="jss-server-side">${css}</style>
-        <title>Cron Server</title>
+        <title>Scheduler0</title>
     </head>
     <body>
         <noscript>
