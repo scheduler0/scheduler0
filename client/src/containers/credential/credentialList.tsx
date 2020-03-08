@@ -66,7 +66,7 @@ function CredentialList(props: IProps) {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {credentials && credentials.map((credential, index) => (
+                    {credentials.map((credential, index) => (
                         <CredentialListItem
                             key={`credential-${index}`}
                             credential={credential}

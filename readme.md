@@ -1,8 +1,8 @@
-# Cron Server
+# Scheduler0
 
 Simple cron job server.
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/victorlenerd/cron-server)](https://goreportcard.com/report/github.com/victorlenerd/cron-server)
+[![Go Report Card](https://goreportcard.com/badge/github.com/victorlenerd/scheduler0)](https://goreportcard.com/report/github.com/victorlenerd/scheduler0)
 
 ## Usage
     
@@ -11,14 +11,15 @@ Simple cron job server.
 
 ## API Documentation
 
+TODO
+
 ## Dashboard
-![""](./screenshots/executions.png)
+!["Dashboard"](./screenshots/screenshot.png)
 
     
 # License
 
 This project is licensed under either of
-
  * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
    http://www.apache.org/licenses/LICENSE-2.0)
  * MIT license ([LICENSE-MIT](LICENSE-MIT) or

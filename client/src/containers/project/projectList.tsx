@@ -4,7 +4,6 @@ import theme from '../../theme';
 import {IProject} from "../../redux/projects";
 import ProjectListItem from "./projectListItem";
 import Box from "@material-ui/core/Box";
-import {Typography} from "@material-ui/core";
 import Button from "@material-ui/core/Button";
 import {FormMode} from "./index";
 import Table from "@material-ui/core/Table";
@@ -64,7 +63,7 @@ function ProjectList(props: IProps) {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {projects && projects.map((project, index) => (
+                    {projects.map((project, index) => (
                         <ProjectListItem
                             key={`project-${index}`}
                             project={project}

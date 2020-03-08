@@ -68,7 +68,7 @@ function JobList(props: IProps) {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {jobs && jobs.map((job, index) => (
+                    {jobs.map((job, index) => (
                         <JobListItem
                             key={`job-${index}`}
                             job={job}
