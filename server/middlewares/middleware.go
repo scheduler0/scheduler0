@@ -64,8 +64,8 @@ func (_ *MiddlewareType) AuthMiddleware(pool *repository.Pool) func(next http.Ha
 				return
 			}
 
-			err := credential.GetOne(pool, r.Context(), "api_key = ?", token)
-			if !passBasicAuth && err != nil {
+			c, _ := credential.GetOne(pool, r.Context(), "api_key = ?", token)
+			if !passBasicAuth && c < 1 {
 				misc.SendJson(w, "credential does not exits", false, http.StatusUnauthorized, nil)
 				return
 			}

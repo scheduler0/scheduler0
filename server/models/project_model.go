@@ -103,7 +103,7 @@ func (p *Project) GetAll(pool *repository.Pool, ctx context.Context, query strin
 
 	var projects []Project
 
-	baseQuery := db.Model(&projects).WhereOr(query, ip...)
+	baseQuery := db.Model(&projects).Where(query, ip...)
 
 	count, err := baseQuery.Count()
 	if err != nil {

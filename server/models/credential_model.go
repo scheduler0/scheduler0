@@ -97,7 +97,7 @@ func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query st
 		ip[i] = params[i]
 	}
 
-	baseQuery := db.Model(&credentials).WhereOr(query, ip...)
+	baseQuery := db.Model(&credentials).Where(query, ip...)
 
 	count, err := baseQuery.Count()
 	if err != nil {

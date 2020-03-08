@@ -98,7 +98,7 @@ func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query 
 
 	baseQuery := db.
 		Model(&execs).
-		WhereOr(query, ip...)
+		Where(query, ip...)
 
 	count, err := baseQuery.Count()
 	if err != nil {
@@ -162,46 +162,47 @@ func (exec *Execution) DeleteOne(pool *repository.Pool, ctx context.Context) (in
 }
 
 func (exec *Execution) SearchToQuery(search [][]string) (string, []string) {
-	var searchParams = []string{"id", "job_id", "timeout", "status_code", "created_at"}
-
 	var queries []string
 	var query string
 	var values []string
-	var paginate []string
 
 	if len(search) < 1 || search[0] == nil {
 		return query, values
 	}
 
-	for i := 0; i < len(searchParams); i++ {
-		if search[i][0] == searchParams[i] {
-			queries = append(queries, searchParams[i]+" = ?")
+	for i := 0; i < len(search); i++ {
+		if search[i][0] == "created_at" {
+			queries = append(queries, "created_at = ?")
+			values = append(values, search[i][1])
+		}
+
+		if search[i][0] == "id" {
+			queries = append(queries, "id = ?")
+			values = append(values, search[i][1])
+		}
+
+		if search[i][0] == "job_id" {
+			queries = append(queries, "job_id = ?")
+			values = append(values, search[i][1])
+		}
+
+		if search[i][0] == "status_code" {
+			queries = append(queries, "status_code = ?")
+			values = append(values, search[i][1])
+		}
+
+		if search[i][0] == "timeout" {
+			queries = append(queries, "timeout = ?")
 			values = append(values, search[i][1])
 		}
 	}
 
 	if len(queries) > 0 {
-		query += " AND " + queries[0]
+		query += " OR " + queries[0]
 
 		for i := 1; i < len(queries); i++ {
 			query = queries[i]
 		}
-	}
-
-	if len(queries) < len(search) {
-		for i := 0; i < len(search); i++ {
-			if search[i][0] == "offset" {
-				paginate = append(paginate, "offset = ?")
-			}
-
-			if search[i][0] == "limit" {
-				paginate = append(paginate, "limit = ?")
-			}
-		}
-	}
-
-	for i := 0; i < len(paginate); i++ {
-		query = paginate[i]
 	}
 
 	if len(query) < 1 && len(values) < 1 {

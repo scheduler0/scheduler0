@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"strconv"
 )
 
 //  Basic controller can be used to perform all REST operations for an endpoint
@@ -106,7 +107,28 @@ func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request
 
 	var offset = 0
 	var limit = 10
+
 	var orderBy = "date_created DESC"
+
+	for i := 0; i < len(queryParams); i++ {
+		if queryParams[i][0] == "offset" {
+			offsetQ, err := strconv.Atoi(queryParams[i][1])
+			if err != nil {
+				misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+			}
+
+			offset = offsetQ
+		}
+
+		if queryParams[i][0] == "limit" {
+			limitQ, err := strconv.Atoi(queryParams[i][1])
+			if err != nil {
+				misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+			}
+
+			limit = limitQ
+		}
+	}
 
 	if len(query) < 1 {
 		misc.SendJson(w, "no valid query params", false, http.StatusBadRequest, nil)

@@ -115,7 +115,7 @@ func executeJobs(ctx context.Context, jobs []models.Job, pool *repository.Pool) 
 				job.TotalExecs = job.TotalExecs + 1
 				job.State = models.ActiveJob
 
-				err = job.UpdateOne(pool, ctx)
+				_, err = job.UpdateOne(pool, ctx)
 				misc.CheckErr(err)
 
 				log.Println("Executed job ", job.ID, "  next execution time is ", job.NextTime)
@@ -157,7 +157,7 @@ func updateMissedJobs(ctx context.Context, jobs []models.Job, pool *repository.P
 				jb.State = models.StaleJob
 			}
 
-			err = jb.UpdateOne(pool, ctx)
+			_, err = jb.UpdateOne(pool, ctx)
 			misc.CheckErr(err)
 		}(jobs[i])
 	}
