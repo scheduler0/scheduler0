@@ -1,12 +1,14 @@
-// @ts-ignore
 import React from "react";
 import { connect } from "react-redux";
 import Grid from '@material-ui/core/Grid';
 import ModifyProjectForm from "./modifyProjectForm"
 import ProjectList from './projectList';
-import {createStyles} from "@material-ui/core";
 import {WithStyles, withStyles} from "@material-ui/core/styles"
 import {setCurrentProjectId, DeleteProject} from '../../redux/projects'
+import { compose } from "recompose";
+
+import SharedStyles from "../../shared/styles";
+import Paper from "@material-ui/core/Paper";
 
 export enum FormMode {
     Edit = "Edit",
@@ -18,17 +20,8 @@ interface IState {
     formMode: FormMode
 }
 
-const styles = theme => createStyles({
-    containerHeader: {
-        height: "50px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-    }
-});
-
 type Props = ReturnType<typeof mapStateToProps>
-    & WithStyles<ReturnType<typeof styles>>
+    & WithStyles<ReturnType<typeof SharedStyles>>
     & ReturnType<typeof mapDispatchToProps>
 
 class ProjectContainer extends React.Component<Props> {
@@ -50,7 +43,7 @@ class ProjectContainer extends React.Component<Props> {
 
     render() {
         const {formMode} = this.state;
-        const {projects, currentProjectId, deleteProject, setCurrentProjectId} = this.props;
+        const {classes, projects, currentProjectId, deleteProject, setCurrentProjectId} = this.props;
 
         const currentProject = (formMode == FormMode.Edit)
             ? projects.find(({ id }) => id == currentProjectId)
@@ -59,13 +52,15 @@ class ProjectContainer extends React.Component<Props> {
         return (
             <Grid container>
                 <Grid item md={8} lg={8}>
-                    <ProjectList
-                        projects={projects}
-                        formMode={formMode}
-                        setMode={this.setMode}
-                        deleteProject={deleteProject}
-                        setCurrentProjectId={setCurrentProjectId}
-                    />
+                    <Paper className={classes.paper}>
+                        <ProjectList
+                            projects={projects}
+                            formMode={formMode}
+                            setMode={this.setMode}
+                            deleteProject={deleteProject}
+                            setCurrentProjectId={setCurrentProjectId}
+                        />
+                    </Paper>
                 </Grid>
                 <Grid item md={4} lg={4}>
                     <ModifyProjectForm
@@ -91,5 +86,7 @@ const mapDispatchToProps = (dispatch) => ({
     deleteProject: (id: string) => dispatch(DeleteProject(id))
 });
 
-export default connect(mapStateToProps, mapDispatchToProps)
-(withStyles(styles)(ProjectContainer)) as any as React.ComponentType;
+export default compose(
+    connect(mapStateToProps, mapDispatchToProps),
+    withStyles(SharedStyles)
+)(ProjectContainer) as any as React.ComponentType;

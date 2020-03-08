@@ -5,6 +5,7 @@ import (
 	"cron-server/server/models"
 	"cron-server/server/repository"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 )
@@ -56,7 +57,9 @@ func (controller *JobController) CreateOne(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if j.StartDate.Before(time.Now().UTC()) {
+	log.Println("Start Date, Time", j.StartDate.UTC(), time.Now().UTC())
+
+	if j.StartDate.UTC().Before(time.Now().UTC()) {
 		misc.SendJson(w, "start date cannot be in the past", false, http.StatusBadRequest, nil)
 		return
 	}
@@ -78,7 +81,7 @@ func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Reques
 	}
 
 	job := models.Job{ID: id}
-	err = job.GetOne(&controller.Pool, r.Context(), "id = ?", job.ID)
+	_, err = job.GetOne(&controller.Pool, r.Context(), "id = ?", job.ID)
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
@@ -110,7 +113,7 @@ func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Reques
 	job.Data = jobUpdate.Data
 	job.EndDate = jobUpdate.EndDate
 
-	if err = job.UpdateOne(&controller.Pool, r.Context()); err != nil {
+	if _, err = job.UpdateOne(&controller.Pool, r.Context()); err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
 	}

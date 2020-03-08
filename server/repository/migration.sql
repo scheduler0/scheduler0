@@ -95,4 +95,12 @@ DO $$
         END IF;
 
         ALTER TABLE executions DROP COLUMN  IF EXISTS user_id;
+
+        IF EXISTS (
+                SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME='executions' AND COLUMN_NAME='token')
+        THEN
+        ELSE
+            ALTER TABLE executions ADD token varchar;
+        END IF;
     END $$;

@@ -4,7 +4,6 @@ import theme from '../../theme';
 import {IProject} from "../../redux/projects";
 import ProjectListItem from "./projectListItem";
 import Box from "@material-ui/core/Box";
-import {Typography} from "@material-ui/core";
 import Button from "@material-ui/core/Button";
 import {FormMode} from "./index";
 import Table from "@material-ui/core/Table";
@@ -22,13 +21,8 @@ interface IProps {
 }
 
 const useStyles = makeStyles(theme => ({
-    root: {
-        padding: theme.spacing(3, 2),
-    },
-    container: {
-        marginTop: '50px',
-        padding: '20px',
-    },
+    root: {},
+    container: {},
     header: {
         height: '50px',
         display: 'flex',
@@ -52,9 +46,8 @@ function ProjectList(props: IProps) {
                  component="div"
                  flexDirection="row"
                  alignItems="center"
-                 justifyContent="space-between"
-                 style={{ paddingLeft: '20px', paddingRight: '20px', marginBottom: '10px' }}>
-                <Typography variant="h5">Projects</Typography>
+                 justifyContent="flex-end"
+                 style={{ margin: '25px 0px', padding: '0px 20px' }}>
                 <Button component="span" onClick={() => {
                     setCurrentProjectId(null);
                     setMode(FormMode.Create);
@@ -70,7 +63,7 @@ function ProjectList(props: IProps) {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {projects && projects.map((project, index) => (
+                    {projects.map((project, index) => (
                         <ProjectListItem
                             key={`project-${index}`}
                             project={project}

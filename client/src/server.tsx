@@ -12,6 +12,7 @@ import bodyParser from "body-parser";
 import axios from 'axios';
 import { serverRender } from './renderers/server';
 
+import executionsRouter from "./routers/executions";
 import credentialRouter from "./routers/credential";
 import projectRouter from "./routers/project";
 import jobRouter from "./routers/job";
@@ -56,31 +57,36 @@ app.use(morgan("combined"));
 app.use(bodyParser.json());
 
 app.get("(/|/projects|/jobs|/credentials)", async (req, res) => {
+    const fetchExecutions = axiosInstance.get(`${API_ENDPOINT}/executions`);
     const fetchCredentials = axiosInstance.get(`${API_ENDPOINT}/credentials`);
     const fetchProjects = axiosInstance.get(`${API_ENDPOINT}/projects`);
     const fetchJobs = axiosInstance.get(`${API_ENDPOINT}/jobs`);
 
+    let executions = null;
     let credentials = null;
     let projects = null;
     let jobs = null;
 
     try {
-        [credentials, projects, jobs] = await Promise.all([
+        [executions, credentials, projects, jobs] = await Promise.all([
+            fetchExecutions,
             fetchCredentials,
             fetchProjects,
             fetchJobs
         ]);
 
-        credentials = credentials.data.data || [];
-        projects = projects.data.data || [];
-        jobs = jobs.data.data || [];
+        executions = Array.isArray(executions.data.data) ? executions.data.data :  [];
+        credentials = Array.isArray(credentials.data.data) ? credentials.data.data : [];
+        projects = Array.isArray(projects.data.data) ? projects.data.data : [];
+        jobs = Array.isArray(jobs.data.data) ? jobs.data.data : [];
     } catch (e) {
-        console.error(e);
+        throw e
     }
 
-    res.send(serverRender({ credentials, projects, jobs }, req.url))
+    res.send(serverRender({ credentials, projects, jobs, executions }, req.url))
 });
 
+app.use('/api/executions', executionsRouter);
 app.use('/api/credentials', credentialRouter);
 app.use('/api/projects', projectRouter);
 app.use('/api/jobs', jobRouter);

@@ -34,6 +34,7 @@ func main() {
 	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
+	executionController := controllers.ExecutionController{Pool: *pool}
 	jobController := controllers.JobController{Pool: *pool}
 	projectController := controllers.ProjectController{Pool: *pool}
 	credentialController := controllers.CredentialController{Pool: *pool}
@@ -45,6 +46,10 @@ func main() {
 	router.Use(mux.CORSMethodMiddleware(router))
 	router.Use(middleware.ContextMiddleware)
 	router.Use(middleware.AuthMiddleware(pool))
+
+	// Executions Endpoint
+	router.HandleFunc("/executions", executionController.GetAll).Methods(http.MethodGet)
+	router.HandleFunc("/executions/{id}", executionController.GetOne).Methods(http.MethodGet)
 
 	// Credentials Endpoint
 	router.HandleFunc("/credentials", credentialController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)

@@ -10,16 +10,16 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"reflect"
 )
 
 // Basic model interface
 type Model interface {
 	CreateOne(pool *repository.Pool, ctx context.Context) (string, error)
-	GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) error
-	GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error)
-	UpdateOne(pool *repository.Pool, ctx context.Context) error
+	GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) (int, error)
+	GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error)
+	UpdateOne(pool *repository.Pool, ctx context.Context) (int, error)
 	DeleteOne(pool *repository.Pool, ctx context.Context) (int, error)
+
 	SearchToQuery([][]string) (string, []string)
 	FromJson(body []byte) error
 	ToJson() ([]byte, error)
@@ -69,21 +69,14 @@ func Setup(pool *repository.Pool) {
 	var c = Credential{}
 	var ctx = context.Background()
 
-	credentials, err := c.GetAll(pool, ctx, "date_created < ?", "now()")
+	_, err = c.GetOne(pool, ctx, "date_created < ?", []string{"now()" })
 	if err != nil {
 		misc.CheckErr(err)
 	}
 
-	vd := reflect.ValueOf(credentials)
-	credentialsWithName := make([]Credential, vd.Len())
-
-	for i := 0; i < vd.Len(); i++ {
-		credentialsWithName[i] = vd.Index(i).Interface().(Credential)
-	}
-
-	if len(credentialsWithName) < 1 {
+	if len(c.ID) < 1 {
 		c.HTTPReferrerRestriction = "*"
-		_, err := c.CreateOne(pool, ctx)
+		_, err = c.CreateOne(pool, ctx)
 		log.Println("Created default credentials")
 		if err != nil {
 			misc.CheckErr(err)

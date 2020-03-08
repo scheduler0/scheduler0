@@ -5,9 +5,10 @@ import (
 	"cron-server/server/repository"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
-	"reflect"
+	"strings"
 	"time"
 )
 
@@ -42,22 +43,16 @@ func (p *Project) CreateOne(pool *repository.Pool, ctx context.Context) (string,
 	}
 
 	var projectWithName = Project{}
-	data, err := projectWithName.GetAll(pool, ctx, "name LIKE ?", p.Name+"%")
-
-	vd := reflect.ValueOf(data)
-	projectsWithName := make([]Project, vd.Len())
-
-	for i := 0; i < vd.Len(); i++ {
-		projectsWithName[i] = vd.Index(i).Interface().(Project)
-	}
-
-	if err == nil && len(projectsWithName) > 0 {
+	c, e := projectWithName.GetOne(pool, ctx, "name = ?", strings.ToLower(p.Name))
+	if c > 0 && e == nil {
 		err := errors.New("projects exits with the same name")
 		return "", err
 	}
 
 	p.ID = ksuid.New().String()
 	p.DateCreated = time.Now().UTC()
+
+	p.Name = strings.ToLower(p.Name)
 
 	_, err = db.Model(p).Insert()
 	if err != nil {
@@ -67,27 +62,34 @@ func (p *Project) CreateOne(pool *repository.Pool, ctx context.Context) (string,
 	return p.ID, nil
 }
 
-func (p *Project) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) error {
+func (p *Project) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	err = db.Model(p).Where(query, params).Select()
-	if err != nil {
-		return err
+	baseQuery := db.Model(p).Where(query, params)
+
+	count, err := baseQuery.Count()
+	if count < 1 {
+		return 0, nil
 	}
 
-	return nil
+	err = baseQuery.Select()
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
-func (p *Project) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
+func (p *Project) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return []interface{}{}, err
+		return 0, []interface{}{}, err
 	}
 
 	db := conn.(*pg.DB)
@@ -100,9 +102,22 @@ func (p *Project) GetAll(pool *repository.Pool, ctx context.Context, query strin
 	}
 
 	var projects []Project
-	err = db.Model(&projects).Where(query, ip...).Select()
+
+	baseQuery := db.Model(&projects).Where(query, ip...)
+
+	count, err := baseQuery.Count()
 	if err != nil {
-		return []interface{}{}, err
+		return 0, []interface{}{}, err
+	}
+
+	err = baseQuery.
+		Order(orderBy).
+		Offset(offset).
+		Limit(limit).
+		Select()
+
+	if err != nil {
+		return 0, []interface{}{}, err
 	}
 
 	var results = make([]interface{}, len(projects))
@@ -111,13 +126,13 @@ func (p *Project) GetAll(pool *repository.Pool, ctx context.Context, query strin
 		results[i] = projects[i]
 	}
 
-	return results, nil
+	return count, results, nil
 }
 
-func (p *Project) UpdateOne(pool *repository.Pool, ctx context.Context) error {
+func (p *Project) UpdateOne(pool *repository.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	db := conn.(*pg.DB)
@@ -125,33 +140,42 @@ func (p *Project) UpdateOne(pool *repository.Pool, ctx context.Context) error {
 
 	savedProject := Project{ID: p.ID}
 
-	if err := savedProject.GetOne(pool, ctx, "id = ?", savedProject.ID); err != nil {
-		return err
+	_, err = savedProject.GetOne(pool, ctx, "id = ?", savedProject.ID)
+	if  err != nil {
+		return 0, err
 	}
 
 	if len(savedProject.ID) < 1 {
-		return errors.New("project does not exist")
+		return 0, errors.New("project does not exist")
 	}
 
 	if savedProject.Name != p.Name {
-		if projectsWithSameName, err := p.GetAll(pool, ctx, "name = ? AND id != ?", p.Name, p.ID); err != nil {
-			return err
-		} else {
-			if len(projectsWithSameName) > 0 {
-				return errors.New("project with same name exits")
-			}
 
-			if err := db.Update(p); err != nil {
-				return err
-			}
+		fmt.Println("p.Name", p.Name)
+
+		var projectWithSimilarName = Project{}
+
+		c, err := projectWithSimilarName.GetOne(pool, ctx, "name = ?", strings.ToLower(p.Name))
+
+		fmt.Println("projectWithSimilarName", projectWithSimilarName, err, c)
+
+		if  err != nil {
+			return 0, err
 		}
-	} else {
-		if err := db.Update(p); err != nil {
-			return err
+
+		if c > 0 {
+			return 0, errors.New("project with same name exits")
 		}
 	}
 
-	return nil
+	p.Name = strings.ToLower(p.Name)
+
+	res, err := db.Model(p).Where("id = ?", p.ID).Update(p)
+	if err != nil {
+		return 0, err
+	}
+
+	return res.RowsAffected(), nil
 }
 
 func (p *Project) DeleteOne(pool *repository.Pool, ctx context.Context) (int, error) {

@@ -15,6 +15,7 @@ type Execution struct {
 	StatusCode  string    `json:"status_code"`
 	Timeout     uint64    `json:"timeout"`
 	Response    string    `json:"response"`
+	Token    	string    `json:"token"`
 	DateCreated time.Time `json:"date_created"`
 }
 
@@ -38,7 +39,7 @@ func (exec *Execution) CreateOne(pool *repository.Pool, ctx context.Context) (st
 
 	jobWithId := Job{ID: exec.JobId}
 
-	if err := jobWithId.GetOne(pool, ctx, "id = ?", exec.JobId); err != nil {
+	if _, err := jobWithId.GetOne(pool, ctx, "id = ?", exec.JobId); err != nil {
 		return "", errors.New("job with id does not exist")
 	}
 
@@ -49,26 +50,39 @@ func (exec *Execution) CreateOne(pool *repository.Pool, ctx context.Context) (st
 	return exec.ID, nil
 }
 
-func (exec *Execution) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) error {
+func (exec *Execution) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	if err := db.Model(exec).Where(query, params).Select(); err != nil {
-		return err
+	baseQuery :=  db.Model(&exec).Where(query, params)
+
+	count, err := baseQuery.Count()
+	if count < 1 {
+		return 0, nil
 	}
 
-	return nil
+	if err != nil {
+		return count, err
+	}
+
+	err = baseQuery.Select()
+
+	if err != nil {
+		return count, err
+	}
+
+	return count, nil
 }
 
-func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
+func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return []interface{}{}, err
+		return 0, []interface{}{}, err
 	}
 
 	db := conn.(*pg.DB)
@@ -82,8 +96,23 @@ func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query 
 
 	var execs []Execution
 
-	if err := db.Model(&execs).Where(query, ip...).Select(); err != nil {
-		return []interface{}{}, err
+	baseQuery := db.
+		Model(&execs).
+		Where(query, ip...)
+
+	count, err := baseQuery.Count()
+	if err != nil {
+		return count, []interface{}{}, err
+	}
+
+	err = baseQuery.
+		Order(orderBy).
+		Offset(offset).
+		Limit(limit).
+		Select()
+
+	if err != nil {
+		return count, []interface{}{}, err
 	}
 
 	var results = make([]interface{}, len(execs))
@@ -92,13 +121,13 @@ func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query 
 		results[i] = execs[i]
 	}
 
-	return results, nil
+	return count, results, nil
 }
 
-func (exec *Execution) UpdateOne(pool *repository.Pool, ctx context.Context) error {
+func (exec *Execution) UpdateOne(pool *repository.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
@@ -106,13 +135,14 @@ func (exec *Execution) UpdateOne(pool *repository.Pool, ctx context.Context) err
 	var execPlaceholder Execution
 	execPlaceholder.ID = exec.ID
 
-	err = execPlaceholder.GetOne(pool, ctx, "id = ?", execPlaceholder.ID)
+	_, err = execPlaceholder.GetOne(pool, ctx, "id = ?", execPlaceholder.ID)
 
-	if err = db.Update(exec); err != nil {
-		return err
+	res, err := db.Model(&exec).Update(exec)
+	if err != nil {
+		return 0, err
 	}
 
-	return nil
+	return res.RowsAffected(), nil
 }
 
 func (exec *Execution) DeleteOne(pool *repository.Pool, ctx context.Context) (int, error) {
@@ -141,6 +171,11 @@ func (exec *Execution) SearchToQuery(search [][]string) (string, []string) {
 	}
 
 	for i := 0; i < len(search); i++ {
+		if search[i][0] == "created_at" {
+			queries = append(queries, "created_at = ?")
+			values = append(values, search[i][1])
+		}
+
 		if search[i][0] == "id" {
 			queries = append(queries, "id = ?")
 			values = append(values, search[i][1])
@@ -151,21 +186,21 @@ func (exec *Execution) SearchToQuery(search [][]string) (string, []string) {
 			values = append(values, search[i][1])
 		}
 
-		if search[i][0] == "timeout" {
-			queries = append(queries, "timeout = ?")
-			values = append(values, search[i][1])
-		}
-
 		if search[i][0] == "status_code" {
 			queries = append(queries, "status_code = ?")
 			values = append(values, search[i][1])
 		}
+
+		if search[i][0] == "timeout" {
+			queries = append(queries, "timeout = ?")
+			values = append(values, search[i][1])
+		}
 	}
 
-	for i := 0; i < len(queries); i++ {
-		if i != 0 {
-			query += " AND " + queries[i]
-		} else {
+	if len(queries) > 0 {
+		query += " OR " + queries[0]
+
+		for i := 1; i < len(queries); i++ {
 			query = queries[i]
 		}
 	}

@@ -13,7 +13,7 @@ import {IProject} from "../../redux/projects";
 import FormControl from "@material-ui/core/FormControl";
 import InputLabel from "@material-ui/core/InputLabel";
 import NoSsr from "@material-ui/core/NoSsr";
-import {format} from "date-fns-tz";
+import {format, zonedTimeToUtc} from "date-fns-tz";
 import {isAfter} from "date-fns";
 
 interface IProps {
@@ -27,7 +27,6 @@ interface IProps {
 
 const useStyles = makeStyles((theme) => ({
     container: {
-        marginTop: '50px',
         backgroundColor: '#f1f1f1',
         height: 'calc(100vh - 50px)',
         padding: '30px',
@@ -119,18 +118,20 @@ const JobsForm = (props: IProps & ReturnType<typeof mapDispatchToProps>) => {
         const form = e.currentTarget;
         const formValidity = form.checkValidity();
         if (formValidity) {
+            let end_date = null;
+
+            if (Boolean(end_date) && isAfter(new Date(end_date), new Date(start_date))) {
+                end_date = new Date(end_date).toISOString();
+            }
+
             const body = {
-                cron_spec: cron_spec,
-                data: data,
-                start_date: format(new Date(start_date), "eee, ii MMM yyyy HH:mm:ss zz"),
-                end_date: isAfter(new Date(end_date), new Date(start_date)) ?
-                    format(new Date(end_date), "eee, ii MMM yyyy HH:mm:ss zz") :
-                    formMode == FormMode.Edit ?
-                        null :
-                        format(new Date(end_date), "eee, ii MMM yyyy HH:mm:ss zz"),
-                description: description,
-                callback_url: callback_url,
-                project_id: project_id,
+                start_date: new Date(start_date).toISOString(),
+                cron_spec,
+                data,
+                end_date,
+                description,
+                callback_url,
+                project_id,
                 timezone
             };
 

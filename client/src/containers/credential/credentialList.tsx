@@ -22,14 +22,10 @@ interface IProps {
 }
 
 const useStyles = makeStyles(theme => ({
-    root: {
-        padding: theme.spacing(3, 2),
-    },
-    container: {
-        marginTop: '50px',
-        padding: '20px',
-    },
+    root: {},
+    container: {},
     header: {
+        marginTop: '50px',
         height: '50px',
         display: 'flex',
         flexDirection: 'row',
@@ -52,9 +48,8 @@ function CredentialList(props: IProps) {
                  component="div"
                  flexDirection="row"
                  alignItems="center"
-                 justifyContent="space-between"
-                 style={{ paddingLeft: '20px', paddingRight: '20px', marginBottom: '10px' }}>
-                <Typography variant="h5">Credentials</Typography>
+                 justifyContent="flex-end"
+                 style={{ margin: '25px 0px', padding: '0px 20px' }}>
                 <Button component="span" onClick={() => {
                     setCurrentCredentialId(null);
                     setMode(FormMode.Create);
@@ -71,7 +66,7 @@ function CredentialList(props: IProps) {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {credentials && credentials.map((credential, index) => (
+                    {credentials.map((credential, index) => (
                         <CredentialListItem
                             key={`credential-${index}`}
                             credential={credential}

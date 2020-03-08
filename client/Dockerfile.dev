@@ -1,4 +1,4 @@
-FROM node:12
+FROM node:13
 
 MAINTAINER Victor Nwaokocha
 
@@ -8,7 +8,6 @@ WORKDIR /usr/src/client
 
 # Install app dependencies
 COPY package.json /usr/src/client/
-RUN npm install
 
 # Bundle app source
 COPY src /usr/src/client/src

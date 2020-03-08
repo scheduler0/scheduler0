@@ -6,6 +6,7 @@ import (
 	"cron-server/server/models"
 	"cron-server/server/repository"
 	"encoding/json"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"log"
@@ -62,7 +63,7 @@ func TestJobController_CreateOne(t *testing.T) {
 		j1.CronSpec = "1 * * * *"
 		j1.ProjectId = id
 		j1.CallbackUrl = "http://random.url"
-		j1.StartDate = time.Now().Add(60 * time.Second).UTC().Format(time.RFC1123)
+		j1.StartDate = time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
 		jobByte, err := j1.ToJson()
 		misc.CheckErr(err)
 		jobStr := string(jobByte)
@@ -88,6 +89,8 @@ func TestJobController_CreateOne(t *testing.T) {
 		if len(response) < 1 {
 			t.Fatalf("\t\t Response payload is empty")
 		}
+
+		fmt.Println(response)
 
 		inboundJob.ID = response["data"].(string)
 		assert.Equal(t, http.StatusCreated, w.Code)
@@ -127,6 +130,13 @@ func TestJobController_GetAll(t *testing.T) {
 		jobController.GetAll(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 
+		body, err := ioutil.ReadAll(w.Body)
+		if err != nil {
+			t.Fatalf("\t\t Error reading data %v", err)
+		}
+
+		fmt.Println(string(body))
+
 		if _, err := jobModel.DeleteOne(&jobController.Pool, context.Background()); err != nil {
 			t.Fatalf("\t\t Cannot delete job two %v", err)
 		}
@@ -156,8 +166,10 @@ func TestJobController_UpdateOne(t *testing.T) {
 
 	t.Log("Respond with status 200 if update body is valid")
 	{
+		inboundJob.StartDate = time.Now().UTC().Format(time.RFC3339)
 		inboundJob.CronSpec = "1 * * * *"
 		inboundJob.Description = "some job description"
+		inboundJob.Timezone = "UTC"
 		jobByte, err := inboundJob.ToJson()
 		misc.CheckErr(err)
 		jobStr := string(jobByte)
@@ -176,6 +188,7 @@ func TestJobController_UpdateOne(t *testing.T) {
 		}
 
 		assert.Equal(t, http.StatusOK, w.Code)
+		log.Println("Response body :", string(body))
 	}
 }
 

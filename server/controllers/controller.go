@@ -4,9 +4,11 @@ import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"strconv"
 )
 
 //  Basic controller can be used to perform all REST operations for an endpoint
@@ -26,6 +28,10 @@ func CreateCredentialModel() *models.Credential {
 	return &models.Credential{}
 }
 
+func CreateExecutionModel() *models.Execution {
+	return &models.Execution{}
+}
+
 func (controller *BasicController) GetModel() models.Model {
 	var innerModel models.Model
 	var modelType = reflect.TypeOf(controller.model).Name()
@@ -40,6 +46,10 @@ func (controller *BasicController) GetModel() models.Model {
 
 	if modelType == "Credential" {
 		innerModel = CreateCredentialModel()
+	}
+
+	if modelType == "Execution" {
+		innerModel = CreateExecutionModel()
 	}
 
 	return innerModel
@@ -80,7 +90,7 @@ func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request
 	}
 
 	model.SetId(id)
-	err = model.GetOne(&pool, r.Context(), "id = ?", id)
+	_, err = model.GetOne(&pool, r.Context(), "id = ?", id)
 
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
@@ -95,18 +105,50 @@ func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request
 	var queryParams = misc.GetRequestQueryString(r.URL.RawQuery)
 	var query, values = model.SearchToQuery(queryParams)
 
+	var offset = 0
+	var limit = 10
+
+	var orderBy = "date_created DESC"
+
+	for i := 0; i < len(queryParams); i++ {
+		if queryParams[i][0] == "offset" {
+			offsetQ, err := strconv.Atoi(queryParams[i][1])
+			if err != nil {
+				misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+			}
+
+			offset = offsetQ
+		}
+
+		if queryParams[i][0] == "limit" {
+			limitQ, err := strconv.Atoi(queryParams[i][1])
+			if err != nil {
+				misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+			}
+
+			limit = limitQ
+		}
+	}
+
 	if len(query) < 1 {
 		misc.SendJson(w, "no valid query params", false, http.StatusBadRequest, nil)
 		return
 	}
 
-	data, err := model.GetAll(&pool, r.Context(), query, values...)
+	fmt.Println(query, values)
+
+	count, data, err := model.GetAll(&pool, r.Context(), query, offset, limit, orderBy, values...)
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
 	}
 
-	misc.SendJson(w, data, true, http.StatusOK, nil)
+	var Response = struct {
+		data []interface{}
+		count int
+	}{ data: data, count:count }
+
+	misc.SendJson(w, Response, true, http.StatusOK, nil)
 }
 
 func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
@@ -132,7 +174,7 @@ func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Requ
 	}
 
 	model.SetId(id)
-	err = model.UpdateOne(&pool, r.Context())
+	_, err = model.UpdateOne(&pool, r.Context())
 
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)

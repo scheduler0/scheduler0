@@ -50,40 +50,68 @@ func (c *Credential) CreateOne(pool *repository.Pool, ctx context.Context) (stri
 	}
 }
 
-func (c *Credential) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) error {
+func (c *Credential) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	db := conn.(*pg.DB)
-	err = db.Model(c).Where(query, params).Select()
-	if err != nil {
-		return err
+
+	baseQuery := db.Model(c).Where(query, params)
+
+	count, err := baseQuery.Count()
+	if count < 1 {
+		return 0, nil
 	}
 
-	return nil
+	if err != nil {
+		return count, err
+	}
+
+	err = baseQuery.Select()
+	if err != nil {
+		return count, err
+	}
+
+	return count, nil
 }
 
-func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
+func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
 	if err != nil {
-		return []interface{}{}, err
+		return 0, []interface{}{}, err
 	}
 
 	var credentials []Credential
 
 	db := conn.(*pg.DB)
-	err = db.Model(&credentials).
-		Where(query, params).
-		Order("date_created DESC").
-		Select()
+
+	ip := make([]interface{}, len(params))
+
+	for i := 0; i < len(params); i++ {
+		ip[i] = params[i]
+	}
+
+	baseQuery := db.Model(&credentials).Where(query, ip...)
+
+	count, err := baseQuery.Count()
 	if err != nil {
-		return []interface{}{}, err
+		return 0, []interface{}{}, err
+	}
+
+	err = baseQuery.
+		Order(orderBy).
+		Offset(offset).
+		Limit(limit).
+		Select()
+
+	if err != nil {
+		return 0, []interface{}{}, err
 	}
 
 	var results = make([]interface{}, len(credentials))
@@ -92,33 +120,39 @@ func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query st
 		results[i] = credentials[i]
 	}
 
-	return results, nil
+	return count, results, nil
 }
 
-func (c *Credential) UpdateOne(pool *repository.Pool, ctx context.Context) error {
+func (c *Credential) UpdateOne(pool *repository.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return err
+		return 0, err
 	}
+
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
 	var credentialPlaceholder Credential
 	credentialPlaceholder.ID = c.ID
-	err = credentialPlaceholder.GetOne(pool, ctx, "id = ?", credentialPlaceholder.ID)
+	_, err = credentialPlaceholder.GetOne(pool, ctx, "id = ?", credentialPlaceholder.ID)
+	if err != nil {
+		return 0, err
+	}
 
 	if credentialPlaceholder.ApiKey != c.ApiKey && len(c.ApiKey) > 1 {
-		return errors.New("cannot update api key")
+		return 0, errors.New("cannot update api key")
 	}
 
 	c.ApiKey = credentialPlaceholder.ApiKey
 	c.DateCreated = credentialPlaceholder.DateCreated
 
-	if err = db.Update(c); err != nil {
-		return err
+	res, err := db.Model(&c).Update(c)
+
+	if err != nil {
+		return 0, err
 	}
 
-	return nil
+	return res.RowsAffected(), nil
 }
 
 func (c *Credential) DeleteOne(pool *repository.Pool, ctx context.Context) (int, error) {

@@ -6,6 +6,7 @@ import (
 	"cron-server/server/models"
 	"cron-server/server/repository"
 	"encoding/json"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"net/http"
@@ -100,7 +101,7 @@ func TestProjectController_UpdateOne(t *testing.T) {
 		projectTwo.Description = "untitled project two description"
 
 		if id, err := projectTwo.CreateOne(&projectController.Pool, ctx); err != nil {
-			t.Fatalf("failed to create project two")
+			t.Fatalf("failed to create project two %v", err.Error())
 		} else {
 			projectTwo.ID = id
 			projectTwo.Name = "Untitled Project #1"
@@ -113,6 +114,14 @@ func TestProjectController_UpdateOne(t *testing.T) {
 			} else {
 				w := httptest.NewRecorder()
 				projectController.UpdateOne(w, req)
+
+				body, err := ioutil.ReadAll(w.Body)
+				if err != nil {
+					t.Fatalf("\t\t %v", err.Error())
+				}
+
+				fmt.Println(string(body))
+
 				assert.Equal(t, http.StatusBadRequest, w.Code)
 			}
 		}
@@ -186,6 +195,14 @@ func TestProjectController_DeleteOne(t *testing.T) {
 				projectController.DeleteOne(w, req)
 				assert.Equal(t, http.StatusOK, w.Code)
 			}
+		}
+	}
+
+	t.Log("Delete project two")
+	{
+		_, err := projectTwo.DeleteOne(&projectController.Pool, ctx)
+		if err != nil {
+			t.Fatalf("\t\t Could not delete job %v", err)
 		}
 	}
 

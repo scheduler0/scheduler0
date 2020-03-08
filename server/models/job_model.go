@@ -71,7 +71,7 @@ func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, er
 		return "", err
 	}
 
-	if jd.StartDate.Before(time.Now().UTC()) {
+	if jd.StartDate.UTC().Before(time.Now().UTC()) {
 		err := errors.New("start date cannot be in the past")
 		return "", err
 	}
@@ -92,8 +92,8 @@ func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, er
 	}
 
 	projectWithId := Project{ID: jd.ProjectId}
-
-	if err := projectWithId.GetOne(pool, ctx, "id = ?", jd.ProjectId); err != nil {
+	c, _ := projectWithId.GetOne(pool, ctx, "id = ?", jd.ProjectId)
+	if c < 1 {
 		return "", errors.New("project with id does not exist")
 	}
 
@@ -116,26 +116,34 @@ func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, er
 	return jd.ID, nil
 }
 
-func (jd *Job) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) error {
+func (jd *Job) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	if err := db.Model(jd).Where(query, params).Select(); err != nil {
-		return err
+	baseQuery := db.Model(jd).Where(query, params)
+	count, err := baseQuery.Count()
+	if count < 1 {
+		return 0, nil
 	}
 
-	return nil
+	err = baseQuery.Select()
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
-func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, params ...string) ([]interface{}, error) {
+func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return []interface{}{}, err
+		return 0, []interface{}{}, err
 	}
 
 	db := conn.(*pg.DB)
@@ -149,8 +157,21 @@ func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, 
 
 	var jobs []Job
 
-	if err := db.Model(&jobs).Where(query, ip...).Select(); err != nil {
-		return []interface{}{}, err
+	baseQuery := db.Model(&jobs).Where(query, ip...)
+
+	count, err := baseQuery.Count()
+	if err != nil {
+		return 0, []interface{}{}, err
+	}
+
+	err = baseQuery.
+		Order(orderBy).
+		Offset(offset).
+		Limit(limit).
+		Select()
+
+	if err != nil {
+		return 0, []interface{}{}, err
 	}
 
 	var results = make([]interface{}, len(jobs))
@@ -159,15 +180,15 @@ func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, 
 		results[i] = jobs[i]
 	}
 
-	log.Println("results--", results)
+	log.Println("results--", results, count)
 
-	return results, nil
+	return count, results, nil
 }
 
-func (jd *Job) UpdateOne(pool *repository.Pool, ctx context.Context) error {
+func (jd *Job) UpdateOne(pool *repository.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
@@ -175,27 +196,29 @@ func (jd *Job) UpdateOne(pool *repository.Pool, ctx context.Context) error {
 	var jobPlaceholder Job
 	jobPlaceholder.ID = jd.ID
 
-	err = jobPlaceholder.GetOne(pool, ctx, "id = ?", jobPlaceholder.ID)
+	_, err = jobPlaceholder.GetOne(pool, ctx, "id = ?", jobPlaceholder.ID)
 
 	if jobPlaceholder.CronSpec != jd.CronSpec {
-		return errors.New("cannot update cron spec")
+		return 0, errors.New("cannot update cron spec")
 	}
 
 	if !jd.EndDate.IsZero() && jd.EndDate.UTC().Before(jobPlaceholder.StartDate.UTC()) {
 		err := errors.New("end date cannot be in the past")
-		return err
+		return 0, err
 	}
 
 	if !jd.EndDate.IsZero() && len(jd.EndDate.String()) < 1 {
 		err := errors.New("end date cannot be in the past")
-		return err
+		return 0, err
 	}
 
-	if err = db.Update(jd); err != nil {
-		return err
+	res, err := db.Model(jd).Where("id = ? ", jd.ID).Update(jd)
+
+	if err != nil {
+		return 0, err
 	}
 
-	return nil
+	return res.RowsAffected(), nil
 }
 
 func (jd *Job) DeleteOne(pool *repository.Pool, ctx context.Context) (int, error) {

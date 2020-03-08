@@ -22,13 +22,8 @@ interface IProps {
 }
 
 const useStyles = makeStyles(theme => ({
-    root: {
-        padding: theme.spacing(3, 2),
-    },
-    container: {
-        marginTop: '50px',
-        padding: '20px',
-    },
+    root: {},
+    container: {},
     header: {
         height: '50px',
         display: 'flex',
@@ -52,9 +47,8 @@ function JobList(props: IProps) {
                  component="div"
                  flexDirection="row"
                  alignItems="center"
-                 justifyContent="space-between"
-                 style={{ paddingLeft: '20px', paddingRight: '20px', marginBottom: '10px' }}>
-                <Typography variant="h5">Jobs</Typography>
+                 justifyContent="flex-end"
+                 style={{ margin: '25px 0px', padding: '0px 20px' }}>
                 <Button component="span" onClick={() => {
                     setCurrentJobId(null);
                     setMode(FormMode.Create);
@@ -74,7 +68,7 @@ function JobList(props: IProps) {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {jobs && jobs.map((job, index) => (
+                    {jobs.map((job, index) => (
                         <JobListItem
                             key={`job-${index}`}
                             job={job}
