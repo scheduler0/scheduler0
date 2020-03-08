@@ -165,7 +165,7 @@ function MiniDrawerWrapper(props: Props) {
             >
                 <div className={classes.toolbar}>
                     <Grid className={classes.sideMenuHeader}>
-                        <Typography className={classes.appName}>CronServer</Typography>
+                        <Typography className={classes.appName}>Scheduler0</Typography>
                         <Typography variant="body1" className={classes.versionText}>0.0.1</Typography>
                     </Grid>
                     <IconButton onClick={handleDrawerClose}>
