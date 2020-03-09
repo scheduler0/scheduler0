@@ -4,7 +4,6 @@ import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"reflect"
@@ -42,10 +41,6 @@ func (controller *BasicController) GetModel() models.Model {
 
 	if modelType == "Job" {
 		innerModel = CreateJobModel()
-	}
-
-	if modelType == "Credential" {
-		innerModel = CreateCredentialModel()
 	}
 
 	if modelType == "Execution" {
@@ -134,8 +129,6 @@ func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request
 		misc.SendJson(w, "no valid query params", false, http.StatusBadRequest, nil)
 		return
 	}
-
-	fmt.Println(query, values)
 
 	count, data, err := model.GetAll(&pool, r.Context(), query, offset, limit, orderBy, values...)
 	if err != nil {

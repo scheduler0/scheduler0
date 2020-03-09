@@ -1,43 +1,49 @@
 package controllers
 
 import (
+	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/repository"
+	"cron-server/server/service"
+	"io/ioutil"
 	"net/http"
 )
-
-var basicCredentialController = BasicController{model: models.Credential{}}
 
 type CredentialController struct {
 	Pool repository.Pool
 }
 
 func (cc *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request) {
-	basicCredentialController.CreateOne(w, r, cc.Pool)
+	body, err := ioutil.ReadAll(r.Body)
+	misc.CheckErr(err)
+
+	if len(body) < 1 {
+		misc.SendJson(w, "request body required", false, http.StatusBadRequest, nil)
+	}
+
+	var credentialBody models.Credential
+
+	err = credentialBody.FromJson(body)
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
+	}
+
+	var credentialService = service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
+	if newCredentialID, err := credentialService.CreateNewCredential(credentialBody.HTTPReferrerRestriction); err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusTeapot, nil)
+	} else {
+		misc.SendJson(w, newCredentialID, true, http.StatusCreated, nil)
+	}
 }
 
 func (cc *CredentialController) GetOne(w http.ResponseWriter, r *http.Request) {
-	basicCredentialController.GetOne(w, r, cc.Pool)
 }
 
 func (cc *CredentialController) UpdateOne(w http.ResponseWriter, r *http.Request) {
-	basicCredentialController.UpdateOne(w, r, cc.Pool)
-}
-
-func (cc *CredentialController) GetAll(w http.ResponseWriter, r *http.Request) {
-	basicCredentialController.GetAll(w, r, cc.Pool)
 }
 
 func (cc *CredentialController) DeleteOne(w http.ResponseWriter, r *http.Request) {
-	basicCredentialController.DeleteOne(w, r, cc.Pool)
 }
 
-func (cc *CredentialController) GetAllOrCreateOne(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		cc.GetAll(w, r)
-	}
-
-	if r.Method == http.MethodPost {
-		cc.CreateOne(w, r)
-	}
+func (cc *CredentialController) List(w http.ResponseWriter, r *http.Request) {
 }

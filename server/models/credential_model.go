@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
 	"time"
@@ -23,7 +24,7 @@ func (c *Credential) SetId(id string) {
 	c.ID = id
 }
 
-func (c *Credential) CreateOne(pool *repository.Pool, ctx context.Context) (string, error) {
+func (c *Credential) CreateOne(pool *repository.Pool, ctx *context.Context) (string, error) {
 	if len(c.HTTPReferrerRestriction) < 1 {
 		return "", errors.New("credential should have at least one restriction set")
 	}
@@ -91,18 +92,23 @@ func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query st
 
 	db := conn.(*pg.DB)
 
-	ip := make([]interface{}, len(params))
+	queryParameters := make([]interface{}, len(params))
 
 	for i := 0; i < len(params); i++ {
-		ip[i] = params[i]
+		queryParameters[i] = params[i]
 	}
 
-	baseQuery := db.Model(&credentials).Where(query, ip...)
+	fmt.Println("query, values", query)
+	fmt.Println("queryParameters", queryParameters)
+	
+	baseQuery := db.Model(&credentials).Where(query, queryParameters...)
 
 	count, err := baseQuery.Count()
 	if err != nil {
 		return 0, []interface{}{}, err
 	}
+
+	fmt.Println("count", count)
 
 	err = baseQuery.
 		Order(orderBy).
