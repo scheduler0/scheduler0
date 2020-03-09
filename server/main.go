@@ -52,7 +52,8 @@ func main() {
 	router.HandleFunc("/executions/{id}", executionController.GetOne).Methods(http.MethodGet)
 
 	// Credentials Endpoint
-	router.HandleFunc("/credentials", credentialController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)
+	router.HandleFunc("/credentials", credentialController.CreateOne).Methods(http.MethodPost)
+	router.HandleFunc("/credentials", credentialController.List).Methods(http.MethodGet)
 	router.HandleFunc("/credentials/{id}", credentialController.GetOne).Methods(http.MethodGet)
 	router.HandleFunc("/credentials/{id}", credentialController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/credentials/{id}", credentialController.DeleteOne).Methods(http.MethodDelete)
