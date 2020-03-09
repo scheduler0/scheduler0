@@ -23,10 +23,6 @@ func CreateJobModel() *models.Job {
 	return &models.Job{}
 }
 
-func CreateCredentialModel() *models.Credential {
-	return &models.Credential{}
-}
-
 func CreateExecutionModel() *models.Execution {
 	return &models.Execution{}
 }
