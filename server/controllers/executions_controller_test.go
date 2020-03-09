@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"cron-server/server/misc"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +19,7 @@ var (
 func TestExecutionController_GetAll(t *testing.T) {
 	t.Log("Get All Returns 0 Count and Empty Set")
 	{
-		var pool, err = repository.NewPool(repository.CreateConnection, 1)
+		var pool, err = migrations.NewPool(migrations.CreateConnection, 1)
 		misc.CheckErr(err)
 		executionsController.Pool = *pool
 

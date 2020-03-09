@@ -3,7 +3,7 @@ package controllers
 import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"io/ioutil"
 	"net/http"
 	"reflect"
@@ -46,7 +46,7 @@ func (controller *BasicController) GetModel() models.Model {
 	return innerModel
 }
 
-func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
+func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Request, pool migrations.Pool) {
 	var model = controller.GetModel()
 
 	body, err := ioutil.ReadAll(r.Body)
@@ -71,7 +71,7 @@ func (controller *BasicController) CreateOne(w http.ResponseWriter, r *http.Requ
 	misc.SendJson(w, id, true, http.StatusCreated, nil)
 }
 
-func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
+func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request, pool migrations.Pool) {
 	var model = controller.GetModel()
 	id, err := misc.GetRequestParam(r, "id", 2)
 
@@ -91,7 +91,7 @@ func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request
 	misc.SendJson(w, model, true, http.StatusOK, nil)
 }
 
-func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
+func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request, pool migrations.Pool) {
 	var model = controller.GetModel()
 	var queryParams = misc.GetRequestQueryString(r.URL.RawQuery)
 	var query, values = model.SearchToQuery(queryParams)
@@ -140,7 +140,7 @@ func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request
 	misc.SendJson(w, Response, true, http.StatusOK, nil)
 }
 
-func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
+func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Request, pool migrations.Pool) {
 	var model = controller.GetModel()
 	id, err := misc.GetRequestParam(r, "id", 2)
 
@@ -173,7 +173,7 @@ func (controller *BasicController) UpdateOne(w http.ResponseWriter, r *http.Requ
 	misc.SendJson(w, model, true, http.StatusOK, nil)
 }
 
-func (controller *BasicController) DeleteOne(w http.ResponseWriter, r *http.Request, pool repository.Pool) {
+func (controller *BasicController) DeleteOne(w http.ResponseWriter, r *http.Request, pool migrations.Pool) {
 	var model = controller.GetModel()
 	id, err := misc.GetRequestParam(r, "id", 2)
 

@@ -1,23 +1,23 @@
-package models
+package domains
 
 import (
 	"context"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"testing"
 )
 
 var (
-	credentialModel = Credential{}
+	credentialModel = CredentialDomain{}
 	credentialCtx   = context.Background()
 )
 
 func TestCredential_CreateOne(t *testing.T) {
-	var pool, _ = repository.NewPool(repository.CreateConnection, 1)
+	var pool, _ = migrations.NewPool(migrations.CreateConnection, 1)
 	defer pool.Close()
 
 	t.Log("Don't create a credential without HTTPReferrerRestriction")
 	{
-		_, err := credentialModel.CreateOne(pool, credentialCtx)
+		_, err := credentialModel.CreateOne(pool, &credentialCtx)
 		if err == nil {
 			t.Fatalf("Created a new credential without HTTPReferrerRestriction")
 		}
@@ -26,7 +26,7 @@ func TestCredential_CreateOne(t *testing.T) {
 	t.Log("Create a new credential")
 	{
 		credentialModel.HTTPReferrerRestriction = "*"
-		_, err := credentialModel.CreateOne(pool, credentialCtx)
+		_, err := credentialModel.CreateOne(pool, &credentialCtx)
 		if err != nil {
 			t.Fatalf("Failed to create a new crendential")
 		}
@@ -34,7 +34,7 @@ func TestCredential_CreateOne(t *testing.T) {
 }
 
 func TestCredential_UpdateOne(t *testing.T) {
-	var pool, _ = repository.NewPool(repository.CreateConnection, 1)
+	var pool, _ = migrations.NewPool(migrations.CreateConnection, 1)
 	defer pool.Close()
 
 	var oldApiKey = credentialModel.ApiKey
@@ -53,7 +53,7 @@ func TestCredential_UpdateOne(t *testing.T) {
 	{
 		credentialModel.ApiKey = oldApiKey
 		credentialModel.HTTPReferrerRestriction = "http://google.com"
-		_, err := credentialModel.CreateOne(pool, credentialCtx)
+		_, err := credentialModel.CreateOne(pool, &credentialCtx)
 		if err != nil {
 			t.Fatalf("Failed to update crendential")
 		}
@@ -61,7 +61,7 @@ func TestCredential_UpdateOne(t *testing.T) {
 }
 
 func TestCredential_DeleteOne(t *testing.T) {
-	var pool, _ = repository.NewPool(repository.CreateConnection, 1)
+	var pool, _ = migrations.NewPool(migrations.CreateConnection, 1)
 	defer pool.Close()
 
 	t.Log("Prevent deleting all credential")

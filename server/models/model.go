@@ -3,7 +3,7 @@ package models
 import (
 	"context"
 	"cron-server/server/misc"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
 	"io/ioutil"
@@ -14,11 +14,11 @@ import (
 
 // Basic model interface
 type Model interface {
-	CreateOne(pool *repository.Pool, ctx context.Context) (string, error)
-	GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) (int, error)
-	GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error)
-	UpdateOne(pool *repository.Pool, ctx context.Context) (int, error)
-	DeleteOne(pool *repository.Pool, ctx context.Context) (int, error)
+	CreateOne(pool *migrations.Pool, ctx context.Context) (string, error)
+	GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error)
+	GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error)
+	UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error)
+	DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error)
 
 	SearchToQuery([][]string) (string, []string)
 	FromJson(body []byte) error
@@ -26,7 +26,7 @@ type Model interface {
 	SetId(id string)
 }
 
-func Setup(pool *repository.Pool) {
+func Setup(pool *migrations.Pool) {
 	conn, err := pool.Acquire()
 	misc.CheckErr(err)
 	db := conn.(*pg.DB)
@@ -50,11 +50,11 @@ func Setup(pool *repository.Pool) {
 	var absPath string
 	var sql []byte
 
-	absPath, err = filepath.Abs(pwd + "/server/repository/migration.sql")
+	absPath, err = filepath.Abs(pwd + "/server/migrations/migration.sql")
 
 	sql, err = ioutil.ReadFile(absPath)
 	if err != nil {
-		absPath, err = filepath.Abs(pwd + "/repository/migration.sql")
+		absPath, err = filepath.Abs(pwd + "/migrations/migration.sql")
 		sql, err = ioutil.ReadFile(absPath)
 		if err != nil {
 			panic(err)

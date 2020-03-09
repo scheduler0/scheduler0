@@ -3,7 +3,7 @@ package models
 import (
 	"context"
 	"cron-server/server/misc"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
@@ -52,7 +52,7 @@ func (jd *Job) SetId(id string) {
 	jd.ID = id
 }
 
-func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, error) {
+func (jd *Job) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -116,7 +116,7 @@ func (jd *Job) CreateOne(pool *repository.Pool, ctx context.Context) (string, er
 	return jd.ID, nil
 }
 
-func (jd *Job) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (jd *Job) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -140,7 +140,7 @@ func (jd *Job) GetOne(pool *repository.Pool, ctx context.Context, query string, 
 	return count, nil
 }
 
-func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (jd *Job) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -185,7 +185,7 @@ func (jd *Job) GetAll(pool *repository.Pool, ctx context.Context, query string, 
 	return count, results, nil
 }
 
-func (jd *Job) UpdateOne(pool *repository.Pool, ctx context.Context) (int, error) {
+func (jd *Job) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -221,7 +221,7 @@ func (jd *Job) UpdateOne(pool *repository.Pool, ctx context.Context) (int, error
 	return res.RowsAffected(), nil
 }
 
-func (jd *Job) DeleteOne(pool *repository.Pool, ctx context.Context) (int, error) {
+func (jd *Job) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

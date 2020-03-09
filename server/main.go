@@ -6,7 +6,7 @@ import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/process"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
 	"log"
@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	pool, err := repository.NewPool(repository.CreateConnection, repository.MaxConnections)
+	pool, err := migrations.NewPool(migrations.CreateConnection, migrations.MaxConnections)
 	misc.CheckErr(err)
 
 	// Setup logging

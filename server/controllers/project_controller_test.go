@@ -4,7 +4,7 @@ import (
 	"context"
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +26,7 @@ var (
 var projectController = ProjectController{}
 
 func TestProjectController_CreateOne(t *testing.T) {
-	projectsPool, err := repository.NewPool(repository.CreateConnection, 1)
+	projectsPool, err := migrations.NewPool(migrations.CreateConnection, 1)
 	misc.CheckErr(err)
 	projectController.Pool = *projectsPool
 

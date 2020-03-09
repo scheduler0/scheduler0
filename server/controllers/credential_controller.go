@@ -3,14 +3,14 @@ package controllers
 import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"cron-server/server/service"
 	"io/ioutil"
 	"net/http"
 )
 
 type CredentialController struct {
-	Pool repository.Pool
+	Pool migrations.Pool
 }
 
 func (cc *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request) {

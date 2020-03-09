@@ -2,7 +2,7 @@ package models
 
 import (
 	"context"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
@@ -23,7 +23,7 @@ func (exec *Execution) SetId(id string) {
 	exec.ID = id
 }
 
-func (exec *Execution) CreateOne(pool *repository.Pool, ctx context.Context) (string, error) {
+func (exec *Execution) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -50,7 +50,7 @@ func (exec *Execution) CreateOne(pool *repository.Pool, ctx context.Context) (st
 	return exec.ID, nil
 }
 
-func (exec *Execution) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (exec *Execution) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -79,7 +79,7 @@ func (exec *Execution) GetOne(pool *repository.Pool, ctx context.Context, query 
 	return count, nil
 }
 
-func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (exec *Execution) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -124,7 +124,7 @@ func (exec *Execution) GetAll(pool *repository.Pool, ctx context.Context, query 
 	return count, results, nil
 }
 
-func (exec *Execution) UpdateOne(pool *repository.Pool, ctx context.Context) (int, error) {
+func (exec *Execution) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -145,7 +145,7 @@ func (exec *Execution) UpdateOne(pool *repository.Pool, ctx context.Context) (in
 	return res.RowsAffected(), nil
 }
 
-func (exec *Execution) DeleteOne(pool *repository.Pool, ctx context.Context) (int, error) {
+func (exec *Execution) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

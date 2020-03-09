@@ -3,7 +3,7 @@ package controllers
 import (
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,7 +11,7 @@ import (
 )
 
 type JobController struct {
-	Pool repository.Pool
+	Pool migrations.Pool
 }
 
 var basicJobController = BasicController{model: models.Job{}}

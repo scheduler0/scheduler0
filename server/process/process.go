@@ -4,7 +4,7 @@ import (
 	"context"
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
@@ -19,7 +19,7 @@ import (
 var psgc = misc.GetPostgresCredentials()
 
 // Start the cron job process
-func Start(pool *repository.Pool) {
+func Start(pool *migrations.Pool) {
 	for {
 		ctx := context.Background()
 		jobsToExecute, otherJobs := getJobs(ctx, pool)
@@ -30,7 +30,7 @@ func Start(pool *repository.Pool) {
 	}
 }
 
-func getJobs(ctx context.Context, pool *repository.Pool) (executions []models.Job, others []models.Job) {
+func getJobs(ctx context.Context, pool *migrations.Pool) (executions []models.Job, others []models.Job) {
 	// Infinite loops that queries the database every minute
 	conn, err := pool.Acquire()
 	misc.CheckErr(err)
@@ -72,7 +72,7 @@ func getJobs(ctx context.Context, pool *repository.Pool) (executions []models.Jo
 	return jobsToExecute, otherJobs
 }
 
-func executeJobs(ctx context.Context, jobs []models.Job, pool *repository.Pool) {
+func executeJobs(ctx context.Context, jobs []models.Job, pool *migrations.Pool) {
 	for _, jb := range jobs {
 		if len(jb.CallbackUrl) > 1 {
 			go func(job models.Job) {
@@ -124,7 +124,7 @@ func executeJobs(ctx context.Context, jobs []models.Job, pool *repository.Pool) 
 	}
 }
 
-func updateMissedJobs(ctx context.Context, jobs []models.Job, pool *repository.Pool) {
+func updateMissedJobs(ctx context.Context, jobs []models.Job, pool *migrations.Pool) {
 	for i := 0; i < len(jobs); i++ {
 		go func(jb models.Job) {
 			schedule, err := cron.ParseStandard(jb.CronSpec)

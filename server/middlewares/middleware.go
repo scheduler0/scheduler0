@@ -4,7 +4,7 @@ import (
 	"context"
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"crypto/subtle"
 	"github.com/segmentio/ksuid"
 	"net/http"
@@ -30,7 +30,7 @@ func (m *MiddlewareType) ContextMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (_ *MiddlewareType) AuthMiddleware(pool *repository.Pool) func(next http.Handler) http.Handler {
+func (_ *MiddlewareType) AuthMiddleware(pool *migrations.Pool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			credential := models.Credential{}

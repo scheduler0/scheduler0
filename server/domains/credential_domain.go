@@ -1,11 +1,10 @@
-package models
+package domains
 
 import (
 	"context"
-	"cron-server/server/repository"
+	"cron-server/server/migrations"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/go-pg/pg"
@@ -13,18 +12,14 @@ import (
 	"time"
 )
 
-type Credential struct {
+type CredentialDomain struct {
 	ID                      string    `json:"id" pg:",notnull"`
 	ApiKey                  string    `json:"api_key" pg:",notnull"`
 	HTTPReferrerRestriction string    `json:"http_referrer_restriction" pg:",notnull"`
 	DateCreated             time.Time `json:"date_created" pg:",notnull"`
 }
 
-func (c *Credential) SetId(id string) {
-	c.ID = id
-}
-
-func (c *Credential) CreateOne(pool *repository.Pool, ctx *context.Context) (string, error) {
+func (c *CredentialDomain) CreateOne(pool *migrations.Pool, ctx *context.Context) (string, error) {
 	if len(c.HTTPReferrerRestriction) < 1 {
 		return "", errors.New("credential should have at least one restriction set")
 	}
@@ -51,7 +46,7 @@ func (c *Credential) CreateOne(pool *repository.Pool, ctx *context.Context) (str
 	}
 }
 
-func (c *Credential) GetOne(pool *repository.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (c *CredentialDomain) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -80,7 +75,7 @@ func (c *Credential) GetOne(pool *repository.Pool, ctx context.Context, query st
 	return count, nil
 }
 
-func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (c *CredentialDomain) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -88,7 +83,7 @@ func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query st
 		return 0, []interface{}{}, err
 	}
 
-	var credentials []Credential
+	var credentials []CredentialDomain
 
 	db := conn.(*pg.DB)
 
@@ -129,7 +124,7 @@ func (c *Credential) GetAll(pool *repository.Pool, ctx context.Context, query st
 	return count, results, nil
 }
 
-func (c *Credential) UpdateOne(pool *repository.Pool, ctx context.Context) (int, error) {
+func (c *CredentialDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -138,7 +133,7 @@ func (c *Credential) UpdateOne(pool *repository.Pool, ctx context.Context) (int,
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var credentialPlaceholder Credential
+	var credentialPlaceholder CredentialDomain
 	credentialPlaceholder.ID = c.ID
 	_, err = credentialPlaceholder.GetOne(pool, ctx, "id = ?", credentialPlaceholder.ID)
 	if err != nil {
@@ -161,7 +156,7 @@ func (c *Credential) UpdateOne(pool *repository.Pool, ctx context.Context) (int,
 	return res.RowsAffected(), nil
 }
 
-func (c *Credential) DeleteOne(pool *repository.Pool, ctx context.Context) (int, error) {
+func (c *CredentialDomain) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
@@ -169,7 +164,7 @@ func (c *Credential) DeleteOne(pool *repository.Pool, ctx context.Context) (int,
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var credentials []Credential
+	var credentials []CredentialDomain
 
 	err = db.Model(&credentials).Where("id != ?", "null").Select()
 	if err != nil {
@@ -187,23 +182,4 @@ func (c *Credential) DeleteOne(pool *repository.Pool, ctx context.Context) (int,
 	}
 
 	return r.RowsAffected(), nil
-}
-
-func (c *Credential) SearchToQuery([][]string) (string, []string) {
-	return "api_key != ?", []string{"null"}
-}
-
-func (c *Credential) ToJson() ([]byte, error) {
-	if data, err := json.Marshal(c); err != nil {
-		return data, err
-	} else {
-		return data, nil
-	}
-}
-
-func (c *Credential) FromJson(body []byte) error {
-	if err := json.Unmarshal(body, &c); err != nil {
-		return err
-	}
-	return nil
 }
