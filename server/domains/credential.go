@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
 	"time"
@@ -46,7 +45,7 @@ func (c *CredentialDomain) CreateOne(pool *migrations.Pool, ctx *context.Context
 	}
 }
 
-func (c *CredentialDomain) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (c *CredentialDomain) GetOne(pool *migrations.Pool, ctx *context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -56,7 +55,7 @@ func (c *CredentialDomain) GetOne(pool *migrations.Pool, ctx context.Context, qu
 
 	db := conn.(*pg.DB)
 
-	baseQuery := db.Model(c).Where(query, params)
+	baseQuery := db.Model(c)
 
 	count, err := baseQuery.Count()
 	if count < 1 {
@@ -67,7 +66,7 @@ func (c *CredentialDomain) GetOne(pool *migrations.Pool, ctx context.Context, qu
 		return count, err
 	}
 
-	err = baseQuery.Select()
+	err = baseQuery.Select(&c)
 	if err != nil {
 		return count, err
 	}
@@ -75,56 +74,32 @@ func (c *CredentialDomain) GetOne(pool *migrations.Pool, ctx context.Context, qu
 	return count, nil
 }
 
-func (c *CredentialDomain) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (c *CredentialDomain) GetAll(pool *migrations.Pool, offset int, limit int, orderBy string) ([]CredentialDomain, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
 	if err != nil {
-		return 0, []interface{}{}, err
+		return []CredentialDomain{}, err
 	}
 
-	var credentials []CredentialDomain
+	credentials := []CredentialDomain{{}}
 
 	db := conn.(*pg.DB)
 
-	queryParameters := make([]interface{}, len(params))
-
-	for i := 0; i < len(params); i++ {
-		queryParameters[i] = params[i]
-	}
-
-	fmt.Println("query, values", query)
-	fmt.Println("queryParameters", queryParameters)
-	
-	baseQuery := db.Model(&credentials).Where(query, queryParameters...)
-
-	count, err := baseQuery.Count()
-	if err != nil {
-		return 0, []interface{}{}, err
-	}
-
-	fmt.Println("count", count)
-
-	err = baseQuery.
+	err = db.Model(&credentials).
 		Order(orderBy).
 		Offset(offset).
 		Limit(limit).
 		Select()
 
 	if err != nil {
-		return 0, []interface{}{}, err
+		return nil, err
 	}
 
-	var results = make([]interface{}, len(credentials))
-
-	for i := 0; i < len(credentials); i++ {
-		results[i] = credentials[i]
-	}
-
-	return count, results, nil
+	return credentials, nil
 }
 
-func (c *CredentialDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (c *CredentialDomain) UpdateOne(pool *migrations.Pool, ctx *context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -135,7 +110,7 @@ func (c *CredentialDomain) UpdateOne(pool *migrations.Pool, ctx context.Context)
 
 	var credentialPlaceholder CredentialDomain
 	credentialPlaceholder.ID = c.ID
-	_, err = credentialPlaceholder.GetOne(pool, ctx, "id = ?", credentialPlaceholder.ID)
+	_, err = credentialPlaceholder.GetOne(pool, ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -156,7 +131,7 @@ func (c *CredentialDomain) UpdateOne(pool *migrations.Pool, ctx context.Context)
 	return res.RowsAffected(), nil
 }
 
-func (c *CredentialDomain) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (c *CredentialDomain) DeleteOne(pool *migrations.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

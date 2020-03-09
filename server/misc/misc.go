@@ -147,22 +147,13 @@ func GetRequestParam(r *http.Request, paramName string, paramPos int) (string, e
 
 
 // TODO: Make this return a map instead of a list
-func GetRequestQueryString(query string) [][]string {
+func GetRequestQueryString(query string) map[string]string {
 	pairs := strings.Split(query, "&")
-	params := make([][]string, len(pairs))
-	x := 0
+	params := make(map[string]string, len(pairs))
 
 	for i := 0; i < len(pairs); i++ {
-		kv := strings.Split(pairs[i], "=")
-		if len(kv) == 2 {
-			params[x] = []string{kv[0], kv[1]}
-			x++
-		}
-
-		if len(kv) == 1 {
-			params[x] = []string{kv[0], ""}
-			x++
-		}
+		ketValuePair := strings.Split(pairs[i], "=")
+		params[ketValuePair[0]] = ketValuePair[1]
 	}
 
 	return params

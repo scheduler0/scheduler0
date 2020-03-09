@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"cron-server/server/misc"
-	"cron-server/server/models"
+	"cron-server/server/dtos"
 	"cron-server/server/migrations"
+	"cron-server/server/misc"
 	"cron-server/server/service"
 	"io/ioutil"
 	"net/http"
@@ -21,14 +21,15 @@ func (cc *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request
 		misc.SendJson(w, "request body required", false, http.StatusBadRequest, nil)
 	}
 
-	var credentialBody models.Credential
+	credentialBody := dtos.CredentialDto{}
 
 	err = credentialBody.FromJson(body)
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
 	}
 
-	var credentialService = service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
+	credentialService := service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
+
 	if newCredentialID, err := credentialService.CreateNewCredential(credentialBody.HTTPReferrerRestriction); err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusTeapot, nil)
 	} else {
@@ -37,6 +38,22 @@ func (cc *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request
 }
 
 func (cc *CredentialController) GetOne(w http.ResponseWriter, r *http.Request) {
+	id, err := misc.GetRequestParam(r, "id", 2)
+
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
+	}
+
+	credentialService := service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
+	credential, err := credentialService.FindOneCredentialByID(id)
+
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
+		return
+	}
+
+	misc.SendJson(w, credential, true, http.StatusOK, nil)
 }
 
 func (cc *CredentialController) UpdateOne(w http.ResponseWriter, r *http.Request) {

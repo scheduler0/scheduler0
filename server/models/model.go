@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"cron-server/server/domains"
 	"cron-server/server/misc"
 	"cron-server/server/migrations"
 	"github.com/go-pg/pg"
@@ -35,7 +36,7 @@ func Setup(pool *migrations.Pool) {
 	for _, model := range []interface{}{
 		(*Job)(nil),
 		(*Project)(nil),
-		(*Credential)(nil),
+		(*domains.CredentialDomain)(nil),
 		(*Execution)(nil),
 	} {
 		err := db.CreateTable(model, &orm.CreateTableOptions{IfNotExists: true})
@@ -66,7 +67,7 @@ func Setup(pool *migrations.Pool) {
 		misc.CheckErr(err)
 	}
 
-	var c = Credential{}
+	var c = domains.CredentialDomain{}
 	var ctx = context.Background()
 
 	_, err = c.GetOne(pool, ctx, "date_created < ?", []string{"now()" })

@@ -34,3 +34,9 @@ func (c *CredentialDto) ToDomain() domains.CredentialDomain {
 	credential := domains.CredentialDomain{ ID: c.ID, ApiKey: c.ApiKey, HTTPReferrerRestriction: c.HTTPReferrerRestriction }
 	return credential
 }
+
+func (c *CredentialDto) FromDomain(credentialDomain domains.CredentialDomain) {
+	c.ID = credentialDomain.ID
+	c.ApiKey = credentialDomain.ApiKey
+	c.HTTPReferrerRestriction = credentialDomain.HTTPReferrerRestriction
+}
