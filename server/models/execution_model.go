@@ -15,7 +15,7 @@ type Execution struct {
 	StatusCode  string    `json:"status_code"`
 	Timeout     uint64    `json:"timeout"`
 	Response    string    `json:"response"`
-	Token    	string    `json:"token"`
+	Token       string    `json:"token"`
 	DateCreated time.Time `json:"date_created"`
 }
 
@@ -59,7 +59,7 @@ func (exec *Execution) GetOne(pool *migrations.Pool, ctx context.Context, query 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	baseQuery :=  db.Model(&exec).Where(query, params)
+	baseQuery := db.Model(&exec).Where(query, params)
 
 	count, err := baseQuery.Count()
 	if count < 1 {

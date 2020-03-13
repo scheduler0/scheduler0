@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"cron-server/server/models"
 	"cron-server/server/migrations"
+	"cron-server/server/models"
 	"net/http"
 )
 

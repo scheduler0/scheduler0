@@ -3,10 +3,10 @@ package main
 import (
 	"cron-server/server/controllers"
 	"cron-server/server/middlewares"
+	"cron-server/server/migrations"
 	"cron-server/server/misc"
 	"cron-server/server/models"
 	"cron-server/server/process"
-	"cron-server/server/migrations"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
 	"log"

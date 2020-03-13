@@ -2,8 +2,8 @@ package models
 
 import (
 	"context"
-	"cron-server/server/misc"
 	"cron-server/server/migrations"
+	"cron-server/server/misc"
 	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"

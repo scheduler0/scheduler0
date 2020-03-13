@@ -12,16 +12,16 @@ type CredentialService struct {
 	Ctx  context.Context
 }
 
-func (credentialService *CredentialService) CreateNewCredential (HTTPReferrerRestriction string) (string, error) {
-	credentialDto := dtos.CredentialDto{ HTTPReferrerRestriction: HTTPReferrerRestriction }
+func (credentialService *CredentialService) CreateNewCredential(HTTPReferrerRestriction string) (string, error) {
+	credentialDto := dtos.CredentialDto{HTTPReferrerRestriction: HTTPReferrerRestriction}
 	credentialDomain := credentialDto.ToDomain()
 	return credentialDomain.CreateOne(&credentialService.Pool, &credentialService.Ctx)
 }
 
-func (credentialService *CredentialService) FindOneCredentialByID (ID string) (*dtos.CredentialDto, error) {
-	credentialDto := dtos.CredentialDto{ ID: ID }
+func (credentialService *CredentialService) FindOneCredentialByID(ID string) (*dtos.CredentialDto, error) {
+	credentialDto := dtos.CredentialDto{ID: ID}
 	credentialDomain := credentialDto.ToDomain()
-	if _, err := credentialDomain.GetOne(&credentialService.Pool, &credentialService.Ctx);  err != nil {
+	if _, err := credentialDomain.GetOne(&credentialService.Pool, &credentialService.Ctx); err != nil {
 		return nil, err
 	} else {
 		outboundDto := dtos.CredentialDto{}
@@ -30,10 +30,10 @@ func (credentialService *CredentialService) FindOneCredentialByID (ID string) (*
 	}
 }
 
-func (credentialService *CredentialService) UpdateOneCredential (ID string) (*dtos.CredentialDto, error) {
-	credentialDto := dtos.CredentialDto{ ID: ID }
+func (credentialService *CredentialService) UpdateOneCredential(ID string) (*dtos.CredentialDto, error) {
+	credentialDto := dtos.CredentialDto{ID: ID}
 	credentialDomain := credentialDto.ToDomain()
-	if _, err := credentialDomain.UpdateOne(&credentialService.Pool, &credentialService.Ctx);  err != nil {
+	if _, err := credentialDomain.UpdateOne(&credentialService.Pool, &credentialService.Ctx); err != nil {
 		return nil, err
 	} else {
 		outboundDto := dtos.CredentialDto{}
@@ -42,10 +42,10 @@ func (credentialService *CredentialService) UpdateOneCredential (ID string) (*dt
 	}
 }
 
-func (credentialService *CredentialService) DeleteOneCredential (ID string) (*dtos.CredentialDto, error) {
-	credentialDto := dtos.CredentialDto{ ID: ID }
+func (credentialService *CredentialService) DeleteOneCredential(ID string) (*dtos.CredentialDto, error) {
+	credentialDto := dtos.CredentialDto{ID: ID}
 	credentialDomain := credentialDto.ToDomain()
-	if _, err := credentialDomain.DeleteOne(&credentialService.Pool);  err != nil {
+	if _, err := credentialDomain.DeleteOne(&credentialService.Pool); err != nil {
 		return nil, err
 	} else {
 		outboundDto := dtos.CredentialDto{}
@@ -54,8 +54,7 @@ func (credentialService *CredentialService) DeleteOneCredential (ID string) (*dt
 	}
 }
 
-
-func (credentialService *CredentialService) ListCredentials (offset int, limit int, orderBy string) ([]dtos.CredentialDto, error) {
+func (credentialService *CredentialService) ListCredentials(offset int, limit int, orderBy string) ([]dtos.CredentialDto, error) {
 	credentialDomain := domains.CredentialDomain{}
 	if credentials, err := credentialDomain.GetAll(&credentialService.Pool, offset, limit, orderBy); err != nil {
 		return nil, err

@@ -1,9 +1,9 @@
 package controllers
 
 import (
+	"cron-server/server/migrations"
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/migrations"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -126,9 +126,9 @@ func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request
 	}
 
 	var Response = struct {
-		data []interface{}
+		data  []interface{}
 		count int
-	}{ data: data, count:count }
+	}{data: data, count: count}
 
 	misc.SendJson(w, Response, true, http.StatusOK, nil)
 }

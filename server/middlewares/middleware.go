@@ -2,9 +2,9 @@ package middlewares
 
 import (
 	"context"
+	"cron-server/server/migrations"
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/migrations"
 	"crypto/subtle"
 	"github.com/segmentio/ksuid"
 	"net/http"
@@ -57,7 +57,6 @@ func (_ *MiddlewareType) AuthMiddleware(pool *migrations.Pool) func(next http.Ha
 			}
 
 			var restrictedPaths = strings.Join([]string{"credentials", "projects", "executions"}, ",")
-
 
 			if !passBasicAuth && strings.Contains(restrictedPaths, strings.ToLower(paths[1])) {
 				misc.SendJson(w, paths[1]+" are not available", false, http.StatusUnauthorized, nil)

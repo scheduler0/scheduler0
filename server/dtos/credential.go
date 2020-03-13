@@ -6,9 +6,9 @@ import (
 )
 
 type CredentialDto struct {
-	ID                      string    `json:"id" pg:",notnull"`
-	ApiKey                  string    `json:"api_key" pg:",notnull"`
-	HTTPReferrerRestriction string    `json:"http_referrer_restriction" pg:",notnull"`
+	ID                      string `json:"id" pg:",notnull"`
+	ApiKey                  string `json:"api_key" pg:",notnull"`
+	HTTPReferrerRestriction string `json:"http_referrer_restriction" pg:",notnull"`
 }
 
 func (c *CredentialDto) SearchToQuery([][]string) (string, []string) {
@@ -31,7 +31,7 @@ func (c *CredentialDto) FromJson(body []byte) error {
 }
 
 func (c *CredentialDto) ToDomain() domains.CredentialDomain {
-	credential := domains.CredentialDomain{ ID: c.ID, ApiKey: c.ApiKey, HTTPReferrerRestriction: c.HTTPReferrerRestriction }
+	credential := domains.CredentialDomain{ID: c.ID, ApiKey: c.ApiKey, HTTPReferrerRestriction: c.HTTPReferrerRestriction}
 	return credential
 }
 

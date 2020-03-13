@@ -31,7 +31,7 @@ func (cc *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request
 		misc.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
 	}
 
-	credentialService := service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
+	credentialService := service.CredentialService{Pool: cc.Pool, Ctx: r.Context()}
 
 	if newCredentialID, err := credentialService.CreateNewCredential(credentialBody.HTTPReferrerRestriction); err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusTeapot, nil)
@@ -43,12 +43,11 @@ func (cc *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request
 func (cc *CredentialController) GetOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
-	credentialService := service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
+	credentialService := service.CredentialService{Pool: cc.Pool, Ctx: r.Context()}
 	credential, err := credentialService.FindOneCredentialByID(params["id"])
 
 	if err != nil {
-		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
-		return
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 	} else {
 		misc.SendJson(w, credential, true, http.StatusOK, nil)
 	}
@@ -57,12 +56,11 @@ func (cc *CredentialController) GetOne(w http.ResponseWriter, r *http.Request) {
 func (cc *CredentialController) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
-	credentialService := service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
+	credentialService := service.CredentialService{Pool: cc.Pool, Ctx: r.Context()}
 	credential, err := credentialService.UpdateOneCredential(params["id"])
 
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
-		return
 	} else {
 		misc.SendJson(w, credential, true, http.StatusOK, nil)
 	}
@@ -70,11 +68,10 @@ func (cc *CredentialController) UpdateOne(w http.ResponseWriter, r *http.Request
 
 func (cc *CredentialController) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
-	credentialService := service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
+	credentialService := service.CredentialService{Pool: cc.Pool, Ctx: r.Context()}
 	credential, err := credentialService.DeleteOneCredential(params["id"])
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
-		return
 	} else {
 		misc.SendJson(w, credential, true, http.StatusOK, nil)
 	}
@@ -82,7 +79,7 @@ func (cc *CredentialController) DeleteOne(w http.ResponseWriter, r *http.Request
 
 func (cc *CredentialController) ListAll(w http.ResponseWriter, r *http.Request) {
 	queryParams := misc.GetRequestQueryString(r.URL.RawQuery)
-	credentialService := service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
+	credentialService := service.CredentialService{Pool: cc.Pool, Ctx: r.Context()}
 
 	offset := 0
 	limit := 0
@@ -108,9 +105,9 @@ func (cc *CredentialController) ListAll(w http.ResponseWriter, r *http.Request) 
 	}
 
 	credentials, err := credentialService.ListCredentials(offset, limit, orderBy)
+
 	if err != nil {
-		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
-		return
+		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 	} else {
 		misc.SendJson(w, credentials, true, http.StatusOK, nil)
 	}

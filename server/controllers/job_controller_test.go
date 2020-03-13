@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"context"
+	"cron-server/server/migrations"
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/migrations"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"

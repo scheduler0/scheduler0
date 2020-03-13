@@ -141,7 +141,7 @@ func (p *Project) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, er
 	savedProject := Project{ID: p.ID}
 
 	_, err = savedProject.GetOne(pool, ctx, "id = ?", savedProject.ID)
-	if  err != nil {
+	if err != nil {
 		return 0, err
 	}
 
@@ -159,7 +159,7 @@ func (p *Project) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, er
 
 		fmt.Println("projectWithSimilarName", projectWithSimilarName, err, c)
 
-		if  err != nil {
+		if err != nil {
 			return 0, err
 		}
 

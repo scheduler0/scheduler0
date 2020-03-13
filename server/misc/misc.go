@@ -145,7 +145,6 @@ func GetRequestParam(r *http.Request, paramName string, paramPos int) (string, e
 	return param, nil
 }
 
-
 // TODO: Make this return a map instead of a list
 func GetRequestQueryString(query string) map[string]string {
 	pairs := strings.Split(query, "&")

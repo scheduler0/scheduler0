@@ -1,9 +1,9 @@
 package controllers
 
 import (
+	"cron-server/server/migrations"
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/migrations"
 	"io/ioutil"
 	"net/http"
 )

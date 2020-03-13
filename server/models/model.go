@@ -3,8 +3,8 @@ package models
 import (
 	"context"
 	"cron-server/server/domains"
-	"cron-server/server/misc"
 	"cron-server/server/migrations"
+	"cron-server/server/misc"
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
 	"io/ioutil"
@@ -70,13 +70,15 @@ func Setup(pool *migrations.Pool) {
 	var c = domains.CredentialDomain{}
 	var ctx = context.Background()
 
-	_, err = c.GetOne(pool, ctx, "date_created < ?", []string{"now()" })
+	// TODO: Fix syntax error
+	_, err = c.GetOne(pool, ctx, "date_created < ?", []string{"now()"})
 	if err != nil {
 		misc.CheckErr(err)
 	}
 
 	if len(c.ID) < 1 {
 		c.HTTPReferrerRestriction = "*"
+		// TODO: Fix syntax error
 		_, err = c.CreateOne(pool, ctx)
 		log.Println("Created default credentials")
 		if err != nil {

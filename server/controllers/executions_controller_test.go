@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"cron-server/server/misc"
 	"cron-server/server/migrations"
+	"cron-server/server/misc"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"

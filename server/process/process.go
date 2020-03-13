@@ -2,9 +2,9 @@ package process
 
 import (
 	"context"
+	"cron-server/server/migrations"
 	"cron-server/server/misc"
 	"cron-server/server/models"
-	"cron-server/server/migrations"
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
@@ -97,11 +97,11 @@ func executeJobs(ctx context.Context, jobs []models.Job, pool *migrations.Pool) 
 
 				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
 				execution := models.Execution{
-					ID: ksuid.New().String(),
-					JobId: job.ID,
-					Timeout: timeout,
-					Response: response,
-					StatusCode: string(statusCode),
+					ID:          ksuid.New().String(),
+					JobId:       job.ID,
+					Timeout:     timeout,
+					Response:    response,
+					StatusCode:  string(statusCode),
 					DateCreated: time.Now().UTC(),
 				}
 
