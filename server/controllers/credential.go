@@ -7,7 +7,9 @@ import (
 	"cron-server/server/service"
 	"github.com/gorilla/mux"
 	"io/ioutil"
+	"math"
 	"net/http"
+	"strconv"
 )
 
 type CredentialController struct {
@@ -78,9 +80,34 @@ func (cc *CredentialController) DeleteOne(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (cc *CredentialController) List(w http.ResponseWriter, r *http.Request) {
+func (cc *CredentialController) ListAll(w http.ResponseWriter, r *http.Request) {
+	queryParams := misc.GetRequestQueryString(r.URL.RawQuery)
 	credentialService := service.CredentialService{ Pool: cc.Pool, Ctx: r.Context() }
-	credentials, err := credentialService.ListCredentials()
+
+	offset := 0
+	limit := 0
+
+	orderBy := "date_created DESC" // TODO: Extract orderBy from query params
+
+	for i := 0; i < len(queryParams); i++ {
+		if offsetInQueryString, ok := queryParams["offset"]; ok {
+			if offsetInt, err := strconv.Atoi(offsetInQueryString); err != nil {
+				misc.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
+			} else {
+				offset = offsetInt
+			}
+		}
+
+		if limitInQueryString, ok := queryParams["limit"]; ok {
+			if limitInt, err := strconv.Atoi(limitInQueryString); err != nil {
+				misc.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
+			} else {
+				limit = int(math.Min(float64(limit), float64(limitInt)))
+			}
+		}
+	}
+
+	credentials, err := credentialService.ListCredentials(offset, limit, orderBy)
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
 		return

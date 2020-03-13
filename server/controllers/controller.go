@@ -5,6 +5,7 @@ import (
 	"cron-server/server/models"
 	"cron-server/server/migrations"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -92,41 +93,33 @@ func (controller *BasicController) GetOne(w http.ResponseWriter, r *http.Request
 }
 
 func (controller *BasicController) GetAll(w http.ResponseWriter, r *http.Request, pool migrations.Pool) {
-	var model = controller.GetModel()
-	var queryParams = misc.GetRequestQueryString(r.URL.RawQuery)
-	var query, values = model.SearchToQuery(queryParams)
+	model := controller.GetModel()
+	queryParams := misc.GetRequestQueryString(r.URL.RawQuery)
 
-	var offset = 0
-	var limit = 10
+	offset := 0
+	limit := 100 // Also, the max
 
-	var orderBy = "date_created DESC"
+	orderBy := "date_created DESC"
 
 	for i := 0; i < len(queryParams); i++ {
-		if queryParams[i][0] == "offset" {
-			offsetQ, err := strconv.Atoi(queryParams[i][1])
-			if err != nil {
-				misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		if offsetInQueryString, ok := queryParams["offset"]; ok {
+			if offsetInt, err := strconv.Atoi(offsetInQueryString); err != nil {
+				misc.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
+			} else {
+				offset = offsetInt
 			}
-
-			offset = offsetQ
 		}
 
-		if queryParams[i][0] == "limit" {
-			limitQ, err := strconv.Atoi(queryParams[i][1])
-			if err != nil {
-				misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		if limitInQueryString, ok := queryParams["limit"]; ok {
+			if limitInt, err := strconv.Atoi(limitInQueryString); err != nil {
+				misc.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
+			} else {
+				limit = int(math.Min(float64(limit), float64(limitInt)))
 			}
-
-			limit = limitQ
 		}
 	}
 
-	if len(query) < 1 {
-		misc.SendJson(w, "no valid query params", false, http.StatusBadRequest, nil)
-		return
-	}
-
-	count, data, err := model.GetAll(&pool, r.Context(), query, offset, limit, orderBy, values...)
+	count, data, err := model.GetAll(&pool, r.Context(), offset, limit, orderBy, values...)
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
