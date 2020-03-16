@@ -100,6 +100,7 @@ func (cc *CredentialController) ListAll(w http.ResponseWriter, r *http.Request) 
 				misc.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
 			} else {
 				limit = int(math.Min(float64(limit), float64(limitInt)))
+
 			}
 		}
 	}

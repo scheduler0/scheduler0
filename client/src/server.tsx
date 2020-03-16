@@ -57,6 +57,7 @@ app.use(morgan("combined"));
 app.use(bodyParser.json());
 
 app.get("(/|/projects|/jobs|/credentials)", async (req, res) => {
+    // TODO: Only make fetch page user is visiting
     const fetchExecutions = axiosInstance.get(`${API_ENDPOINT}/executions`);
     const fetchCredentials = axiosInstance.get(`${API_ENDPOINT}/credentials`);
     const fetchProjects = axiosInstance.get(`${API_ENDPOINT}/projects`);
