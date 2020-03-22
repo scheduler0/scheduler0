@@ -2,9 +2,9 @@ package middlewares
 
 import (
 	"context"
+	"cron-server/server/domains"
 	"cron-server/server/migrations"
 	"cron-server/server/misc"
-	"cron-server/server/models"
 	"crypto/subtle"
 	"github.com/segmentio/ksuid"
 	"net/http"
@@ -33,7 +33,7 @@ func (m *MiddlewareType) ContextMiddleware(next http.Handler) http.Handler {
 func (_ *MiddlewareType) AuthMiddleware(pool *migrations.Pool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			credential := models.Credential{}
+			credential := domains.CredentialDomain{}
 
 			username, password := misc.GetAuthentication()
 			user, pass, passBasicAuth := r.BasicAuth()
@@ -63,7 +63,7 @@ func (_ *MiddlewareType) AuthMiddleware(pool *migrations.Pool) func(next http.Ha
 				return
 			}
 
-			c, _ := credential.GetOne(pool, r.Context(), "api_key = ?", token)
+			c, _ := credential.GetOne(pool, r.Context())
 			if !passBasicAuth && c < 1 {
 				misc.SendJson(w, "credential does not exits", false, http.StatusUnauthorized, nil)
 				return

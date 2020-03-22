@@ -1,15 +1,14 @@
-package models
+package domains
 
 import (
 	"context"
 	"cron-server/server/migrations"
-	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
 	"time"
 )
 
-type Execution struct {
+type ExecutionDomain struct {
 	ID          string    `json:"id"`
 	JobId       string    `json:"job_id"`
 	StatusCode  string    `json:"status_code"`
@@ -19,11 +18,7 @@ type Execution struct {
 	DateCreated time.Time `json:"date_created"`
 }
 
-func (exec *Execution) SetId(id string) {
-	exec.ID = id
-}
-
-func (exec *Execution) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
+func (exec *ExecutionDomain) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -37,7 +32,7 @@ func (exec *Execution) CreateOne(pool *migrations.Pool, ctx context.Context) (st
 		return "", err
 	}
 
-	jobWithId := Job{ID: exec.JobId}
+	jobWithId := JobDomain{ID: exec.JobId}
 
 	if _, err := jobWithId.GetOne(pool, ctx, "id = ?", exec.JobId); err != nil {
 		return "", errors.New("job with id does not exist")
@@ -50,7 +45,7 @@ func (exec *Execution) CreateOne(pool *migrations.Pool, ctx context.Context) (st
 	return exec.ID, nil
 }
 
-func (exec *Execution) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (exec *ExecutionDomain) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -79,7 +74,7 @@ func (exec *Execution) GetOne(pool *migrations.Pool, ctx context.Context, query 
 	return count, nil
 }
 
-func (exec *Execution) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (exec *ExecutionDomain) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -94,7 +89,7 @@ func (exec *Execution) GetAll(pool *migrations.Pool, ctx context.Context, query 
 		ip[i] = params[i]
 	}
 
-	var execs []Execution
+	var execs []ExecutionDomain
 
 	baseQuery := db.
 		Model(&execs).
@@ -124,7 +119,7 @@ func (exec *Execution) GetAll(pool *migrations.Pool, ctx context.Context, query 
 	return count, results, nil
 }
 
-func (exec *Execution) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (exec *ExecutionDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -132,7 +127,7 @@ func (exec *Execution) UpdateOne(pool *migrations.Pool, ctx context.Context) (in
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var execPlaceholder Execution
+	var execPlaceholder ExecutionDomain
 	execPlaceholder.ID = exec.ID
 
 	_, err = execPlaceholder.GetOne(pool, ctx, "id = ?", execPlaceholder.ID)
@@ -145,7 +140,7 @@ func (exec *Execution) UpdateOne(pool *migrations.Pool, ctx context.Context) (in
 	return res.RowsAffected(), nil
 }
 
-func (exec *Execution) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (exec *ExecutionDomain) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
@@ -159,71 +154,4 @@ func (exec *Execution) DeleteOne(pool *migrations.Pool, ctx context.Context) (in
 	}
 
 	return r.RowsAffected(), nil
-}
-
-func (exec *Execution) SearchToQuery(search [][]string) (string, []string) {
-	var queries []string
-	var query string
-	var values []string
-
-	if len(search) < 1 || search[0] == nil {
-		return query, values
-	}
-
-	for i := 0; i < len(search); i++ {
-		if search[i][0] == "created_at" {
-			queries = append(queries, "created_at = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "id" {
-			queries = append(queries, "id = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "job_id" {
-			queries = append(queries, "job_id = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "status_code" {
-			queries = append(queries, "status_code = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "timeout" {
-			queries = append(queries, "timeout = ?")
-			values = append(values, search[i][1])
-		}
-	}
-
-	if len(queries) > 0 {
-		query += " OR " + queries[0]
-
-		for i := 1; i < len(queries); i++ {
-			query = queries[i]
-		}
-	}
-
-	if len(query) < 1 && len(values) < 1 {
-		values = append(values, "null")
-		return "id != ?", values
-	}
-
-	return query, values
-}
-
-func (exec *Execution) ToJson() ([]byte, error) {
-	data, err := json.Marshal(exec)
-	if err != nil {
-		return data, err
-	}
-	return data, nil
-}
-
-func (exec *Execution) FromJson(body []byte) error {
-	if err := json.Unmarshal(body, &exec); err != nil {
-		return err
-	}
-	return nil
 }

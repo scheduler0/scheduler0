@@ -3,7 +3,6 @@ package controllers
 import (
 	"cron-server/server/migrations"
 	"cron-server/server/misc"
-	"cron-server/server/models"
 	"io/ioutil"
 	"net/http"
 )

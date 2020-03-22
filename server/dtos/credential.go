@@ -11,10 +11,6 @@ type CredentialDto struct {
 	HTTPReferrerRestriction string `json:"http_referrer_restriction" pg:",notnull"`
 }
 
-func (c *CredentialDto) SearchToQuery([][]string) (string, []string) {
-	return "api_key != ?", []string{"null"}
-}
-
 func (c *CredentialDto) ToJson() ([]byte, error) {
 	if data, err := json.Marshal(c); err != nil {
 		return data, err

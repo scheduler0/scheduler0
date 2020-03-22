@@ -16,7 +16,7 @@ import (
 
 func TestCredentialController_CreateOne(t *testing.T) {
 	t.Log("Creating A New Credential")
-	{
+		{
 		t.Logf("")
 		{
 			pool, err := migrations.NewPool(migrations.CreateConnection, 1)
@@ -24,7 +24,7 @@ func TestCredentialController_CreateOne(t *testing.T) {
 			misc.CheckErr(err)
 			credentialController.Pool = *pool
 
-			testCredential := dtos.CredentialDto{  HTTPReferrerRestriction: "*" }
+			testCredential := dtos.CredentialDto{HTTPReferrerRestriction: "*"}
 
 			jsonTestCredentialBody, err := testCredential.ToJson()
 			if err != nil {
@@ -38,7 +38,7 @@ func TestCredentialController_CreateOne(t *testing.T) {
 			}
 
 			w := httptest.NewRecorder()
-			credentialController.ListAll(w, req)
+			credentialController.List(w, req)
 
 			body, err := ioutil.ReadAll(w.Body)
 			if err != nil {

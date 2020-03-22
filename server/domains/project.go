@@ -1,9 +1,8 @@
-package models
+package domains
 
 import (
 	"context"
 	"cron-server/server/migrations"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/go-pg/pg"
@@ -12,18 +11,14 @@ import (
 	"time"
 )
 
-type Project struct {
+type ProjectDomain struct {
 	Name        string    `json:"name" pg:",notnull"`
 	Description string    `json:"description" pg:",notnull"`
 	ID          string    `json:"id" pg:",notnull"`
 	DateCreated time.Time `json:"date_created" pg:",notnull"`
 }
 
-func (p *Project) SetId(id string) {
-	p.ID = id
-}
-
-func (p *Project) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
+func (p *ProjectDomain) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -42,7 +37,7 @@ func (p *Project) CreateOne(pool *migrations.Pool, ctx context.Context) (string,
 		return "", err
 	}
 
-	var projectWithName = Project{}
+	var projectWithName = ProjectDomain{}
 	c, e := projectWithName.GetOne(pool, ctx, "name = ?", strings.ToLower(p.Name))
 	if c > 0 && e == nil {
 		err := errors.New("projects exits with the same name")
@@ -62,7 +57,7 @@ func (p *Project) CreateOne(pool *migrations.Pool, ctx context.Context) (string,
 	return p.ID, nil
 }
 
-func (p *Project) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (p *ProjectDomain) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -86,7 +81,7 @@ func (p *Project) GetOne(pool *migrations.Pool, ctx context.Context, query strin
 	return count, nil
 }
 
-func (p *Project) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (p *ProjectDomain) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -101,7 +96,7 @@ func (p *Project) GetAll(pool *migrations.Pool, ctx context.Context, query strin
 		ip[i] = params[i]
 	}
 
-	var projects []Project
+	var projects []ProjectDomain
 
 	baseQuery := db.Model(&projects).Where(query, ip...)
 
@@ -129,7 +124,7 @@ func (p *Project) GetAll(pool *migrations.Pool, ctx context.Context, query strin
 	return count, results, nil
 }
 
-func (p *Project) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (p *ProjectDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -138,7 +133,7 @@ func (p *Project) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, er
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	savedProject := Project{ID: p.ID}
+	savedProject := ProjectDomain{ID: p.ID}
 
 	_, err = savedProject.GetOne(pool, ctx, "id = ?", savedProject.ID)
 	if err != nil {
@@ -153,7 +148,7 @@ func (p *Project) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, er
 
 		fmt.Println("p.Name", p.Name)
 
-		var projectWithSimilarName = Project{}
+		var projectWithSimilarName = ProjectDomain{}
 
 		c, err := projectWithSimilarName.GetOne(pool, ctx, "name = ?", strings.ToLower(p.Name))
 
@@ -178,7 +173,7 @@ func (p *Project) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, er
 	return res.RowsAffected(), nil
 }
 
-func (p *Project) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (p *ProjectDomain) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
@@ -186,7 +181,7 @@ func (p *Project) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, er
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var jobs []Job
+	var jobs []JobDomain
 
 	err = db.Model(&jobs).Where("project_id = ?", p.ID).Select()
 	if err != nil {
@@ -204,61 +199,4 @@ func (p *Project) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, er
 	}
 
 	return r.RowsAffected(), nil
-}
-
-func (p *Project) SearchToQuery(search [][]string) (string, []string) {
-	var queries []string
-	var values []string
-	var query string
-
-	if len(search) < 1 || search[0] == nil {
-		return query, values
-	}
-
-	for i := 0; i < len(search); i++ {
-		if search[i][0] == "id" {
-			queries = append(queries, "id = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "name" {
-			queries = append(queries, "name LIKE ?")
-			values = append(values, "%"+search[i][1]+"%")
-		}
-
-		if search[i][0] == "description" {
-			queries = append(queries, "description LIKE ?")
-			values = append(values, "%"+search[i][1]+"%")
-		}
-	}
-
-	for i := 0; i < len(queries); i++ {
-		if i != 0 {
-			query += " AND " + queries[i]
-		} else {
-			query = queries[i]
-		}
-	}
-
-	if len(query) < 1 && len(values) < 1 {
-		values = append(values, "null")
-		return "id != ?", values
-	}
-
-	return query, values
-}
-
-func (p *Project) ToJson() ([]byte, error) {
-	if data, err := json.Marshal(p); err != nil {
-		return data, err
-	} else {
-		return data, nil
-	}
-}
-
-func (p *Project) FromJson(body []byte) error {
-	if err := json.Unmarshal(body, &p); err != nil {
-		return err
-	}
-	return nil
 }

@@ -2,9 +2,10 @@ package controllers
 
 import (
 	"context"
+	"cron-server/server/domains"
+	"cron-server/server/dtos"
 	"cron-server/server/migrations"
 	"cron-server/server/misc"
-	"cron-server/server/models"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -20,9 +21,9 @@ import (
 
 var (
 	jobController = JobController{}
-	inboundJob    models.InboundJob
-	jobModel      models.Job
-	project       models.Project
+	inboundJob    dtos.JobDto
+	jobModel      domains.JobDomain
+	project       domains.ProjectDomain
 )
 
 func TestJobController_CreateOne(t *testing.T) {
@@ -58,7 +59,7 @@ func TestJobController_CreateOne(t *testing.T) {
 		}
 
 		project.ID = id
-		j1 := models.InboundJob{}
+		j1 := dtos.JobDto{}
 
 		j1.CronSpec = "1 * * * *"
 		j1.ProjectId = id
@@ -110,7 +111,7 @@ func TestJobController_GetAll(t *testing.T) {
 		rc := reflect.New(rt)
 		rc.Elem().Set(rv)
 
-		jobTwoCopy := rc.Interface().(*models.Job)
+		jobTwoCopy := rc.Interface().(*domains.JobDomain)
 
 		if _, err := jobModel.CreateOne(&jobController.Pool, context.Background()); err != nil {
 			t.Fatalf("\t\t Cannot create job two %v", err)

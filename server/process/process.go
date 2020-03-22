@@ -2,9 +2,9 @@ package process
 
 import (
 	"context"
+	"cron-server/server/domains"
 	"cron-server/server/migrations"
 	"cron-server/server/misc"
-	"cron-server/server/models"
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
@@ -30,7 +30,7 @@ func Start(pool *migrations.Pool) {
 	}
 }
 
-func getJobs(ctx context.Context, pool *migrations.Pool) (executions []models.Job, others []models.Job) {
+func getJobs(ctx context.Context, pool *migrations.Pool) (executions []domains.JobDomain, others []domains.JobDomain) {
 	// Infinite loops that queries the database every minute
 	conn, err := pool.Acquire()
 	misc.CheckErr(err)
@@ -38,8 +38,8 @@ func getJobs(ctx context.Context, pool *migrations.Pool) (executions []models.Jo
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var jobsToExecute []models.Job
-	var otherJobs []models.Job
+	var jobsToExecute []domains.JobDomain
+	var otherJobs []domains.JobDomain
 
 	jobsToExecuteQuery := fmt.Sprintf("SELECT * FROM jobs WHERE " +
 		// NextTime Difference in minute
@@ -61,7 +61,7 @@ func getJobs(ctx context.Context, pool *migrations.Pool) (executions []models.Jo
 		"date_part('day', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') * 24 +"+
 		"date_part('hour', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') <> 0 OR "+
 		// NextTime Difference in day
-		"date_part('day', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') <> 0 AND jobs.state != %v AND jobs.total_execs != %v", models.StaleJob, -1)
+		"date_part('day', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') <> 0 AND jobs.state != %v AND jobs.total_execs != %v", domains.StaleJob, -1)
 
 	_, err = db.Query(&jobsToExecute, jobsToExecuteQuery)
 	misc.CheckErr(err)
@@ -72,10 +72,10 @@ func getJobs(ctx context.Context, pool *migrations.Pool) (executions []models.Jo
 	return jobsToExecute, otherJobs
 }
 
-func executeJobs(ctx context.Context, jobs []models.Job, pool *migrations.Pool) {
+func executeJobs(ctx context.Context, jobs []domains.JobDomain, pool *migrations.Pool) {
 	for _, jb := range jobs {
 		if len(jb.CallbackUrl) > 1 {
-			go func(job models.Job) {
+			go func(job domains.JobDomain) {
 				var response string
 				var statusCode int
 
@@ -96,7 +96,7 @@ func executeJobs(ctx context.Context, jobs []models.Job, pool *migrations.Pool) 
 				}
 
 				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
-				execution := models.Execution{
+				execution := domains.ExecutionDomain{
 					ID:          ksuid.New().String(),
 					JobId:       job.ID,
 					Timeout:     timeout,
@@ -113,7 +113,7 @@ func executeJobs(ctx context.Context, jobs []models.Job, pool *migrations.Pool) 
 
 				job.NextTime = schedule.Next(job.NextTime).UTC()
 				job.TotalExecs = job.TotalExecs + 1
-				job.State = models.ActiveJob
+				job.State = domains.ActiveJob
 
 				_, err = job.UpdateOne(pool, ctx)
 				misc.CheckErr(err)
@@ -124,9 +124,9 @@ func executeJobs(ctx context.Context, jobs []models.Job, pool *migrations.Pool) 
 	}
 }
 
-func updateMissedJobs(ctx context.Context, jobs []models.Job, pool *migrations.Pool) {
+func updateMissedJobs(ctx context.Context, jobs []domains.JobDomain, pool *migrations.Pool) {
 	for i := 0; i < len(jobs); i++ {
-		go func(jb models.Job) {
+		go func(jb domains.JobDomain) {
 			schedule, err := cron.ParseStandard(jb.CronSpec)
 			if err != nil {
 				panic(err)
@@ -149,12 +149,12 @@ func updateMissedJobs(ctx context.Context, jobs []models.Job, pool *migrations.P
 
 					jb.NextTime = scheduledTimeBasedOnNow
 					jb.TotalExecs = execCountToNow
-					jb.State = models.StaleJob
+					jb.State = domains.StaleJob
 				}
 			} else {
 				scheduledNextTime := schedule.Next(time.Now())
 				jb.NextTime = scheduledNextTime
-				jb.State = models.StaleJob
+				jb.State = domains.StaleJob
 			}
 
 			_, err = jb.UpdateOne(pool, ctx)

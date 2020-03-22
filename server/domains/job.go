@@ -1,10 +1,8 @@
-package models
+package domains
 
 import (
 	"context"
 	"cron-server/server/migrations"
-	"cron-server/server/misc"
-	"encoding/json"
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
@@ -28,8 +26,7 @@ const (
 	StaleJob
 )
 
-// Job domain internal representation of job
-type Job struct {
+type JobDomain struct {
 	ID             string    `json:"id,omitempty" pg:",notnull"`
 	ProjectId      string    `json:"project_id" pg:",notnull"`
 	Description    string    `json:"description" pg:",notnull"`
@@ -46,13 +43,7 @@ type Job struct {
 	DateCreated    time.Time `json:"date_created" pg:",notnull"`
 }
 
-var psgc = misc.GetPostgresCredentials()
-
-func (jd *Job) SetId(id string) {
-	jd.ID = id
-}
-
-func (jd *Job) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
+func (jd *JobDomain) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -116,7 +107,7 @@ func (jd *Job) CreateOne(pool *migrations.Pool, ctx context.Context) (string, er
 	return jd.ID, nil
 }
 
-func (jd *Job) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (jd *JobDomain) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -140,7 +131,7 @@ func (jd *Job) GetOne(pool *migrations.Pool, ctx context.Context, query string, 
 	return count, nil
 }
 
-func (jd *Job) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (jd *JobDomain) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -185,7 +176,7 @@ func (jd *Job) GetAll(pool *migrations.Pool, ctx context.Context, query string, 
 	return count, results, nil
 }
 
-func (jd *Job) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (jd *JobDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -221,7 +212,7 @@ func (jd *Job) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error
 	return res.RowsAffected(), nil
 }
 
-func (jd *Job) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (jd *JobDomain) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
@@ -234,61 +225,4 @@ func (jd *Job) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error
 	} else {
 		return r.RowsAffected(), nil
 	}
-}
-
-func (jd *Job) SearchToQuery(search [][]string) (string, []string) {
-	var queries []string
-	var query string
-	var values []string
-
-	if len(search) < 1 || search[0] == nil {
-		return query, values
-	}
-
-	for i := 0; i < len(search); i++ {
-		if search[i][0] == "id" {
-			queries = append(queries, "id = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "project_id" {
-			queries = append(queries, "project_id = ?")
-			values = append(values, search[i][1])
-		}
-
-		if search[i][0] == "description" {
-			queries = append(queries, "description LIKE ?")
-			values = append(values, "%"+search[i][1]+"%")
-		}
-	}
-
-	for i := 0; i < len(queries); i++ {
-		if i != 0 {
-			query += " AND " + queries[i]
-		} else {
-			query = queries[i]
-		}
-	}
-
-	if len(query) < 1 && len(values) < 1 {
-		values = append(values, "null")
-		return "id != ?", values
-	}
-
-	return query, values
-}
-
-func (jd *Job) ToJson() ([]byte, error) {
-	if data, err := json.Marshal(jd); err != nil {
-		return data, err
-	} else {
-		return data, nil
-	}
-}
-
-func (jd *Job) FromJson(body []byte) error {
-	if err := json.Unmarshal(body, &jd); err != nil {
-		return err
-	}
-	return nil
 }

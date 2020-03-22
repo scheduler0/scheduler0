@@ -22,17 +22,3 @@ func CreateConnection() (io.Closer, error) {
 
 	return db, nil
 }
-
-func Query(pool *Pool, response interface{}, query string, params ...interface{}) (pg.Result, error) {
-	conn, err := pool.Acquire()
-	misc.CheckErr(err)
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	res, err := db.Query(&response, query, params...)
-
-	if err != nil {
-		return res, err
-	}
-	return res, nil
-}

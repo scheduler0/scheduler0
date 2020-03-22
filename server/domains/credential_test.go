@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	credentialModel = CredentialDomain{}
+	credentialDomain = CredentialDomain{}
 	credentialCtx   = context.Background()
 )
 
@@ -17,7 +17,7 @@ func TestCredential_CreateOne(t *testing.T) {
 
 	t.Log("Don't create a credential without HTTPReferrerRestriction")
 	{
-		_, err := credentialModel.CreateOne(pool, &credentialCtx)
+		_, err := credentialDomain.CreateOne(pool, &credentialCtx)
 		if err == nil {
 			t.Fatalf("Created a new credential without HTTPReferrerRestriction")
 		}
@@ -25,8 +25,8 @@ func TestCredential_CreateOne(t *testing.T) {
 
 	t.Log("Create a new credential")
 	{
-		credentialModel.HTTPReferrerRestriction = "*"
-		_, err := credentialModel.CreateOne(pool, &credentialCtx)
+		credentialDomain.HTTPReferrerRestriction = "*"
+		_, err := credentialDomain.CreateOne(pool, &credentialCtx)
 		if err != nil {
 			t.Fatalf("Failed to create a new crendential")
 		}
@@ -37,13 +37,13 @@ func TestCredential_UpdateOne(t *testing.T) {
 	var pool, _ = migrations.NewPool(migrations.CreateConnection, 1)
 	defer pool.Close()
 
-	var oldApiKey = credentialModel.ApiKey
+	var oldApiKey = credentialDomain.ApiKey
 
 	t.Log("Cannot update credential api key")
 	{
-		credentialModel.ApiKey = "13455"
+		credentialDomain.ApiKey = "13455"
 
-		_, err := credentialModel.UpdateOne(pool, credentialCtx)
+		_, err := credentialDomain.UpdateOne(pool, &credentialCtx)
 		if err == nil {
 			t.Fatalf("Cannot update credential key")
 		}
@@ -51,9 +51,9 @@ func TestCredential_UpdateOne(t *testing.T) {
 
 	t.Log("Update credential HTTPReferrerRestriction")
 	{
-		credentialModel.ApiKey = oldApiKey
-		credentialModel.HTTPReferrerRestriction = "http://google.com"
-		_, err := credentialModel.CreateOne(pool, &credentialCtx)
+		credentialDomain.ApiKey = oldApiKey
+		credentialDomain.HTTPReferrerRestriction = "http://google.com"
+		_, err := credentialDomain.CreateOne(pool, &credentialCtx)
 		if err != nil {
 			t.Fatalf("Failed to update crendential")
 		}
@@ -66,7 +66,7 @@ func TestCredential_DeleteOne(t *testing.T) {
 
 	t.Log("Prevent deleting all credential")
 	{
-		_, err := credentialModel.DeleteOne(pool, credentialCtx)
+		_, err := credentialDomain.DeleteOne(pool)
 		if err != nil {
 			t.Fatalf("Cannot delete all credentials %v", err.Error())
 		}

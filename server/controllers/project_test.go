@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"context"
+	"cron-server/server/dtos"
 	"cron-server/server/migrations"
 	"cron-server/server/misc"
-	"cron-server/server/models"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -17,9 +17,9 @@ import (
 )
 
 var (
-	projectOne       = models.Project{}
-	projectTwo       = models.Project{}
-	projectOneJobOne = models.Job{}
+	projectOne       = dtos.ProjectDto{}
+	projectTwo       = dtos.ProjectDto{}
+	projectOneJobOne = dtos.JobDto{}
 	ctx              = context.Background()
 )
 
