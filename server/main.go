@@ -59,13 +59,15 @@ func main() {
 	router.HandleFunc("/credentials/{id}", credentialController.DeleteOne).Methods(http.MethodDelete)
 
 	// Job Endpoint
-	router.HandleFunc("/jobs", jobController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)
+	router.HandleFunc("/jobs", jobController.CreateOne).Methods(http.MethodPost)
+	router.HandleFunc("/jobs", jobController.List).Methods(http.MethodGet)
 	router.HandleFunc("/jobs/{id}", jobController.GetOne).Methods(http.MethodGet)
 	router.HandleFunc("/jobs/{id}", jobController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/jobs/{id}", jobController.DeleteOne).Methods(http.MethodDelete)
 
 	// Projects Endpoint
-	router.HandleFunc("/projects", projectController.GetAllOrCreateOne).Methods(http.MethodPost, http.MethodGet)
+	router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
+	router.HandleFunc("/projects", projectController.List).Methods(http.MethodGet)
 	router.HandleFunc("/projects/{id}", projectController.GetOne).Methods(http.MethodGet)
 	router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)

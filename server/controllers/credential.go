@@ -77,7 +77,7 @@ func (cc *CredentialController) DeleteOne(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (cc *CredentialController) ListAll(w http.ResponseWriter, r *http.Request) {
+func (cc *CredentialController) List(w http.ResponseWriter, r *http.Request) {
 	queryParams := misc.GetRequestQueryString(r.URL.RawQuery)
 	credentialService := service.CredentialService{Pool: cc.Pool, Ctx: r.Context()}
 
