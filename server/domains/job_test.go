@@ -2,7 +2,7 @@ package domains
 
 import (
 	"context"
-	"cron-server/server/migrations"
+	"cron-server/server/db"
 	"testing"
 	"time"
 )
@@ -16,7 +16,7 @@ var (
 )
 
 func TestJob_CreateOne(t *testing.T) {
-	var jobsPool, _ = migrations.NewPool(migrations.CreateConnection, 5)
+	var jobsPool, _ = db.NewPool(db.CreateConnection, 5)
 	defer jobsPool.Close()
 
 	t.Log("Creating job returns error if required inbound fields are nil")
@@ -84,7 +84,7 @@ func TestJob_CreateOne(t *testing.T) {
 }
 
 func TestJob_UpdateOne(t *testing.T) {
-	var jobsPool, _ = migrations.NewPool(migrations.CreateConnection, 5)
+	var jobsPool, _ = db.NewPool(db.CreateConnection, 5)
 	defer jobsPool.Close()
 
 	t.Log("Cannot update cron spec on job")
@@ -135,7 +135,7 @@ func TestJob_UpdateOne(t *testing.T) {
 }
 
 func TestJob_DeleteOne(t *testing.T) {
-	var jobsPool, _ = migrations.NewPool(migrations.CreateConnection, 5)
+	var jobsPool, _ = db.NewPool(db.CreateConnection, 5)
 	defer jobsPool.Close()
 
 	t.Log("Delete jobs")

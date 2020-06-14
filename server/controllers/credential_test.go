@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"cron-server/server/dtos"
-	"cron-server/server/migrations"
+	"cron-server/server/db"
 	"cron-server/server/misc"
 	"encoding/json"
 	"fmt"
@@ -19,7 +19,7 @@ func TestCredentialController_CreateOne(t *testing.T) {
 		{
 		t.Logf("")
 		{
-			pool, err := migrations.NewPool(migrations.CreateConnection, 1)
+			pool, err := db.NewPool(db.CreateConnection, 1)
 			credentialController := CredentialController{}
 			misc.CheckErr(err)
 			credentialController.Pool = *pool

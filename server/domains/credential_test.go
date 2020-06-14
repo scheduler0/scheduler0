@@ -2,7 +2,7 @@ package domains
 
 import (
 	"context"
-	"cron-server/server/migrations"
+	"cron-server/server/db"
 	"testing"
 )
 
@@ -12,7 +12,7 @@ var (
 )
 
 func TestCredential_CreateOne(t *testing.T) {
-	var pool, _ = migrations.NewPool(migrations.CreateConnection, 1)
+	var pool, _ = db.NewPool(db.CreateConnection, 1)
 	defer pool.Close()
 
 	t.Log("Don't create a credential without HTTPReferrerRestriction")
@@ -34,7 +34,7 @@ func TestCredential_CreateOne(t *testing.T) {
 }
 
 func TestCredential_UpdateOne(t *testing.T) {
-	var pool, _ = migrations.NewPool(migrations.CreateConnection, 1)
+	var pool, _ = db.NewPool(db.CreateConnection, 1)
 	defer pool.Close()
 
 	var oldApiKey = credentialDomain.ApiKey
@@ -61,7 +61,7 @@ func TestCredential_UpdateOne(t *testing.T) {
 }
 
 func TestCredential_DeleteOne(t *testing.T) {
-	var pool, _ = migrations.NewPool(migrations.CreateConnection, 1)
+	var pool, _ = db.NewPool(db.CreateConnection, 1)
 	defer pool.Close()
 
 	t.Log("Prevent deleting all credential")

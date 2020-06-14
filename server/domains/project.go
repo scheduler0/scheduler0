@@ -2,7 +2,7 @@ package domains
 
 import (
 	"context"
-	"cron-server/server/migrations"
+	"cron-server/server/db"
 	"errors"
 	"fmt"
 	"github.com/go-pg/pg"
@@ -18,7 +18,7 @@ type ProjectDomain struct {
 	DateCreated time.Time `json:"date_created" pg:",notnull"`
 }
 
-func (p *ProjectDomain) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
+func (p *ProjectDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -57,7 +57,7 @@ func (p *ProjectDomain) CreateOne(pool *migrations.Pool, ctx context.Context) (s
 	return p.ID, nil
 }
 
-func (p *ProjectDomain) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (p *ProjectDomain) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -81,7 +81,7 @@ func (p *ProjectDomain) GetOne(pool *migrations.Pool, ctx context.Context, query
 	return count, nil
 }
 
-func (p *ProjectDomain) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (p *ProjectDomain) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -124,7 +124,7 @@ func (p *ProjectDomain) GetAll(pool *migrations.Pool, ctx context.Context, query
 	return count, results, nil
 }
 
-func (p *ProjectDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (p *ProjectDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -173,7 +173,7 @@ func (p *ProjectDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (i
 	return res.RowsAffected(), nil
 }
 
-func (p *ProjectDomain) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (p *ProjectDomain) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

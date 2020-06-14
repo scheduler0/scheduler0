@@ -1,8 +1,7 @@
 package domains
 
 import (
-	"context"
-	"cron-server/server/migrations"
+	"cron-server/server/db"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -18,7 +17,7 @@ type CredentialDomain struct {
 	DateCreated             time.Time `json:"date_created" pg:",notnull"`
 }
 
-func (c *CredentialDomain) CreateOne(pool *migrations.Pool, ctx *context.Context) (string, error) {
+func (c *CredentialDomain) CreateOne(pool *db.Pool) (string, error) {
 	if len(c.HTTPReferrerRestriction) < 1 {
 		return "", errors.New("credential should have at least one restriction set")
 	}
@@ -45,7 +44,7 @@ func (c *CredentialDomain) CreateOne(pool *migrations.Pool, ctx *context.Context
 	}
 }
 
-func (c *CredentialDomain) GetOne(pool *migrations.Pool, ctx *context.Context) (int, error) {
+func (c *CredentialDomain) GetOne(pool *db.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -74,7 +73,7 @@ func (c *CredentialDomain) GetOne(pool *migrations.Pool, ctx *context.Context) (
 	return count, nil
 }
 
-func (c *CredentialDomain) GetAll(pool *migrations.Pool, offset int, limit int, orderBy string) ([]CredentialDomain, error) {
+func (c *CredentialDomain) GetAll(pool *db.Pool, offset int, limit int, orderBy string) ([]CredentialDomain, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -99,7 +98,7 @@ func (c *CredentialDomain) GetAll(pool *migrations.Pool, offset int, limit int, 
 	return credentials, nil
 }
 
-func (c *CredentialDomain) UpdateOne(pool *migrations.Pool, ctx *context.Context) (int, error) {
+func (c *CredentialDomain) UpdateOne(pool *db.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -110,7 +109,7 @@ func (c *CredentialDomain) UpdateOne(pool *migrations.Pool, ctx *context.Context
 
 	var credentialPlaceholder CredentialDomain
 	credentialPlaceholder.ID = c.ID
-	_, err = credentialPlaceholder.GetOne(pool, ctx)
+	_, err = credentialPlaceholder.GetOne(pool)
 	if err != nil {
 		return 0, err
 	}
@@ -131,7 +130,7 @@ func (c *CredentialDomain) UpdateOne(pool *migrations.Pool, ctx *context.Context
 	return res.RowsAffected(), nil
 }
 
-func (c *CredentialDomain) DeleteOne(pool *migrations.Pool) (int, error) {
+func (c *CredentialDomain) DeleteOne(pool *db.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

@@ -2,7 +2,7 @@ package domains
 
 import (
 	"context"
-	"cron-server/server/migrations"
+	"cron-server/server/db"
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
@@ -43,7 +43,7 @@ type JobDomain struct {
 	DateCreated    time.Time `json:"date_created" pg:",notnull"`
 }
 
-func (jd *JobDomain) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
+func (jd *JobDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -82,7 +82,7 @@ func (jd *JobDomain) CreateOne(pool *migrations.Pool, ctx context.Context) (stri
 		return "", err
 	}
 
-	projectWithId := Project{ID: jd.ProjectId}
+	projectWithId := ProjectDomain{ID: jd.ProjectId}
 	c, _ := projectWithId.GetOne(pool, ctx, "id = ?", jd.ProjectId)
 	if c < 1 {
 		return "", errors.New("project with id does not exist")
@@ -107,7 +107,7 @@ func (jd *JobDomain) CreateOne(pool *migrations.Pool, ctx context.Context) (stri
 	return jd.ID, nil
 }
 
-func (jd *JobDomain) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (jd *JobDomain) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -131,7 +131,7 @@ func (jd *JobDomain) GetOne(pool *migrations.Pool, ctx context.Context, query st
 	return count, nil
 }
 
-func (jd *JobDomain) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (jd *JobDomain) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -146,7 +146,7 @@ func (jd *JobDomain) GetAll(pool *migrations.Pool, ctx context.Context, query st
 		ip[i] = params[i]
 	}
 
-	var jobs []Job
+	var jobs []JobDomain
 
 	baseQuery := db.Model(&jobs).Where(query, ip...)
 
@@ -176,7 +176,7 @@ func (jd *JobDomain) GetAll(pool *migrations.Pool, ctx context.Context, query st
 	return count, results, nil
 }
 
-func (jd *JobDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (jd *JobDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -184,7 +184,7 @@ func (jd *JobDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int,
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var jobPlaceholder Job
+	var jobPlaceholder JobDomain
 	jobPlaceholder.ID = jd.ID
 
 	_, err = jobPlaceholder.GetOne(pool, ctx, "id = ?", jobPlaceholder.ID)
@@ -212,7 +212,7 @@ func (jd *JobDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int,
 	return res.RowsAffected(), nil
 }
 
-func (jd *JobDomain) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (jd *JobDomain) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

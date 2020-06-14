@@ -1,11 +1,10 @@
 package main
 
 import (
-	"context"
 	"cron-server/server/controllers"
+	"cron-server/server/db"
 	"cron-server/server/domains"
 	"cron-server/server/middlewares"
-	"cron-server/server/migrations"
 	"cron-server/server/misc"
 	"cron-server/server/process"
 	"github.com/go-pg/pg"
@@ -20,14 +19,14 @@ import (
 )
 
 func main() {
-	pool, err := migrations.NewPool(migrations.CreateConnection, migrations.MaxConnections)
+	pool, err := db.NewPool(db.CreateConnection, db.MaxConnections)
 	misc.CheckErr(err)
 
 	// Setup logging
 	log.SetFlags(0)
 	log.SetOutput(new(misc.LogWriter))
 
-	// Set time zone, create database and run migrations
+	// Set time zone, create database and run db
 	SetupDB(pool)
 
 	// Start process to execute cron-server jobs
@@ -40,10 +39,10 @@ func main() {
 	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
-	executionController := controllers.ExecutionController{Pool: *pool}
-	jobController := controllers.JobController{Pool: *pool}
-	projectController := controllers.ProjectController{Pool: *pool}
-	credentialController := controllers.CredentialController{Pool: *pool}
+	//executionController := controllers.ExecutionController{Pool: *pool}
+	//jobController := controllers.JobController{Pool: *pool}
+	//projectController := controllers.ProjectController{Pool: *pool}
+	credentialController := controllers.CredentialController{Pool: pool}
 
 	// Mount middleware
 	middleware := middlewares.MiddlewareType{}
@@ -54,8 +53,8 @@ func main() {
 	router.Use(middleware.AuthMiddleware(pool))
 
 	// Executions Endpoint
-	router.HandleFunc("/executions", executionController.List).Methods(http.MethodGet)
-	router.HandleFunc("/executions/{id}", executionController.GetOne).Methods(http.MethodGet)
+	//router.HandleFunc("/executions", executionController.List).Methods(http.MethodGet)
+	//router.HandleFunc("/executions/{id}", executionController.GetOne).Methods(http.MethodGet)
 
 	// Credentials Endpoint
 	router.HandleFunc("/credentials", credentialController.CreateOne).Methods(http.MethodPost)
@@ -65,25 +64,25 @@ func main() {
 	router.HandleFunc("/credentials/{id}", credentialController.DeleteOne).Methods(http.MethodDelete)
 
 	// Job Endpoint
-	router.HandleFunc("/jobs", jobController.CreateOne).Methods(http.MethodPost)
-	router.HandleFunc("/jobs", jobController.List).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{id}", jobController.GetOne).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{id}", jobController.UpdateOne).Methods(http.MethodPut)
-	router.HandleFunc("/jobs/{id}", jobController.DeleteOne).Methods(http.MethodDelete)
-
-	// Projects Endpoint
-	router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
-	router.HandleFunc("/projects", projectController.List).Methods(http.MethodGet)
-	router.HandleFunc("/projects/{id}", projectController.GetOne).Methods(http.MethodGet)
-	router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
-	router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
+	//router.HandleFunc("/jobs", jobController.CreateOne).Methods(http.MethodPost)
+	//router.HandleFunc("/jobs", jobController.List).Methods(http.MethodGet)
+	//router.HandleFunc("/jobs/{id}", jobController.GetOne).Methods(http.MethodGet)
+	//router.HandleFunc("/jobs/{id}", jobController.UpdateOne).Methods(http.MethodPut)
+	//router.HandleFunc("/jobs/{id}", jobController.DeleteOne).Methods(http.MethodDelete)
+	//
+	//// Projects Endpoint
+	//router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
+	//router.HandleFunc("/projects", projectController.List).Methods(http.MethodGet)
+	//router.HandleFunc("/projects/{id}", projectController.GetOne).Methods(http.MethodGet)
+	//router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
+	//router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
 
 	log.Println("Server is running on port", misc.GetPort(), misc.GetClientHost())
 	err = http.ListenAndServe(misc.GetPort(), router)
 	misc.CheckErr(err)
 }
 
-func SetupDB(pool *migrations.Pool) {
+func SetupDB(pool *db.Pool) {
 	conn, err := pool.Acquire()
 	misc.CheckErr(err)
 	db := conn.(*pg.DB)
@@ -107,11 +106,11 @@ func SetupDB(pool *migrations.Pool) {
 	var absPath string
 	var sql []byte
 
-	absPath, err = filepath.Abs(pwd + "/server/migrations/migration.sql")
+	absPath, err = filepath.Abs(pwd + "/server/db/migration.sql")
 
 	sql, err = ioutil.ReadFile(absPath)
 	if err != nil {
-		absPath, err = filepath.Abs(pwd + "/migrations/migration.sql")
+		absPath, err = filepath.Abs(pwd + "/db/migration.sql")
 		sql, err = ioutil.ReadFile(absPath)
 		if err != nil {
 			panic(err)
@@ -124,12 +123,9 @@ func SetupDB(pool *migrations.Pool) {
 	}
 
 	var c = domains.CredentialDomain{}
-	var ctx = context.Background()
-
-
 
 	// TODO: "date_created < ?", []string{"now()"}
-	_, err = c.GetOne(pool, &ctx)
+	_, err = c.GetOne(pool)
 	if err != nil {
 		misc.CheckErr(err)
 	}
@@ -137,7 +133,7 @@ func SetupDB(pool *migrations.Pool) {
 	if len(c.ID) < 1 {
 		c.HTTPReferrerRestriction = "*"
 		// TODO: Fix syntax error
-		_, err = c.CreateOne(pool, &ctx)
+		_, err = c.CreateOne(pool)
 		log.Println("Created default credentials")
 		if err != nil {
 			misc.CheckErr(err)

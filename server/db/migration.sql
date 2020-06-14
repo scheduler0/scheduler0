@@ -1,6 +1,6 @@
 SET TIME ZONE 'UTC';
 
--- Job schema migrations
+-- Job schema db
 ALTER TABLE jobs DROP COLUMN IF EXISTS service_name;
 
 DO $$
@@ -69,7 +69,7 @@ BEGIN
     END IF;
 END $$;
 
--- Project schema migrations
+-- Project schema db
 DO $$
 BEGIN
     IF EXISTS (
@@ -83,7 +83,7 @@ BEGIN
     ALTER TABLE projects DROP COLUMN  IF EXISTS user_id;
 END $$;
 
--- Executions schema migrations
+-- Executions schema db
 DO $$
     BEGIN
         IF EXISTS (

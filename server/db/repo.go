@@ -1,6 +1,6 @@
 // Database layer
 
-package migrations
+package db
 
 import (
 	"cron-server/server/misc"

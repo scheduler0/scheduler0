@@ -2,7 +2,7 @@ package domains
 
 import (
 	"context"
-	"cron-server/server/migrations"
+	"cron-server/server/db"
 	"errors"
 	"github.com/go-pg/pg"
 	"time"
@@ -18,7 +18,7 @@ type ExecutionDomain struct {
 	DateCreated time.Time `json:"date_created"`
 }
 
-func (exec *ExecutionDomain) CreateOne(pool *migrations.Pool, ctx context.Context) (string, error) {
+func (exec *ExecutionDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -45,7 +45,7 @@ func (exec *ExecutionDomain) CreateOne(pool *migrations.Pool, ctx context.Contex
 	return exec.ID, nil
 }
 
-func (exec *ExecutionDomain) GetOne(pool *migrations.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (exec *ExecutionDomain) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -74,7 +74,7 @@ func (exec *ExecutionDomain) GetOne(pool *migrations.Pool, ctx context.Context, 
 	return count, nil
 }
 
-func (exec *ExecutionDomain) GetAll(pool *migrations.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (exec *ExecutionDomain) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -119,7 +119,7 @@ func (exec *ExecutionDomain) GetAll(pool *migrations.Pool, ctx context.Context, 
 	return count, results, nil
 }
 
-func (exec *ExecutionDomain) UpdateOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (exec *ExecutionDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -140,7 +140,7 @@ func (exec *ExecutionDomain) UpdateOne(pool *migrations.Pool, ctx context.Contex
 	return res.RowsAffected(), nil
 }
 
-func (exec *ExecutionDomain) DeleteOne(pool *migrations.Pool, ctx context.Context) (int, error) {
+func (exec *ExecutionDomain) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
