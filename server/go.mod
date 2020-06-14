@@ -12,6 +12,6 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/unrolled/secure v1.0.4
 	golang.org/x/lint v0.0.0-20190930215403-16217165b5de // indirect
-	golang.org/x/tools v0.0.0-20191012152004-8de300cfc20a // indirect
+	golang.org/x/tools v0.0.0-20191012152004-8de300cfc20a
 	mellium.im/sasl v0.2.1 // indirect
 )

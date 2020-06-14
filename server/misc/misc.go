@@ -20,6 +20,14 @@ type PostgresCredentials struct {
 
 type LogWriter struct{}
 
+type Env string
+
+const (
+	ENV_PROD Env = "ENV_PROD"
+	ENV_TEST     = "ENV_TEST"
+	ENV_DEV      = "ENV_DEV"
+)
+
 func GetPort() string {
 	port := os.Getenv("PORT")
 
@@ -52,36 +60,31 @@ func GetClientHost() string {
 	return os.Getenv("CLIENT_HOST")
 }
 
-func GetPostgresCredentials() *PostgresCredentials {
-	psgc := &PostgresCredentials{
-		Addr:     "localhost:5432",
-		Password: "postgres",
-		Database: "postgres",
-		User:     "postgres",
+func GetPostgresCredentials(env Env) *PostgresCredentials {
+	if env == ENV_TEST {
+		return &PostgresCredentials{
+			Addr:     "localhost:5432",
+			Password: "admin",
+			Database: "scheduler0_test",
+			User:     "admin",
+		}
 	}
 
-	addr := os.Getenv("POSTGRES_ADDRESS")
-	user := os.Getenv("POSTGRES_USER")
-	pass := os.Getenv("POSTGRES_PASSWORD")
-	db := os.Getenv("POSTGRES_DATABASE")
-
-	if len(addr) > 0 {
-		psgc.Addr = addr
+	if env == ENV_DEV {
+		return &PostgresCredentials{
+			Addr:     "localhost:5432",
+			Password: "admin",
+			Database: "scheduler0_dev",
+			User:     "admin",
+		}
 	}
 
-	if len(pass) > 0 {
-		psgc.Password = pass
+	return &PostgresCredentials{
+		Addr:  os.Getenv("POSTGRES_ADDRESS"),
+		Password: os.Getenv("POSTGRES_USER"),
+		Database: os.Getenv("POSTGRES_PASSWORD"),
+		User:  os.Getenv("POSTGRES_DATABASE"),
 	}
-
-	if len(db) > 0 {
-		psgc.Database = db
-	}
-
-	if len(user) > 0 {
-		psgc.User = user
-	}
-
-	return psgc
 }
 
 func (writer LogWriter) Write(bytes []byte) (int, error) {

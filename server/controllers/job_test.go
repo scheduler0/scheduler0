@@ -2,8 +2,8 @@ package controllers
 //
 //import (
 //	"context"
-//	"cron-server/server/domains"
-//	"cron-server/server/dtos"
+//	"cron-server/server/managers"
+//	"cron-server/server/data"
 //	"cron-server/server/db"
 //	"cron-server/server/misc"
 //	"encoding/json"
@@ -21,9 +21,9 @@ package controllers
 //
 //var (
 //	jobController = JobController{}
-//	inboundJob    dtos.JobDto
-//	jobModel      domains.JobDomain
-//	project       domains.ProjectDomain
+//	inboundJob    data.JobDto
+//	jobModel      managers.JobDomain
+//	project       managers.ProjectDomain
 //)
 //
 //func TestJobController_CreateOne(t *testing.T) {
@@ -59,7 +59,7 @@ package controllers
 //		}
 //
 //		project.ID = id
-//		j1 := dtos.JobDto{}
+//		j1 := data.JobDto{}
 //
 //		j1.CronSpec = "1 * * * *"
 //		j1.ProjectId = id
@@ -111,7 +111,7 @@ package controllers
 //		rc := reflect.New(rt)
 //		rc.Elem().Set(rv)
 //
-//		jobTwoCopy := rc.Interface().(*domains.JobDomain)
+//		jobTwoCopy := rc.Interface().(*managers.JobDomain)
 //
 //		if _, err := jobModel.CreateOne(&jobController.Pool, context.Background()); err != nil {
 //			t.Fatalf("\t\t Cannot create job two %v", err)

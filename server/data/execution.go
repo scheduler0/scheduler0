@@ -1,12 +1,12 @@
-package dtos
+package data
 
 import (
-	"cron-server/server/domains"
+	"cron-server/server/managers"
 	"encoding/json"
 	"time"
 )
 
-type ExecutionDto struct {
+type Execution struct {
 	ID          string    `json:"id"`
 	JobId       string    `json:"job_id"`
 	StatusCode  string    `json:"status_code"`
@@ -16,7 +16,7 @@ type ExecutionDto struct {
 	DateCreated time.Time `json:"date_created"`
 }
 
-func (exec *ExecutionDto) ToJson() ([]byte, error) {
+func (exec *Execution) ToJson() ([]byte, error) {
 	data, err := json.Marshal(exec)
 	if err != nil {
 		return data, err
@@ -24,15 +24,15 @@ func (exec *ExecutionDto) ToJson() ([]byte, error) {
 	return data, nil
 }
 
-func (exec *ExecutionDto) FromJson(body []byte) error {
+func (exec *Execution) FromJson(body []byte) error {
 	if err := json.Unmarshal(body, &exec); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (exec *ExecutionDto) ToDomain() (domains.ExecutionDomain, error) {
-	execD := domains.ExecutionDomain{
+func (exec *Execution) ToDomain() (managers.ExecutionManager, error) {
+	execD := managers.ExecutionManager{
 		ID:          exec.ID,
 		JobId:       exec.JobId,
 		StatusCode:  exec.StatusCode,
@@ -45,7 +45,7 @@ func (exec *ExecutionDto) ToDomain() (domains.ExecutionDomain, error) {
 	return execD, nil
 }
 
-func (exec *ExecutionDto) FromDomain(execD domains.ExecutionDomain) {
+func (exec *Execution) FromDomain(execD managers.ExecutionManager) {
 	exec.ID = execD.ID
 	exec.JobId = execD.JobId
 	exec.Token = execD.Token

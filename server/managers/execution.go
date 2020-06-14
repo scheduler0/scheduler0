@@ -1,4 +1,4 @@
-package domains
+package managers
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-type ExecutionDomain struct {
+type ExecutionManager struct {
 	ID          string    `json:"id"`
 	JobId       string    `json:"job_id"`
 	StatusCode  string    `json:"status_code"`
@@ -18,7 +18,7 @@ type ExecutionDomain struct {
 	DateCreated time.Time `json:"date_created"`
 }
 
-func (exec *ExecutionDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
+func (exec *ExecutionManager) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -32,7 +32,7 @@ func (exec *ExecutionDomain) CreateOne(pool *db.Pool, ctx context.Context) (stri
 		return "", err
 	}
 
-	jobWithId := JobDomain{ID: exec.JobId}
+	jobWithId := JobManager{ID: exec.JobId}
 
 	if _, err := jobWithId.GetOne(pool, ctx, "id = ?", exec.JobId); err != nil {
 		return "", errors.New("job with id does not exist")
@@ -45,7 +45,7 @@ func (exec *ExecutionDomain) CreateOne(pool *db.Pool, ctx context.Context) (stri
 	return exec.ID, nil
 }
 
-func (exec *ExecutionDomain) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (exec *ExecutionManager) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -74,7 +74,7 @@ func (exec *ExecutionDomain) GetOne(pool *db.Pool, ctx context.Context, query st
 	return count, nil
 }
 
-func (exec *ExecutionDomain) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (exec *ExecutionManager) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -89,7 +89,7 @@ func (exec *ExecutionDomain) GetAll(pool *db.Pool, ctx context.Context, query st
 		ip[i] = params[i]
 	}
 
-	var execs []ExecutionDomain
+	var execs []ExecutionManager
 
 	baseQuery := db.
 		Model(&execs).
@@ -119,7 +119,7 @@ func (exec *ExecutionDomain) GetAll(pool *db.Pool, ctx context.Context, query st
 	return count, results, nil
 }
 
-func (exec *ExecutionDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
+func (exec *ExecutionManager) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -127,7 +127,7 @@ func (exec *ExecutionDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int,
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var execPlaceholder ExecutionDomain
+	var execPlaceholder ExecutionManager
 	execPlaceholder.ID = exec.ID
 
 	_, err = execPlaceholder.GetOne(pool, ctx, "id = ?", execPlaceholder.ID)
@@ -140,7 +140,7 @@ func (exec *ExecutionDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int,
 	return res.RowsAffected(), nil
 }
 
-func (exec *ExecutionDomain) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
+func (exec *ExecutionManager) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

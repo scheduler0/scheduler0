@@ -1,4 +1,4 @@
-package domains
+package managers
 
 import (
 	"context"
@@ -11,14 +11,14 @@ import (
 	"time"
 )
 
-type ProjectDomain struct {
+type ProjectManager struct {
 	Name        string    `json:"name" pg:",notnull"`
 	Description string    `json:"description" pg:",notnull"`
 	ID          string    `json:"id" pg:",notnull"`
 	DateCreated time.Time `json:"date_created" pg:",notnull"`
 }
 
-func (p *ProjectDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
+func (p *ProjectManager) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -37,7 +37,7 @@ func (p *ProjectDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, e
 		return "", err
 	}
 
-	var projectWithName = ProjectDomain{}
+	var projectWithName = ProjectManager{}
 	c, e := projectWithName.GetOne(pool, ctx, "name = ?", strings.ToLower(p.Name))
 	if c > 0 && e == nil {
 		err := errors.New("projects exits with the same name")
@@ -57,7 +57,7 @@ func (p *ProjectDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, e
 	return p.ID, nil
 }
 
-func (p *ProjectDomain) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (p *ProjectManager) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -81,7 +81,7 @@ func (p *ProjectDomain) GetOne(pool *db.Pool, ctx context.Context, query string,
 	return count, nil
 }
 
-func (p *ProjectDomain) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (p *ProjectManager) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -96,7 +96,7 @@ func (p *ProjectDomain) GetAll(pool *db.Pool, ctx context.Context, query string,
 		ip[i] = params[i]
 	}
 
-	var projects []ProjectDomain
+	var projects []ProjectManager
 
 	baseQuery := db.Model(&projects).Where(query, ip...)
 
@@ -124,7 +124,7 @@ func (p *ProjectDomain) GetAll(pool *db.Pool, ctx context.Context, query string,
 	return count, results, nil
 }
 
-func (p *ProjectDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
+func (p *ProjectManager) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -133,7 +133,7 @@ func (p *ProjectDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, erro
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	savedProject := ProjectDomain{ID: p.ID}
+	savedProject := ProjectManager{ID: p.ID}
 
 	_, err = savedProject.GetOne(pool, ctx, "id = ?", savedProject.ID)
 	if err != nil {
@@ -148,7 +148,7 @@ func (p *ProjectDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, erro
 
 		fmt.Println("p.Name", p.Name)
 
-		var projectWithSimilarName = ProjectDomain{}
+		var projectWithSimilarName = ProjectManager{}
 
 		c, err := projectWithSimilarName.GetOne(pool, ctx, "name = ?", strings.ToLower(p.Name))
 
@@ -173,7 +173,7 @@ func (p *ProjectDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, erro
 	return res.RowsAffected(), nil
 }
 
-func (p *ProjectDomain) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
+func (p *ProjectManager) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
@@ -181,7 +181,7 @@ func (p *ProjectDomain) DeleteOne(pool *db.Pool, ctx context.Context) (int, erro
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var jobs []JobDomain
+	var jobs []JobManager
 
 	err = db.Model(&jobs).Where("project_id = ?", p.ID).Select()
 	if err != nil {

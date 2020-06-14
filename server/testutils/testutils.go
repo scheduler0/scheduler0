@@ -18,7 +18,9 @@ func TruncateDBBeforeTest() {
 
 	truncateQuery := "" +
 		"TRUNCATE TABLE jobs;" +
-		"TRUNCATE TABLE projects;"
+		"TRUNCATE TABLE projects;" +
+		"TRUNCATE TABLE credentials;" +
+		"TRUNCATE TABLE executions;"
 
 	_, err := db.Exec(truncateQuery)
 	misc.CheckErr(err)

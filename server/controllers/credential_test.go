@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"cron-server/server/dtos"
+	"cron-server/server/data"
 	"cron-server/server/db"
 	"cron-server/server/misc"
 	"encoding/json"
@@ -19,12 +19,12 @@ func TestCredentialController_CreateOne(t *testing.T) {
 		{
 		t.Logf("")
 		{
-			pool, err := db.NewPool(db.CreateConnection, 1)
+			pool, err := db.NewPool(db.CreateConnectionEnv, 1)
 			credentialController := CredentialController{}
 			misc.CheckErr(err)
 			credentialController.Pool = *pool
 
-			testCredential := dtos.CredentialDto{HTTPReferrerRestriction: "*"}
+			testCredential := data.Credential{HTTPReferrerRestriction: "*"}
 
 			jsonTestCredentialBody, err := testCredential.ToJson()
 			if err != nil {

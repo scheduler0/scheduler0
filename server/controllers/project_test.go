@@ -2,7 +2,7 @@ package controllers
 //
 //import (
 //	"context"
-//	"cron-server/server/dtos"
+//	"cron-server/server/data"
 //	"cron-server/server/db"
 //	"cron-server/server/misc"
 //	"encoding/json"
@@ -17,9 +17,9 @@ package controllers
 //)
 //
 //var (
-//	projectOne       = dtos.ProjectDto{}
-//	projectTwo       = dtos.ProjectDto{}
-//	projectOneJobOne = dtos.JobDto{}
+//	projectOne       = data.ProjectDto{}
+//	projectTwo       = data.ProjectDto{}
+//	projectOneJobOne = data.JobDto{}
 //	ctx              = context.Background()
 //)
 //

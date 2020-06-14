@@ -1,4 +1,4 @@
-package domains
+package managers
 
 import (
 	"context"
@@ -9,13 +9,13 @@ import (
 )
 
 var (
-	projectOne = Project{}
-	projectTwo = Project{Name: "Fake Project One", Description: "another fake project"}
+	projectOne = ProjectManager{}
+	projectTwo = ProjectManager{Name: "Fake Project One", Description: "another fake project"}
 	projectCtx = context.Background()
 )
 
 func TestProject_CreateOne(t *testing.T) {
-	var projectsPool, _ = db.NewPool(db.CreateConnection, 1)
+	var projectsPool, _ = db.NewPool(db.CreateConnectionEnv, 1)
 	defer projectsPool.Close()
 
 	t.Log("Don't create project with name and description empty")
@@ -47,12 +47,12 @@ func TestProject_CreateOne(t *testing.T) {
 }
 
 func TestProject_GetOne(t *testing.T) {
-	var projectsPool, _ = db.NewPool(db.CreateConnection, 1)
+	var projectsPool, _ = db.NewPool(db.CreateConnectionEnv, 1)
 	defer projectsPool.Close()
 
 	t.Log("Can retrieve as single project")
 	{
-		projectTwoPlaceholder := Project{ID: projectTwo.ID}
+		projectTwoPlaceholder := ProjectManager{ID: projectTwo.ID}
 
 		_, err := projectTwoPlaceholder.GetOne(projectsPool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
 		if err != nil {
@@ -66,7 +66,7 @@ func TestProject_GetOne(t *testing.T) {
 }
 
 func TestProject_UpdateOne(t *testing.T) {
-	var projectsPool, _ = db.NewPool(db.CreateConnection, 1)
+	var projectsPool, _ = db.NewPool(db.CreateConnectionEnv, 1)
 	defer projectsPool.Close()
 
 	t.Log("Can update name and description for a project")
@@ -78,7 +78,7 @@ func TestProject_UpdateOne(t *testing.T) {
 			t.Fatalf("\t\t Could not update project %v", err)
 		}
 
-		projectTwoPlaceholder := Project{ID: projectTwo.ID}
+		projectTwoPlaceholder := ProjectManager{ID: projectTwo.ID}
 		_, err = projectTwoPlaceholder.GetOne(projectsPool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get project with id %v", projectTwoPlaceholder.ID)
@@ -91,7 +91,7 @@ func TestProject_UpdateOne(t *testing.T) {
 }
 
 func TestProject_DeleteOne(t *testing.T) {
-	var projectsPool, _ = db.NewPool(db.CreateConnection, 1)
+	var projectsPool, _ = db.NewPool(db.CreateConnectionEnv, 1)
 	defer projectsPool.Close()
 
 	t.Log("Delete All Projects")
@@ -108,7 +108,7 @@ func TestProject_DeleteOne(t *testing.T) {
 		projectOne.Description = "Pretty important project"
 		id, err := projectOne.CreateOne(projectsPool, projectCtx)
 
-		var job = Job{}
+		var job = JobManager{}
 		job.ProjectId = id
 		job.StartDate = time.Now().Add(60 * time.Second)
 		job.CronSpec = "* * * * *"

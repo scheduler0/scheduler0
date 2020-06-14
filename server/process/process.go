@@ -2,8 +2,8 @@ package process
 
 import (
 	"context"
-	"cron-server/server/domains"
 	"cron-server/server/db"
+	"cron-server/server/managers"
 	"cron-server/server/misc"
 	"fmt"
 	"github.com/go-pg/pg"
@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 )
-
-var psgc = misc.GetPostgresCredentials()
 
 // Start the cron job process
 func Start(pool *db.Pool) {
@@ -30,7 +28,7 @@ func Start(pool *db.Pool) {
 	}
 }
 
-func getJobs(ctx context.Context, pool *db.Pool) (executions []domains.JobDomain, others []domains.JobDomain) {
+func getJobs(ctx context.Context, pool *db.Pool) (executions []managers.JobManager, others []managers.JobManager) {
 	// Infinite loops that queries the database every minute
 	conn, err := pool.Acquire()
 	misc.CheckErr(err)
@@ -38,8 +36,8 @@ func getJobs(ctx context.Context, pool *db.Pool) (executions []domains.JobDomain
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var jobsToExecute []domains.JobDomain
-	var otherJobs []domains.JobDomain
+	var jobsToExecute []managers.JobManager
+	var otherJobs []managers.JobManager
 
 	jobsToExecuteQuery := fmt.Sprintf("SELECT * FROM jobs WHERE " +
 		// NextTime Difference in minute
@@ -61,7 +59,7 @@ func getJobs(ctx context.Context, pool *db.Pool) (executions []domains.JobDomain
 		"date_part('day', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') * 24 +"+
 		"date_part('hour', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') <> 0 OR "+
 		// NextTime Difference in day
-		"date_part('day', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') <> 0 AND jobs.state != %v AND jobs.total_execs != %v", domains.StaleJob, -1)
+		"date_part('day', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') <> 0 AND jobs.state != %v AND jobs.total_execs != %v", managers.StaleJob, -1)
 
 	_, err = db.Query(&jobsToExecute, jobsToExecuteQuery)
 	misc.CheckErr(err)
@@ -72,10 +70,10 @@ func getJobs(ctx context.Context, pool *db.Pool) (executions []domains.JobDomain
 	return jobsToExecute, otherJobs
 }
 
-func executeJobs(ctx context.Context, jobs []domains.JobDomain, pool *db.Pool) {
+func executeJobs(ctx context.Context, jobs []managers.JobManager, pool *db.Pool) {
 	for _, jb := range jobs {
 		if len(jb.CallbackUrl) > 1 {
-			go func(job domains.JobDomain) {
+			go func(job managers.JobManager) {
 				var response string
 				var statusCode int
 
@@ -96,7 +94,7 @@ func executeJobs(ctx context.Context, jobs []domains.JobDomain, pool *db.Pool) {
 				}
 
 				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
-				execution := domains.ExecutionDomain{
+				execution := managers.ExecutionManager{
 					ID:          ksuid.New().String(),
 					JobId:       job.ID,
 					Timeout:     timeout,
@@ -113,7 +111,7 @@ func executeJobs(ctx context.Context, jobs []domains.JobDomain, pool *db.Pool) {
 
 				job.NextTime = schedule.Next(job.NextTime).UTC()
 				job.TotalExecs = job.TotalExecs + 1
-				job.State = domains.ActiveJob
+				job.State = managers.ActiveJob
 
 				_, err = job.UpdateOne(pool, ctx)
 				misc.CheckErr(err)
@@ -124,9 +122,9 @@ func executeJobs(ctx context.Context, jobs []domains.JobDomain, pool *db.Pool) {
 	}
 }
 
-func updateMissedJobs(ctx context.Context, jobs []domains.JobDomain, pool *db.Pool) {
+func updateMissedJobs(ctx context.Context, jobs []managers.JobManager, pool *db.Pool) {
 	for i := 0; i < len(jobs); i++ {
-		go func(jb domains.JobDomain) {
+		go func(jb managers.JobManager) {
 			schedule, err := cron.ParseStandard(jb.CronSpec)
 			if err != nil {
 				panic(err)
@@ -149,12 +147,12 @@ func updateMissedJobs(ctx context.Context, jobs []domains.JobDomain, pool *db.Po
 
 					jb.NextTime = scheduledTimeBasedOnNow
 					jb.TotalExecs = execCountToNow
-					jb.State = domains.StaleJob
+					jb.State = managers.StaleJob
 				}
 			} else {
 				scheduledNextTime := schedule.Next(time.Now())
 				jb.NextTime = scheduledNextTime
-				jb.State = domains.StaleJob
+				jb.State = managers.StaleJob
 			}
 
 			_, err = jb.UpdateOne(pool, ctx)

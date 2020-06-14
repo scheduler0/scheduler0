@@ -2,7 +2,7 @@ package middlewares
 
 import (
 	"context"
-	"cron-server/server/domains"
+	"cron-server/server/managers"
 	"cron-server/server/db"
 	"cron-server/server/misc"
 	"crypto/subtle"
@@ -33,7 +33,7 @@ func (m *MiddlewareType) ContextMiddleware(next http.Handler) http.Handler {
 func (_ *MiddlewareType) AuthMiddleware(pool *db.Pool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			credential := domains.CredentialDomain{}
+			credential := managers.CredentialManager{}
 
 			username, password := misc.GetAuthentication()
 			user, pass, passBasicAuth := r.BasicAuth()

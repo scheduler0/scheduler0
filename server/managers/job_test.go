@@ -1,4 +1,4 @@
-package domains
+package managers
 
 import (
 	"context"
@@ -8,15 +8,15 @@ import (
 )
 
 var (
-	project  = Project{Name: "test project", Description: "test project"}
-	jobOne   = Job{}
-	jobTwo   = Job{}
-	jobThree = Job{}
+	project  = ProjectManager{Name: "test project", Description: "test project"}
+	jobOne   = JobManager{}
+	jobTwo   = JobManager{}
+	jobThree = JobManager{}
 	jobCtx   = context.Background()
 )
 
 func TestJob_CreateOne(t *testing.T) {
-	var jobsPool, _ = db.NewPool(db.CreateConnection, 5)
+	var jobsPool, _ = db.NewPool(db.CreateConnectionEnv, 5)
 	defer jobsPool.Close()
 
 	t.Log("Creating job returns error if required inbound fields are nil")
@@ -84,7 +84,7 @@ func TestJob_CreateOne(t *testing.T) {
 }
 
 func TestJob_UpdateOne(t *testing.T) {
-	var jobsPool, _ = db.NewPool(db.CreateConnection, 5)
+	var jobsPool, _ = db.NewPool(db.CreateConnectionEnv, 5)
 	defer jobsPool.Close()
 
 	t.Log("Cannot update cron spec on job")
@@ -112,7 +112,7 @@ func TestJob_UpdateOne(t *testing.T) {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
 
-		jobThreePlaceholder := Job{ID: jobThree.ID}
+		jobThreePlaceholder := JobManager{ID: jobThree.ID}
 		_, err = jobThreePlaceholder.GetOne(jobsPool, jobCtx, "id = ?", jobThree.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get job %v", err)
@@ -135,7 +135,7 @@ func TestJob_UpdateOne(t *testing.T) {
 }
 
 func TestJob_DeleteOne(t *testing.T) {
-	var jobsPool, _ = db.NewPool(db.CreateConnection, 5)
+	var jobsPool, _ = db.NewPool(db.CreateConnectionEnv, 5)
 	defer jobsPool.Close()
 
 	t.Log("Delete jobs")

@@ -1,4 +1,4 @@
-package domains
+package managers
 
 import (
 	"context"
@@ -26,7 +26,7 @@ const (
 	StaleJob
 )
 
-type JobDomain struct {
+type JobManager struct {
 	ID             string    `json:"id,omitempty" pg:",notnull"`
 	ProjectId      string    `json:"project_id" pg:",notnull"`
 	Description    string    `json:"description" pg:",notnull"`
@@ -43,7 +43,7 @@ type JobDomain struct {
 	DateCreated    time.Time `json:"date_created" pg:",notnull"`
 }
 
-func (jd *JobDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
+func (jd *JobManager) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -82,7 +82,7 @@ func (jd *JobDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, erro
 		return "", err
 	}
 
-	projectWithId := ProjectDomain{ID: jd.ProjectId}
+	projectWithId := ProjectManager{ID: jd.ProjectId}
 	c, _ := projectWithId.GetOne(pool, ctx, "id = ?", jd.ProjectId)
 	if c < 1 {
 		return "", errors.New("project with id does not exist")
@@ -107,7 +107,7 @@ func (jd *JobDomain) CreateOne(pool *db.Pool, ctx context.Context) (string, erro
 	return jd.ID, nil
 }
 
-func (jd *JobDomain) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (jd *JobManager) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -131,7 +131,7 @@ func (jd *JobDomain) GetOne(pool *db.Pool, ctx context.Context, query string, pa
 	return count, nil
 }
 
-func (jd *JobDomain) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (jd *JobManager) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -146,7 +146,7 @@ func (jd *JobDomain) GetAll(pool *db.Pool, ctx context.Context, query string, of
 		ip[i] = params[i]
 	}
 
-	var jobs []JobDomain
+	var jobs []JobManager
 
 	baseQuery := db.Model(&jobs).Where(query, ip...)
 
@@ -176,7 +176,7 @@ func (jd *JobDomain) GetAll(pool *db.Pool, ctx context.Context, query string, of
 	return count, results, nil
 }
 
-func (jd *JobDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
+func (jd *JobManager) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -184,7 +184,7 @@ func (jd *JobDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var jobPlaceholder JobDomain
+	var jobPlaceholder JobManager
 	jobPlaceholder.ID = jd.ID
 
 	_, err = jobPlaceholder.GetOne(pool, ctx, "id = ?", jobPlaceholder.ID)
@@ -212,7 +212,7 @@ func (jd *JobDomain) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) 
 	return res.RowsAffected(), nil
 }
 
-func (jd *JobDomain) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
+func (jd *JobManager) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

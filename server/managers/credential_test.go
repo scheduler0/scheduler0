@@ -1,23 +1,21 @@
-package domains
+package managers
 
 import (
-	"context"
 	"cron-server/server/db"
 	"testing"
 )
 
 var (
-	credentialDomain = CredentialDomain{}
-	credentialCtx   = context.Background()
+	credentialDomain = CredentialManager{}
 )
 
 func TestCredential_CreateOne(t *testing.T) {
-	var pool, _ = db.NewPool(db.CreateConnection, 1)
+	var pool, _ = db.NewPool(db.CreateConnectionEnv, 1)
 	defer pool.Close()
 
 	t.Log("Don't create a credential without HTTPReferrerRestriction")
 	{
-		_, err := credentialDomain.CreateOne(pool, &credentialCtx)
+		_, err := credentialDomain.CreateOne(pool)
 		if err == nil {
 			t.Fatalf("Created a new credential without HTTPReferrerRestriction")
 		}
@@ -26,7 +24,7 @@ func TestCredential_CreateOne(t *testing.T) {
 	t.Log("Create a new credential")
 	{
 		credentialDomain.HTTPReferrerRestriction = "*"
-		_, err := credentialDomain.CreateOne(pool, &credentialCtx)
+		_, err := credentialDomain.CreateOne(pool)
 		if err != nil {
 			t.Fatalf("Failed to create a new crendential")
 		}
@@ -34,7 +32,7 @@ func TestCredential_CreateOne(t *testing.T) {
 }
 
 func TestCredential_UpdateOne(t *testing.T) {
-	var pool, _ = db.NewPool(db.CreateConnection, 1)
+	var pool, _ = db.NewPool(db.CreateConnectionEnv, 1)
 	defer pool.Close()
 
 	var oldApiKey = credentialDomain.ApiKey
@@ -43,7 +41,7 @@ func TestCredential_UpdateOne(t *testing.T) {
 	{
 		credentialDomain.ApiKey = "13455"
 
-		_, err := credentialDomain.UpdateOne(pool, &credentialCtx)
+		_, err := credentialDomain.UpdateOne(pool)
 		if err == nil {
 			t.Fatalf("Cannot update credential key")
 		}
@@ -53,7 +51,7 @@ func TestCredential_UpdateOne(t *testing.T) {
 	{
 		credentialDomain.ApiKey = oldApiKey
 		credentialDomain.HTTPReferrerRestriction = "http://google.com"
-		_, err := credentialDomain.CreateOne(pool, &credentialCtx)
+		_, err := credentialDomain.CreateOne(pool)
 		if err != nil {
 			t.Fatalf("Failed to update crendential")
 		}
@@ -61,7 +59,7 @@ func TestCredential_UpdateOne(t *testing.T) {
 }
 
 func TestCredential_DeleteOne(t *testing.T) {
-	var pool, _ = db.NewPool(db.CreateConnection, 1)
+	var pool, _ = db.NewPool(db.CreateConnectionEnv, 1)
 	defer pool.Close()
 
 	t.Log("Prevent deleting all credential")

@@ -1,4 +1,4 @@
-package domains
+package managers
 
 import (
 	"cron-server/server/db"
@@ -10,14 +10,14 @@ import (
 	"time"
 )
 
-type CredentialDomain struct {
+type CredentialManager struct {
 	ID                      string    `json:"id" pg:",notnull"`
 	ApiKey                  string    `json:"api_key" pg:",notnull"`
 	HTTPReferrerRestriction string    `json:"http_referrer_restriction" pg:",notnull"`
 	DateCreated             time.Time `json:"date_created" pg:",notnull"`
 }
 
-func (c *CredentialDomain) CreateOne(pool *db.Pool) (string, error) {
+func (c *CredentialManager) CreateOne(pool *db.Pool) (string, error) {
 	if len(c.HTTPReferrerRestriction) < 1 {
 		return "", errors.New("credential should have at least one restriction set")
 	}
@@ -44,7 +44,7 @@ func (c *CredentialDomain) CreateOne(pool *db.Pool) (string, error) {
 	}
 }
 
-func (c *CredentialDomain) GetOne(pool *db.Pool) (int, error) {
+func (c *CredentialManager) GetOne(pool *db.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -73,15 +73,15 @@ func (c *CredentialDomain) GetOne(pool *db.Pool) (int, error) {
 	return count, nil
 }
 
-func (c *CredentialDomain) GetAll(pool *db.Pool, offset int, limit int, orderBy string) ([]CredentialDomain, error) {
+func (c *CredentialManager) GetAll(pool *db.Pool, offset int, limit int, orderBy string) ([]CredentialManager, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
 	if err != nil {
-		return []CredentialDomain{}, err
+		return []CredentialManager{}, err
 	}
 
-	credentials := []CredentialDomain{{}}
+	credentials := []CredentialManager{{}}
 
 	db := conn.(*pg.DB)
 
@@ -98,7 +98,7 @@ func (c *CredentialDomain) GetAll(pool *db.Pool, offset int, limit int, orderBy 
 	return credentials, nil
 }
 
-func (c *CredentialDomain) UpdateOne(pool *db.Pool) (int, error) {
+func (c *CredentialManager) UpdateOne(pool *db.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -107,7 +107,7 @@ func (c *CredentialDomain) UpdateOne(pool *db.Pool) (int, error) {
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var credentialPlaceholder CredentialDomain
+	var credentialPlaceholder CredentialManager
 	credentialPlaceholder.ID = c.ID
 	_, err = credentialPlaceholder.GetOne(pool)
 	if err != nil {
@@ -130,7 +130,7 @@ func (c *CredentialDomain) UpdateOne(pool *db.Pool) (int, error) {
 	return res.RowsAffected(), nil
 }
 
-func (c *CredentialDomain) DeleteOne(pool *db.Pool) (int, error) {
+func (c *CredentialManager) DeleteOne(pool *db.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
@@ -138,7 +138,7 @@ func (c *CredentialDomain) DeleteOne(pool *db.Pool) (int, error) {
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	var credentials []CredentialDomain
+	var credentials []CredentialManager
 
 	err = db.Model(&credentials).Where("id != ?", "null").Select()
 	if err != nil {

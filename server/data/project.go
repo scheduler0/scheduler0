@@ -1,19 +1,19 @@
-package dtos
+package data
 
 import (
-	"cron-server/server/domains"
+	"cron-server/server/managers"
 	"encoding/json"
 	"time"
 )
 
-type ProjectDto struct {
+type Project struct {
 	Name        string    `json:"name" pg:",notnull"`
 	Description string    `json:"description" pg:",notnull"`
 	ID          string    `json:"id" pg:",notnull"`
 	DateCreated time.Time `json:"date_created" pg:",notnull"`
 }
 
-func (p *ProjectDto) ToJson() ([]byte, error) {
+func (p *Project) ToJson() ([]byte, error) {
 	if data, err := json.Marshal(p); err != nil {
 		return data, err
 	} else {
@@ -21,15 +21,15 @@ func (p *ProjectDto) ToJson() ([]byte, error) {
 	}
 }
 
-func (p *ProjectDto) FromJson(body []byte) error {
+func (p *Project) FromJson(body []byte) error {
 	if err := json.Unmarshal(body, &p); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (p *ProjectDto) ToDomain() (domains.ProjectDomain, error) {
-	pd := domains.ProjectDomain{
+func (p *Project) ToDomain() (managers.ProjectManager, error) {
+	pd := managers.ProjectManager{
 		ID:          p.ID,
 		Name:        p.Name,
 		Description: p.Description,
@@ -38,7 +38,7 @@ func (p *ProjectDto) ToDomain() (domains.ProjectDomain, error) {
 	return pd, nil
 }
 
-func (p *ProjectDto) FromDomain(pd domains.ProjectDomain) {
+func (p *Project) FromDomain(pd managers.ProjectManager) {
 	p.ID = pd.ID
 	p.Name = pd.Name
 	p.Description = pd.Description
