@@ -1,7 +1,7 @@
 package controllers
 
 //import (
-//	"cron-server/server/data"
+//	"cron-server/server/transformers"
 //	"cron-server/server/db"
 //	"cron-server/server/misc"
 //	"io/ioutil"
@@ -17,7 +17,7 @@ package controllers
 //
 //func (controller *JobController) CreateOne(w http.ResponseWriter, r *http.Request) {
 //	body, err := ioutil.ReadAll(r.Body)
-//	ij := data.JobDto{}
+//	ij := transformers.JobDto{}
 //
 //	if len(body) < 1 {
 //		misc.SendJson(w, "no request body", false, http.StatusBadRequest, nil)

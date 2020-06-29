@@ -3,7 +3,7 @@ package process
 import (
 	"context"
 	"cron-server/server/db"
-	"cron-server/server/managers"
+	"cron-server/server/db/managers"
 	"cron-server/server/misc"
 	"fmt"
 	"github.com/go-pg/pg"
@@ -20,7 +20,7 @@ import (
 func Start(pool *db.Pool) {
 	for {
 		ctx := context.Background()
-		jobsToExecute, otherJobs := getJobs(ctx, pool)
+		jobsToExecute, otherJobs := getJobs(pool)
 		updateMissedJobs(ctx, otherJobs, pool)
 		executeJobs(ctx, jobsToExecute, pool)
 
@@ -28,7 +28,7 @@ func Start(pool *db.Pool) {
 	}
 }
 
-func getJobs(ctx context.Context, pool *db.Pool) (executions []managers.JobManager, others []managers.JobManager) {
+func getJobs(pool *db.Pool) (executions []managers.JobManager, others []managers.JobManager) {
 	// Infinite loops that queries the database every minute
 	conn, err := pool.Acquire()
 	misc.CheckErr(err)
@@ -79,7 +79,6 @@ func executeJobs(ctx context.Context, jobs []managers.JobManager, pool *db.Pool)
 
 				startSecs := time.Now()
 
-				// TODO: Encrypt the data
 				r, err := http.Post(http.MethodPost, job.CallbackUrl, strings.NewReader(job.Data))
 				if err != nil {
 					response = err.Error()

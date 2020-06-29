@@ -32,7 +32,7 @@ type JobManager struct {
 	Description    string    `json:"description" pg:",notnull"`
 	CronSpec       string    `json:"cron_spec,omitempty" pg:",notnull"`
 	TotalExecs     int64     `json:"total_execs,omitempty" pg:",notnull"`
-	Data           string    `json:"data,omitempty"`
+	Data           string    `json:"transformers,omitempty"`
 	CallbackUrl    string    `json:"callback_url" pg:",notnull"`
 	LastStatusCode int       `json:"last_status_code"`
 	Timezone       string    `json:"timezone"`

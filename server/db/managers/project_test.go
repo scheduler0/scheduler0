@@ -2,7 +2,7 @@ package managers
 
 import (
 	"context"
-	"cron-server/server/db"
+	"cron-server/server/testutils"
 	"fmt"
 	"testing"
 	"time"
@@ -15,12 +15,12 @@ var (
 )
 
 func TestProject_CreateOne(t *testing.T) {
-	var projectsPool, _ = db.NewPool(db.CreateConnectionEnv, 1)
-	defer projectsPool.Close()
+	var pool, _ = testutils.GetTestDBPool()
+	defer pool.Close()
 
 	t.Log("Don't create project with name and description empty")
 	{
-		pid, err := projectOne.CreateOne(projectsPool, projectCtx)
+		pid, err := projectOne.CreateOne(pool, projectCtx)
 		fmt.Println("pid", pid)
 		if err == nil {
 			t.Fatalf("\t\t Cannot create project without name and descriptions")
@@ -29,7 +29,7 @@ func TestProject_CreateOne(t *testing.T) {
 
 	t.Log("Create project with name and description not empty")
 	{
-		pid, err := projectTwo.CreateOne(projectsPool, projectCtx)
+		pid, err := projectTwo.CreateOne(pool, projectCtx)
 		fmt.Println("pid", pid)
 		if err != nil {
 			t.Fatalf("\t\t Error creating project %v", err)
@@ -38,7 +38,7 @@ func TestProject_CreateOne(t *testing.T) {
 
 	t.Log("Don't create project with existing name")
 	{
-		pid, err := projectTwo.CreateOne(projectsPool, projectCtx)
+		pid, err := projectTwo.CreateOne(pool, projectCtx)
 		fmt.Println("pid", pid)
 		if err == nil {
 			t.Fatalf("\t\t Cannot create project with existing name")
@@ -47,14 +47,14 @@ func TestProject_CreateOne(t *testing.T) {
 }
 
 func TestProject_GetOne(t *testing.T) {
-	var projectsPool, _ = db.NewPool(db.CreateConnectionEnv, 1)
-	defer projectsPool.Close()
+	var pool, _ = testutils.GetTestDBPool()
+	defer pool.Close()
 
 	t.Log("Can retrieve as single project")
 	{
 		projectTwoPlaceholder := ProjectManager{ID: projectTwo.ID}
 
-		_, err := projectTwoPlaceholder.GetOne(projectsPool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
+		_, err := projectTwoPlaceholder.GetOne(pool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get project %v", err)
 		}
@@ -66,20 +66,20 @@ func TestProject_GetOne(t *testing.T) {
 }
 
 func TestProject_UpdateOne(t *testing.T) {
-	var projectsPool, _ = db.NewPool(db.CreateConnectionEnv, 1)
-	defer projectsPool.Close()
+	var pool, _ = testutils.GetTestDBPool()
+	defer pool.Close()
 
 	t.Log("Can update name and description for a project")
 	{
 		projectTwo.Name = "some new name"
 
-		_, err := projectTwo.UpdateOne(projectsPool, projectCtx)
+		_, err := projectTwo.UpdateOne(pool, projectCtx)
 		if err != nil {
 			t.Fatalf("\t\t Could not update project %v", err)
 		}
 
 		projectTwoPlaceholder := ProjectManager{ID: projectTwo.ID}
-		_, err = projectTwoPlaceholder.GetOne(projectsPool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
+		_, err = projectTwoPlaceholder.GetOne(pool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get project with id %v", projectTwoPlaceholder.ID)
 		}
@@ -91,12 +91,12 @@ func TestProject_UpdateOne(t *testing.T) {
 }
 
 func TestProject_DeleteOne(t *testing.T) {
-	var projectsPool, _ = db.NewPool(db.CreateConnectionEnv, 1)
-	defer projectsPool.Close()
+	var pool, _ = testutils.GetTestDBPool()
+	defer pool.Close()
 
 	t.Log("Delete All Projects")
 	{
-		rowsAffected, err := projectTwo.DeleteOne(projectsPool, projectCtx)
+		rowsAffected, err := projectTwo.DeleteOne(pool, projectCtx)
 		if err != nil && rowsAffected > 0 {
 			t.Fatalf("\t\t Cannot delete project one %v", err)
 		}
@@ -106,7 +106,7 @@ func TestProject_DeleteOne(t *testing.T) {
 	{
 		projectOne.Name = "Untitled #1"
 		projectOne.Description = "Pretty important project"
-		id, err := projectOne.CreateOne(projectsPool, projectCtx)
+		id, err := projectOne.CreateOne(pool, projectCtx)
 
 		var job = JobManager{}
 		job.ProjectId = id
@@ -114,22 +114,22 @@ func TestProject_DeleteOne(t *testing.T) {
 		job.CronSpec = "* * * * *"
 		job.CallbackUrl = "https://some-random-url"
 
-		_, err = job.CreateOne(projectsPool, projectCtx)
+		_, err = job.CreateOne(pool, projectCtx)
 		if err != nil {
 			t.Fatalf("Cannot create job %v", err)
 		}
 
-		rowsAffected, err := projectOne.DeleteOne(projectsPool, projectCtx)
+		rowsAffected, err := projectOne.DeleteOne(pool, projectCtx)
 		if err == nil || rowsAffected > 0 {
 			t.Fatalf("\t\t Projects with jobs shouldn't be deleted %v %v", err, rowsAffected)
 		}
 
-		rowsAffected, err = job.DeleteOne(projectsPool, projectCtx)
+		rowsAffected, err = job.DeleteOne(pool, projectCtx)
 		if err != nil || rowsAffected < 1 {
 			t.Fatalf("\t\t Could not delete job  %v %v", err, rowsAffected)
 		}
 
-		rowsAffected, err = projectOne.DeleteOne(projectsPool, projectCtx)
+		rowsAffected, err = projectOne.DeleteOne(pool, projectCtx)
 		if err != nil || rowsAffected < 1 {
 			t.Fatalf("\t\t Could not delete project  %v %v", err, rowsAffected)
 		}

@@ -1,12 +1,13 @@
 package controllers
 
 import (
-	"cron-server/server/data"
 	"cron-server/server/db"
+	"cron-server/server/db/transformers"
 	"cron-server/server/misc"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -16,15 +17,17 @@ import (
 
 func TestCredentialController_CreateOne(t *testing.T) {
 	t.Log("Creating A New Credential")
-		{
+	{
 		t.Logf("")
 		{
-			pool, err := db.NewPool(db.CreateConnectionEnv, 1)
+			pool, err := db.NewPool(func() (closer io.Closer, err error) {
+				return db.CreateConnectionEnv("TEST_ENV")
+			}, 1)
 			credentialController := CredentialController{}
 			misc.CheckErr(err)
-			credentialController.Pool = *pool
+			credentialController.Pool = pool
 
-			testCredential := data.Credential{HTTPReferrerRestriction: "*"}
+			testCredential := transformers.Credential{HTTPReferrerRestriction: "*"}
 
 			jsonTestCredentialBody, err := testCredential.ToJson()
 			if err != nil {

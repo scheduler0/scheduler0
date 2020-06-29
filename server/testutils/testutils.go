@@ -1,18 +1,33 @@
 package testutils
 
 import (
+	"cron-server/server/db"
 	"cron-server/server/misc"
 	"github.com/go-pg/pg"
+	"io"
 )
 
-var psgc = misc.GetPostgresCredentials()
+func GetTestDBPool() (*db.Pool, error) {
+	pool, err := db.NewPool(func() (closer io.Closer, err error) {
+		return db.CreateConnectionEnv("TEST")
+	}, 10)
 
-func TruncateDBBeforeTest() {
+	if err != nil {
+		panic(err)
+	}
+
+	return pool, nil
+}
+
+
+func TruncateDBAfterTest() {
+	postgresCredentials := *misc.GetPostgresCredentials(misc.ENV_TEST)
+
 	db := pg.Connect(&pg.Options{
-		Addr:     psgc.Addr,
-		User:     psgc.User,
-		Password: psgc.Password,
-		Database: psgc.Database,
+		Addr:     postgresCredentials.Addr,
+		User:     postgresCredentials.User,
+		Password: postgresCredentials.Password,
+		Database: postgresCredentials.Database,
 	})
 	defer db.Close()
 

@@ -2,7 +2,7 @@ package controllers
 //
 //import (
 //	"context"
-//	"cron-server/server/data"
+//	"cron-server/server/transformers"
 //	"cron-server/server/db"
 //	"cron-server/server/misc"
 //	"encoding/json"
@@ -17,9 +17,9 @@ package controllers
 //)
 //
 //var (
-//	projectOne       = data.ProjectDto{}
-//	projectTwo       = data.ProjectDto{}
-//	projectOneJobOne = data.JobDto{}
+//	projectOne       = transformers.ProjectDto{}
+//	projectTwo       = transformers.ProjectDto{}
+//	projectOneJobOne = transformers.JobDto{}
 //	ctx              = context.Background()
 //)
 //
@@ -71,7 +71,7 @@ package controllers
 //				if len(response) < 1 {
 //					t.Fatalf("\t\t Response payload is empty")
 //				} else {
-//					projectOne.ID = response["data"].(string)
+//					projectOne.ID = response["transformers"].(string)
 //					assert.Equal(t, http.StatusCreated, w.Code)
 //				}
 //			}

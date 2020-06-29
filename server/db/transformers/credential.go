@@ -1,7 +1,7 @@
-package data
+package transformers
 
 import (
-	"cron-server/server/managers"
+	"cron-server/server/db/managers"
 	"encoding/json"
 )
 

@@ -3,7 +3,7 @@ package controllers
 //import (
 //	"context"
 //	"cron-server/server/managers"
-//	"cron-server/server/data"
+//	"cron-server/server/transformers"
 //	"cron-server/server/db"
 //	"cron-server/server/misc"
 //	"encoding/json"
@@ -21,7 +21,7 @@ package controllers
 //
 //var (
 //	jobController = JobController{}
-//	inboundJob    data.JobDto
+//	inboundJob    transformers.JobDto
 //	jobModel      managers.JobDomain
 //	project       managers.ProjectDomain
 //)
@@ -59,7 +59,7 @@ package controllers
 //		}
 //
 //		project.ID = id
-//		j1 := data.JobDto{}
+//		j1 := transformers.JobDto{}
 //
 //		j1.CronSpec = "1 * * * *"
 //		j1.ProjectId = id
@@ -93,7 +93,7 @@ package controllers
 //
 //		fmt.Println(response)
 //
-//		inboundJob.ID = response["data"].(string)
+//		inboundJob.ID = response["transformers"].(string)
 //		assert.Equal(t, http.StatusCreated, w.Code)
 //	}
 //}
@@ -133,7 +133,7 @@ package controllers
 //
 //		body, err := ioutil.ReadAll(w.Body)
 //		if err != nil {
-//			t.Fatalf("\t\t Error reading data %v", err)
+//			t.Fatalf("\t\t Error reading transformers %v", err)
 //		}
 //
 //		fmt.Println(string(body))

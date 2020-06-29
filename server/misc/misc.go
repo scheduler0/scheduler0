@@ -64,18 +64,18 @@ func GetPostgresCredentials(env Env) *PostgresCredentials {
 	if env == ENV_TEST {
 		return &PostgresCredentials{
 			Addr:     "localhost:5432",
-			Password: "admin",
 			Database: "scheduler0_test",
-			User:     "admin",
+			Password: "dev",
+			User:     "localdev",
 		}
 	}
 
 	if env == ENV_DEV {
 		return &PostgresCredentials{
 			Addr:     "localhost:5432",
-			Password: "admin",
 			Database: "scheduler0_dev",
-			User:     "admin",
+			Password: "dev",
+			User:     "localdev",
 		}
 	}
 
@@ -93,7 +93,7 @@ func (writer LogWriter) Write(bytes []byte) (int, error) {
 }
 
 type Response struct {
-	Data    interface{} `json:"data"`
+	Data    interface{} `json:"transformers"`
 	Success bool        `json:"success"`
 }
 

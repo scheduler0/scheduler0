@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"cron-server/server/db"
-	"cron-server/server/data"
+	"cron-server/server/db/transformers"
 	"cron-server/server/misc"
 	"cron-server/server/service"
 	"github.com/gorilla/mux"
@@ -24,7 +24,7 @@ func (credentialController *CredentialController) CreateOne(w http.ResponseWrite
 		misc.SendJson(w, "request body required", false, http.StatusBadRequest, nil)
 	}
 
-	credentialBody := data.Credential{}
+	credentialBody := transformers.Credential{}
 
 	err = credentialBody.FromJson(body)
 	if err != nil {

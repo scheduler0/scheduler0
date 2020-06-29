@@ -1,7 +1,7 @@
 package managers
 
 import (
-	"cron-server/server/db"
+	"cron-server/server/testutils"
 	"testing"
 )
 
@@ -10,7 +10,7 @@ var (
 )
 
 func TestCredential_CreateOne(t *testing.T) {
-	var pool, _ = db.NewPool(db.CreateConnectionEnv, 1)
+	var pool, _ = testutils.GetTestDBPool()
 	defer pool.Close()
 
 	t.Log("Don't create a credential without HTTPReferrerRestriction")
@@ -32,7 +32,7 @@ func TestCredential_CreateOne(t *testing.T) {
 }
 
 func TestCredential_UpdateOne(t *testing.T) {
-	var pool, _ = db.NewPool(db.CreateConnectionEnv, 1)
+	var pool, _ = testutils.GetTestDBPool()
 	defer pool.Close()
 
 	var oldApiKey = credentialDomain.ApiKey
@@ -59,7 +59,7 @@ func TestCredential_UpdateOne(t *testing.T) {
 }
 
 func TestCredential_DeleteOne(t *testing.T) {
-	var pool, _ = db.NewPool(db.CreateConnectionEnv, 1)
+	var pool, _ = testutils.GetTestDBPool()
 	defer pool.Close()
 
 	t.Log("Prevent deleting all credential")
@@ -69,4 +69,6 @@ func TestCredential_DeleteOne(t *testing.T) {
 			t.Fatalf("Cannot delete all credentials %v", err.Error())
 		}
 	}
+
+	testutils.TruncateDBAfterTest()
 }

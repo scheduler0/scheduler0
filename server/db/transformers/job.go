@@ -1,7 +1,7 @@
-package data
+package transformers
 
 import (
-	"cron-server/server/managers"
+	"cron-server/server/db/managers"
 	"encoding/json"
 	"errors"
 	"time"
@@ -12,7 +12,7 @@ type Job struct {
 	ProjectId   string `json:"project_id"`
 	Description string `json:"description"`
 	CronSpec    string `json:"cron_spec,omitempty"`
-	Data        string `json:"data,omitempty"`
+	Data        string `json:"transformers,omitempty"`
 	Timezone    string `json:"timezone, omitempty"`
 	CallbackUrl string `json:"callback_url"`
 	StartDate   string `json:"start_date,omitempty"`
