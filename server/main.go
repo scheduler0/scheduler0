@@ -80,6 +80,7 @@ func SetupDB(pool *db.Pool) {
 
 func main() {
 	env := os.Getenv("ENV")
+
 	pool, err := db.NewPool(func() (closer io.Closer, err error) {
 		return db.CreateConnectionEnv(env)
 	}, db.MaxConnections)

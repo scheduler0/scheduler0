@@ -27,6 +27,8 @@ const (
 )
 
 type JobManager struct {
+	TableName struct{} `sql:"jobs"`
+
 	ID             string    `json:"id,omitempty" pg:",notnull"`
 	ProjectId      string    `json:"project_id" pg:",notnull"`
 	Description    string    `json:"description" pg:",notnull"`

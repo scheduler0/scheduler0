@@ -2,7 +2,7 @@ package managers
 
 import (
 	"context"
-	"cron-server/server/testutils"
+	"cron-server/server"
 	"testing"
 	"time"
 )
@@ -16,7 +16,7 @@ var (
 )
 
 func TestJob_CreateOne(t *testing.T) {
-	var pool, _ = testutils.GetTestDBPool()
+	var pool, _ = main.GetTestDBPool()
 	defer pool.Close()
 
 	t.Log("Creating job returns error if required inbound fields are nil")
@@ -84,7 +84,7 @@ func TestJob_CreateOne(t *testing.T) {
 }
 
 func TestJob_UpdateOne(t *testing.T) {
-	var pool, _ = testutils.GetTestDBPool()
+	var pool, _ = main.GetTestDBPool()
 	defer pool.Close()
 
 	t.Log("Cannot update cron spec on job")
@@ -135,7 +135,7 @@ func TestJob_UpdateOne(t *testing.T) {
 }
 
 func TestJob_DeleteOne(t *testing.T) {
-	var pool, _ = testutils.GetTestDBPool()
+	var pool, _ = main.GetTestDBPool()
 	defer pool.Close()
 
 	t.Log("Delete jobs")

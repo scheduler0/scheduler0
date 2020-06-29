@@ -2,7 +2,7 @@ package managers
 
 import (
 	"context"
-	"cron-server/server/testutils"
+	"cron-server/server"
 	"fmt"
 	"testing"
 	"time"
@@ -15,7 +15,7 @@ var (
 )
 
 func TestProject_CreateOne(t *testing.T) {
-	var pool, _ = testutils.GetTestDBPool()
+	var pool, _ = main.GetTestDBPool()
 	defer pool.Close()
 
 	t.Log("Don't create project with name and description empty")
@@ -47,7 +47,7 @@ func TestProject_CreateOne(t *testing.T) {
 }
 
 func TestProject_GetOne(t *testing.T) {
-	var pool, _ = testutils.GetTestDBPool()
+	var pool, _ = main.GetTestDBPool()
 	defer pool.Close()
 
 	t.Log("Can retrieve as single project")
@@ -66,7 +66,7 @@ func TestProject_GetOne(t *testing.T) {
 }
 
 func TestProject_UpdateOne(t *testing.T) {
-	var pool, _ = testutils.GetTestDBPool()
+	var pool, _ = main.GetTestDBPool()
 	defer pool.Close()
 
 	t.Log("Can update name and description for a project")
@@ -91,7 +91,7 @@ func TestProject_UpdateOne(t *testing.T) {
 }
 
 func TestProject_DeleteOne(t *testing.T) {
-	var pool, _ = testutils.GetTestDBPool()
+	var pool, _ = main.GetTestDBPool()
 	defer pool.Close()
 
 	t.Log("Delete All Projects")

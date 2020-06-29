@@ -9,6 +9,8 @@ import (
 )
 
 type ExecutionManager struct {
+	TableName struct{} `sql:"executions"`
+
 	ID          string    `json:"id"`
 	JobId       string    `json:"job_id"`
 	StatusCode  string    `json:"status_code"`
