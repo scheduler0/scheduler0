@@ -3,7 +3,6 @@ package managers
 import (
 	"cron-server/server/src/managers"
 	"cron-server/server/tests"
-	"os"
 	"testing"
 )
 
@@ -15,7 +14,7 @@ func Test_CredentialManager(t *testing.T) {
 	t.Log("CredentialManager.CreateOne")
 	{
 
-		t.Log("Don't create a credential without HTTPReferrerRestriction")
+		t.Logf("\t\tDon't create a credential without HTTPReferrerRestriction")
 		{
 			_, err := credentialManager.CreateOne(pool)
 			if err == nil {
@@ -23,7 +22,7 @@ func Test_CredentialManager(t *testing.T) {
 			}
 		}
 
-		t.Log("Create a new credential")
+		t.Logf("\t\tCreate a new credential")
 		{
 			credentialManager.HTTPReferrerRestriction = "*"
 			_, err := credentialManager.CreateOne(pool)
@@ -38,7 +37,7 @@ func Test_CredentialManager(t *testing.T) {
 
 		var oldApiKey = credentialManager.ApiKey
 
-		t.Log("Cannot update credential api key")
+		t.Logf("\t\tCannot update credential api key")
 		{
 			credentialManager.ApiKey = "13455"
 
@@ -48,7 +47,7 @@ func Test_CredentialManager(t *testing.T) {
 			}
 		}
 
-		t.Log("Update credential HTTPReferrerRestriction")
+		t.Logf("\t\tUpdate credential HTTPReferrerRestriction")
 		{
 			credentialManager.ApiKey = oldApiKey
 			credentialManager.HTTPReferrerRestriction = "http://google.com"
@@ -61,8 +60,7 @@ func Test_CredentialManager(t *testing.T) {
 
 	t.Log("CredentialManager.DeleteOne")
 	{
-
-		t.Log("Prevent deleting all credential")
+		t.Logf("\t\tPrevent deleting all credential")
 		{
 			_, err := credentialManager.DeleteOne(pool)
 			if err != nil {
@@ -71,11 +69,4 @@ func Test_CredentialManager(t *testing.T) {
 		}
 	}
 
-}
-
-func TestMain(m *testing.M) {
-	tests.Prepare()
-	code := m.Run()
-	tests.Teardown()
-	os.Exit(code)
 }
