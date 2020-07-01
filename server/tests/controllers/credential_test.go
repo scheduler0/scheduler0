@@ -21,7 +21,7 @@ func TestCredentialController_CreateOne(t *testing.T) {
 	{
 		t.Logf("")
 		{
-			pool, err := db.NewPool(func() (closer io.Closer, err error) {
+			pool, err := misc.NewPool(func() (closer io.Closer, err error) {
 				return db.CreateConnectionEnv("TEST_ENV")
 			}, 1)
 			credentialController := controllers.CredentialController{}
@@ -49,7 +49,7 @@ func TestCredentialController_CreateOne(t *testing.T) {
 				fmt.Print(err)
 			}
 
-			var res misc.Response
+			res := &misc.Response{}
 
 			err = json.Unmarshal(body, res)
 			if err != nil {

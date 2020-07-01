@@ -1,7 +1,6 @@
 package process
 
 import (
-	"cron-server/server/src/db"
 	"cron-server/server/src/managers"
 	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
@@ -17,7 +16,7 @@ import (
 )
 
 // Start the cron job process
-func Start(pool *db.Pool) {
+func Start(pool *misc.Pool) {
 	for {
 		jobsToExecute, otherJobs := getJobs(pool)
 		updateMissedJobs(otherJobs, pool)
@@ -27,7 +26,7 @@ func Start(pool *db.Pool) {
 	}
 }
 
-func getJobs(pool *db.Pool) (executions []managers.JobManager, others []managers.JobManager) {
+func getJobs(pool *misc.Pool) (executions []managers.JobManager, others []managers.JobManager) {
 	// Infinite loops that queries the database every minute
 	conn, err := pool.Acquire()
 	misc.CheckErr(err)
@@ -69,7 +68,7 @@ func getJobs(pool *db.Pool) (executions []managers.JobManager, others []managers
 	return jobsToExecute, otherJobs
 }
 
-func executeJobs(jobs []managers.JobManager, pool *db.Pool) {
+func executeJobs(jobs []managers.JobManager, pool *misc.Pool) {
 	for _, jb := range jobs {
 		if len(jb.CallbackUrl) > 1 {
 			go func(job managers.JobManager) {
@@ -120,7 +119,7 @@ func executeJobs(jobs []managers.JobManager, pool *db.Pool) {
 	}
 }
 
-func updateMissedJobs(jobs []managers.JobManager, pool *db.Pool) {
+func updateMissedJobs(jobs []managers.JobManager, pool *misc.Pool) {
 	for i := 0; i < len(jobs); i++ {
 		go func(jb managers.JobManager) {
 			schedule, err := cron.ParseStandard(jb.CronSpec)

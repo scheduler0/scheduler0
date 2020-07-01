@@ -1,8 +1,7 @@
 package managers
 
 import (
-	"context"
-	"cron-server/server/src/db"
+	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
 	"errors"
 	"github.com/go-pg/pg"
@@ -10,7 +9,7 @@ import (
 
 type ExecutionManager models.ExecutionModel
 
-func (exec *ExecutionManager) CreateOne(pool *db.Pool, ctx context.Context) (string, error) {
+func (exec *ExecutionManager) CreateOne(pool *misc.Pool) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -37,7 +36,7 @@ func (exec *ExecutionManager) CreateOne(pool *db.Pool, ctx context.Context) (str
 	return exec.ID, nil
 }
 
-func (exec *ExecutionManager) GetOne(pool *db.Pool, ctx context.Context, query string, params interface{}) (int, error) {
+func (exec *ExecutionManager) GetOne(pool *misc.Pool, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -66,7 +65,7 @@ func (exec *ExecutionManager) GetOne(pool *db.Pool, ctx context.Context, query s
 	return count, nil
 }
 
-func (exec *ExecutionManager) GetAll(pool *db.Pool, ctx context.Context, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (exec *ExecutionManager) GetAll(pool *misc.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -111,7 +110,7 @@ func (exec *ExecutionManager) GetAll(pool *db.Pool, ctx context.Context, query s
 	return count, results, nil
 }
 
-func (exec *ExecutionManager) UpdateOne(pool *db.Pool, ctx context.Context) (int, error) {
+func (exec *ExecutionManager) UpdateOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -122,7 +121,7 @@ func (exec *ExecutionManager) UpdateOne(pool *db.Pool, ctx context.Context) (int
 	var execPlaceholder ExecutionManager
 	execPlaceholder.ID = exec.ID
 
-	_, err = execPlaceholder.GetOne(pool, ctx, "id = ?", execPlaceholder.ID)
+	_, err = execPlaceholder.GetOne(pool, "id = ?", execPlaceholder.ID)
 
 	res, err := db.Model(&exec).Update(exec)
 	if err != nil {
@@ -132,7 +131,7 @@ func (exec *ExecutionManager) UpdateOne(pool *db.Pool, ctx context.Context) (int
 	return res.RowsAffected(), nil
 }
 
-func (exec *ExecutionManager) DeleteOne(pool *db.Pool, ctx context.Context) (int, error) {
+func (exec *ExecutionManager) DeleteOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

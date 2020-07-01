@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"context"
-	"cron-server/server/src/db"
 	"cron-server/server/src/managers"
 	"cron-server/server/src/misc"
 	"crypto/subtle"
@@ -30,7 +29,7 @@ func (m *MiddlewareType) ContextMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func (_ *MiddlewareType) AuthMiddleware(pool *db.Pool) func(next http.Handler) http.Handler {
+func (_ *MiddlewareType) AuthMiddleware(pool *misc.Pool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			credential := managers.CredentialManager{}

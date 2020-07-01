@@ -10,7 +10,6 @@ import (
 var credentialManager = managers.CredentialManager{}
 
 func Test_CredentialManager(t *testing.T) {
-	
 	pool := tests.GetTestPool()
 
 	t.Log("CredentialManager.CreateOne")
@@ -74,7 +73,7 @@ func Test_CredentialManager(t *testing.T) {
 
 }
 
-func TestMain(m *testing.M)  {
+func TestMain(m *testing.M) {
 	tests.Prepare()
 	code := m.Run()
 	tests.Teardown()

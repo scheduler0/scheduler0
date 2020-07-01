@@ -13,7 +13,7 @@ type Job struct {
 	Description string `json:"description"`
 	CronSpec    string `json:"cron_spec,omitempty"`
 	Data        string `json:"transformers,omitempty"`
-	Timezone    string `json:"timezone, omitempty"`
+	Timezone    string `json:"timezone,omitempty"`
 	CallbackUrl string `json:"callback_url"`
 	StartDate   string `json:"start_date,omitempty"`
 	EndDate     string `json:"end_date,omitempty"`

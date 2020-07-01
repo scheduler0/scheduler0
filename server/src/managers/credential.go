@@ -1,7 +1,7 @@
 package managers
 
 import (
-	"cron-server/server/src/db"
+	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
 	"crypto/sha256"
 	"encoding/hex"
@@ -13,7 +13,7 @@ import (
 
 type CredentialManager models.CredentialModel
 
-func (c *CredentialManager) CreateOne(pool *db.Pool) (string, error) {
+func (c *CredentialManager) CreateOne(pool *misc.Pool) (string, error) {
 	if len(c.HTTPReferrerRestriction) < 1 {
 		return "", errors.New("credential should have at least one restriction set")
 	}
@@ -40,7 +40,7 @@ func (c *CredentialManager) CreateOne(pool *db.Pool) (string, error) {
 	}
 }
 
-func (c *CredentialManager) GetOne(pool *db.Pool) (int, error) {
+func (c *CredentialManager) GetOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -69,7 +69,7 @@ func (c *CredentialManager) GetOne(pool *db.Pool) (int, error) {
 	return count, nil
 }
 
-func (c *CredentialManager) GetAll(pool *db.Pool, offset int, limit int, orderBy string) ([]CredentialManager, error) {
+func (c *CredentialManager) GetAll(pool *misc.Pool, offset int, limit int, orderBy string) ([]CredentialManager, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -94,7 +94,7 @@ func (c *CredentialManager) GetAll(pool *db.Pool, offset int, limit int, orderBy
 	return credentials, nil
 }
 
-func (c *CredentialManager) UpdateOne(pool *db.Pool) (int, error) {
+func (c *CredentialManager) UpdateOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -126,7 +126,7 @@ func (c *CredentialManager) UpdateOne(pool *db.Pool) (int, error) {
 	return res.RowsAffected(), nil
 }
 
-func (c *CredentialManager) DeleteOne(pool *db.Pool) (int, error) {
+func (c *CredentialManager) DeleteOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

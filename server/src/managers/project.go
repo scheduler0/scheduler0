@@ -1,7 +1,7 @@
 package managers
 
 import (
-	"cron-server/server/src/db"
+	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
 	"errors"
 	"fmt"
@@ -13,7 +13,7 @@ import (
 
 type ProjectManager models.ProjectModel
 
-func (p *ProjectManager) CreateOne(pool *db.Pool) (string, error) {
+func (p *ProjectManager) CreateOne(pool *misc.Pool) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -52,7 +52,7 @@ func (p *ProjectManager) CreateOne(pool *db.Pool) (string, error) {
 	return p.ID, nil
 }
 
-func (p *ProjectManager) GetOne(pool *db.Pool, query string, params interface{}) (int, error) {
+func (p *ProjectManager) GetOne(pool *misc.Pool, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -76,7 +76,7 @@ func (p *ProjectManager) GetOne(pool *db.Pool, query string, params interface{})
 	return count, nil
 }
 
-func (p *ProjectManager) GetAll(pool *db.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (p *ProjectManager) GetAll(pool *misc.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -119,7 +119,7 @@ func (p *ProjectManager) GetAll(pool *db.Pool, query string, offset int, limit i
 	return count, results, nil
 }
 
-func (p *ProjectManager) UpdateOne(pool *db.Pool) (int, error) {
+func (p *ProjectManager) UpdateOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -168,7 +168,7 @@ func (p *ProjectManager) UpdateOne(pool *db.Pool) (int, error) {
 	return res.RowsAffected(), nil
 }
 
-func (p *ProjectManager) DeleteOne(pool *db.Pool) (int, error) {
+func (p *ProjectManager) DeleteOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

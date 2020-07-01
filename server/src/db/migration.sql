@@ -55,13 +55,6 @@ BEGIN
 
     IF EXISTS (
             SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_NAME='jobs' AND COLUMN_NAME='missed_execs')
-    THEN
-        ALTER TABLE jobs DROP COLUMN missed_execs;
-    END IF;
-
-    IF EXISTS (
-            SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME='jobs' AND COLUMN_NAME='timezone')
     THEN
     ELSE

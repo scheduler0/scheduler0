@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"cron-server/server/src/db"
 	"cron-server/server/src/misc"
 	"cron-server/server/src/service"
 	"cron-server/server/src/transformers"
@@ -13,7 +12,7 @@ import (
 )
 
 type CredentialController struct {
-	Pool *db.Pool
+	Pool *misc.Pool
 }
 
 func (credentialController *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request) {

@@ -1,7 +1,7 @@
 package managers
 
 import (
-	"cron-server/server/src/db"
+	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
 	"errors"
 	"github.com/go-pg/pg"
@@ -13,7 +13,7 @@ import (
 
 type JobManager models.JobModel
 
-func (jd *JobManager) CreateOne(pool *db.Pool) (string, error) {
+func (jd *JobManager) CreateOne(pool *misc.Pool) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -77,7 +77,7 @@ func (jd *JobManager) CreateOne(pool *db.Pool) (string, error) {
 	return jd.ID, nil
 }
 
-func (jd *JobManager) GetOne(pool *db.Pool, query string, params interface{}) (int, error) {
+func (jd *JobManager) GetOne(pool *misc.Pool, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -101,7 +101,7 @@ func (jd *JobManager) GetOne(pool *db.Pool, query string, params interface{}) (i
 	return count, nil
 }
 
-func (jd *JobManager) GetAll(pool *db.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (jd *JobManager) GetAll(pool *misc.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -146,7 +146,7 @@ func (jd *JobManager) GetAll(pool *db.Pool, query string, offset int, limit int,
 	return count, results, nil
 }
 
-func (jd *JobManager) UpdateOne(pool *db.Pool) (int, error) {
+func (jd *JobManager) UpdateOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -182,7 +182,7 @@ func (jd *JobManager) UpdateOne(pool *db.Pool) (int, error) {
 	return res.RowsAffected(), nil
 }
 
-func (jd *JobManager) DeleteOne(pool *db.Pool) (int, error) {
+func (jd *JobManager) DeleteOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

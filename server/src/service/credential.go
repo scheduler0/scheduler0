@@ -2,13 +2,13 @@ package service
 
 import (
 	"context"
-	"cron-server/server/src/db"
 	"cron-server/server/src/managers"
+	"cron-server/server/src/misc"
 	"cron-server/server/src/transformers"
 )
 
 type CredentialService struct {
-	Pool *db.Pool
+	Pool *misc.Pool
 	Ctx  context.Context
 }
 
