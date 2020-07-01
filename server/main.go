@@ -1,12 +1,13 @@
 package main
 
 import (
-	"cron-server/server/db"
-	"cron-server/server/db/managers"
-	"cron-server/server/middlewares"
-	"cron-server/server/misc"
-	"cron-server/server/process"
-	"cron-server/server/routes/controllers"
+	"cron-server/server/src/controllers"
+	"cron-server/server/src/db"
+	"cron-server/server/src/managers"
+	"cron-server/server/src/middlewares"
+	"cron-server/server/src/misc"
+	"cron-server/server/src/models"
+	"cron-server/server/src/process"
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
 	"github.com/gorilla/mux"
@@ -26,10 +27,10 @@ func SetupDB(pool *db.Pool) {
 	defer pool.Release(conn)
 
 	for _, model := range []interface{}{
-		(*managers.JobManager)(nil),
-		(*managers.ProjectManager)(nil),
-		(*managers.CredentialManager)(nil),
-		(*managers.ExecutionManager)(nil),
+		(*models.JobModel)(nil),
+		(*models.ProjectModel)(nil),
+		(*models.CredentialModel)(nil),
+		(*models.ExecutionModel)(nil),
 	} {
 		err := db.CreateTable(model, &orm.CreateTableOptions{IfNotExists: true})
 		if err != nil {
@@ -59,18 +60,18 @@ func SetupDB(pool *db.Pool) {
 		misc.CheckErr(err)
 	}
 
-	var c = managers.CredentialManager{}
+	credentialManager := managers.CredentialManager{}
 
 	// TODO: "date_created < ?", []string{"now()"}
-	_, err = c.GetOne(pool)
+	_, err = credentialManager.GetOne(pool)
 	if err != nil {
 		misc.CheckErr(err)
 	}
 
-	if len(c.ID) < 1 {
-		c.HTTPReferrerRestriction = "*"
+	if len(credentialManager.ID) < 1 {
+		credentialManager.HTTPReferrerRestriction = "*"
 		// TODO: Fix syntax error
-		_, err = c.CreateOne(pool)
+		_, err = credentialManager.CreateOne(pool)
 		log.Println("Created default credentials")
 		if err != nil {
 			misc.CheckErr(err)

@@ -1,8 +1,7 @@
 prepare_test_db:
-	go run prepare_test_db.go
+	go run ./testutils/testutils.go
 
-teardown_test_db:
-	go run teardown_test_db.go
+test_all:
+	go test ./... -cover -v
 
-test: teardown_test_db prepare_test_db
-	 go test ./... -cover -v
+test: prepare_test_db test_all
