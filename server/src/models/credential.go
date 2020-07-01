@@ -1,8 +1,6 @@
 package models
 
-import (
-	"time"
-)
+import "time"
 
 type CredentialModel struct {
 	TableName struct{} `sql:"credentials"`

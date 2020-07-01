@@ -80,10 +80,10 @@ func GetPostgresCredentials(env Env) *PostgresCredentials {
 	}
 
 	return &PostgresCredentials{
-		Addr:  os.Getenv("POSTGRES_ADDRESS"),
+		Addr:     os.Getenv("POSTGRES_ADDRESS"),
 		Password: os.Getenv("POSTGRES_USER"),
 		Database: os.Getenv("POSTGRES_PASSWORD"),
-		User:  os.Getenv("POSTGRES_DATABASE"),
+		User:     os.Getenv("POSTGRES_DATABASE"),
 	}
 }
 

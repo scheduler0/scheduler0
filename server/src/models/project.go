@@ -1,8 +1,6 @@
 package models
 
-import (
-	"time"
-)
+import "time"
 
 type ProjectModel struct {
 	TableName struct{} `sql:"projects"`

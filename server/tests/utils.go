@@ -5,6 +5,7 @@ import (
 	"cron-server/server/src/managers"
 	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
+	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
 	"io"
@@ -14,8 +15,7 @@ import (
 	"path/filepath"
 )
 
-
-func seed(pool *db.Pool)  {
+func seed(pool *db.Pool) {
 	var c = managers.CredentialManager{}
 
 	// Seed database
@@ -35,7 +35,7 @@ func seed(pool *db.Pool)  {
 	}
 }
 
-func migrations(db *pg.DB)  {
+func migrations(db *pg.DB) {
 	pwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
@@ -44,11 +44,13 @@ func migrations(db *pg.DB)  {
 	var absPath string
 	var sql []byte
 
+	fmt.Print("pwd", pwd)
+
 	absPath, err = filepath.Abs(pwd + "/server/db/migration.sql")
 
 	sql, err = ioutil.ReadFile(absPath)
 	if err != nil {
-		absPath, err = filepath.Abs(pwd + "/db/migration.sql")
+		absPath, err = filepath.Abs(pwd + "/src/db/migration.sql")
 		sql, err = ioutil.ReadFile(absPath)
 		if err != nil {
 			panic(err)
@@ -75,7 +77,7 @@ func GetTestPool() *db.Pool {
 	return pool
 }
 
-func Teardown()  {
+func Teardown() {
 	postgresCredentials := *misc.GetPostgresCredentials(misc.EnvTest)
 
 	db := pg.Connect(&pg.Options{
@@ -113,7 +115,6 @@ func Prepare() {
 	if err != nil {
 		panic(err)
 	}
-
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)

@@ -12,7 +12,7 @@ import (
 )
 
 type JobManager models.JobModel
- 
+
 func (jd *JobManager) CreateOne(pool *db.Pool) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
@@ -195,4 +195,4 @@ func (jd *JobManager) DeleteOne(pool *db.Pool) (int, error) {
 	} else {
 		return r.RowsAffected(), nil
 	}
-} 
+}

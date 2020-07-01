@@ -26,7 +26,7 @@ func TestJob_CreateOne(t *testing.T) {
 		jobOne.ProjectId = ""
 		jobOne.CronSpec = "* * * * *"
 
-		_, err := jobOne.CreateOne(pool, jobCtx)
+		_, err := jobOne.CreateOne(pool)
 
 		if err == nil {
 			t.Fatalf("\t\t  Model should require values")
@@ -41,7 +41,7 @@ func TestJob_CreateOne(t *testing.T) {
 		jobTwo.StartDate = time.Now().Add(600000 * time.Second)
 		jobTwo.CronSpec = "* * * * *"
 
-		id, err := jobTwo.CreateOne(pool, jobCtx)
+		id, err := jobTwo.CreateOne(pool)
 
 		if err == nil {
 			t.Fatalf("\t\t  Invalid project id does not exist but job with %v was created", id)
@@ -50,7 +50,7 @@ func TestJob_CreateOne(t *testing.T) {
 
 	t.Log("Creating job returns new id")
 	{
-		id, err := project.CreateOne(pool, jobCtx)
+		id, err := project.CreateOne(pool)
 		if err != nil {
 			t.Fatalf("\t\t  Cannot create project %v", err)
 		}
@@ -66,17 +66,17 @@ func TestJob_CreateOne(t *testing.T) {
 		jobThree.StartDate = time.Now().Add(600000 * time.Second)
 		jobThree.CronSpec = "* * * * *"
 
-		_, err = jobThree.CreateOne(pool, jobCtx)
+		_, err = jobThree.CreateOne(pool)
 		if err != nil {
 			t.Fatalf("\t\t  Could not create job %v", err)
 		}
 
-		rowsAffected, err := jobThree.DeleteOne(pool, jobCtx)
+		rowsAffected, err := jobThree.DeleteOne(pool)
 		if err != nil {
 			t.Fatalf("\t\t Could not delete job %v", err)
 		}
 
-		rowsAffected, err = project.DeleteOne(pool, jobCtx)
+		rowsAffected, err = project.DeleteOne(pool)
 		if err != nil && rowsAffected < 1 {
 			t.Fatalf("\t\t  Could not delete project %v", err)
 		}
@@ -88,7 +88,7 @@ func TestJob_UpdateOne(t *testing.T) {
 
 	t.Log("Cannot update cron spec on job")
 	{
-		id, err := project.CreateOne(pool, jobCtx)
+		id, err := project.CreateOne(pool)
 		if err != nil {
 			t.Fatalf("\t\t  Cannot create project %v", err)
 		}
@@ -100,19 +100,19 @@ func TestJob_UpdateOne(t *testing.T) {
 		jobThree.ProjectId = id
 		jobThree.CronSpec = "1 * * * *"
 
-		id, err = jobThree.CreateOne(pool, jobCtx)
+		id, err = jobThree.CreateOne(pool)
 		if err != nil {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
 
 		jobThree.CronSpec = "2 * * * *"
-		_, err = jobThree.UpdateOne(pool, jobCtx)
+		_, err = jobThree.UpdateOne(pool)
 		if err == nil {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
 
 		jobThreePlaceholder := managers.JobManager{ID: jobThree.ID}
-		_, err = jobThreePlaceholder.GetOne(pool, jobCtx, "id = ?", jobThree.ID)
+		_, err = jobThreePlaceholder.GetOne(pool, "id = ?", jobThree.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get job %v", err)
 		}
@@ -121,12 +121,12 @@ func TestJob_UpdateOne(t *testing.T) {
 			t.Fatalf("\t\t CronSpec should be immutable")
 		}
 
-		_, err = jobThree.DeleteOne(pool, jobCtx)
+		_, err = jobThree.DeleteOne(pool)
 		if err != nil {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
 
-		_, err = project.DeleteOne(pool, jobCtx)
+		_, err = project.DeleteOne(pool)
 		if err != nil {
 			t.Fatalf("\t\t Could not update job %v", err)
 		}
@@ -138,12 +138,12 @@ func TestJob_DeleteOne(t *testing.T) {
 
 	t.Log("Delete jobs")
 	{
-		rowsAffected, err := jobThree.DeleteOne(pool, jobCtx)
+		rowsAffected, err := jobThree.DeleteOne(pool)
 		if err != nil && rowsAffected > 0 {
 			t.Fatalf("\t\t %v", err)
 		}
 
-		rowsAffected, err = project.DeleteOne(pool, jobCtx)
+		rowsAffected, err = project.DeleteOne(pool)
 		if err != nil && rowsAffected > 0 {
 			t.Fatalf("\t\t %v", err)
 		}

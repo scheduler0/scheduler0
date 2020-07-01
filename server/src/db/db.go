@@ -86,7 +86,7 @@ func CreateConnectionEnv(env string) (io.Closer, error) {
 		postgresCredentials = *misc.GetPostgresCredentials(misc.EnvTest)
 	} else if env == "PROD" {
 		postgresCredentials = *misc.GetPostgresCredentials(misc.EnvProd)
-	} else  {
+	} else {
 		return nil, errors.New("environment was not provided")
 	}
 
@@ -97,4 +97,3 @@ func CreateConnectionEnv(env string) (io.Closer, error) {
 		Database: postgresCredentials.Database,
 	}), nil
 }
-

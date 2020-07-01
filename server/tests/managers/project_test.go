@@ -20,7 +20,7 @@ func TestProject_CreateOne(t *testing.T) {
 
 	t.Log("Don't create project with name and description empty")
 	{
-		pid, err := projectOne.CreateOne(pool, projectCtx)
+		pid, err := projectOne.CreateOne(pool)
 		fmt.Println("pid", pid)
 		if err == nil {
 			t.Fatalf("\t\t Cannot create project without name and descriptions")
@@ -29,7 +29,7 @@ func TestProject_CreateOne(t *testing.T) {
 
 	t.Log("Create project with name and description not empty")
 	{
-		pid, err := projectTwo.CreateOne(pool, projectCtx)
+		pid, err := projectTwo.CreateOne(pool)
 		fmt.Println("pid", pid)
 		if err != nil {
 			t.Fatalf("\t\t Error creating project %v", err)
@@ -38,7 +38,7 @@ func TestProject_CreateOne(t *testing.T) {
 
 	t.Log("Don't create project with existing name")
 	{
-		pid, err := projectTwo.CreateOne(pool, projectCtx)
+		pid, err := projectTwo.CreateOne(pool)
 		fmt.Println("pid", pid)
 		if err == nil {
 			t.Fatalf("\t\t Cannot create project with existing name")
@@ -53,7 +53,7 @@ func TestProject_GetOne(t *testing.T) {
 	{
 		projectTwoPlaceholder := managers.ProjectManager{ID: projectTwo.ID}
 
-		_, err := projectTwoPlaceholder.GetOne(pool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
+		_, err := projectTwoPlaceholder.GetOne(pool, "id = ?", projectTwoPlaceholder.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get project %v", err)
 		}
@@ -71,13 +71,13 @@ func TestProject_UpdateOne(t *testing.T) {
 	{
 		projectTwo.Name = "some new name"
 
-		_, err := projectTwo.UpdateOne(pool, projectCtx)
+		_, err := projectTwo.UpdateOne(pool)
 		if err != nil {
 			t.Fatalf("\t\t Could not update project %v", err)
 		}
 
 		projectTwoPlaceholder := managers.ProjectManager{ID: projectTwo.ID}
-		_, err = projectTwoPlaceholder.GetOne(pool, projectCtx, "id = ?", projectTwoPlaceholder.ID)
+		_, err = projectTwoPlaceholder.GetOne(pool, "id = ?", projectTwoPlaceholder.ID)
 		if err != nil {
 			t.Fatalf("\t\t Could not get project with id %v", projectTwoPlaceholder.ID)
 		}
@@ -93,7 +93,7 @@ func TestProject_DeleteOne(t *testing.T) {
 
 	t.Log("Delete All Projects")
 	{
-		rowsAffected, err := projectTwo.DeleteOne(pool, projectCtx)
+		rowsAffected, err := projectTwo.DeleteOne(pool)
 		if err != nil && rowsAffected > 0 {
 			t.Fatalf("\t\t Cannot delete project one %v", err)
 		}
@@ -103,7 +103,7 @@ func TestProject_DeleteOne(t *testing.T) {
 	{
 		projectOne.Name = "Untitled #1"
 		projectOne.Description = "Pretty important project"
-		id, err := projectOne.CreateOne(pool, projectCtx)
+		id, err := projectOne.CreateOne(pool)
 
 		var job = managers.JobManager{}
 		job.ProjectId = id
@@ -111,22 +111,22 @@ func TestProject_DeleteOne(t *testing.T) {
 		job.CronSpec = "* * * * *"
 		job.CallbackUrl = "https://some-random-url"
 
-		_, err = job.CreateOne(pool, projectCtx)
+		_, err = job.CreateOne(pool)
 		if err != nil {
 			t.Fatalf("Cannot create job %v", err)
 		}
 
-		rowsAffected, err := projectOne.DeleteOne(pool, projectCtx)
+		rowsAffected, err := projectOne.DeleteOne(pool)
 		if err == nil || rowsAffected > 0 {
 			t.Fatalf("\t\t Projects with jobs shouldn't be deleted %v %v", err, rowsAffected)
 		}
 
-		rowsAffected, err = job.DeleteOne(pool, projectCtx)
+		rowsAffected, err = job.DeleteOne(pool)
 		if err != nil || rowsAffected < 1 {
 			t.Fatalf("\t\t Could not delete job  %v %v", err, rowsAffected)
 		}
 
-		rowsAffected, err = projectOne.DeleteOne(pool, projectCtx)
+		rowsAffected, err = projectOne.DeleteOne(pool)
 		if err != nil || rowsAffected < 1 {
 			t.Fatalf("\t\t Could not delete project  %v %v", err, rowsAffected)
 		}

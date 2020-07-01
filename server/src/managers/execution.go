@@ -26,7 +26,7 @@ func (exec *ExecutionManager) CreateOne(pool *db.Pool, ctx context.Context) (str
 
 	jobWithId := JobManager{ID: exec.JobId}
 
-	if _, err := jobWithId.GetOne(pool, ctx, "id = ?", exec.JobId); err != nil {
+	if _, err := jobWithId.GetOne(pool, "id = ?", exec.JobId); err != nil {
 		return "", errors.New("job with id does not exist")
 	}
 
