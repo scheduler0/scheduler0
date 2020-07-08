@@ -4,6 +4,7 @@ import (
 	"cron-server/server/src/misc"
 	"cron-server/server/src/service"
 	"cron-server/server/src/transformers"
+	"fmt"
 	"github.com/gorilla/mux"
 	"io/ioutil"
 	"math"
@@ -33,9 +34,14 @@ func (credentialController *CredentialController) CreateOne(w http.ResponseWrite
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
 
 	if newCredentialID, err := credentialService.CreateNewCredential(credentialBody.HTTPReferrerRestriction); err != nil {
-		misc.SendJson(w, err.Error(), false, http.StatusTeapot, nil)
+		misc.SendJson(w, err.Error(), false, http.StatusInternalServerError, nil)
 	} else {
-		misc.SendJson(w, newCredentialID, true, http.StatusCreated, nil)
+		if credential, err := credentialService.FindOneCredentialByID(newCredentialID); err != nil {
+			fmt.Println(err,newCredentialID)
+			misc.SendJson(w, err.Error(), false, http.StatusInternalServerError, nil)
+		} else {
+			misc.SendJson(w, credential, true, http.StatusCreated, nil)
+		}
 	}
 }
 

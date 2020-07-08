@@ -89,12 +89,12 @@ func SeedDatabase(pool *misc.Pool) {
 	credentialManager := managers.CredentialManager{}
 	// Seed database
 
-	_, err := credentialManager.GetOne(pool)
+	credentials, err := credentialManager.GetAll(pool, 0, 1, "date_created")
 	if err != nil {
 		panic(err)
 	}
 
-	if len(credentialManager.ID) < 1 {
+	if len(credentials) < 1 {
 		credentialManager.HTTPReferrerRestriction = "*"
 		_, err = credentialManager.CreateOne(pool)
 		log.Println("Created default credentials")

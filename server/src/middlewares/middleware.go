@@ -62,8 +62,11 @@ func (_ *MiddlewareType) AuthMiddleware(pool *misc.Pool) func(next http.Handler)
 				return
 			}
 
-			c, _ := credential.GetOne(pool)
-			if !passBasicAuth && c < 1 {
+			if err := credential.GetOne(pool); err != nil {
+				misc.SendJson(w, err.Error(), false, http.StatusInternalServerError, nil)
+			}
+
+			if !passBasicAuth && len(credential.ID) < 1 {
 				misc.SendJson(w, "credential does not exits", false, http.StatusUnauthorized, nil)
 				return
 			}

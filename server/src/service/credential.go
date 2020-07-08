@@ -21,7 +21,7 @@ func (credentialService *CredentialService) CreateNewCredential(HTTPReferrerRest
 func (credentialService *CredentialService) FindOneCredentialByID(ID string) (*transformers.Credential, error) {
 	credentialDto := transformers.Credential{ID: ID}
 	credentialManager := credentialDto.ToManager()
-	if _, err := credentialManager.GetOne(credentialService.Pool); err != nil {
+	if err := credentialManager.GetOne(credentialService.Pool); err != nil {
 		return nil, err
 	} else {
 		outboundDto := transformers.Credential{}

@@ -3,14 +3,17 @@ package tests
 import (
 	"cron-server/server/src/db"
 	"cron-server/server/src/misc"
+	"encoding/json"
 	"github.com/go-pg/pg"
 	"io"
+	"io/ioutil"
+	"net/http/httptest"
 )
 
 func GetTestPool() *misc.Pool {
 	pool, err := misc.NewPool(func() (closer io.Closer, err error) {
 		return db.CreateConnectionEnv("TEST")
-	}, 1)
+	}, 100)
 
 	if err != nil {
 		panic(err)
@@ -56,4 +59,21 @@ func Prepare() {
 	db.CreateModelTables(pool)
 	db.RunSQLMigrations(pool)
 	db.SeedDatabase(pool)
+}
+
+func ExtractResponse(w *httptest.ResponseRecorder) (*misc.Response, string, error) {
+	body, err := ioutil.ReadAll(w.Body)
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	res := &misc.Response{}
+
+	err = json.Unmarshal(body, res)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return res, string(body), nil
 }

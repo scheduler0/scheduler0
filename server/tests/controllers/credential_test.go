@@ -2,13 +2,10 @@ package controllers
 
 import (
 	"cron-server/server/src/controllers"
-	"cron-server/server/src/misc"
 	"cron-server/server/src/transformers"
 	"cron-server/server/tests"
-	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -39,21 +36,13 @@ func TestCredential_Controller(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			credentialController.CreateOne(w, req)
-
-			body, err := ioutil.ReadAll(w.Body)
-			if err != nil {
-				fmt.Print(err)
-			}
-
-			res := &misc.Response{}
-
-			err = json.Unmarshal(body, res)
-			if err != nil {
-				fmt.Print(err)
-			}
+			res, _, err := tests.ExtractResponse(w)
 
 			if !assert.Equal(t, http.StatusCreated, w.Code) {
-				fmt.Println("Server response body", res)
+				fmt.Errorf("server response body %v", res)
+			} else {
+				// Uncomment to view response body in logs
+				//fmt.Println(responseStr)
 			}
 		}
 
@@ -66,28 +55,17 @@ func TestCredential_Controller(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			credentialController.List(w, req)
-
-			body, err := ioutil.ReadAll(w.Body)
-			if err != nil {
-				fmt.Print(err)
-			}
-
-			res := &misc.Response{}
-
-			err = json.Unmarshal(body, res)
-			if err != nil {
-				fmt.Print(err)
-			}
+			res, _, err := tests.ExtractResponse(w)
 
 			if !assert.Equal(t, http.StatusOK, w.Code) {
 				fmt.Errorf("server response error body %v", res)
 			} else {
 				// Uncomment to view response body in logs
-				// fmt.Println(string(body))
+				// fmt.Println(responseStr)
 			}
 		}
 
-		t.Logf("\t\tUpdate A Credential")
+		t.Logf("\t\tGet A Single Credential")
 		{
 
 		}

@@ -13,18 +13,18 @@ import (
 
 type CredentialManager models.CredentialModel
 
-func (c *CredentialManager) CreateOne(pool *misc.Pool) (string, error) {
-	if len(c.HTTPReferrerRestriction) < 1 {
+func (credentialManager *CredentialManager) CreateOne(pool *misc.Pool) (string, error) {
+	if len(credentialManager.HTTPReferrerRestriction) < 1 {
 		return "", errors.New("credential should have at least one restriction set")
 	}
 
-	c.DateCreated = time.Now().UTC()
-	c.ID = ksuid.New().String()
+	credentialManager.DateCreated = time.Now().UTC()
+	credentialManager.ID = ksuid.New().String()
 
 	randomId := ksuid.New().String()
 	hash := sha256.New()
 	hash.Write([]byte(randomId))
-	c.ApiKey = hex.EncodeToString(hash.Sum(nil))
+	credentialManager.ApiKey = hex.EncodeToString(hash.Sum(nil))
 
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
@@ -33,43 +33,32 @@ func (c *CredentialManager) CreateOne(pool *misc.Pool) (string, error) {
 	}
 	db := conn.(*pg.DB)
 
-	if _, err := db.Model(c).Insert(); err != nil {
+	if _, err := db.Model(credentialManager).Insert(); err != nil {
 		return "", err
 	} else {
-		return c.ID, nil
+		return credentialManager.ID, nil
 	}
 }
 
-func (c *CredentialManager) GetOne(pool *misc.Pool) (int, error) {
+func (credentialManager *CredentialManager) GetOne(pool *misc.Pool) error {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	db := conn.(*pg.DB)
 
-	baseQuery := db.Model(c)
-
-	count, err := baseQuery.Count()
-	if count < 1 {
-		return 0, nil
-	}
-
+	err = db.Model(credentialManager).Where("id != ?", credentialManager.ID).Select()
 	if err != nil {
-		return count, err
+		return err
 	}
 
-	err = baseQuery.Select(&c)
-	if err != nil {
-		return count, err
-	}
-
-	return count, nil
+	return nil
 }
 
-func (c *CredentialManager) GetAll(pool *misc.Pool, offset int, limit int, orderBy string) ([]CredentialManager, error) {
+func (credentialManager *CredentialManager) GetAll(pool *misc.Pool, offset int, limit int, orderBy string) ([]CredentialManager, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -94,7 +83,7 @@ func (c *CredentialManager) GetAll(pool *misc.Pool, offset int, limit int, order
 	return credentials, nil
 }
 
-func (c *CredentialManager) UpdateOne(pool *misc.Pool) (int, error) {
+func (credentialManager *CredentialManager) UpdateOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -104,20 +93,20 @@ func (c *CredentialManager) UpdateOne(pool *misc.Pool) (int, error) {
 	defer pool.Release(conn)
 
 	var credentialPlaceholder CredentialManager
-	credentialPlaceholder.ID = c.ID
-	_, err = credentialPlaceholder.GetOne(pool)
+	credentialPlaceholder.ID = credentialManager.ID
+	err = credentialPlaceholder.GetOne(pool)
 	if err != nil {
 		return 0, err
 	}
 
-	if credentialPlaceholder.ApiKey != c.ApiKey && len(c.ApiKey) > 1 {
+	if credentialPlaceholder.ApiKey != credentialManager.ApiKey && len(credentialManager.ApiKey) > 1 {
 		return 0, errors.New("cannot update api key")
 	}
 
-	c.ApiKey = credentialPlaceholder.ApiKey
-	c.DateCreated = credentialPlaceholder.DateCreated
+	credentialManager.ApiKey = credentialPlaceholder.ApiKey
+	credentialManager.DateCreated = credentialPlaceholder.DateCreated
 
-	res, err := db.Model(&c).Update(c)
+	res, err := db.Model(&credentialManager).Update(credentialManager)
 
 	if err != nil {
 		return 0, err
@@ -126,7 +115,7 @@ func (c *CredentialManager) UpdateOne(pool *misc.Pool) (int, error) {
 	return res.RowsAffected(), nil
 }
 
-func (c *CredentialManager) DeleteOne(pool *misc.Pool) (int, error) {
+func (credentialManager *CredentialManager) DeleteOne(pool *misc.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
@@ -146,7 +135,7 @@ func (c *CredentialManager) DeleteOne(pool *misc.Pool) (int, error) {
 		return -1, err
 	}
 
-	r, err := db.Model(c).Where("id = ?", c.ID).Delete()
+	r, err := db.Model(credentialManager).Where("id = ?", credentialManager.ID).Delete()
 	if err != nil {
 		return -1, err
 	}
