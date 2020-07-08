@@ -93,7 +93,7 @@ func (writer LogWriter) Write(bytes []byte) (int, error) {
 }
 
 type Response struct {
-	Data    interface{} `json:"transformers"`
+	Data    interface{} `json:"data"`
 	Success bool        `json:"success"`
 }
 
@@ -153,7 +153,9 @@ func GetRequestQueryString(query string) map[string]string {
 	pairs := strings.Split(query, "&")
 	params := make(map[string]string, len(pairs))
 
-	fmt.Println(query)
+	if len(query) < 1 {
+		return params
+	}
 
 	for i := 0; i < len(pairs); i++ {
 		ketValuePair := strings.Split(pairs[i], "=")
