@@ -153,6 +153,8 @@ func GetRequestQueryString(query string) map[string]string {
 	pairs := strings.Split(query, "&")
 	params := make(map[string]string, len(pairs))
 
+	fmt.Println(query)
+
 	for i := 0; i < len(pairs); i++ {
 		ketValuePair := strings.Split(pairs[i], "=")
 		params[ketValuePair[0]] = ketValuePair[1]

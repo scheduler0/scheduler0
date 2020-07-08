@@ -4,7 +4,6 @@ import (
 	"context"
 	"cron-server/server/src/managers"
 	"cron-server/server/tests"
-	"fmt"
 	"testing"
 	"time"
 )
@@ -22,8 +21,7 @@ func TestProject_Manager(t *testing.T) {
 	{
 		t.Logf("\t\tDon't create project with name and description empty")
 		{
-			pid, err := projectOne.CreateOne(pool)
-			fmt.Println("pid", pid)
+			_, err := projectOne.CreateOne(pool)
 			if err == nil {
 				t.Fatalf("\t\t Cannot create project without name and descriptions")
 			}
@@ -31,8 +29,7 @@ func TestProject_Manager(t *testing.T) {
 
 		t.Logf("\t\tCreate project with name and description not empty")
 		{
-			pid, err := projectTwo.CreateOne(pool)
-			fmt.Println("pid", pid)
+			_, err := projectTwo.CreateOne(pool)
 			if err != nil {
 				t.Fatalf("\t\t Error creating project %v", err)
 			}
@@ -40,8 +37,7 @@ func TestProject_Manager(t *testing.T) {
 
 		t.Logf("\t\tDon't create project with existing name")
 		{
-			pid, err := projectTwo.CreateOne(pool)
-			fmt.Println("pid", pid)
+			_, err := projectTwo.CreateOne(pool)
 			if err == nil {
 				t.Fatalf("\t\t Cannot create project with existing name")
 			}

@@ -19,7 +19,7 @@ func (exec *ExecutionManager) CreateOne(pool *misc.Pool) (string, error) {
 	defer pool.Release(conn)
 
 	if len(exec.JobId) < 1 {
-		err := errors.New("job id is not sets")
+		err := errors.New("job id is not set")
 		return "", err
 	}
 
