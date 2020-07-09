@@ -23,7 +23,6 @@ func TestCredential_Controller(t *testing.T) {
 
 	t.Log("TestCredential_Controller")
 	{
-
 		t.Logf("\t\tCreating A New Credential")
 		{
 			testCredential := transformers.Credential{HTTPReferrerRestriction: "*"}
@@ -133,7 +132,7 @@ func TestCredential_Controller(t *testing.T) {
 			}
 		}
 
-		t.Logf("\tDelete One Credential")
+		t.Logf("\t\tDelete One Credential")
 		{
 			path := fmt.Sprintf("/credentials/%s", credential.ID)
 			req, err := http.NewRequest("DELETE", path, nil)
