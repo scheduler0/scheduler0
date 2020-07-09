@@ -30,8 +30,8 @@ func (credentialService *CredentialService) FindOneCredentialByID(ID string) (*t
 	}
 }
 
-func (credentialService *CredentialService) UpdateOneCredential(ID string) (*transformers.Credential, error) {
-	credentialDto := transformers.Credential{ID: ID}
+func (credentialService *CredentialService) UpdateOneCredential(ID string, HTTPReferrerRestriction string) (*transformers.Credential, error) {
+	credentialDto := transformers.Credential{ID: ID, HTTPReferrerRestriction: HTTPReferrerRestriction }
 	credentialManager := credentialDto.ToManager()
 	if _, err := credentialManager.UpdateOne(credentialService.Pool); err != nil {
 		return nil, err

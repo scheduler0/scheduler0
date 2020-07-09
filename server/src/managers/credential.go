@@ -106,7 +106,7 @@ func (credentialManager *CredentialManager) UpdateOne(pool *misc.Pool) (int, err
 	credentialManager.ApiKey = credentialPlaceholder.ApiKey
 	credentialManager.DateCreated = credentialPlaceholder.DateCreated
 
-	res, err := db.Model(&credentialManager).Update(credentialManager)
+	res, err := db.Model(credentialManager).Where("id = ?", credentialManager.ID).Update(credentialManager)
 
 	if err != nil {
 		return 0, err

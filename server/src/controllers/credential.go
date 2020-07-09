@@ -61,8 +61,22 @@ func (credentialController *CredentialController) GetOne(w http.ResponseWriter, 
 func (credentialController *CredentialController) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
+	body, err := ioutil.ReadAll(r.Body)
+	misc.CheckErr(err)
+
+	if len(body) < 1 {
+		misc.SendJson(w, "request body required", false, http.StatusBadRequest, nil)
+	}
+
+	credentialBody := transformers.Credential{}
+
+	err = credentialBody.FromJson(body)
+	if err != nil {
+		misc.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
+	}
+
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
-	credential, err := credentialService.UpdateOneCredential(params["id"])
+	credential, err := credentialService.UpdateOneCredential(params["id"], credentialBody.HTTPReferrerRestriction)
 
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
@@ -74,11 +88,11 @@ func (credentialController *CredentialController) UpdateOne(w http.ResponseWrite
 func (credentialController *CredentialController) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
-	credential, err := credentialService.DeleteOneCredential(params["id"])
+	_, err := credentialService.DeleteOneCredential(params["id"])
 	if err != nil {
 		misc.SendJson(w, err.Error(), false, http.StatusOK, nil)
 	} else {
-		misc.SendJson(w, credential, true, http.StatusOK, nil)
+		misc.SendJson(w, nil, true, http.StatusNoContent, nil)
 	}
 }
 
