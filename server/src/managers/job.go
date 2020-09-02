@@ -1,8 +1,8 @@
 package managers
 
 import (
-	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
+	"cron-server/server/src/utils"
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
@@ -13,7 +13,7 @@ import (
 
 type JobManager models.JobModel
 
-func (jd *JobManager) CreateOne(pool *misc.Pool) (string, error) {
+func (jd *JobManager) CreateOne(pool *utils.Pool) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -22,7 +22,7 @@ func (jd *JobManager) CreateOne(pool *misc.Pool) (string, error) {
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	if len(jd.ProjectId) < 1 {
+	if len(jd.ProjectID) < 1 {
 		err := errors.New("project id is not sets")
 		return "", err
 	}
@@ -52,8 +52,8 @@ func (jd *JobManager) CreateOne(pool *misc.Pool) (string, error) {
 		return "", err
 	}
 
-	projectWithId := ProjectManager{ID: jd.ProjectId}
-	c, _ := projectWithId.GetOne(pool, "id = ?", jd.ProjectId)
+	projectWithId := ProjectManager{ID: jd.ProjectID}
+	c, _ := projectWithId.GetOne(pool, "id = ?", jd.ProjectID)
 	if c < 1 {
 		return "", errors.New("project with id does not exist")
 	}
@@ -66,7 +66,6 @@ func (jd *JobManager) CreateOne(pool *misc.Pool) (string, error) {
 	jd.State = models.InActiveJob
 	jd.NextTime = schedule.Next(jd.StartDate)
 	jd.TotalExecs = -1
-	jd.DateCreated = time.Now().UTC()
 	jd.StartDate = jd.StartDate.UTC()
 	jd.ID = ksuid.New().String()
 
@@ -77,7 +76,7 @@ func (jd *JobManager) CreateOne(pool *misc.Pool) (string, error) {
 	return jd.ID, nil
 }
 
-func (jd *JobManager) GetOne(pool *misc.Pool, query string, params interface{}) (int, error) {
+func (jd *JobManager) GetOne(pool *utils.Pool, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -101,7 +100,7 @@ func (jd *JobManager) GetOne(pool *misc.Pool, query string, params interface{}) 
 	return count, nil
 }
 
-func (jd *JobManager) GetAll(pool *misc.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (jd *JobManager) GetAll(pool *utils.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -146,7 +145,7 @@ func (jd *JobManager) GetAll(pool *misc.Pool, query string, offset int, limit in
 	return count, results, nil
 }
 
-func (jd *JobManager) UpdateOne(pool *misc.Pool) (int, error) {
+func (jd *JobManager) UpdateOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -182,7 +181,7 @@ func (jd *JobManager) UpdateOne(pool *misc.Pool) (int, error) {
 	return res.RowsAffected(), nil
 }
 
-func (jd *JobManager) DeleteOne(pool *misc.Pool) (int, error) {
+func (jd *JobManager) DeleteOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

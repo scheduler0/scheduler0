@@ -8,7 +8,7 @@ import (
 
 type Execution struct {
 	ID          string    `json:"id"`
-	JobId       string    `json:"job_id"`
+	JobID       string    `json:"job_id"`
 	StatusCode  string    `json:"status_code"`
 	Timeout     uint64    `json:"timeout"`
 	Response    string    `json:"response"`
@@ -34,11 +34,10 @@ func (exec *Execution) FromJson(body []byte) error {
 func (exec *Execution) ToManager() (managers.ExecutionManager, error) {
 	execD := managers.ExecutionManager{
 		ID:          exec.ID,
-		JobId:       exec.JobId,
+		JobID:       exec.JobID,
 		StatusCode:  exec.StatusCode,
 		Timeout:     exec.Timeout,
 		Response:    exec.Response,
-		Token:       exec.Token,
 		DateCreated: exec.DateCreated,
 	}
 
@@ -47,8 +46,7 @@ func (exec *Execution) ToManager() (managers.ExecutionManager, error) {
 
 func (exec *Execution) FromManager(execD managers.ExecutionManager) {
 	exec.ID = execD.ID
-	exec.JobId = execD.JobId
-	exec.Token = execD.Token
+	exec.JobID = execD.JobID
 	exec.StatusCode = execD.StatusCode
 	exec.Response = execD.Response
 	exec.DateCreated = execD.DateCreated

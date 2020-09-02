@@ -1,19 +1,18 @@
 package managers
 
 import (
-	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
+	"cron-server/server/src/utils"
 	"errors"
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
 	"strings"
-	"time"
 )
 
 type ProjectManager models.ProjectModel
 
-func (p *ProjectManager) CreateOne(pool *misc.Pool) (string, error) {
+func (p *ProjectManager) CreateOne(pool *utils.Pool) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -40,7 +39,6 @@ func (p *ProjectManager) CreateOne(pool *misc.Pool) (string, error) {
 	}
 
 	p.ID = ksuid.New().String()
-	p.DateCreated = time.Now().UTC()
 
 	p.Name = strings.ToLower(p.Name)
 
@@ -52,7 +50,7 @@ func (p *ProjectManager) CreateOne(pool *misc.Pool) (string, error) {
 	return p.ID, nil
 }
 
-func (p *ProjectManager) GetOne(pool *misc.Pool, query string, params interface{}) (int, error) {
+func (p *ProjectManager) GetOne(pool *utils.Pool, query string, params interface{}) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -76,7 +74,7 @@ func (p *ProjectManager) GetOne(pool *misc.Pool, query string, params interface{
 	return count, nil
 }
 
-func (p *ProjectManager) GetAll(pool *misc.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (p *ProjectManager) GetAll(pool *utils.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -119,7 +117,7 @@ func (p *ProjectManager) GetAll(pool *misc.Pool, query string, offset int, limit
 	return count, results, nil
 }
 
-func (p *ProjectManager) UpdateOne(pool *misc.Pool) (int, error) {
+func (p *ProjectManager) UpdateOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -168,7 +166,7 @@ func (p *ProjectManager) UpdateOne(pool *misc.Pool) (int, error) {
 	return res.RowsAffected(), nil
 }
 
-func (p *ProjectManager) DeleteOne(pool *misc.Pool) (int, error) {
+func (p *ProjectManager) DeleteOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

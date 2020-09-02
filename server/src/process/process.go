@@ -2,7 +2,7 @@ package process
 
 import (
 	"cron-server/server/src/managers"
-	"cron-server/server/src/misc"
+	"cron-server/server/src/utils"
 	"cron-server/server/src/models"
 	"fmt"
 	"github.com/go-pg/pg"
@@ -16,7 +16,7 @@ import (
 )
 
 // Start the cron job process
-func Start(pool *misc.Pool) {
+func Start(pool *utils.Pool) {
 	for {
 		jobsToExecute, otherJobs := getJobs(pool)
 		updateMissedJobs(otherJobs, pool)
@@ -26,10 +26,10 @@ func Start(pool *misc.Pool) {
 	}
 }
 
-func getJobs(pool *misc.Pool) (executions []managers.JobManager, others []managers.JobManager) {
+func getJobs(pool *utils.Pool) (executions []managers.JobManager, others []managers.JobManager) {
 	// Infinite loops that queries the database every minute
 	conn, err := pool.Acquire()
-	misc.CheckErr(err)
+	utils.CheckErr(err)
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
@@ -60,15 +60,15 @@ func getJobs(pool *misc.Pool) (executions []managers.JobManager, others []manage
 		"date_part('day', now()::timestamp at time zone 'utc' - jobs.next_time::timestamp at time zone 'utc') <> 0 AND jobs.state != %v AND jobs.total_execs != %v", models.StaleJob, -1)
 
 	_, err = db.Query(&jobsToExecute, jobsToExecuteQuery)
-	misc.CheckErr(err)
+	utils.CheckErr(err)
 
 	_, err = db.Query(&otherJobs, otherJobsQuery)
-	misc.CheckErr(err)
+	utils.CheckErr(err)
 
 	return jobsToExecute, otherJobs
 }
 
-func executeJobs(jobs []managers.JobManager, pool *misc.Pool) {
+func executeJobs(jobs []managers.JobManager, pool *utils.Pool) {
 	for _, jb := range jobs {
 		if len(jb.CallbackUrl) > 1 {
 			go func(job managers.JobManager) {
@@ -93,7 +93,7 @@ func executeJobs(jobs []managers.JobManager, pool *misc.Pool) {
 				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
 				execution := managers.ExecutionManager{
 					ID:          ksuid.New().String(),
-					JobId:       job.ID,
+					JobID:       job.ID,
 					Timeout:     timeout,
 					Response:    response,
 					StatusCode:  string(statusCode),
@@ -101,17 +101,17 @@ func executeJobs(jobs []managers.JobManager, pool *misc.Pool) {
 				}
 
 				_, err = execution.CreateOne(pool)
-				misc.CheckErr(err)
+				utils.CheckErr(err)
 
 				schedule, err := cron.ParseStandard(job.CronSpec)
-				misc.CheckErr(err)
+				utils.CheckErr(err)
 
 				job.NextTime = schedule.Next(job.NextTime).UTC()
 				job.TotalExecs = job.TotalExecs + 1
 				job.State = models.ActiveJob
 
 				_, err = job.UpdateOne(pool)
-				misc.CheckErr(err)
+				utils.CheckErr(err)
 
 				log.Println("Executed job ", job.ID, "  next execution time is ", job.NextTime)
 			}(jb)
@@ -119,7 +119,7 @@ func executeJobs(jobs []managers.JobManager, pool *misc.Pool) {
 	}
 }
 
-func updateMissedJobs(jobs []managers.JobManager, pool *misc.Pool) {
+func updateMissedJobs(jobs []managers.JobManager, pool *utils.Pool) {
 	for i := 0; i < len(jobs); i++ {
 		go func(jb managers.JobManager) {
 			schedule, err := cron.ParseStandard(jb.CronSpec)
@@ -153,7 +153,7 @@ func updateMissedJobs(jobs []managers.JobManager, pool *misc.Pool) {
 			}
 
 			_, err = jb.UpdateOne(pool)
-			misc.CheckErr(err)
+			utils.CheckErr(err)
 		}(jobs[i])
 	}
 }

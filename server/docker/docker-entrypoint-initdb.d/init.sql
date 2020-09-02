@@ -1,0 +1,5 @@
+CREATE DATABASE scheduler0_test;
+CREATE DATABASE scheduler0_dev;
+CREATE ROLE core WITH LOGIN PASSWORD 'localdev';
+GRANT ALL PRIVILEGES ON DATABASE scheduler0_dev TO core;
+GRANT ALL PRIVILEGES ON DATABASE scheduler0_test TO core;

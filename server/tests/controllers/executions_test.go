@@ -8,7 +8,7 @@ package controllers
 //	t.Log("Get All Returns 0 Count and Empty Set")
 //	{
 //		var pool, err = db.NewPool(db.CreateConnection, 1)
-//		misc.CheckErr(err)
+//		utils.CheckErr(err)
 //		executionsController.Pool = *pool
 //
 //		req, err := http.NewRequest("GET", "/?offset=0&limit=10", nil)
@@ -25,7 +25,7 @@ package controllers
 //			fmt.Print(err)
 //		}
 //
-//		var res misc.Response
+//		var res utils.Response
 //
 //		err = json.Unmarshal(body, res)
 //		if err != nil {

@@ -1,24 +1,22 @@
 package managers
 
 import (
-	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
+	"cron-server/server/src/utils"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
-	"time"
 )
 
 type CredentialManager models.CredentialModel
 
-func (credentialManager *CredentialManager) CreateOne(pool *misc.Pool) (string, error) {
+func (credentialManager *CredentialManager) CreateOne(pool *utils.Pool) (string, error) {
 	if len(credentialManager.HTTPReferrerRestriction) < 1 {
 		return "", errors.New("credential should have at least one restriction set")
 	}
 
-	credentialManager.DateCreated = time.Now().UTC()
 	credentialManager.ID = ksuid.New().String()
 
 	randomId := ksuid.New().String()
@@ -40,7 +38,7 @@ func (credentialManager *CredentialManager) CreateOne(pool *misc.Pool) (string, 
 	}
 }
 
-func (credentialManager *CredentialManager) GetOne(pool *misc.Pool) error {
+func (credentialManager *CredentialManager) GetOne(pool *utils.Pool) error {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -50,7 +48,7 @@ func (credentialManager *CredentialManager) GetOne(pool *misc.Pool) error {
 
 	db := conn.(*pg.DB)
 
-	err = db.Model(credentialManager).Where("id != ?", credentialManager.ID).Select()
+	err = db.Model(credentialManager).Where("id = ?", credentialManager.ID).Select()
 	if err != nil {
 		return err
 	}
@@ -58,7 +56,7 @@ func (credentialManager *CredentialManager) GetOne(pool *misc.Pool) error {
 	return nil
 }
 
-func (credentialManager *CredentialManager) GetAll(pool *misc.Pool, offset int, limit int, orderBy string) ([]CredentialManager, error) {
+func (credentialManager *CredentialManager) GetAll(pool *utils.Pool, offset int, limit int, orderBy string) ([]CredentialManager, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
@@ -83,7 +81,7 @@ func (credentialManager *CredentialManager) GetAll(pool *misc.Pool, offset int, 
 	return credentials, nil
 }
 
-func (credentialManager *CredentialManager) UpdateOne(pool *misc.Pool) (int, error) {
+func (credentialManager *CredentialManager) UpdateOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -115,7 +113,7 @@ func (credentialManager *CredentialManager) UpdateOne(pool *misc.Pool) (int, err
 	return res.RowsAffected(), nil
 }
 
-func (credentialManager *CredentialManager) DeleteOne(pool *misc.Pool) (int, error) {
+func (credentialManager *CredentialManager) DeleteOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

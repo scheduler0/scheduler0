@@ -24,13 +24,13 @@ func TestJob_Manager(t *testing.T)  {
 		{
 			jobOne.CallbackUrl = "http://test-url"
 			jobOne.Data = "some-transformers"
-			jobOne.ProjectId = ""
+			jobOne.ProjectID = ""
 			jobOne.CronSpec = "* * * * *"
 
 			_, err := jobOne.CreateOne(pool)
 
 			if err == nil {
-				t.Fatalf("\t\t  Model should require values")
+				t.Fatalf("\t\t [ERROR] Model should require values")
 			}
 		}
 
@@ -38,14 +38,14 @@ func TestJob_Manager(t *testing.T)  {
 		{
 			jobTwo.CallbackUrl = "http://test-url"
 			jobTwo.Data = "some-transformers"
-			jobTwo.ProjectId = "test-project-id"
+			jobTwo.ProjectID = "test-project-id"
 			jobTwo.StartDate = time.Now().Add(600000 * time.Second)
 			jobTwo.CronSpec = "* * * * *"
 
 			id, err := jobTwo.CreateOne(pool)
 
 			if err == nil {
-				t.Fatalf("\t\t  Invalid project id does not exist but job with %v was created", id)
+				t.Fatalf("\t\t [ERROR] Invalid project id does not exist but job with %v was created", id)
 			}
 		}
 
@@ -53,33 +53,33 @@ func TestJob_Manager(t *testing.T)  {
 		{
 			id, err := project.CreateOne(pool)
 			if err != nil {
-				t.Fatalf("\t\t  Cannot create project %v", err)
+				t.Fatalf("\t\t [ERROR] Cannot create project %v", err)
 			}
 
 			if len(id) < 1 {
-				t.Fatalf("\t\t  Project id is invalid %v", id)
+				t.Fatalf("\t\t [ERROR] Project id is invalid %v", id)
 			}
 
 			project.ID = id
 			jobThree.CallbackUrl = "http://test-url"
 			jobThree.Data = "some-transformers"
-			jobThree.ProjectId = id
+			jobThree.ProjectID = id
 			jobThree.StartDate = time.Now().Add(600000 * time.Second)
 			jobThree.CronSpec = "* * * * *"
 
 			_, err = jobThree.CreateOne(pool)
 			if err != nil {
-				t.Fatalf("\t\t  Could not create job %v", err)
+				t.Fatalf("\t\t [ERROR] Could not create job %v", err)
 			}
 
 			rowsAffected, err := jobThree.DeleteOne(pool)
 			if err != nil {
-				t.Fatalf("\t\t Could not delete job %v", err)
+				t.Fatalf("\t\t [ERROR] Could not delete job %v", err)
 			}
 
 			rowsAffected, err = project.DeleteOne(pool)
 			if err != nil && rowsAffected < 1 {
-				t.Fatalf("\t\t  Could not delete project %v", err)
+				t.Fatalf("\t\t [ERROR] Could not delete project %v", err)
 			}
 		}
 	}
@@ -90,45 +90,45 @@ func TestJob_Manager(t *testing.T)  {
 		{
 			id, err := project.CreateOne(pool)
 			if err != nil {
-				t.Fatalf("\t\t  Cannot create project %v", err)
+				t.Fatalf("\t\t [ERROR] Cannot create project %v", err)
 			}
 
 			if len(id) < 1 {
-				t.Fatalf("\t\t  Project id is invalid %v", id)
+				t.Fatalf("\t\t [ERROR] Project id is invalid %v", id)
 			}
 
-			jobThree.ProjectId = id
+			jobThree.ProjectID = id
 			jobThree.CronSpec = "1 * * * *"
 
 			id, err = jobThree.CreateOne(pool)
 			if err != nil {
-				t.Fatalf("\t\t Could not update job %v", err)
+				t.Fatalf("\t\t [ERROR] Could not update job %v", err)
 			}
 
 			jobThree.CronSpec = "2 * * * *"
 			_, err = jobThree.UpdateOne(pool)
 			if err == nil {
-				t.Fatalf("\t\t Could not update job %v", err)
+				t.Fatalf("\t\t [ERROR] Could not update job %v", err)
 			}
 
 			jobThreePlaceholder := managers.JobManager{ID: jobThree.ID}
 			_, err = jobThreePlaceholder.GetOne(pool, "id = ?", jobThree.ID)
 			if err != nil {
-				t.Fatalf("\t\t Could not get job %v", err)
+				t.Fatalf("\t\t [ERROR] Could not get job %v", err)
 			}
 
 			if jobThreePlaceholder.CronSpec == jobThree.CronSpec {
-				t.Fatalf("\t\t CronSpec should be immutable")
+				t.Fatalf("\t\t [ERROR] CronSpec should be immutable")
 			}
 
 			_, err = jobThree.DeleteOne(pool)
 			if err != nil {
-				t.Fatalf("\t\t Could not update job %v", err)
+				t.Fatalf("\t\t [ERROR] Could not update job %v", err)
 			}
 
 			_, err = project.DeleteOne(pool)
 			if err != nil {
-				t.Fatalf("\t\t Could not update job %v", err)
+				t.Fatalf("\t\t [ERROR] Could not update job %v", err)
 			}
 		}
 	}
@@ -144,7 +144,7 @@ func TestJob_Manager(t *testing.T)  {
 
 			rowsAffected, err = project.DeleteOne(pool)
 			if err != nil && rowsAffected > 0 {
-				t.Fatalf("\t\t %v", err)
+				t.Fatalf("\t\t [ERROR]  %v", err)
 			}
 		}
 	}

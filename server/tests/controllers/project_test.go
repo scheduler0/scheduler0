@@ -5,7 +5,7 @@ package controllers
 //	"context"
 //	"cron-server/server/transformers"
 //	"cron-server/server/db"
-//	"cron-server/server/misc"
+//	"cron-server/server/utils"
 //	"encoding/json"
 //	"fmt"
 //	"github.com/stretchr/testify/assert"
@@ -28,13 +28,13 @@ package controllers
 //
 //func TestProjectController_CreateOne(t *testing.T) {
 //	projectsPool, err := db.NewPool(db.CreateConnection, 1)
-//	misc.CheckErr(err)
+//	utils.CheckErr(err)
 //	projectController.Pool = *projectsPool
 //
 //	t.Log("Cannot create project without name and description")
 //	{
 //		projectOneJson, err := projectOne.ToJson()
-//		misc.CheckErr(err)
+//		utils.CheckErr(err)
 //		projectOneJsonStr := strings.NewReader(string(projectOneJson))
 //
 //		if req, err := http.NewRequest("POST", "/projects", projectOneJsonStr); err != nil {
@@ -52,7 +52,7 @@ package controllers
 //		projectOne.Description = "a simple job funnel"
 //
 //		projectOneJson, err := projectOne.ToJson()
-//		misc.CheckErr(err)
+//		utils.CheckErr(err)
 //		projectOneJsonStr := strings.NewReader(string(projectOneJson))
 //
 //		if req, err := http.NewRequest("POST", "/projects", projectOneJsonStr); err != nil {
@@ -82,7 +82,7 @@ package controllers
 //	t.Log("Cannot create project with the same name")
 //	{
 //		projectOneJson, err := projectOne.ToJson()
-//		misc.CheckErr(err)
+//		utils.CheckErr(err)
 //		projectOneJsonStr := strings.NewReader(string(projectOneJson))
 //
 //		if req, err := http.NewRequest("POST", "/projects", projectOneJsonStr); err != nil {
@@ -107,7 +107,7 @@ package controllers
 //			projectTwo.ID = id
 //			projectTwo.Name = "Untitled Project #1"
 //			projectTwoJson, err := projectTwo.ToJson()
-//			misc.CheckErr(err)
+//			utils.CheckErr(err)
 //			projectTwoJsonStr := strings.NewReader(string(projectTwoJson))
 //
 //			if req, err := http.NewRequest("PUT", "/projects/"+projectTwo.ID, projectTwoJsonStr); err != nil {
@@ -132,7 +132,7 @@ package controllers
 //	{
 //		projectTwo.Name = "Project #2"
 //		projectTwoJson, err := projectTwo.ToJson()
-//		misc.CheckErr(err)
+//		utils.CheckErr(err)
 //		projectTwoJsonStr := strings.NewReader(string(projectTwoJson))
 //
 //		if req, err := http.NewRequest("PUT", "/projects/"+projectTwo.ID, projectTwoJsonStr); err != nil {
@@ -154,7 +154,7 @@ package controllers
 //			w := httptest.NewRecorder()
 //			projectController.GetAll(w, req)
 //			if _, err := ioutil.ReadAll(w.Body); err != nil {
-//				misc.CheckErr(err)
+//				utils.CheckErr(err)
 //			} else {
 //				assert.Equal(t, http.StatusOK, w.Code)
 //			}

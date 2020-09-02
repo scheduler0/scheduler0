@@ -1,10 +1,8 @@
-package misc
+package utils
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/gorilla/mux"
 	"net/http"
 	"os"
 	"strings"
@@ -61,29 +59,11 @@ func GetClientHost() string {
 }
 
 func GetPostgresCredentials(env Env) *PostgresCredentials {
-	if env == EnvTest {
-		return &PostgresCredentials{
-			Addr:     "localhost:5432",
-			Database: "scheduler0_test",
-			Password: "dev",
-			User:     "localdev",
-		}
-	}
-
-	if env == EnvDev {
-		return &PostgresCredentials{
-			Addr:     "localhost:5432",
-			Database: "scheduler0_dev",
-			Password: "dev",
-			User:     "localdev",
-		}
-	}
-
 	return &PostgresCredentials{
 		Addr:     os.Getenv("POSTGRES_ADDRESS"),
-		Password: os.Getenv("POSTGRES_USER"),
-		Database: os.Getenv("POSTGRES_PASSWORD"),
-		User:     os.Getenv("POSTGRES_DATABASE"),
+		Password: os.Getenv("POSTGRES_PASSWORD"),
+		Database: os.Getenv("POSTGRES_DATABASE"),
+		User:     os.Getenv("POSTGRES_USER"),
 	}
 }
 
@@ -126,26 +106,6 @@ func CheckErr(e error) {
 	if e != nil {
 		panic(e)
 	}
-}
-
-func GetRequestParam(r *http.Request, paramName string, paramPos int) (string, error) {
-	params := mux.Vars(r)
-	paths := strings.Split(r.URL.Path, "/")
-	param := ""
-
-	if len(params[paramName]) > 1 {
-		param += params[paramName]
-	}
-
-	if len(param) < 1 && len(paths) > paramPos {
-		param += paths[paramPos]
-	}
-
-	if len(param) < 1 {
-		return "", errors.New("param does not exist")
-	}
-
-	return param, nil
 }
 
 // TODO: Make this return a map instead of a list

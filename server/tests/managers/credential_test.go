@@ -18,7 +18,7 @@ func Test_CredentialManager(t *testing.T) {
 		{
 			_, err := credentialManager.CreateOne(pool)
 			if err == nil {
-				t.Fatalf("Created a new credential without HTTPReferrerRestriction")
+				t.Fatalf("\t\t [ERROR] Created a new credential without HTTPReferrerRestriction")
 			}
 		}
 
@@ -27,7 +27,7 @@ func Test_CredentialManager(t *testing.T) {
 			credentialManager.HTTPReferrerRestriction = "*"
 			_, err := credentialManager.CreateOne(pool)
 			if err != nil {
-				t.Fatalf("Failed to create a new crendential")
+				t.Fatalf("\t\t [ERROR] Failed to create a new crendential")
 			}
 		}
 	}
@@ -43,7 +43,7 @@ func Test_CredentialManager(t *testing.T) {
 
 			_, err := credentialManager.UpdateOne(pool)
 			if err == nil {
-				t.Fatalf("Cannot update credential key")
+				t.Fatalf("\t\t [ERROR] Cannot update credential key")
 			}
 		}
 
@@ -53,7 +53,7 @@ func Test_CredentialManager(t *testing.T) {
 			credentialManager.HTTPReferrerRestriction = "http://google.com"
 			_, err := credentialManager.CreateOne(pool)
 			if err != nil {
-				t.Fatalf("Failed to update crendential")
+				t.Fatalf("\t\t [ERROR] Failed to update crendential")
 			}
 		}
 	}
@@ -64,7 +64,7 @@ func Test_CredentialManager(t *testing.T) {
 		{
 			_, err := credentialManager.DeleteOne(pool)
 			if err != nil {
-				t.Fatalf("Cannot delete all credentials %v", err.Error())
+				t.Fatalf("\t\t [ERROR] \t\t [ERROR] Cannot delete all credentials %v", err.Error())
 			}
 		}
 	}

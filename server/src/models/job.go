@@ -20,18 +20,20 @@ const (
 type JobModel struct {
 	TableName struct{} `sql:"jobs"`
 
-	ID             string    `json:"id,omitempty" pg:",notnull"`
-	ProjectId      string    `json:"project_id" pg:",notnull"`
-	Description    string    `json:"description" pg:",notnull"`
-	CronSpec       string    `json:"cron_spec,omitempty" pg:",notnull"`
-	TotalExecs     int64     `json:"total_execs,omitempty" pg:",notnull"`
-	Data           string    `json:"transformers,omitempty"`
-	CallbackUrl    string    `json:"callback_url" pg:",notnull"`
+	ID             string    `json:"id,omitempty" sql:",pk:notnull"`
+	ProjectID      string    `json:"project_id" sql:",notnull"`
+	Description    string    `json:"description" sql:",notnull"`
+	CronSpec       string    `json:"cron_spec,omitempty" sql:",notnull"`
+	TotalExecs     int64     `json:"total_execs,omitempty" sql:",notnull"`
+	Data           string    `json:"data,omitempty"`
+	CallbackUrl    string    `json:"callback_url" sql:",notnull"`
 	LastStatusCode int       `json:"last_status_code"`
 	Timezone       string    `json:"timezone"`
-	State          State     `json:"state,omitempty" pg:",notnull"`
-	StartDate      time.Time `json:"start_date,omitempty" pg:",notnull"`
+	State          State     `json:"state,omitempty" sql:",notnull"`
+	StartDate      time.Time `json:"start_date,omitempty" sql:",notnull"`
 	EndDate        time.Time `json:"end_date,omitempty"`
-	NextTime       time.Time `json:"next_time,omitempty" pg:",notnull"`
-	DateCreated    time.Time `json:"date_created" pg:",notnull"`
+	NextTime       time.Time `json:"next_time,omitempty" sql:",notnull"`
+	DateCreated    time.Time `json:"date_created" sql:",notnull,default:now()"`
+
+	Project		ProjectModel `sql:",fk:project_id"`
 }

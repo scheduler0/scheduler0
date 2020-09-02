@@ -3,7 +3,7 @@ package controllers
 //import (
 //	"cron-server/server/transformers"
 //	"cron-server/server/db"
-//	"cron-server/server/misc"
+//	"cron-server/server/utils"
 //	"io/ioutil"
 //	"log"
 //	"net/http"
@@ -20,89 +20,89 @@ package controllers
 //	ij := transformers.JobDto{}
 //
 //	if len(body) < 1 {
-//		misc.SendJson(w, "no request body", false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, "no request body", false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	err = ij.FromJson(body)
 //	if err != nil {
-//		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	j, err := ij.ToManager()
 //	if err != nil {
-//		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	if len(j.ProjectId) < 1 {
-//		misc.SendJson(w, "project Id is required", false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, "project Id is required", false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	if len(j.CronSpec) < 1 {
-//		misc.SendJson(w, "cron spec is required", false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, "cron spec is required", false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	if len(j.CallbackUrl) < 1 {
-//		misc.SendJson(w, "callback url is required", false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, "callback url is required", false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	if j.StartDate.IsZero() {
-//		misc.SendJson(w, "start date is required", false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, "start date is required", false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	log.Println("Start Date, Time", j.StartDate.UTC(), time.Now().UTC())
 //
 //	if j.StartDate.UTC().Before(time.Now().UTC()) {
-//		misc.SendJson(w, "start date cannot be in the past", false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, "start date cannot be in the past", false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	id, err := j.CreateOne(&controller.Pool, r.Context())
 //	if err != nil {
-//		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
-//	misc.SendJson(w, id, true, http.StatusCreated, nil)
+//	utils.SendJson(w, id, true, http.StatusCreated, nil)
 //}
 //
 //func (controller *JobController) UpdateOne(w http.ResponseWriter, r *http.Request) {
-//	id, err := misc.GetRequestParam(r, "id", 2)
+//	id, err := utils.GetRequestParam(r, "id", 2)
 //	if err != nil {
-//		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	job := models.Job{ID: id}
 //	_, err = job.GetOne(&controller.Pool, r.Context(), "id = ?", job.ID)
 //	if err != nil {
-//		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	body, err := ioutil.ReadAll(r.Body)
-//	misc.CheckErr(err)
+//	utils.CheckErr(err)
 //	inboundJob := models.InboundJob{}
 //	if len(body) > 1 {
 //		err := inboundJob.FromJson(body)
 //		if err != nil {
-//			misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+//			utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 //			return
 //		}
 //	} else {
-//		misc.SendJson(w, "no request body", false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, "no request body", false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	jobUpdate, err := inboundJob.ToModel()
 //	if err != nil {
-//		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
@@ -113,11 +113,11 @@ package controllers
 //	job.EndDate = jobUpdate.EndDate
 //
 //	if _, err = job.UpdateOne(&controller.Pool, r.Context()); err != nil {
-//		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
-//	misc.SendJson(w, job, true, http.StatusOK, nil)
+//	utils.SendJson(w, job, true, http.StatusOK, nil)
 //}
 //
 //func (controller *JobController) GetAll(w http.ResponseWriter, r *http.Request) {

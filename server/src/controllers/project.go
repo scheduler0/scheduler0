@@ -2,7 +2,7 @@ package controllers
 
 //import (
 //	"cron-server/server/db"
-//	"cron-server/server/misc"
+//	"cron-server/server/utils"
 //	"io/ioutil"
 //	"net/http"
 //)
@@ -15,25 +15,25 @@ package controllers
 //
 //func (controller *ProjectController) CreateOne(w http.ResponseWriter, r *http.Request) {
 //	body, err := ioutil.ReadAll(r.Body)
-//	misc.CheckErr(err)
+//	utils.CheckErr(err)
 //
 //	var project models.Project
 //	project.FromJson(body)
 //
 //	if len(project.Name) < 1 {
-//		misc.SendJson(w, "project name is required", false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, "project name is required", false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	id, err := project.CreateOne(&controller.Pool, r.Context())
 //	if err != nil {
-//		misc.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+//		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 //		return
 //	}
 //
 //	customHeader := map[string]string{}
 //	customHeader["Location"] = "projects/" + id
-//	misc.SendJson(w, id, true, http.StatusCreated, nil)
+//	utils.SendJson(w, id, true, http.StatusCreated, nil)
 //}
 //
 //func (controller *ProjectController) GetOne(w http.ResponseWriter, r *http.Request) {

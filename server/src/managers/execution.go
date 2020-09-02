@@ -1,15 +1,16 @@
 package managers
 
 import (
-	"cron-server/server/src/misc"
+	"cron-server/server/src/utils"
 	"cron-server/server/src/models"
 	"errors"
 	"github.com/go-pg/pg"
+	"github.com/segmentio/ksuid"
 )
 
 type ExecutionManager models.ExecutionModel
 
-func (exec *ExecutionManager) CreateOne(pool *misc.Pool) (string, error) {
+func (exec *ExecutionManager) CreateOne(pool *utils.Pool) (string, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", err
@@ -18,16 +19,18 @@ func (exec *ExecutionManager) CreateOne(pool *misc.Pool) (string, error) {
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	if len(exec.JobId) < 1 {
+	if len(exec.JobID) < 1 {
 		err := errors.New("job id is not set")
 		return "", err
 	}
 
-	jobWithId := JobManager{ID: exec.JobId}
+	jobWithId := JobManager{ID: exec.JobID}
 
-	if _, err := jobWithId.GetOne(pool, "id = ?", exec.JobId); err != nil {
+	if count, _ := jobWithId.GetOne(pool, "id = ?", exec.JobID); count < 1 {
 		return "", errors.New("job with id does not exist")
 	}
+
+	exec.ID = ksuid.New().String()
 
 	if _, err := db.Model(exec).Insert(); err != nil {
 		return "", err
@@ -36,7 +39,7 @@ func (exec *ExecutionManager) CreateOne(pool *misc.Pool) (string, error) {
 	return exec.ID, nil
 }
 
-func (exec *ExecutionManager) GetOne(pool *misc.Pool, query string, params interface{}) (int, error) {
+func (exec *ExecutionManager) GetOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -45,9 +48,9 @@ func (exec *ExecutionManager) GetOne(pool *misc.Pool, query string, params inter
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	baseQuery := db.Model(&exec).Where(query, params)
+	countQuery := db.Model(exec).Where("id = ?", exec.ID)
 
-	count, err := baseQuery.Count()
+	count, err := countQuery.Count()
 	if count < 1 {
 		return 0, nil
 	}
@@ -56,7 +59,8 @@ func (exec *ExecutionManager) GetOne(pool *misc.Pool, query string, params inter
 		return count, err
 	}
 
-	err = baseQuery.Select()
+	selectQuery := db.Model(exec).Where("id = ?", exec.ID)
+	err = selectQuery.Select()
 
 	if err != nil {
 		return count, err
@@ -65,7 +69,7 @@ func (exec *ExecutionManager) GetOne(pool *misc.Pool, query string, params inter
 	return count, nil
 }
 
-func (exec *ExecutionManager) GetAll(pool *misc.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (exec *ExecutionManager) GetAll(pool *utils.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, []interface{}{}, err
@@ -110,7 +114,7 @@ func (exec *ExecutionManager) GetAll(pool *misc.Pool, query string, offset int, 
 	return count, results, nil
 }
 
-func (exec *ExecutionManager) UpdateOne(pool *misc.Pool) (int, error) {
+func (exec *ExecutionManager) UpdateOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -121,7 +125,7 @@ func (exec *ExecutionManager) UpdateOne(pool *misc.Pool) (int, error) {
 	var execPlaceholder ExecutionManager
 	execPlaceholder.ID = exec.ID
 
-	_, err = execPlaceholder.GetOne(pool, "id = ?", execPlaceholder.ID)
+	_, err = execPlaceholder.GetOne(pool)
 
 	res, err := db.Model(&exec).Update(exec)
 	if err != nil {
@@ -131,7 +135,7 @@ func (exec *ExecutionManager) UpdateOne(pool *misc.Pool) (int, error) {
 	return res.RowsAffected(), nil
 }
 
-func (exec *ExecutionManager) DeleteOne(pool *misc.Pool) (int, error) {
+func (exec *ExecutionManager) DeleteOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err

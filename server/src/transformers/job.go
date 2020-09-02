@@ -9,7 +9,7 @@ import (
 
 type Job struct {
 	ID          string `json:"id,omitempty"`
-	ProjectId   string `json:"project_id"`
+	ProjectID   string `json:"project_id"`
 	Description string `json:"description"`
 	CronSpec    string `json:"cron_spec,omitempty"`
 	Data        string `json:"transformers,omitempty"`
@@ -37,7 +37,7 @@ func (IJ *Job) ToJson() ([]byte, error) {
 func (IJ *Job) ToManager() (managers.JobManager, error) {
 	jd := managers.JobManager{
 		ID:          IJ.ID,
-		ProjectId:   IJ.ProjectId,
+		ProjectID:   IJ.ProjectID,
 		CronSpec:    IJ.CronSpec,
 		Data:        IJ.Data,
 		Description: IJ.Description,
@@ -69,7 +69,7 @@ func (IJ *Job) ToManager() (managers.JobManager, error) {
 
 func (IJ *Job) FromManager(jd managers.JobManager) {
 	IJ.ID = jd.ID
-	IJ.ProjectId = jd.ProjectId
+	IJ.ProjectID = jd.ProjectID
 	IJ.Timezone = jd.Timezone
 	IJ.Description = jd.Description
 	IJ.Data = jd.Data

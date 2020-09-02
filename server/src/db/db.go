@@ -2,8 +2,8 @@ package db
 
 import (
 	"cron-server/server/src/managers"
-	"cron-server/server/src/misc"
 	"cron-server/server/src/models"
+	"cron-server/server/src/utils"
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
@@ -16,14 +16,14 @@ import (
 const MaxConnections = 100
 
 func CreateConnectionEnv(env string) (io.Closer, error) {
-	var postgresCredentials misc.PostgresCredentials
+	var postgresCredentials utils.PostgresCredentials
 
 	if env == "DEV" {
-		postgresCredentials = *misc.GetPostgresCredentials(misc.EnvDev)
+		postgresCredentials = *utils.GetPostgresCredentials(utils.EnvDev)
 	} else if env == "TEST" {
-		postgresCredentials = *misc.GetPostgresCredentials(misc.EnvTest)
+		postgresCredentials = *utils.GetPostgresCredentials(utils.EnvTest)
 	} else if env == "PROD" {
-		postgresCredentials = *misc.GetPostgresCredentials(misc.EnvProd)
+		postgresCredentials = *utils.GetPostgresCredentials(utils.EnvProd)
 	} else {
 		return nil, errors.New("environment was not provided")
 	}
@@ -36,7 +36,7 @@ func CreateConnectionEnv(env string) (io.Closer, error) {
 	}), nil
 }
 
-func CreateModelTables(pool *misc.Pool) {
+func CreateModelTables(pool *utils.Pool) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		panic(err)
@@ -47,19 +47,22 @@ func CreateModelTables(pool *misc.Pool) {
 
 	// Create tables
 	for _, model := range []interface{}{
-		(*models.JobModel)(nil),
-		(*models.ProjectModel)(nil),
 		(*models.CredentialModel)(nil),
+		(*models.ProjectModel)(nil),
+		(*models.JobModel)(nil),
 		(*models.ExecutionModel)(nil),
 	} {
-		err := db.CreateTable(model, &orm.CreateTableOptions{IfNotExists: true})
+		err := db.CreateTable(model, &orm.CreateTableOptions{
+			IfNotExists: true,
+			FKConstraints: true,
+		})
 		if err != nil {
 			panic(err)
 		}
 	}
 }
 
-func RunSQLMigrations(pool *misc.Pool) {
+func RunSQLMigrations(pool *utils.Pool) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		panic(err)
@@ -85,7 +88,7 @@ func RunSQLMigrations(pool *misc.Pool) {
 	}
 }
 
-func SeedDatabase(pool *misc.Pool) {
+func SeedDatabase(pool *utils.Pool) {
 	credentialManager := managers.CredentialManager{}
 	// Seed database
 

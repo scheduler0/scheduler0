@@ -4,7 +4,7 @@ import (
 	"cron-server/server/src/controllers"
 	"cron-server/server/src/db"
 	"cron-server/server/src/middlewares"
-	"cron-server/server/src/misc"
+	"cron-server/server/src/utils"
 	"cron-server/server/src/process"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
@@ -17,18 +17,18 @@ import (
 func main() {
 	env := os.Getenv("ENV")
 
-	pool, err := misc.NewPool(func() (closer io.Closer, err error) {
+	pool, err := utils.NewPool(func() (closer io.Closer, err error) {
 		return db.CreateConnectionEnv(env)
 	}, db.MaxConnections)
-	misc.CheckErr(err)
+	utils.CheckErr(err)
 
 	// SetupDB logging
 	log.SetFlags(0)
-	log.SetOutput(new(misc.LogWriter))
+	log.SetOutput(new(utils.LogWriter))
 
 	// Set time zone, create database and run db
 	db.CreateModelTables(pool)
-	db.RunSQLMigrations(pool)
+	//db.RunSQLMigrations(pool)
 
 	// Start process to execute cron-server jobs
 	go process.Start(pool)
@@ -78,7 +78,7 @@ func main() {
 	//router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
 	//router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
 
-	log.Println("Server is running on port", misc.GetPort(), misc.GetClientHost())
-	err = http.ListenAndServe(misc.GetPort(), router)
-	misc.CheckErr(err)
+	log.Println("Server is running on port", utils.GetPort(), utils.GetClientHost())
+	err = http.ListenAndServe(utils.GetPort(), router)
+	utils.CheckErr(err)
 }

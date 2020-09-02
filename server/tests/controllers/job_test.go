@@ -6,7 +6,7 @@ package controllers
 //	"cron-server/server/models"
 //	"cron-server/server/transformers"
 //	"cron-server/server/db"
-//	"cron-server/server/misc"
+//	"cron-server/server/utils"
 //	"encoding/json"
 //	"fmt"
 //	"github.com/stretchr/testify/assert"
@@ -29,14 +29,14 @@ package controllers
 //
 //func TestJobController_CreateOne(t *testing.T) {
 //	var jobsPool, err = db.NewPool(db.CreateConnection, 1)
-//	misc.CheckErr(err)
+//	utils.CheckErr(err)
 //	jobController.Pool = *jobsPool
 //
 //	t.Log("Respond with status 400 if request body does not contain required values")
 //	{
 //		inboundJob.CronSpec = "* * * * *"
 //		jobByte, err := inboundJob.ToJson()
-//		misc.CheckErr(err)
+//		utils.CheckErr(err)
 //		jobStr := string(jobByte)
 //
 //		req, err := http.NewRequest("POST", "/jobs", strings.NewReader(jobStr))
@@ -67,7 +67,7 @@ package controllers
 //		j1.CallbackUrl = "http://random.url"
 //		j1.StartDate = time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
 //		jobByte, err := j1.ToJson()
-//		misc.CheckErr(err)
+//		utils.CheckErr(err)
 //		jobStr := string(jobByte)
 //		req, err := http.NewRequest("POST", "/jobs", strings.NewReader(jobStr))
 //		if err != nil {
@@ -154,7 +154,7 @@ package controllers
 //	{
 //		inboundJob.CronSpec = "3 * * * *"
 //		jobByte, err := inboundJob.ToJson()
-//		misc.CheckErr(err)
+//		utils.CheckErr(err)
 //		jobStr := string(jobByte)
 //		req, err := http.NewRequest("PUT", "/jobs/"+inboundJob.ID, strings.NewReader(jobStr))
 //		if err != nil {
@@ -173,7 +173,7 @@ package controllers
 //		inboundJob.Description = "some job description"
 //		inboundJob.Timezone = "UTC"
 //		jobByte, err := inboundJob.ToJson()
-//		misc.CheckErr(err)
+//		utils.CheckErr(err)
 //		jobStr := string(jobByte)
 //		req, err := http.NewRequest("PUT", "/jobs/"+inboundJob.ID, strings.NewReader(jobStr))
 //

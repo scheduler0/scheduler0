@@ -1,0 +1,53 @@
+version: '3.7'
+
+services:
+
+#  server:
+#    build:
+#      network: default
+#      context: .
+#      dockerfile: docker/Dockerfile.dev
+#      args:
+#        PORT: 4321
+#        POSTGRES_ADDRESS: postgres:5432
+#        POSTGRES_PASSWORD: postgres
+#        POSTGRES_DATABASE: postgres
+#        CLIENT_HOST: client:4327
+#        BASIC_AUTH_USER: admin
+#        BASIC_AUTH_PASS: admin
+#    ports:
+#      - "4321:4321"
+#    depends_on:
+#      - postgres
+#    networks:
+#      - default
+#    volumes:
+#      - ./:/usr/src/server
+#    environment:
+#      PORT: 4321
+#      ENV: dev
+#      POSTGRES_ADDRESS: "postgres:5432"
+#      POSTGRES_PASSWORD: "postgres"
+#      POSTGRES_DATABASE: "postgres"
+#      CLIENT_HOST: client:4327
+#      BASIC_AUTH_USER: admin
+#      BASIC_AUTH_PASS: admin
+#    command: "go run main.go"
+
+  postgres:
+    image: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: postgres
+    networks:
+      - default
+    volumes:
+      - ./docker/docker-entrypoint-initdb.d/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

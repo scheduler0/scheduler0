@@ -2,16 +2,17 @@ package tests
 
 import (
 	"cron-server/server/src/db"
-	"cron-server/server/src/misc"
+	"cron-server/server/src/utils"
 	"encoding/json"
+	"fmt"
 	"github.com/go-pg/pg"
 	"io"
 	"io/ioutil"
 	"net/http/httptest"
 )
 
-func GetTestPool() *misc.Pool {
-	pool, err := misc.NewPool(func() (closer io.Closer, err error) {
+func GetTestPool() *utils.Pool {
+	pool, err := utils.NewPool(func() (closer io.Closer, err error) {
 		return db.CreateConnectionEnv("TEST")
 	}, 100)
 
@@ -23,7 +24,7 @@ func GetTestPool() *misc.Pool {
 }
 
 func Teardown() {
-	postgresCredentials := *misc.GetPostgresCredentials(misc.EnvTest)
+	postgresCredentials := *utils.GetPostgresCredentials(utils.EnvTest)
 
 	db := pg.Connect(&pg.Options{
 		Addr:     postgresCredentials.Addr,
@@ -34,21 +35,21 @@ func Teardown() {
 	defer db.Close()
 
 	truncateQuery := "" +
-		"TRUNCATE TABLE jobs;" +
-		"TRUNCATE TABLE projects;" +
-		"TRUNCATE TABLE credentials;" +
-		"TRUNCATE TABLE executions;"
+		"TRUNCATE TABLE credentials CASCADE;" +
+		"TRUNCATE TABLE executions CASCADE;" +
+		"TRUNCATE TABLE jobs CASCADE;" +
+		"TRUNCATE TABLE projects CASCADE;"
 
 	_, err := db.Exec(truncateQuery)
 
 	if err != nil {
-		panic(err)
+		fmt.Println("[ERROR]: Could not truncate tables: ", err.Error())
 	}
 }
 
 func Prepare() {
 	// Connect to database
-	pool, err := misc.NewPool(func() (closer io.Closer, err error) {
+	pool, err := utils.NewPool(func() (closer io.Closer, err error) {
 		return db.CreateConnectionEnv("TEST")
 	}, 1)
 
@@ -57,18 +58,18 @@ func Prepare() {
 	}
 
 	db.CreateModelTables(pool)
-	db.RunSQLMigrations(pool)
+	//db.RunSQLMigrations(pool)
 	db.SeedDatabase(pool)
 }
 
-func ExtractResponse(w *httptest.ResponseRecorder) (*misc.Response, string, error) {
+func ExtractResponse(w *httptest.ResponseRecorder) (*utils.Response, string, error) {
 	body, err := ioutil.ReadAll(w.Body)
 
 	if err != nil {
 		return nil, "", err
 	}
 
-	res := &misc.Response{}
+	res := &utils.Response{}
 
 	err = json.Unmarshal(body, res)
 	if err != nil {
