@@ -69,49 +69,26 @@ func (exec *ExecutionManager) GetOne(pool *utils.Pool) (int, error) {
 	return count, nil
 }
 
-func (exec *ExecutionManager) GetAll(pool *utils.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (exec *ExecutionManager) GetAll(pool *utils.Pool, jobID string, offset int, limit int, orderBy string) ([]ExecutionManager, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return 0, []interface{}{}, err
+		return nil, err
 	}
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	ip := make([]interface{}, len(params))
+	execs := make([]ExecutionManager, 0, limit)
 
-	for i := 0; i < len(params); i++ {
-		ip[i] = params[i]
-	}
-
-	var execs []ExecutionManager
-
-	baseQuery := db.
+	err = db.
 		Model(&execs).
-		Where(query, ip...)
-
-	count, err := baseQuery.Count()
-	if err != nil {
-		return count, []interface{}{}, err
-	}
-
-	err = baseQuery.
+		Where("job_id = ?", jobID).
 		Order(orderBy).
 		Offset(offset).
 		Limit(limit).
 		Select()
 
-	if err != nil {
-		return count, []interface{}{}, err
-	}
-
-	var results = make([]interface{}, len(execs))
-
-	for i := 0; i < len(execs); i++ {
-		results[i] = execs[i]
-	}
-
-	return count, results, nil
+	return execs, nil
 }
 
 func (exec *ExecutionManager) UpdateOne(pool *utils.Pool) (int, error) {

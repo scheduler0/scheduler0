@@ -1,3 +1,4 @@
+SET TIME ZONE 'UTC';
 CREATE DATABASE scheduler0_test;
 CREATE DATABASE scheduler0_dev;
 CREATE ROLE core WITH LOGIN PASSWORD 'localdev';

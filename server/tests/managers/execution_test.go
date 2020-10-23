@@ -2,12 +2,40 @@ package managers
 
 import (
 	"cron-server/server/src/managers"
+	"cron-server/server/src/utils"
 	"cron-server/server/tests"
 	"fmt"
 	"github.com/segmentio/ksuid"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
+
+func createJobFixture(pool *utils.Pool, t *testing.T, JobName string) string {
+	projectManager := managers.ProjectManager{
+		Name: JobName,
+		Description: "some random desc",
+	}
+	ProjectID, err := projectManager.CreateOne(pool)
+
+	if err != nil {
+		t.Fatalf("\t\t [ERROR] failed to create project:: %v", err.Error())
+	}
+
+	jobManager := managers.JobManager{
+		ProjectID: ProjectID,
+		StartDate: time.Now().Add(2000000),
+		CallbackUrl: "https://some-random.url",
+		CronSpec: "* * * * 1",
+	}
+
+	JobID, err := jobManager.CreateOne(pool)
+	if err != nil {
+		t.Fatalf("\t\t [ERROR] failed to create job %v", err.Error())
+	}
+
+	return JobID
+}
 
 func Test_ExecutionManager(t *testing.T) {
 	pool := tests.GetTestPool()
@@ -41,33 +69,12 @@ func Test_ExecutionManager(t *testing.T) {
 
 		t.Logf("\t\t Create execution with valid job id")
 		{
-			projectManager := managers.ProjectManager{
-				Name: "some random project",
-				Description: "some random desc",
-			}
-			ProjectID, err := projectManager.CreateOne(pool)
-
-			if err != nil {
-				t.Fatalf("\t\t [ERROR] failed to create project %v", err.Error())
+			JobID := createJobFixture(pool, t, "some job name")
+			executionManager := managers.ExecutionManager{
+				JobID: JobID,
 			}
 
-			jobManager := managers.JobManager{
-				ProjectID: ProjectID,
-				StartDate: time.Now().Add(2000000),
-				CallbackUrl: "https://some-random.url",
-				CronSpec: "* * * * 1",
-			}
-
-			JobID, err := jobManager.CreateOne(pool)
-			if err != nil {
-				t.Fatalf("\t\t [ERROR] failed to create job %v", err.Error())
-			}
-
-			executionManager := managers.ExecutionManager{}
-
-			executionManager.JobID = JobID
-
-			_, err = executionManager.CreateOne(pool)
+			_, err := executionManager.CreateOne(pool)
 			if err != nil {
 				t.Fatalf("\t\t [ERROR] failed to create execution %v", err.Error())
 			}
@@ -81,7 +88,6 @@ func Test_ExecutionManager(t *testing.T) {
 		t.Logf("\t\t Returns 0 if execution does not exist")
 		{
 			executionManager := managers.ExecutionManager{ID: "some-random-id"}
-
 			count, err := executionManager.GetOne(pool)
 			if err != nil {
 				t.Fatalf("\t\t [ERROR] failed to get execution: %v", err.Error())
@@ -105,6 +111,40 @@ func Test_ExecutionManager(t *testing.T) {
 			}
 
 			fmt.Println(executionManager)
+		}
+
+		JobID := createJobFixture(pool, t, "some job name -- ")
+
+		t.Logf("\t\t Paginated results from manager")
+		{
+			for i := 0; i < 1000; i++ {
+
+				executionManager := managers.ExecutionManager{
+					JobID: JobID,
+				}
+
+				_, err := executionManager.CreateOne(pool)
+
+				if err != nil {
+					t.Fatalf("\t\t [ERROR] failed to create execution %v", err.Error())
+				}
+			}
+
+			manager := managers.ExecutionManager{}
+
+			executions, err := manager.GetAll(pool, JobID, 0, 100, "date_created")
+			if err != nil {
+				t.Fatalf("\t\t [ERROR] fetching executions %v", err.Error())
+			}
+
+			assert.Equal(t, 100, len(executions))
+
+			executions, err = manager.GetAll(pool, JobID, 1000, 100, "date_created")
+			if err != nil {
+				t.Fatalf("\t\t [ERROR] fetching executions %v", err.Error())
+			}
+
+			assert.Equal(t, 0, len(executions))
 		}
 	}
 }

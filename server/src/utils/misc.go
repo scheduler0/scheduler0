@@ -108,6 +108,7 @@ func CheckErr(e error) {
 	}
 }
 
+//
 // TODO: Make this return a map instead of a list
 func GetRequestQueryString(query string) map[string]string {
 	pairs := strings.Split(query, "&")

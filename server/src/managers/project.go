@@ -34,7 +34,7 @@ func (p *ProjectManager) CreateOne(pool *utils.Pool) (string, error) {
 	var projectWithName = ProjectManager{}
 	c, e := projectWithName.GetOne(pool, "name = ?", strings.ToLower(p.Name))
 	if c > 0 && e == nil {
-		err := errors.New("projects exits with the same name")
+		err := errors.New("projects exits with the same name " + p.Name)
 		return "", err
 	}
 
