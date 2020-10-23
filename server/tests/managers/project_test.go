@@ -4,6 +4,8 @@ import (
 	"context"
 	"cron-server/server/src/managers"
 	"cron-server/server/tests"
+	"github.com/magiconair/properties/assert"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -123,5 +125,29 @@ func TestProject_Manager(t *testing.T) {
 				t.Fatalf("\t\t [ERROR] Could not delete project  %v %v", err, rowsAffected)
 			}
 		}
+	}
+
+	t.Log("ProjectManager.GetAll")
+	{
+		manager := managers.ProjectManager{}
+
+		for i := 0; i < 1000; i++ {
+			project := managers.ProjectManager{
+				Name: "project " + strconv.Itoa(i),
+				Description: "project description "+ strconv.Itoa(i),
+			}
+
+			_, err := project.CreateOne(pool)
+			if err != nil {
+				t.Fatalf("\t\t [ERROR] failed to create a project" + err.Error())
+			}
+		}
+
+		projects, err := manager.GetAll(pool,  0, 100)
+		if err != nil {
+			t.Fatalf("\t\t [ERROR] failed to fetch projects" + err.Error())
+		}
+
+		assert.Equal(t, len(projects), 100)
 	}
 }

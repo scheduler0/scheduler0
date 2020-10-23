@@ -3,6 +3,7 @@ package managers
 import (
 	"cron-server/server/src/managers"
 	"cron-server/server/tests"
+	"github.com/magiconair/properties/assert"
 	"testing"
 	"time"
 )
@@ -15,7 +16,6 @@ var (
 )
 
 func TestJob_Manager(t *testing.T)  {
-
 	pool := tests.GetTestPool()
 
 	t.Log("JobManager.CreateOne")
@@ -147,5 +147,30 @@ func TestJob_Manager(t *testing.T)  {
 				t.Fatalf("\t\t [ERROR]  %v", err)
 			}
 		}
+	}
+
+	t.Log("JobManager.GetAll")
+	{
+		_  , err := project.CreateOne(pool)
+
+		jobThree.CallbackUrl = "http://test-url"
+		jobThree.Data = "some-transformers"
+		jobThree.ProjectID = project.ID
+		jobThree.StartDate = time.Now().Add(600000 * time.Second)
+		jobThree.CronSpec = "* * * * *"
+
+		for i := 0; i < 1000; i++ {
+			_, err := jobThree.CreateOne(pool)
+			if err != nil {
+				t.Fatalf("\t\t [ERROR]  Failed to create a job %v", err.Error())
+			}
+		}
+
+		jobs, err := jobThree.GetAll(pool, project.ID, 0, 100, "date_created")
+		if err != nil {
+			t.Fatalf("\t\t [ERROR]  Failed to get all jobs %v", err.Error())
+		}
+
+		assert.Equal(t, len(jobs), 100)
 	}
 }

@@ -64,7 +64,7 @@ func (credentialManager *CredentialManager) GetAll(pool *utils.Pool, offset int,
 		return []CredentialManager{}, err
 	}
 
-	credentials := []CredentialManager{{}}
+	credentials := []CredentialManager{}
 
 	db := conn.(*pg.DB)
 

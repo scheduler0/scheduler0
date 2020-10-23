@@ -74,47 +74,28 @@ func (p *ProjectManager) GetOne(pool *utils.Pool, query string, params interface
 	return count, nil
 }
 
-func (p *ProjectManager) GetAll(pool *utils.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (p *ProjectManager) GetAll(pool *utils.Pool, offset int, limit int) ([]ProjectManager, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return 0, []interface{}{}, err
+		return nil, err
 	}
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	ip := make([]interface{}, len(params))
+	projects := make([]ProjectManager, 0, limit)
 
-	for i := 0; i < len(params); i++ {
-		ip[i] = params[i]
-	}
-
-	var projects []ProjectManager
-
-	baseQuery := db.Model(&projects).Where(query, ip...)
-
-	count, err := baseQuery.Count()
-	if err != nil {
-		return 0, []interface{}{}, err
-	}
-
-	err = baseQuery.
-		Order(orderBy).
+	err = db.Model(&projects).
+		Order("date_created").
 		Offset(offset).
 		Limit(limit).
 		Select()
 
 	if err != nil {
-		return 0, []interface{}{}, err
+		return nil, err
 	}
 
-	var results = make([]interface{}, len(projects))
-
-	for i := 0; i < len(projects); i++ {
-		results[i] = projects[i]
-	}
-
-	return count, results, nil
+	return projects, nil
 }
 
 func (p *ProjectManager) UpdateOne(pool *utils.Pool) (int, error) {

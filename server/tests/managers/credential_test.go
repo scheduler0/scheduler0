@@ -3,13 +3,14 @@ package managers
 import (
 	"cron-server/server/src/managers"
 	"cron-server/server/tests"
+	"github.com/magiconair/properties/assert"
 	"testing"
 )
 
-var credentialManager = managers.CredentialManager{}
 
 func Test_CredentialManager(t *testing.T) {
 	pool := tests.GetTestPool()
+	credentialManager := managers.CredentialManager{}
 
 	t.Log("CredentialManager.CreateOne")
 	{
@@ -27,7 +28,7 @@ func Test_CredentialManager(t *testing.T) {
 			credentialManager.HTTPReferrerRestriction = "*"
 			_, err := credentialManager.CreateOne(pool)
 			if err != nil {
-				t.Fatalf("\t\t [ERROR] Failed to create a new crendential")
+				t.Fatalf("\t\t [ERROR] Failed to create a new crendential" + err.Error())
 			}
 		}
 	}
@@ -69,4 +70,25 @@ func Test_CredentialManager(t *testing.T) {
 		}
 	}
 
+	t.Log("CredentialManager.GetAll")
+	{
+
+		credentialManager.HTTPReferrerRestriction = "*"
+
+		for i := 0; i < 1000; i++ {
+			_, err := credentialManager.CreateOne(pool)
+
+
+			if err != nil {
+				t.Fatalf("\t\t [ERROR] Failed to create a new crendential" + err.Error())
+			}
+		}
+
+		credentials, err := credentialManager.GetAll(pool, 0, 100, "date_created")
+		if err != nil {
+			t.Fatalf("\t\t [ERROR] Failed to fetch crendentials" + err.Error())
+		}
+
+		assert.Equal(t, 100, len(credentials))
+	}
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
 	"github.com/segmentio/ksuid"
-	"log"
 	"time"
 )
 
@@ -100,49 +99,25 @@ func (jd *JobManager) GetOne(pool *utils.Pool, query string, params interface{})
 	return count, nil
 }
 
-func (jd *JobManager) GetAll(pool *utils.Pool, query string, offset int, limit int, orderBy string, params ...string) (int, []interface{}, error) {
+func (jd *JobManager) GetAll(pool *utils.Pool, projectID string, offset int, limit int, orderBy string) ([]JobManager, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return 0, []interface{}{}, err
+		return nil, err
 	}
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	ip := make([]interface{}, len(params))
+	jobs := make([]JobManager, 0, limit)
 
-	for i := 0; i < len(params); i++ {
-		ip[i] = params[i]
-	}
-
-	var jobs []JobManager
-
-	baseQuery := db.Model(&jobs).Where(query, ip...)
-
-	count, err := baseQuery.Count()
-	if err != nil {
-		return 0, []interface{}{}, err
-	}
-
-	err = baseQuery.
+	err = db.Model(&jobs).
+		Where("project_id = ?", projectID).
 		Order(orderBy).
 		Offset(offset).
 		Limit(limit).
 		Select()
 
-	if err != nil {
-		return 0, []interface{}{}, err
-	}
-
-	var results = make([]interface{}, len(jobs))
-
-	for i := 0; i < len(jobs); i++ {
-		results[i] = jobs[i]
-	}
-
-	log.Println("results--", results, count)
-
-	return count, results, nil
+	return jobs, nil
 }
 
 func (jd *JobManager) UpdateOne(pool *utils.Pool) (int, error) {

@@ -8,6 +8,7 @@ require (
 	github.com/go-redis/redis v6.15.5+incompatible
 	github.com/gorilla/mux v1.7.3
 	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/magiconair/properties v1.8.1
 	github.com/mitchellh/mapstructure v1.3.2 // indirect
 	github.com/pelletier/go-toml v1.8.0 // indirect
 	github.com/robfig/cron v1.2.0

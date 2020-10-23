@@ -39,7 +39,6 @@ func createJobFixture(pool *utils.Pool, t *testing.T, JobName string) string {
 
 func Test_ExecutionManager(t *testing.T) {
 	pool := tests.GetTestPool()
-
 	getOneTestExecutionID := ""
 
 	t.Log("ExecutionManager.CreateOne")
@@ -118,7 +117,6 @@ func Test_ExecutionManager(t *testing.T) {
 		t.Logf("\t\t Paginated results from manager")
 		{
 			for i := 0; i < 1000; i++ {
-
 				executionManager := managers.ExecutionManager{
 					JobID: JobID,
 				}
