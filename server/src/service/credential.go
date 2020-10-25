@@ -1,16 +1,11 @@
 package service
 
 import (
-	"context"
 	"cron-server/server/src/managers"
-	"cron-server/server/src/utils"
 	"cron-server/server/src/transformers"
 )
 
-type CredentialService struct {
-	Pool *utils.Pool
-	Ctx  context.Context
-}
+type CredentialService Service
 
 func (credentialService *CredentialService) CreateNewCredential(HTTPReferrerRestriction string) (string, error) {
 	credentialDto := transformers.Credential{HTTPReferrerRestriction: HTTPReferrerRestriction}

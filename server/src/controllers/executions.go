@@ -4,7 +4,7 @@ import (
 	"net/http"
 )
 
-type ExecutionController struct{}
+type ExecutionController Controller
 
 func (cc *ExecutionController) GetOne(w http.ResponseWriter, r *http.Request) {
 }

@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"cron-server/server/src/utils"
 	"cron-server/server/src/service"
 	"cron-server/server/src/transformers"
+	"cron-server/server/src/utils"
 	"fmt"
 	"github.com/gorilla/mux"
 	"io/ioutil"
@@ -12,9 +12,7 @@ import (
 	"strconv"
 )
 
-type CredentialController struct {
-	Pool *utils.Pool
-}
+type CredentialController Controller
 
 func (credentialController *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
@@ -101,7 +99,7 @@ func (credentialController *CredentialController) List(w http.ResponseWriter, r 
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
 
 	offset := 0
-	limit := 0
+	limit := 50
 
 	orderBy := "date_created DESC" // TODO: Extract orderBy from query params
 

@@ -2,40 +2,13 @@ package managers
 
 import (
 	"cron-server/server/src/managers"
-	"cron-server/server/src/utils"
 	"cron-server/server/tests"
+	"cron-server/server/tests/fixtures"
 	"fmt"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/assert"
 	"testing"
-	"time"
 )
-
-func createJobFixture(pool *utils.Pool, t *testing.T, JobName string) string {
-	projectManager := managers.ProjectManager{
-		Name: JobName,
-		Description: "some random desc",
-	}
-	ProjectID, err := projectManager.CreateOne(pool)
-
-	if err != nil {
-		t.Fatalf("\t\t [ERROR] failed to create project:: %v", err.Error())
-	}
-
-	jobManager := managers.JobManager{
-		ProjectID: ProjectID,
-		StartDate: time.Now().Add(2000000),
-		CallbackUrl: "https://some-random.url",
-		CronSpec: "* * * * 1",
-	}
-
-	JobID, err := jobManager.CreateOne(pool)
-	if err != nil {
-		t.Fatalf("\t\t [ERROR] failed to create job %v", err.Error())
-	}
-
-	return JobID
-}
 
 func Test_ExecutionManager(t *testing.T) {
 	pool := tests.GetTestPool()
@@ -68,7 +41,7 @@ func Test_ExecutionManager(t *testing.T) {
 
 		t.Logf("\t\t Create execution with valid job id")
 		{
-			JobID := createJobFixture(pool, t, "some job name")
+			JobID := fixtures.CreateJobFixture(pool, t, "some job name")
 			executionManager := managers.ExecutionManager{
 				JobID: JobID,
 			}
@@ -112,7 +85,7 @@ func Test_ExecutionManager(t *testing.T) {
 			fmt.Println(executionManager)
 		}
 
-		JobID := createJobFixture(pool, t, "some job name -- ")
+		JobID := fixtures.CreateJobFixture(pool, t, "some job name -- ")
 
 		t.Logf("\t\t Paginated results from manager")
 		{
