@@ -57,7 +57,7 @@ func TestCredential_Controller(t *testing.T) {
 
 		t.Logf("\t\tGet All Credentials")
 		{
-			req, err := http.NewRequest("GET", "/", nil)
+			req, err := http.NewRequest("GET", "/?limit=50&offset=0", nil)
 			if err != nil {
 				t.Errorf("\t\t cannot create http request %v", err)
 			}

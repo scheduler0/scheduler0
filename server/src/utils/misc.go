@@ -2,7 +2,9 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -68,7 +70,7 @@ func GetPostgresCredentials(env Env) *PostgresCredentials {
 }
 
 func (writer LogWriter) Write(bytes []byte) (int, error) {
-	fmt.Println("-----------")
+	fmt.Println("----------------------------------------------------------------")
 	return fmt.Print(time.Now().UTC().Format(time.RFC1123) + " [DEBUG] " + string(bytes))
 }
 
@@ -124,4 +126,28 @@ func GetRequestQueryString(query string) map[string]string {
 	}
 
 	return params
+}
+
+func ValidateQueryString(queryString string, r *http.Request) (string, error) {
+	param := r.URL.Query()[queryString]
+
+	if param == nil || len(param[0]) < 1 {
+		return "", errors.New(queryString + "is not provided")
+	}
+
+	return param[0], nil
+}
+
+func ExtractBody(w http.ResponseWriter, r *http.Request) []byte {
+	body, err := ioutil.ReadAll(r.Body)
+
+	if err != nil {
+		SendJson(w, "request body required", false, http.StatusUnprocessableEntity, nil)
+	}
+
+	if len(body) < 1 {
+		SendJson(w, "request body required", false, http.StatusBadRequest, nil)
+	}
+
+	return body
 }

@@ -25,3 +25,20 @@ func (jobService *JobService) GetJobsByProjectID(projectID string, offset int, l
 
 	return jobs, nil
 }
+
+func (jobService *JobService) CreateJob(job transformers.Job) (*transformers.Job, error) {
+	jobManager, err := job.ToManager()
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = jobManager.CreateOne(jobService.Pool)
+	if err != nil {
+		return nil, err
+	}
+
+	job.FromManager(jobManager)
+
+	return &job, nil
+}

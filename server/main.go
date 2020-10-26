@@ -4,8 +4,8 @@ import (
 	"cron-server/server/src/controllers"
 	"cron-server/server/src/db"
 	"cron-server/server/src/middlewares"
-	"cron-server/server/src/utils"
 	"cron-server/server/src/process"
+	"cron-server/server/src/utils"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
 	"io"
@@ -14,12 +14,13 @@ import (
 	"os"
 )
 
-func main() {
+func getDatabaseConnectionForEnvironment() (closer io.Closer, err error) {
 	env := os.Getenv("ENV")
+	return db.CreateConnectionEnv(env)
+}
 
-	pool, err := utils.NewPool(func() (closer io.Closer, err error) {
-		return db.CreateConnectionEnv(env)
-	}, db.MaxConnections)
+func main() {
+	pool, err := utils.NewPool(getDatabaseConnectionForEnvironment, db.MaxConnections)
 	utils.CheckErr(err)
 
 	// SetupDB logging
@@ -41,7 +42,7 @@ func main() {
 
 	// Initialize controllers
 	//executionController := controllers.ExecutionController{Pool: *pool}
-	//jobController := controllers.JobController{Pool: *pool}
+	jobController := controllers.JobController{Pool: pool}
 	//projectController := controllers.ProjectController{Pool: *pool}
 	credentialController := controllers.CredentialController{Pool: pool}
 
@@ -65,12 +66,12 @@ func main() {
 	router.HandleFunc("/credentials/{id}", credentialController.DeleteOne).Methods(http.MethodDelete)
 
 	// Job Endpoint
-	//router.HandleFunc("/jobs", jobController.CreateOne).Methods(http.MethodPost)
-	//router.HandleFunc("/jobs", jobController.List).Methods(http.MethodGet)
+	router.HandleFunc("/jobs", jobController.CreateJob).Methods(http.MethodPost)
+	router.HandleFunc("/jobs", jobController.ListJobs).Methods(http.MethodGet)
 	//router.HandleFunc("/jobs/{id}", jobController.GetOne).Methods(http.MethodGet)
 	//router.HandleFunc("/jobs/{id}", jobController.UpdateOne).Methods(http.MethodPut)
 	//router.HandleFunc("/jobs/{id}", jobController.DeleteOne).Methods(http.MethodDelete)
-	//
+
 	//// Projects Endpoint
 	//router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
 	//router.HandleFunc("/projects", projectController.List).Methods(http.MethodGet)

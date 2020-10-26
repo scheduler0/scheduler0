@@ -1,5 +1,20 @@
 package controllers
 
+import (
+	"context"
+	"cron-server/server/src/controllers"
+	"cron-server/server/src/utils"
+	"cron-server/server/tests"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
 //
 //import (
 //	"context"
@@ -27,77 +42,77 @@ package controllers
 //	project       models.ProjectDomain
 //)
 //
-//func TestJobController_CreateOne(t *testing.T) {
-//	var jobsPool, err = db.NewPool(db.CreateConnection, 1)
-//	utils.CheckErr(err)
-//	jobController.Pool = *jobsPool
-//
-//	t.Log("Respond with status 400 if request body does not contain required values")
-//	{
-//		inboundJob.CronSpec = "* * * * *"
-//		jobByte, err := inboundJob.ToJson()
-//		utils.CheckErr(err)
-//		jobStr := string(jobByte)
-//
-//		req, err := http.NewRequest("POST", "/jobs", strings.NewReader(jobStr))
-//		if err != nil {
-//			t.Fatalf("\t\t Cannot create http request")
-//		}
-//
-//		w := httptest.NewRecorder()
-//		jobController.CreateOne(w, req)
-//		assert.Equal(t, http.StatusBadRequest, w.Code)
-//	}
-//
-//	t.Log("Respond with status 201 if request body is valid")
-//	{
-//		project.Name = "TestJobController_Project"
-//		project.Description = "TestJobController_Project_Description"
-//		id, err := project.CreateOne(&jobController.Pool, context.Background())
-//
-//		if err != nil {
-//			t.Fatalf("\t\t Cannot create project %v", err)
-//		}
-//
-//		project.ID = id
-//		j1 := transformers.JobDto{}
-//
-//		j1.CronSpec = "1 * * * *"
-//		j1.ProjectId = id
-//		j1.CallbackUrl = "http://random.url"
-//		j1.StartDate = time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
-//		jobByte, err := j1.ToJson()
-//		utils.CheckErr(err)
-//		jobStr := string(jobByte)
-//		req, err := http.NewRequest("POST", "/jobs", strings.NewReader(jobStr))
-//		if err != nil {
-//			t.Fatalf("\t\t Cannot create job %v", err)
-//		}
-//
-//		w := httptest.NewRecorder()
-//		jobController.CreateOne(w, req)
-//		body, err := ioutil.ReadAll(w.Body)
-//
-//		if err != nil {
-//			t.Fatalf("\t\t Could not read response body %v", err)
-//		}
-//
-//		var response map[string]interface{}
-//
-//		if err = json.Unmarshal(body, &response); err != nil {
-//			t.Fatalf("\t\t Could unmarsha json response %v", err)
-//		}
-//
-//		if len(response) < 1 {
-//			t.Fatalf("\t\t Response payload is empty")
-//		}
-//
-//		fmt.Println(response)
-//
-//		inboundJob.ID = response["transformers"].(string)
-//		assert.Equal(t, http.StatusCreated, w.Code)
-//	}
-//}
+func TestJobController_CreateOne(t *testing.T) {
+
+	t.Log("Respond with status 400 if request body does not contain required values")
+	{
+		pool := tests.GetTestPool()
+		jobController := controllers.JobController{ Pool: pool }
+
+		inboundJob.CronSpec = "* * * * *"
+		jobByte, err := inboundJob.ToJson()
+		utils.CheckErr(err)
+		jobStr := string(jobByte)
+
+		req, err := http.NewRequest("POST", "/jobs", strings.NewReader(jobStr))
+		if err != nil {
+			t.Fatalf("\t\t Cannot create http request")
+		}
+
+		w := httptest.NewRecorder()
+		jobController.CreateOne(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	}
+
+	t.Log("Respond with status 201 if request body is valid")
+	{
+		project.Name = "TestJobController_Project"
+		project.Description = "TestJobController_Project_Description"
+		id, err := project.CreateOne(&jobController.Pool, context.Background())
+
+		if err != nil {
+			t.Fatalf("\t\t Cannot create project %v", err)
+		}
+
+		project.ID = id
+		j1 := transformers.JobDto{}
+
+		j1.CronSpec = "1 * * * *"
+		j1.ProjectId = id
+		j1.CallbackUrl = "http://random.url"
+		j1.StartDate = time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
+		jobByte, err := j1.ToJson()
+		utils.CheckErr(err)
+		jobStr := string(jobByte)
+		req, err := http.NewRequest("POST", "/jobs", strings.NewReader(jobStr))
+		if err != nil {
+			t.Fatalf("\t\t Cannot create job %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		jobController.CreateOne(w, req)
+		body, err := ioutil.ReadAll(w.Body)
+
+		if err != nil {
+			t.Fatalf("\t\t Could not read response body %v", err)
+		}
+
+		var response map[string]interface{}
+
+		if err = json.Unmarshal(body, &response); err != nil {
+			t.Fatalf("\t\t Could unmarsha json response %v", err)
+		}
+
+		if len(response) < 1 {
+			t.Fatalf("\t\t Response payload is empty")
+		}
+
+		fmt.Println(response)
+
+		inboundJob.ID = response["transformers"].(string)
+		assert.Equal(t, http.StatusCreated, w.Code)
+	}
+}
 //
 //func TestJobController_GetAll(t *testing.T) {
 //	t.Log("Respond with status 200 and return all created jobs")

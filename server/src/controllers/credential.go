@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"io/ioutil"
-	"math"
 	"net/http"
 	"strconv"
 )
@@ -16,7 +15,9 @@ type CredentialController Controller
 
 func (credentialController *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
-	utils.CheckErr(err)
+	if err != nil {
+		utils.SendJson(w, "request body required", false, http.StatusUnprocessableEntity, nil)
+	}
 
 	if len(body) < 1 {
 		utils.SendJson(w, "request body required", false, http.StatusBadRequest, nil)
@@ -95,7 +96,6 @@ func (credentialController *CredentialController) DeleteOne(w http.ResponseWrite
 }
 
 func (credentialController *CredentialController) List(w http.ResponseWriter, r *http.Request) {
-	queryParams := utils.GetRequestQueryString(r.URL.RawQuery)
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
 
 	offset := 0
@@ -103,22 +103,24 @@ func (credentialController *CredentialController) List(w http.ResponseWriter, r 
 
 	orderBy := "date_created DESC" // TODO: Extract orderBy from query params
 
-	for i := 0; i < len(queryParams); i++ {
-		if offsetInQueryString, ok := queryParams["offset"]; ok {
-			if offsetInt, err := strconv.Atoi(offsetInQueryString); err != nil {
-				utils.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
-			} else {
-				offset = offsetInt
-			}
-		}
+	limitParam, err := utils.ValidateQueryString("limit", r)
+	if err != nil {
+		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+	}
 
-		if limitInQueryString, ok := queryParams["limit"]; ok {
-			if limitInt, err := strconv.Atoi(limitInQueryString); err != nil {
-				utils.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
-			} else {
-				limit = int(math.Min(float64(limit), float64(limitInt)))
-			}
-		}
+	offsetParam, err := utils.ValidateQueryString("offset", r)
+	if err != nil {
+		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+	}
+
+	offset, err = strconv.Atoi(offsetParam)
+	if err != nil {
+		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+	}
+
+	limit, err = strconv.Atoi(limitParam)
+	if err != nil {
+		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 	}
 
 	credentials, err := credentialService.ListCredentials(offset, limit, orderBy)
