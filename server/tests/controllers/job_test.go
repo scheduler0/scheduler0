@@ -1,12 +1,13 @@
 package controllers
 
 import (
-	"context"
 	"cron-server/server/src/controllers"
+	"cron-server/server/src/transformers"
 	"cron-server/server/src/utils"
 	"cron-server/server/tests"
 	"encoding/json"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -15,40 +16,13 @@ import (
 	"time"
 )
 
-//
-//import (
-//	"context"
-//	"cron-server/server/models"
-//	"cron-server/server/transformers"
-//	"cron-server/server/db"
-//	"cron-server/server/utils"
-//	"encoding/json"
-//	"fmt"
-//	"github.com/stretchr/testify/assert"
-//	"io/ioutil"
-//	"log"
-//	"net/http"
-//	"net/http/httptest"
-//	"reflect"
-//	"strings"
-//	"testing"
-//	"time"
-//)
-//
-//var (
-//	jobController = JobController{}
-//	inboundJob    transformers.JobDto
-//	jobModel      models.JobDomain
-//	project       models.ProjectDomain
-//)
-//
 func TestJobController_CreateOne(t *testing.T) {
+	pool := tests.GetTestPool()
 
 	t.Log("Respond with status 400 if request body does not contain required values")
 	{
-		pool := tests.GetTestPool()
 		jobController := controllers.JobController{ Pool: pool }
-
+		inboundJob := transformers.Job{}
 		inboundJob.CronSpec = "* * * * *"
 		jobByte, err := inboundJob.ToJson()
 		utils.CheckErr(err)
@@ -60,25 +34,33 @@ func TestJobController_CreateOne(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		jobController.CreateOne(w, req)
+		jobController.CreateJob(w, req)
+
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	}
 
 	t.Log("Respond with status 201 if request body is valid")
 	{
+		project := transformers.Project{}
 		project.Name = "TestJobController_Project"
 		project.Description = "TestJobController_Project_Description"
-		id, err := project.CreateOne(&jobController.Pool, context.Background())
+
+		projectManager, err := project.ToManager()
+		if err != nil {
+			t.Fatalf("\t\t Cannot create project manager %v", err)
+		}
+
+		projectID, err := projectManager.CreateOne(pool)
+
 
 		if err != nil {
 			t.Fatalf("\t\t Cannot create project %v", err)
 		}
 
-		project.ID = id
-		j1 := transformers.JobDto{}
+		j1 := transformers.Job{}
 
 		j1.CronSpec = "1 * * * *"
-		j1.ProjectId = id
+		j1.ProjectID = projectID
 		j1.CallbackUrl = "http://random.url"
 		j1.StartDate = time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
 		jobByte, err := j1.ToJson()
@@ -90,7 +72,9 @@ func TestJobController_CreateOne(t *testing.T) {
 		}
 
 		w := httptest.NewRecorder()
-		jobController.CreateOne(w, req)
+
+		controller := controllers.JobController{ Pool: pool }
+		controller.CreateJob(w, req)
 		body, err := ioutil.ReadAll(w.Body)
 
 		if err != nil {
@@ -108,8 +92,6 @@ func TestJobController_CreateOne(t *testing.T) {
 		}
 
 		fmt.Println(response)
-
-		inboundJob.ID = response["transformers"].(string)
 		assert.Equal(t, http.StatusCreated, w.Code)
 	}
 }

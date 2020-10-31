@@ -65,6 +65,6 @@ func (jobController *JobController) CreateJob(w http.ResponseWriter, r *http.Req
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 	}
 
-	utils.SendJson(w, job, true, http.StatusOK, nil)
+	utils.SendJson(w, job, true, http.StatusCreated, nil)
 
 }
