@@ -14,16 +14,19 @@ func (jobController *JobController) ListJobs(w http.ResponseWriter, r *http.Requ
 	projectID, err := utils.ValidateQueryString("projectID", r)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	limitParam, err := utils.ValidateQueryString("limit", r)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	offsetParam, err  := utils.ValidateQueryString("offset", r)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	jobService := service.JobService{
@@ -34,11 +37,13 @@ func (jobController *JobController) ListJobs(w http.ResponseWriter, r *http.Requ
 	offset, err := strconv.Atoi(offsetParam)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	limit, err := strconv.Atoi(limitParam)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	jobs, err := jobService.GetJobsByProjectID(projectID, offset, limit, "date_created")

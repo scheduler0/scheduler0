@@ -132,7 +132,7 @@ func ValidateQueryString(queryString string, r *http.Request) (string, error) {
 	param := r.URL.Query()[queryString]
 
 	if param == nil || len(param[0]) < 1 {
-		return "", errors.New(queryString + "is not provided")
+		return "", errors.New(queryString + " is not provided")
 	}
 
 	return param[0], nil

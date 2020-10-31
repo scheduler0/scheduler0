@@ -52,7 +52,6 @@ func TestJobController_CreateOne(t *testing.T) {
 
 		projectID, err := projectManager.CreateOne(pool)
 
-
 		if err != nil {
 			t.Fatalf("\t\t Cannot create project %v", err)
 		}
@@ -95,60 +94,70 @@ func TestJobController_CreateOne(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, w.Code)
 	}
 }
-//
-//func TestJobController_GetAll(t *testing.T) {
-//	t.Log("Respond with status 200 and return all created jobs")
-//	{
-//		jobModel.ProjectId = project.ID
-//		jobModel.CronSpec = "1 * * * *"
-//		jobModel.StartDate = time.Now().Add(60 * time.Second)
-//		jobModel.CallbackUrl = "some-url"
-//
-//		rv := reflect.ValueOf(jobModel)
-//		rt := rv.Type()
-//		rc := reflect.New(rt)
-//		rc.Elem().Set(rv)
-//
-//		jobTwoCopy := rc.Interface().(*models.JobDomain)
-//
-//		if _, err := jobModel.CreateOne(&jobController.Pool, context.Background()); err != nil {
-//			t.Fatalf("\t\t Cannot create job two %v", err)
-//		}
-//
-//		if _, err := jobTwoCopy.CreateOne(&jobController.Pool, context.Background()); err != nil {
-//			t.Fatalf("\t\t Cannot create job three %v", err)
-//		}
-//
-//		req, err := http.NewRequest("GET", "/jobs?project_id="+project.ID, nil)
-//
-//		if err != nil {
-//			t.Fatalf("\t\t Cannot create http request %v", err)
-//		}
-//
-//		w := httptest.NewRecorder()
-//		jobController.GetAll(w, req)
-//		assert.Equal(t, http.StatusOK, w.Code)
-//
-//		body, err := ioutil.ReadAll(w.Body)
-//		if err != nil {
-//			t.Fatalf("\t\t Error reading transformers %v", err)
-//		}
-//
-//		fmt.Println(string(body))
-//
-//		if _, err := jobModel.DeleteOne(&jobController.Pool, context.Background()); err != nil {
-//			t.Fatalf("\t\t Cannot delete job two %v", err)
-//		}
-//
-//		if _, err := jobTwoCopy.DeleteOne(&jobController.Pool, context.Background()); err != nil {
-//			t.Fatalf("\t\t Cannot delete job two copy %v", err)
-//		}
-//	}
-//}
-//
+
+func TestJobController_GetAll(t *testing.T) {
+	pool := tests.GetTestPool()
+
+
+	t.Log("Respond with status 200 and return all created jobs")
+	{
+
+		project := transformers.Project{}
+		project.Name = "TestJobController_Project"
+		project.Description = "TestJobController_Project_Description"
+
+		projectManager, err := project.ToManager()
+		if err != nil {
+			t.Fatalf("\t\t Cannot create project manager %v", err)
+		}
+
+		projectID, err := projectManager.CreateOne(pool)
+		if err != nil {
+			t.Fatalf("\t\t Cannot create project using manager %v", err)
+		}
+
+		jobModel := transformers.Job{}
+
+		startDate := time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
+
+		jobModel.ProjectID = projectID
+		jobModel.CronSpec = "1 * * * *"
+		jobModel.StartDate = startDate
+		jobModel.CallbackUrl = "some-url"
+
+		jobManager, err := jobModel.ToManager()
+		if err != nil {
+			t.Fatalf("\t\t Failed to create job manager %v", err)
+		}
+
+		_, err = jobManager.CreateOne(pool)
+		req, err := http.NewRequest("GET", "/jobs?offset=0&limit=10&projectID="+projectID, nil)
+
+		if err != nil {
+			t.Fatalf("\t\t Cannot create http request %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		controller := controllers.JobController{ Pool: pool }
+		controller.ListJobs(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		body, err := ioutil.ReadAll(w.Body)
+		if err != nil {
+			t.Fatalf("\t\t Error reading transformers %v", err)
+		}
+
+		fmt.Println(string(body))
+	}
+}
+
 //func TestJobController_UpdateOne(t *testing.T) {
+//	pool := tests.GetTestPool()
+//
 //	t.Log("Respond with status 400 if update attempts to change cron spec")
 //	{
+//		inboundJob := transformers.Job{}
+//
 //		inboundJob.CronSpec = "3 * * * *"
 //		jobByte, err := inboundJob.ToJson()
 //		utils.CheckErr(err)
@@ -159,7 +168,9 @@ func TestJobController_CreateOne(t *testing.T) {
 //		}
 //
 //		w := httptest.NewRecorder()
-//		jobController.UpdateOne(w, req)
+//		controller := controllers.JobController{ Pool: pool }
+//
+//		controller.UpdateJ(w, req)
 //		assert.Equal(t, http.StatusBadRequest, w.Code)
 //	}
 //
