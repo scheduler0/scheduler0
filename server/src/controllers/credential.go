@@ -17,10 +17,12 @@ func (credentialController *CredentialController) CreateOne(w http.ResponseWrite
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		utils.SendJson(w, "request body required", false, http.StatusUnprocessableEntity, nil)
+		return
 	}
 
 	if len(body) < 1 {
 		utils.SendJson(w, "request body required", false, http.StatusBadRequest, nil)
+		return
 	}
 
 	credentialBody := transformers.Credential{}
@@ -28,6 +30,7 @@ func (credentialController *CredentialController) CreateOne(w http.ResponseWrite
 	err = credentialBody.FromJson(body)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
+		return
 	}
 
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
@@ -65,6 +68,7 @@ func (credentialController *CredentialController) UpdateOne(w http.ResponseWrite
 
 	if len(body) < 1 {
 		utils.SendJson(w, "request body required", false, http.StatusBadRequest, nil)
+		return
 	}
 
 	credentialBody := transformers.Credential{}
@@ -72,6 +76,7 @@ func (credentialController *CredentialController) UpdateOne(w http.ResponseWrite
 	err = credentialBody.FromJson(body)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
+		return
 	}
 
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
@@ -106,21 +111,25 @@ func (credentialController *CredentialController) List(w http.ResponseWriter, r 
 	limitParam, err := utils.ValidateQueryString("limit", r)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	offsetParam, err := utils.ValidateQueryString("offset", r)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	offset, err = strconv.Atoi(offsetParam)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	limit, err = strconv.Atoi(limitParam)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	credentials, err := credentialService.ListCredentials(offset, limit, orderBy)

@@ -7,8 +7,10 @@ import (
 	"cron-server/server/tests"
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -103,8 +105,8 @@ func TestJobController_GetAll(t *testing.T) {
 	{
 
 		project := transformers.Project{}
-		project.Name = "TestJobController_Project"
-		project.Description = "TestJobController_Project_Description"
+		project.Name = "TestJobController_GetAll"
+		project.Description = "TestJobController_GetAll"
 
 		projectManager, err := project.ToManager()
 		if err != nil {
@@ -151,73 +153,139 @@ func TestJobController_GetAll(t *testing.T) {
 	}
 }
 
-//func TestJobController_UpdateOne(t *testing.T) {
-//	pool := tests.GetTestPool()
-//
-//	t.Log("Respond with status 400 if update attempts to change cron spec")
-//	{
-//		inboundJob := transformers.Job{}
-//
-//		inboundJob.CronSpec = "3 * * * *"
-//		jobByte, err := inboundJob.ToJson()
-//		utils.CheckErr(err)
-//		jobStr := string(jobByte)
-//		req, err := http.NewRequest("PUT", "/jobs/"+inboundJob.ID, strings.NewReader(jobStr))
-//		if err != nil {
-//			t.Fatalf("\t\t Cannot create http request %v", err)
-//		}
-//
-//		w := httptest.NewRecorder()
-//		controller := controllers.JobController{ Pool: pool }
-//
-//		controller.UpdateJ(w, req)
-//		assert.Equal(t, http.StatusBadRequest, w.Code)
-//	}
-//
-//	t.Log("Respond with status 200 if update body is valid")
-//	{
-//		inboundJob.StartDate = time.Now().UTC().Format(time.RFC3339)
-//		inboundJob.CronSpec = "1 * * * *"
-//		inboundJob.Description = "some job description"
-//		inboundJob.Timezone = "UTC"
-//		jobByte, err := inboundJob.ToJson()
-//		utils.CheckErr(err)
-//		jobStr := string(jobByte)
-//		req, err := http.NewRequest("PUT", "/jobs/"+inboundJob.ID, strings.NewReader(jobStr))
-//
-//		if err != nil {
-//			t.Fatalf("\t\t Cannot create http request %v", err)
-//		}
-//
-//		w := httptest.NewRecorder()
-//		jobController.UpdateOne(w, req)
-//		body, err := ioutil.ReadAll(w.Body)
-//		if err != nil {
-//			t.Fatalf("\t\t Cannot create http request %v", err)
-//			log.Println("Response body :", string(body))
-//		}
-//
-//		assert.Equal(t, http.StatusOK, w.Code)
-//		log.Println("Response body :", string(body))
-//	}
-//}
-//
-//func TestJobController_DeleteOne(t *testing.T) {
-//	t.Log("Respond with status 200 after successful deletion")
-//	{
-//		req, err := http.NewRequest("DELETE", "/jobs/"+inboundJob.ID, nil)
-//		if err != nil {
-//			t.Fatalf("\t\t Cannot create http request %v", err)
-//		}
-//
-//		w := httptest.NewRecorder()
-//		jobController.DeleteOne(w, req)
-//		assert.Equal(t, w.Code, http.StatusOK)
-//
-//		if _, err = project.DeleteOne(&jobController.Pool, context.Background()); err != nil {
-//			t.Fatalf("\t\t Cannot delete project %v", err)
-//		}
-//	}
-//
-//	jobController.Pool.Close()
-//}
+func TestJobController_UpdateOne(t *testing.T) {
+	pool := tests.GetTestPool()
+
+	t.Log("Respond with status 400 if update attempts to change cron spec")
+	{
+		inboundJob := transformers.Job{}
+
+		inboundJob.CronSpec = "3 * * * *"
+		jobByte, err := inboundJob.ToJson()
+		utils.CheckErr(err)
+		jobStr := string(jobByte)
+		req, err := http.NewRequest("PUT", "/jobs/"+inboundJob.ID, strings.NewReader(jobStr))
+		if err != nil {
+			t.Fatalf("\t\t Cannot create http request %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		controller := controllers.JobController{ Pool: pool }
+
+		controller.UpdateJob(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	}
+
+	t.Log("Respond with status 200 if update body is valid")
+	{
+		project := transformers.Project{}
+		project.Name = "TestJobController_UpdateOne"
+		project.Description = "TestJobController_UpdateOne"
+
+		projectManager, err := project.ToManager()
+		if err != nil {
+			t.Fatalf("\t\t Cannot create project manager %v", err)
+		}
+
+		projectID, err := projectManager.CreateOne(pool)
+		if err != nil {
+			t.Fatalf("\t\t Cannot create project using manager %v", err)
+		}
+
+		startDate := time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
+
+		inboundJob := transformers.Job{}
+		inboundJob.StartDate = startDate
+		inboundJob.CronSpec = "1 * * * *"
+		inboundJob.Description = "some job description"
+		inboundJob.Timezone = "UTC"
+		inboundJob.ProjectID = projectID
+		inboundJob.CallbackUrl = "some-url"
+
+		jobManager, err := inboundJob.ToManager()
+		jobID, err := jobManager.CreateOne(pool)
+		utils.CheckErr(err)
+
+		updateJob := transformers.Job{}
+		updateJob.ID = jobID
+		updateJob.Description = "some new job description"
+		updateJob.ProjectID = projectID
+		updateJob.CronSpec = "1 * * * *"
+		updateJob.StartDate = time.Now().UTC().Format(time.RFC3339)
+		jobByte, err := updateJob.ToJson()
+		utils.CheckErr(err)
+
+		jobStr := string(jobByte)
+
+		req, err := http.NewRequest("PUT", "/jobs/"+jobID, strings.NewReader(jobStr))
+
+		if err != nil {
+			t.Fatalf("\t\t Cannot create http request %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		controller := controllers.JobController{ Pool: pool }
+		router := mux.NewRouter()
+		router.HandleFunc("/jobs/{id}", controller.UpdateJob)
+		router.ServeHTTP(w, req)
+
+		body, err := ioutil.ReadAll(w.Body)
+		if err != nil {
+			t.Fatalf("\t\t Cannot create http request %v", err)
+			log.Println("Response body :", string(body))
+		}
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		log.Println("Response body :", string(body))
+	}
+}
+
+func TestJobController_DeleteOne(t *testing.T) {
+	pool := tests.GetTestPool()
+
+
+	t.Log("Respond with status 200 after successful deletion")
+	{
+
+		project := transformers.Project{}
+		project.Name = "TestJobController_DeleteOne"
+		project.Description = "TestJobController_DeleteOne"
+
+		projectManager, err := project.ToManager()
+		if err != nil {
+			t.Fatalf("\t\t Cannot create project manager %v", err)
+		}
+
+		projectID, err := projectManager.CreateOne(pool)
+		if err != nil {
+			t.Fatalf("\t\t Cannot create project using manager %v", err)
+		}
+
+		startDate := time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
+
+		inboundJob := transformers.Job{}
+		inboundJob.StartDate = startDate
+		inboundJob.CronSpec = "1 * * * *"
+		inboundJob.Description = "some job description"
+		inboundJob.Timezone = "UTC"
+		inboundJob.ProjectID = projectID
+		inboundJob.CallbackUrl = "some-url"
+
+		jobManager, err := inboundJob.ToManager()
+		jobID, err := jobManager.CreateOne(pool)
+
+		req, err := http.NewRequest("DELETE", "/jobs/"+jobID, nil)
+
+		w := httptest.NewRecorder()
+		controller := controllers.JobController{ Pool: pool }
+		router := mux.NewRouter()
+		router.HandleFunc("/jobs/{id}", controller.DeleteJob)
+		router.ServeHTTP(w, req)
+
+		if err != nil {
+			t.Fatalf("\t\t Cannot create http request %v", err)
+		}
+
+		assert.Equal(t, w.Code, http.StatusNoContent)
+	}
+}

@@ -75,28 +75,24 @@ func (jd *JobManager) CreateOne(pool *utils.Pool) (string, error) {
 	return jd.ID, nil
 }
 
-func (jd *JobManager) GetOne(pool *utils.Pool, query string, params interface{}) (int, error) {
+func (jd *JobManager) GetOne(pool *utils.Pool, jobID string) error {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	baseQuery := db.Model(jd).Where(query, params)
-	count, err := baseQuery.Count()
-	if count < 1 {
-		return 0, nil
-	}
-
-	err = baseQuery.Select()
+	err = db.Model(jd).
+		Where("id = ?", jobID).
+		Select()
 
 	if err != nil {
-		return 0, err
+		return err
 	}
 
-	return count, nil
+	return nil
 }
 
 func (jd *JobManager) GetAll(pool *utils.Pool, projectID string, offset int, limit int, orderBy string) ([]JobManager, error) {
@@ -131,7 +127,10 @@ func (jd *JobManager) UpdateOne(pool *utils.Pool) (int, error) {
 	var jobPlaceholder JobManager
 	jobPlaceholder.ID = jd.ID
 
-	_, err = jobPlaceholder.GetOne(pool, "id = ?", jobPlaceholder.ID)
+	err = jobPlaceholder.GetOne(pool, jobPlaceholder.ID)
+	if err != nil {
+		return 0, err
+	}
 
 	if jobPlaceholder.CronSpec != jd.CronSpec {
 		return 0, errors.New("cannot update cron spec")
@@ -156,7 +155,7 @@ func (jd *JobManager) UpdateOne(pool *utils.Pool) (int, error) {
 	return res.RowsAffected(), nil
 }
 
-func (jd *JobManager) DeleteOne(pool *utils.Pool) (int, error) {
+func (jd *JobManager) DeleteOne(pool *utils.Pool, jobID string) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, err
@@ -164,7 +163,7 @@ func (jd *JobManager) DeleteOne(pool *utils.Pool) (int, error) {
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	if r, err := db.Model(jd).Where("id = ?", jd.ID).Delete(); err != nil {
+	if r, err := db.Model(jd).Where("id = ?", jobID).Delete(); err != nil {
 		return -1, err
 	} else {
 		return r.RowsAffected(), nil

@@ -115,7 +115,7 @@ func TestProject_Manager(t *testing.T) {
 				t.Fatalf("\t\t [ERROR] Projects with jobs shouldn't be deleted %v %v", err, rowsAffected)
 			}
 
-			rowsAffected, err = job.DeleteOne(pool)
+			rowsAffected, err = job.DeleteOne(pool, job.ID)
 			if err != nil || rowsAffected < 1 {
 				t.Fatalf("\t\t [ERROR] Could not delete job  %v %v", err, rowsAffected)
 			}

@@ -68,9 +68,9 @@ func main() {
 	// Job Endpoint
 	router.HandleFunc("/jobs", jobController.CreateJob).Methods(http.MethodPost)
 	router.HandleFunc("/jobs", jobController.ListJobs).Methods(http.MethodGet)
-	//router.HandleFunc("/jobs/{id}", jobController.GetOne).Methods(http.MethodGet)
-	//router.HandleFunc("/jobs/{id}", jobController.UpdateOne).Methods(http.MethodPut)
-	//router.HandleFunc("/jobs/{id}", jobController.DeleteOne).Methods(http.MethodDelete)
+	router.HandleFunc("/jobs/{id}", jobController.GetAJob).Methods(http.MethodGet)
+	router.HandleFunc("/jobs/{id}", jobController.UpdateJob).Methods(http.MethodPut)
+	router.HandleFunc("/jobs/{id}", jobController.DeleteJob).Methods(http.MethodDelete)
 
 	//// Projects Endpoint
 	//router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
