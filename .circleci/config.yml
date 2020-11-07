@@ -8,6 +8,7 @@ jobs:
       tag: '1.15'
     steps:
       - checkout
+      - cd server
       - go/test
       - go/load-cache
       - go/mod-download
