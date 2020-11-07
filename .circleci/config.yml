@@ -10,16 +10,16 @@ jobs:
       - checkout
       - run:
           name: Change directory to Server
-          command:
-            - cd server | ls -l
-      - go/test
-      - go/load-cache
-      - go/mod-download
-      - go/save-cache
-      - go/test:
-          covermode: atomic
-          failfast: true
-          race: true
+          command: |
+            cd server
+        - go/test
+        - go/load-cache
+        - go/mod-download
+        - go/save-cache
+        - go/test:
+            covermode: atomic
+            failfast: true
+            race: true
 workflows:
     build-and-test:
       jobs:
