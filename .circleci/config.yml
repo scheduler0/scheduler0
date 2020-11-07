@@ -8,7 +8,10 @@ jobs:
       tag: '1.15'
     steps:
       - checkout
-      - cd server
+      - run:
+          name: Change directory to Server
+          command: |
+            cd server
       - go/test
       - go/load-cache
       - go/mod-download
