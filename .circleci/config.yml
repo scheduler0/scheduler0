@@ -3,12 +3,11 @@ orbs:
   go: circleci/go@1.5.0
 jobs:
   build-and-test:
+    working_directory: ~/cron-server/server
     executor:
       name: go/default
       tag: '1.15'
     steps:
-      - checkout:
-          path: ~/cron-server/server
       - go/test:
           covermode: atomic
           failfast: true
