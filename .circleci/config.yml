@@ -9,9 +9,7 @@ jobs:
       tag: '1.15'
     steps:
       - go/test:
-          covermode: atomic
-          failfast: true
-          race: true
+        packages: server/...
 workflows:
     build-and-test:
       jobs:
