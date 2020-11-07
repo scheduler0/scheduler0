@@ -6,3 +6,4 @@ cron-server.test
 client/node_modules
 client/src/public/dist/
 client/build
+server/.env

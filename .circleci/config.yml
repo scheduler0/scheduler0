@@ -1,16 +1,20 @@
 version: 2.1
 orbs:
-  node: circleci/node@1.1.6
+  node: circleci/go@1.5.0
 jobs:
   build-and-test:
     executor:
-      name: node/default
+      name: go/default
+      tag: '1.15'
     steps:
       - checkout
-      - node/with-cache:
-          steps:
-            - run: npm install
-            - run: npm test
+      - go/load-cache
+      - go/mod-download
+      - go/save-cache
+      - go/test:
+          covermode: atomic
+          failfast: true
+          race: true
 workflows:
     build-and-test:
       jobs:
