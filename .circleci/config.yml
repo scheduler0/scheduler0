@@ -7,19 +7,20 @@ jobs:
       name: go/default
       tag: '1.15'
     steps:
-      - checkout
+      - checkout:
+          path: ~/cron-server/server
       - run:
           name: Change directory to Server
           command: |
-            cd server
-        - go/test
-        - go/load-cache
-        - go/mod-download
-        - go/save-cache
-        - go/test:
-            covermode: atomic
-            failfast: true
-            race: true
+            ls
+      - go/test
+      - go/load-cache
+      - go/mod-download
+      - go/save-cache
+      - go/test:
+          covermode: atomic
+          failfast: true
+          race: true
 workflows:
     build-and-test:
       jobs:
