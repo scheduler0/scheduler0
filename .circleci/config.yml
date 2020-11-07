@@ -10,8 +10,8 @@ jobs:
       - checkout
       - run:
           name: Change directory to Server
-          command: |
-            cd server | ls -l
+          command:
+            - cd server | ls -l
       - go/test
       - go/load-cache
       - go/mod-download
