@@ -52,7 +52,7 @@ func TestProject_Manager(t *testing.T) {
 		{
 			projectTwoPlaceholder := managers.ProjectManager{ID: projectTwo.ID}
 
-			_, err := projectTwoPlaceholder.GetOne(pool, "id = ?", projectTwoPlaceholder.ID)
+			_, err := projectTwoPlaceholder.GetOne(pool)
 			if err != nil {
 				t.Fatalf("\t\t [ERROR] Could not get project %v", err)
 			}
@@ -72,7 +72,7 @@ func TestProject_Manager(t *testing.T) {
 			}
 
 			projectTwoPlaceholder := managers.ProjectManager{ID: projectTwo.ID}
-			_, err = projectTwoPlaceholder.GetOne(pool, "id = ?", projectTwoPlaceholder.ID)
+			_, err = projectTwoPlaceholder.GetOne(pool)
 			if err != nil {
 				t.Fatalf("\t\t [ERROR] Could not get project with id %v", projectTwoPlaceholder.ID)
 			}

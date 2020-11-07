@@ -28,14 +28,14 @@ func (p *Project) FromJson(body []byte) error {
 	return nil
 }
 
-func (p *Project) ToManager() (managers.ProjectManager, error) {
+func (p *Project) ToManager() managers.ProjectManager {
 	pd := managers.ProjectManager{
 		ID:          p.ID,
 		Name:        p.Name,
 		Description: p.Description,
 	}
 
-	return pd, nil
+	return pd
 }
 
 func (p *Project) FromManager(pd managers.ProjectManager) {

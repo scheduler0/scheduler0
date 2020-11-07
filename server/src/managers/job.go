@@ -52,7 +52,7 @@ func (jd *JobManager) CreateOne(pool *utils.Pool) (string, error) {
 	}
 
 	projectWithId := ProjectManager{ID: jd.ProjectID}
-	c, _ := projectWithId.GetOne(pool, "id = ?", jd.ProjectID)
+	c, _ := projectWithId.GetOne(pool)
 	if c < 1 {
 		return "", errors.New("project with id does not exist")
 	}

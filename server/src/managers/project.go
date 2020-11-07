@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
-	"strings"
 )
 
 type ProjectManager models.ProjectModel
@@ -31,16 +30,17 @@ func (p *ProjectManager) CreateOne(pool *utils.Pool) (string, error) {
 		return "", err
 	}
 
-	var projectWithName = ProjectManager{}
-	c, e := projectWithName.GetOne(pool, "name = ?", strings.ToLower(p.Name))
+	var projectWithName = ProjectManager{
+		Name: p.Name,
+	}
+
+	c, e := projectWithName.GetOne(pool)
 	if c > 0 && e == nil {
 		err := errors.New("projects exits with the same name " + p.Name)
 		return "", err
 	}
 
 	p.ID = ksuid.New().String()
-
-	p.Name = strings.ToLower(p.Name)
 
 	_, err = db.Model(p).Insert()
 	if err != nil {
@@ -50,7 +50,7 @@ func (p *ProjectManager) CreateOne(pool *utils.Pool) (string, error) {
 	return p.ID, nil
 }
 
-func (p *ProjectManager) GetOne(pool *utils.Pool, query string, params interface{}) (int, error) {
+func (p *ProjectManager) GetOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, err
@@ -59,7 +59,10 @@ func (p *ProjectManager) GetOne(pool *utils.Pool, query string, params interface
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	baseQuery := db.Model(p).Where(query, params)
+	baseQuery := db.
+		Model(p).
+		WhereOr("id = ?", p.ID).
+		WhereOr("name = ?", p.Name)
 
 	count, err := baseQuery.Count()
 	if count < 1 {
@@ -109,7 +112,7 @@ func (p *ProjectManager) UpdateOne(pool *utils.Pool) (int, error) {
 
 	savedProject := ProjectManager{ID: p.ID}
 
-	_, err = savedProject.GetOne(pool, "id = ?", savedProject.ID)
+	_, err = savedProject.GetOne(pool)
 	if err != nil {
 		return 0, err
 	}
@@ -122,9 +125,11 @@ func (p *ProjectManager) UpdateOne(pool *utils.Pool) (int, error) {
 
 		fmt.Println("p.Name", p.Name)
 
-		var projectWithSimilarName = ProjectManager{}
+		var projectWithSimilarName = ProjectManager{
+			Name: p.Name,
+		}
 
-		c, err := projectWithSimilarName.GetOne(pool, "name = ?", strings.ToLower(p.Name))
+		c, err := projectWithSimilarName.GetOne(pool)
 
 		fmt.Println("projectWithSimilarName", projectWithSimilarName, err, c)
 
@@ -136,8 +141,6 @@ func (p *ProjectManager) UpdateOne(pool *utils.Pool) (int, error) {
 			return 0, errors.New("project with same name exits")
 		}
 	}
-
-	p.Name = strings.ToLower(p.Name)
 
 	res, err := db.Model(p).Where("id = ?", p.ID).Update(p)
 	if err != nil {

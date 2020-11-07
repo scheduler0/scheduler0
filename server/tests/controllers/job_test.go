@@ -47,10 +47,7 @@ func TestJobController_CreateOne(t *testing.T) {
 		project.Name = "TestJobController_Project"
 		project.Description = "TestJobController_Project_Description"
 
-		projectManager, err := project.ToManager()
-		if err != nil {
-			t.Fatalf("\t\t Cannot create project manager %v", err)
-		}
+		projectManager := project.ToManager()
 
 		projectID, err := projectManager.CreateOne(pool)
 
@@ -108,10 +105,7 @@ func TestJobController_GetAll(t *testing.T) {
 		project.Name = "TestJobController_GetAll"
 		project.Description = "TestJobController_GetAll"
 
-		projectManager, err := project.ToManager()
-		if err != nil {
-			t.Fatalf("\t\t Cannot create project manager %v", err)
-		}
+		projectManager:= project.ToManager()
 
 		projectID, err := projectManager.CreateOne(pool)
 		if err != nil {
@@ -182,10 +176,7 @@ func TestJobController_UpdateOne(t *testing.T) {
 		project.Name = "TestJobController_UpdateOne"
 		project.Description = "TestJobController_UpdateOne"
 
-		projectManager, err := project.ToManager()
-		if err != nil {
-			t.Fatalf("\t\t Cannot create project manager %v", err)
-		}
+		projectManager := project.ToManager()
 
 		projectID, err := projectManager.CreateOne(pool)
 		if err != nil {
@@ -251,10 +242,7 @@ func TestJobController_DeleteOne(t *testing.T) {
 		project.Name = "TestJobController_DeleteOne"
 		project.Description = "TestJobController_DeleteOne"
 
-		projectManager, err := project.ToManager()
-		if err != nil {
-			t.Fatalf("\t\t Cannot create project manager %v", err)
-		}
+		projectManager := project.ToManager()
 
 		projectID, err := projectManager.CreateOne(pool)
 		if err != nil {
