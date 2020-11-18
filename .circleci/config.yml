@@ -1,15 +1,21 @@
 version: 2.1
-orbs:
-  go: circleci/go@1.5.0
 jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.12
+      - image: circleci/postgres:11-alpine-ram
+        environment:
+          POSTGRES_ADDRESS=localhost:5432
+          POSTGRES_DATABASE=scheduler0_test
+          POSTGRES_DB=scheduler0_test
+          POSTGRES_USER=core
+          POSTGRES_PASSWORD=localdev
   build-and-test:
-    executor:
-      name: go/default
-      tag: '1.15'
     steps:
       - go/test:
-        packages: server/...
+        packages: ./server/...
 workflows:
     build-and-test:
       jobs:
+        - build
         - build-and-test
