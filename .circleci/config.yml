@@ -3,6 +3,9 @@ orbs:
   go: circleci/go@1.5.0
 jobs:
   build:
+    executor:
+      name: go/default
+      tag: '1.15'
     docker:
       - image: circleci/postgres:11-alpine-ram
         environment:
@@ -12,10 +15,11 @@ jobs:
           POSTGRES_USER=core
           POSTGRES_PASSWORD=localdev
 
+    working_directory: ~/scheduler0
+
     steps:
-      - checkout
-      - go/test:
-        packages: ./server/...
+      - go/test
+
 
 workflows:
     build:
