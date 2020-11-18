@@ -4,7 +4,6 @@ import (
 	"cron-server/server/src/managers"
 	"cron-server/server/src/models"
 	"cron-server/server/src/utils"
-	"errors"
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
 	"io"
@@ -18,14 +17,12 @@ const MaxConnections = 100
 func CreateConnectionEnv(env string) (io.Closer, error) {
 	var postgresCredentials utils.PostgresCredentials
 
-	if env == "DEV" {
-		postgresCredentials = *utils.GetPostgresCredentials(utils.EnvDev)
-	} else if env == "TEST" {
+	if env == "TEST" {
 		postgresCredentials = *utils.GetPostgresCredentials(utils.EnvTest)
 	} else if env == "PROD" {
 		postgresCredentials = *utils.GetPostgresCredentials(utils.EnvProd)
 	} else {
-		return nil, errors.New("environment was not provided")
+		postgresCredentials = *utils.GetPostgresCredentials(utils.EnvDev)
 	}
 
 	return pg.Connect(&pg.Options{

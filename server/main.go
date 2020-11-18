@@ -21,7 +21,9 @@ func getDatabaseConnectionForEnvironment() (closer io.Closer, err error) {
 
 func main() {
 	pool, err := utils.NewPool(getDatabaseConnectionForEnvironment, db.MaxConnections)
-	utils.CheckErr(err)
+	if err != nil {
+		panic(err)
+	}
 
 	// SetupDB logging
 	log.SetFlags(0)
@@ -29,7 +31,7 @@ func main() {
 
 	// Set time zone, create database and run db
 	db.CreateModelTables(pool)
-	//db.RunSQLMigrations(pool)
+	//db.RunSQLMigratiqons(pool)
 
 	// Start process to execute cron-server jobs
 	go process.Start(pool)
