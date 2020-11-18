@@ -41,9 +41,9 @@ func main() {
 	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
-	//executionController := controllers.ExecutionController{Pool: *pool}
+	executionController := controllers.ExecutionController{Pool: pool}
 	jobController := controllers.JobController{Pool: pool}
-	//projectController := controllers.ProjectController{Pool: *pool}
+	projectController := controllers.ProjectController{Pool: pool}
 	credentialController := controllers.CredentialController{Pool: pool}
 
 	// Mount middleware
@@ -55,8 +55,7 @@ func main() {
 	router.Use(middleware.AuthMiddleware(pool))
 
 	// Executions Endpoint
-	//router.HandleFunc("/executions", executionController.List).Methods(http.MethodGet)
-	//router.HandleFunc("/executions/{id}", executionController.GetOne).Methods(http.MethodGet)
+	router.HandleFunc("/executions", executionController.List).Methods(http.MethodGet)
 
 	// Credentials Endpoint
 	router.HandleFunc("/credentials", credentialController.CreateOne).Methods(http.MethodPost)
@@ -73,11 +72,11 @@ func main() {
 	router.HandleFunc("/jobs/{id}", jobController.DeleteJob).Methods(http.MethodDelete)
 
 	//// Projects Endpoint
-	//router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
-	//router.HandleFunc("/projects", projectController.List).Methods(http.MethodGet)
-	//router.HandleFunc("/projects/{id}", projectController.GetOne).Methods(http.MethodGet)
-	//router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
-	//router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
+	router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
+	router.HandleFunc("/projects", projectController.GetAll).Methods(http.MethodGet)
+	router.HandleFunc("/projects/{id}", projectController.GetOne).Methods(http.MethodGet)
+	router.HandleFunc("/projects/{id}", projectController.UpdateOne).Methods(http.MethodPut)
+	router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
 
 	log.Println("Server is running on port", utils.GetPort(), utils.GetClientHost())
 	err = http.ListenAndServe(utils.GetPort(), router)

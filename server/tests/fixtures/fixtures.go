@@ -7,9 +7,9 @@ import (
 	"time"
 )
 
-func CreateJobFixture(pool *utils.Pool, t *testing.T, JobName string) string {
+func CreateJobFixture(pool *utils.Pool, t *testing.T, ProjectName string) string {
 	projectManager := managers.ProjectManager{
-		Name: JobName,
+		Name: ProjectName,
 		Description: "some random desc",
 	}
 	ProjectID, err := projectManager.CreateOne(pool)

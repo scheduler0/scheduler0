@@ -1,37 +1,49 @@
 package controllers
 
-//var (
-//	executionsController = ExecutionController{}
-//)
+import (
+	"cron-server/server/src/controllers"
+	"cron-server/server/src/managers"
+	"cron-server/server/tests"
+	"cron-server/server/tests/fixtures"
+	"fmt"
+	"github.com/stretchr/testify/assert"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
-//func TestExecutionController_GetAll(t *testing.T) {
-//	t.Log("Get All Returns 0 Count and Empty Set")
-//	{
-//		var pool, err = db.NewPool(db.CreateConnection, 1)
-//		utils.CheckErr(err)
-//		executionsController.Pool = *pool
-//
-//		req, err := http.NewRequest("GET", "/?offset=0&limit=10", nil)
-//
-//		if err != nil {
-//			t.Fatalf("\t\t Cannot create http request %v", err)
-//		}
-//
-//		w := httptest.NewRecorder()
-//		executionsController.GetAll(w, req)
-//
-//		body, err := ioutil.ReadAll(w.Body)
-//		if err != nil {
-//			fmt.Print(err)
-//		}
-//
-//		var res utils.Response
-//
-//		err = json.Unmarshal(body, res)
-//		if err != nil {
-//			fmt.Print(err)
-//		}
-//
-//		assert.Equal(t, http.StatusOK, w.Code)
-//	}
-//}
+func TestExecutionController_GetAll(t *testing.T) {
+	executionsController := controllers.ExecutionController{}
+	pool := tests.GetTestPool()
+
+	t.Log("Get All Returns 0 Count and Empty Set")
+	{
+		JobID := fixtures.CreateJobFixture(pool, t, "some random project name")
+		executionManager := managers.ExecutionManager{
+			JobID: JobID,
+		}
+
+		_, err := executionManager.CreateOne(pool)
+		if err != nil {
+			t.Fatalf("\t\t Cannot create execution %v", err)
+		}
+
+		executionsController.Pool = pool
+		req, err := http.NewRequest("GET", "/?jobID="+JobID+"&offset=0&limit=10", nil)
+
+		if err != nil {
+			t.Fatalf("\t\t Cannot create http request %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		executionsController.List(w, req)
+
+		res, _, err := tests.ExtractResponse(w)
+		if err != nil {
+			t.Fatalf("\t\t json error %v", err)
+		}
+
+		fmt.Println(res)
+		assert.Equal(t, http.StatusOK, w.Code)
+	}
+}
