@@ -6,7 +6,7 @@ services:
     build:
       context: ./server
       dockerfile: docker/Dockerfile.dev
-      network: default
+      network: host
       args:
         PORT: 4321
         POSTGRES_ADDRESS: localhost:5432
