@@ -14,10 +14,6 @@ jobs:
           name: Run Test
           command: |
             docker-compose up -d server
-      - run:
-          name: Test in Container
-          command: |
-            docker exec -it project_server_1 go test ./... -cover -v
 workflows:
     build:
       jobs:
