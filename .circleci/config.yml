@@ -9,7 +9,7 @@ jobs:
       - run:
           name: Run Database
           command: |
-            docker-compose up -d database
+            docker-compose up -d postgres
       - run:
           name: Run Database
           command: |
