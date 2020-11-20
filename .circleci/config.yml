@@ -2,15 +2,13 @@ version: 2.1
 jobs:
   build:
     docker:
-
-      - image: cimg/go:1.13
-
+      -
       - image: circleci/postgres:9.6.2-alpine
         environment:
           POSTGRES_USER: root
           POSTGRES_DB: circle-test_test
 
-    parallelism: 2
+      - image: cimg/go:1.13
 
     steps:
       - checkout
