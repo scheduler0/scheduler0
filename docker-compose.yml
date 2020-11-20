@@ -4,16 +4,15 @@ services:
 
   server:
     build:
-      context: ./server
+      context: ./server/docker
+      network: default
       dockerfile: Dockerfile.dev
       args:
         PORT: 4321
         POSTGRES_ADDRESS: postgres:5432
-        POSTGRES_PASSWORD: postgres
         POSTGRES_DATABASE: postgres
-        CLIENT_HOST: client:4327
-        BASIC_AUTH_USER: admin
-        BASIC_AUTH_PASS: admin
+        POSTGRES_USER: core
+        POSTGRES_PASSWORD: localdev
     ports:
       - "4321:4321"
     depends_on:
@@ -23,54 +22,44 @@ services:
     volumes:
       - ./server:/usr/src/server
     environment:
-      PORT: 4321
-      POSTGRES_ADDRESS: "postgres:5432"
-      POSTGRES_PASSWORD: "postgres"
-      POSTGRES_DATABASE: "postgres"
-      CLIENT_HOST: client:4327
-      BASIC_AUTH_USER: admin
-      BASIC_AUTH_PASS: admin
-    command: "go run main.go"
+      POSTGRES_ADDRESS: postgres:5432
+      POSTGRES_DATABASE: postgres
+      POSTGRES_USER: core
+      POSTGRES_PASSWORD: localdev
+    command: "go test ./... -cover -v"
 
-  client:
-    build:
-      context: ./client
-      dockerfile: Dockerfile.dev
-      args:
-        NODE_ENV: development
-        PORT: 4327
-        API_ENDPOINT: http://server:4321
-        BASIC_AUTH_USER: admin
-        BASIC_AUTH_PASS: admin
-    ports:
-      - "4327:4327"
-      - "9229:9229"
-    depends_on:
-      - server
-    networks:
-      - default
-    volumes:
-      - ./client:/usr/src/client
-    environment:
-      NODE_ENV: development
-      PORT: 4327
-      API_ENDPOINT: http://server:4321
-      BASIC_AUTH_USER: admin
-      BASIC_AUTH_PASS: admin
+#  client:
+#    build:
+#      context: ./client
+#      dockerfile: Dockerfile.dev
+#      args:
+#        NODE_ENV: development
+#        PORT: 4327
+#        API_ENDPOINT: http://server:4321
+#        BASIC_AUTH_USER: admin
+#        BASIC_AUTH_PASS: admin
+#    ports:
+#      - "4327:4327"
+#      - "9229:9229"
+#    depends_on:
+#      - server
+#    networks:
+#      - default
+#    volumes:
+#      - ./client:/usr/src/client
+#    environment:
+#      NODE_ENV: development
+#      PORT: 4327
+#      API_ENDPOINT: http://server:4321
+#      BASIC_AUTH_USER: admin
+#      BASIC_AUTH_PASS: admin
 
   postgres:
-    image: mdillon/postgis
+    image: postgres:11.10-alpine
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_DB: postgres
+      POSTGRES_USER: core
       POSTGRES_PASSWORD: postgres
-
     networks:
       - default
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
