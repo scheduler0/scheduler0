@@ -15,8 +15,6 @@ services:
         POSTGRES_PASSWORD: postgres
     ports:
       - "4321:4321"
-    depends_on:
-      - postgres
     volumes:
       - ./server:/usr/src/server
     environment:
