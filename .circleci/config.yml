@@ -11,7 +11,7 @@ jobs:
           command: |
             docker-compose up -d postgres
       - run:
-          name: Run Database
+          name: Run Test
           command: |
             docker-compose up -d server
 workflows:
