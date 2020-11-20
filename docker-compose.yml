@@ -12,7 +12,7 @@ services:
         POSTGRES_ADDRESS: 0.0.0.0:5432
         POSTGRES_DATABASE: postgres
         POSTGRES_USER: core
-        POSTGRES_PASSWORD: localdev
+        POSTGRES_PASSWORD: postgres
     ports:
       - "4321:4321"
     depends_on:
@@ -23,7 +23,7 @@ services:
       POSTGRES_ADDRESS: 0.0.0.0:5432
       POSTGRES_DATABASE: postgres
       POSTGRES_USER: core
-      POSTGRES_PASSWORD: localdev
+      POSTGRES_PASSWORD: postgres
     command: "go test ./... -cover -v"
 
 #  client:
