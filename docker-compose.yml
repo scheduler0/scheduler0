@@ -5,7 +5,6 @@ services:
   server:
     build:
       context: ./server/docker
-      network: default
       dockerfile: Dockerfile.dev
       args:
         PORT: 4321
