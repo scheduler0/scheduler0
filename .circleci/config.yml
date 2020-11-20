@@ -7,9 +7,13 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Run Database and Test
+          name: Run Database
           command: |
-            docker-compose up -d
+            docker-compose up -d database
+      - run:
+          name: Run Database
+          command: |
+            docker-compose up -d server
 workflows:
     build:
       jobs:
