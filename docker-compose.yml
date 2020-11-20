@@ -5,7 +5,7 @@ services:
   server:
     build:
       context: ./server
-      network: host
+      network: default
       dockerfile: docker/Dockerfile.dev
       args:
         PORT: 4321
@@ -15,6 +15,8 @@ services:
         POSTGRES_PASSWORD: postgres
     ports:
       - "4321:4321"
+    networks:
+      - default
     depends_on:
       - postgres
     volumes:
