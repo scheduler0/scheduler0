@@ -13,7 +13,7 @@ jobs:
       - run:
           name: Run Test
           command: |
-            docker-compose up -d serverg
+            docker-compose up -d server
 workflows:
     build:
       jobs:
