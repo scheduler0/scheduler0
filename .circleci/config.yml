@@ -8,9 +8,7 @@ jobs:
           POSTGRES_USER: core
           POSTGRES_DB: scheduler0_test
 
-      - image: circleci/golang:1.8-jessie
-
-
+      - image: cimg/go:1.13
 
     steps:
       - checkout
