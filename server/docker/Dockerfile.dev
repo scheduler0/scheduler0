@@ -24,7 +24,6 @@ ENV CLIENT_HOST $CLIENT_HOST
 ENV BASIC_AUTH_USER $BASIC_AUTH_USER
 ENV BASIC_AUTH_PASS $BASIC_AUTH_PASS
 
-RUN go test ./... -cover -v
 RUN go build
 
 RUN chmod +x ./cron-server
