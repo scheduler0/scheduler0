@@ -54,14 +54,14 @@ services:
 #      BASIC_AUTH_USER: admin
 #      BASIC_AUTH_PASS: admin
 
-  postgres:
-    image: postgres:11.10-alpine
-    networks:
-      - default
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+#  postgres:
+#    image: postgres:11.10-alpine
+#    networks:
+#      - default
+#    ports:
+#      - "5432:5432"
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U postgres"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
