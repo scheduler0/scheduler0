@@ -25,7 +25,7 @@ services:
       POSTGRES_DATABASE: postgres
       POSTGRES_USER: core
       POSTGRES_PASSWORD: localdev
-    command: "go test ./... -cover -v"
+    command: "go test ./server/... -cover -v"
 
 #  client:
 #    build:
