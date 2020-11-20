@@ -1,3 +1,16 @@
-  openapi:
-    info:
-  paths:
+openapi: 3.0.2
+info:
+    title: Scheduler0
+    version: 1.0.0
+    description: A backend sever for job scheduling
+    contact:
+        name: Victor Nwaokocha
+        email: vnwaokocha@gmail.com
+paths:
+    /executions:
+    /credentials:
+    /projects:
+    /jobs:
+schemes:
+parameters:
+responses:
