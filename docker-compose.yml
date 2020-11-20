@@ -4,8 +4,8 @@ services:
 
   server:
     build:
-      context: ./server/docker
-      dockerfile: Dockerfile.dev
+      context: ./server
+      dockerfile: docker/Dockerfile.dev
       args:
         PORT: 4321
         POSTGRES_ADDRESS: postgres:5432
@@ -25,7 +25,7 @@ services:
       POSTGRES_DATABASE: postgres
       POSTGRES_USER: core
       POSTGRES_PASSWORD: localdev
-    command: "go test ./server/... -cover -v"
+    command: "go test ./... -cover -v"
 
 #  client:
 #    build:
