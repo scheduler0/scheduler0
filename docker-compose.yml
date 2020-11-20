@@ -11,7 +11,7 @@ services:
         PORT: 4321
         POSTGRES_ADDRESS: 0.0.0.0:5432
         POSTGRES_DATABASE: postgres
-        POSTGRES_USER: core
+        POSTGRES_USER: postgres
         POSTGRES_PASSWORD: postgres
     ports:
       - "4321:4321"
@@ -22,7 +22,7 @@ services:
     environment:
       POSTGRES_ADDRESS: 0.0.0.0:5432
       POSTGRES_DATABASE: postgres
-      POSTGRES_USER: core
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     command: "go test ./... -cover -v"
 
@@ -56,8 +56,5 @@ services:
     image: postgres:11.10-alpine
     ports:
       - "5432:5432"
-    environment:
-      POSTGRES_USER: core
-      POSTGRES_PASSWORD: postgres
     networks:
       - default
