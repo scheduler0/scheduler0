@@ -9,7 +9,7 @@ services:
       network: default
       args:
         PORT: 4321
-        POSTGRES_ADDRESS: postgres:5432
+        POSTGRES_ADDRESS: localhost:5432
         POSTGRES_DATABASE: postgres
         POSTGRES_USER: postgres
         POSTGRES_PASSWORD: postgres
@@ -20,7 +20,7 @@ services:
     volumes:
       - ./server:/usr/src/server
     environment:
-      POSTGRES_ADDRESS: postgres:5432
+      POSTGRES_ADDRESS: localhost:5432
       POSTGRES_DATABASE: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
