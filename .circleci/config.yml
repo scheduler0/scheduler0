@@ -9,7 +9,7 @@ jobs:
       - run:
           name: Run Database
           command: |
-            docker-compose up -d postgres
+            docker run --name postgres -e POSTGRES_PASSWORD=postgres -d postgres
       - run:
           name: Run Test
           command: |
