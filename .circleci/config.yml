@@ -5,12 +5,11 @@ jobs:
 
       - image: cimg/go:1.13
 
-      - image: circleci/postgres:9.6-alpine
+      - image: cimg/postgres:9.6-alpine
 
         environment:
           POSTGRES_USER: core
           POSTGRES_DB: scheduler0_test
-          POSTGRES_PASSWORD: localdev
 
     parallelism: 2
 
