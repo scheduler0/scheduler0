@@ -26,6 +26,4 @@ ENV BASIC_AUTH_PASS $BASIC_AUTH_PASS
 
 RUN go build
 
-RUN chmod +x ./cron-server
-
 EXPOSE 4321
