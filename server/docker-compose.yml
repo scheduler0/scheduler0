@@ -16,7 +16,7 @@ services:
 #        BASIC_AUTH_USER: admin
 #        BASIC_AUTH_PASS: admin
 #    ports:
-#      - "4321:4321"
+#      - "4321:43
 #    depends_on:
 #      - postgres
 #    networks:

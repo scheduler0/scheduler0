@@ -9,7 +9,7 @@ jobs:
       - run:
           name: Run tests
           command: |
-            docker-compose -d up
+            docker-compose up
 
 workflows:
     build:
