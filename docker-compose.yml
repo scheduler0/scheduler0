@@ -24,8 +24,6 @@ services:
       POSTGRES_PASSWORD: postgres
     networks:
       - default
-    command: "go test ./... -cover -v"
-
 #  client:
 #    build:
 #      context: ./client
