@@ -6,6 +6,7 @@ services:
     build:
       context: ./server
       dockerfile: docker/Dockerfile.dev
+      network: host
       args:
         PORT: 4321
         POSTGRES_ADDRESS: localhost:5432
@@ -14,8 +15,6 @@ services:
         POSTGRES_PASSWORD: postgres
     ports:
       - "4321:4321"
-    networks:
-      - default
     depends_on:
       - postgres
     volumes:
@@ -57,8 +56,6 @@ services:
     image: postgres:11.10-alpine
     ports:
       - "5432:5432"
-    networks:
-      - default
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
