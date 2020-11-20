@@ -6,6 +6,7 @@ services:
     build:
       context: ./server
       dockerfile: docker/Dockerfile.dev
+      network: default
       args:
         PORT: 4321
         POSTGRES_ADDRESS: postgres:5432
@@ -23,6 +24,8 @@ services:
       POSTGRES_DATABASE: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    networks:
+      - default
     command: "go test ./... -cover -v"
 
 #  client:
@@ -53,6 +56,8 @@ services:
 
   postgres:
     image: postgres:11.10-alpine
+    networks:
+      - default
     ports:
       - "5432:5432"
     healthcheck:
