@@ -2,14 +2,37 @@ version: 2.1
 jobs:
   build:
     docker:
+
       - image: cimg/go:1.13
+
+      - image: circleci/postgres:9.6-alpine
+
+        environment:
+          POSTGRES_USER: core
+          POSTGRES_DB: scheduler0_test
+          POSTGRES_PASSWORD: localdev
+
+    parallelism: 2
 
     steps:
       - checkout
       - run:
+          name: Waiting for Postgres to be ready
+          command: |
+            for i in `seq 1 10`;
+            do
+              nc -z localhost 5432 && echo Success && exit 0
+              echo -n .
+              sleep 1
+            done
+            echo Failed waiting for Postgress && exit 1
+
+      - run:
           name: Run tests
           command: |
-            go test ./server/...
+            cd server
+            go install
+            go test ./...
 
 workflows:
     build:
