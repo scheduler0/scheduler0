@@ -14,18 +14,10 @@ jobs:
       - checkout
 
       - run:
-          name: Swtich to server
+          name: Swtich To Server And Run Tests
           command: |
             cd server
-
-      - run:
-          name: Install Go modules
-          command: |
             go install
-
-      - run:
-          name: Run tests
-          command: |
             go test ./...
 
 workflows:
