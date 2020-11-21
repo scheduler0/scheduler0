@@ -260,12 +260,22 @@ func TestJobController_DeleteOne(t *testing.T) {
 		inboundJob.CallbackUrl = "some-url"
 
 		jobManager, err := inboundJob.ToManager()
+		if err != nil {
+			t.Fatalf("\t\t cannot create job manager from in-bound job %v", err)
+		}
 		jobID, err := jobManager.CreateOne(pool)
+		if err != nil {
+			t.Fatalf("\t\t cannot create job from job-manager %v", err)
+		}
 
 		req, err := http.NewRequest("DELETE", "/jobs/"+jobID, nil)
+		if err != nil {
+			t.Fatalf("\t\t cannot create request to delete job %v", err)
+		}
 
 		w := httptest.NewRecorder()
 		controller := controllers.JobController{ Pool: pool }
+
 		router := mux.NewRouter()
 		router.HandleFunc("/jobs/{id}", controller.DeleteJob)
 		router.ServeHTTP(w, req)

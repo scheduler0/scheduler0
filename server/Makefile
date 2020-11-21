@@ -6,4 +6,4 @@ POSTGRES_USER = core
 POSTGRES_PASSWORD = localdev
 
 test:
-	go test ./... -cover -v
+	go test ./... -cover -v -race
