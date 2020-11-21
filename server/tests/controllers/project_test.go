@@ -6,6 +6,7 @@ import (
 	"cron-server/server/src/transformers"
 	"cron-server/server/src/utils"
 	"cron-server/server/tests"
+	"cron-server/server/tests/fixtures"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
@@ -15,7 +16,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 var (
@@ -185,21 +185,12 @@ func TestProjectController_GetAll(t *testing.T) {
 func TestProjectController_DeleteOne(t *testing.T) {
 	pool := tests.GetTestPool()
 	projectController := controllers.ProjectController{ Pool: pool }
-	projectOneJobOne.ProjectID = projectOne.ID
-	projectOneJobOne.Description = "sample job"
-	projectOneJobOne.CronSpec = "* * * * *"
-	projectOneJobOne.StartDate =  time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
-	projectOneJobOne.CallbackUrl = "https://time.com"
 
-	manager, err := projectOneJobOne.ToManager()
-	utils.CheckErr(err)
+	jobTransformer := fixtures.CreateJobFixture(pool, t)
 
 	t.Log("Do not delete projects with jobs ")
 	{
-		_, err = manager.CreateOne(pool)
-		utils.CheckErr(err)
-
-		if req, err := http.NewRequest("DELETE", "/projects/"+projectOne.ID, nil); err != nil {
+		if req, err := http.NewRequest("DELETE", "/projects/"+	jobTransformer.ProjectID, nil); err != nil {
 			t.Fatalf("\t\t Request failed %v", err)
 		} else {
 			w := httptest.NewRecorder()
@@ -213,7 +204,9 @@ func TestProjectController_DeleteOne(t *testing.T) {
 
 	t.Log("Delete project without job")
 	{
-		if req, err := http.NewRequest("DELETE", "/projects/"+projectTwo.ID, nil); err != nil {
+		projectTransformer := fixtures.CreateProjectFixture(pool, t)
+
+		if req, err := http.NewRequest("DELETE", "/projects/"+projectTransformer.ID, nil); err != nil {
 			t.Fatalf("\t\t Request failed %v", err)
 		} else {
 			w := httptest.NewRecorder()

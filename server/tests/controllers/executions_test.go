@@ -18,9 +18,9 @@ func TestExecutionController_GetAll(t *testing.T) {
 
 	t.Log("Get All Returns 0 Count and Empty Set")
 	{
-		JobID := fixtures.CreateJobFixture(pool, t)
+		Job := fixtures.CreateJobFixture(pool, t)
 		executionManager := managers.ExecutionManager{
-			JobID: JobID,
+			JobID: Job.ID,
 		}
 
 		_, err := executionManager.CreateOne(pool)
@@ -29,7 +29,7 @@ func TestExecutionController_GetAll(t *testing.T) {
 		}
 
 		executionsController.Pool = pool
-		req, err := http.NewRequest("GET", "/?jobID="+JobID+"&offset=0&limit=10", nil)
+		req, err := http.NewRequest("GET", "/?jobID="+Job.ID+"&offset=0&limit=10", nil)
 
 		if err != nil {
 			t.Fatalf("\t\t Cannot create http request %v", err)

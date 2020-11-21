@@ -2,6 +2,7 @@ package fixtures
 
 import (
 	"cron-server/server/src/managers"
+	"cron-server/server/src/transformers"
 	"cron-server/server/src/utils"
 	"github.com/bxcodec/faker/v3"
 	"testing"
@@ -14,7 +15,7 @@ type ProjectFixture struct {
 }
 
 
-func CreateProjectFixture(pool *utils.Pool, t *testing.T) string {
+func CreateProjectFixture(pool *utils.Pool, t *testing.T) transformers.Project {
 	project := ProjectFixture{}
 	err := faker.FakeData(&project)
 
@@ -23,29 +24,34 @@ func CreateProjectFixture(pool *utils.Pool, t *testing.T) string {
 		Description: project.Description,
 	}
 
-	ProjectID, err := projectManager.CreateOne(pool)
+	_, err = projectManager.CreateOne(pool)
 	if err != nil {
 		t.Fatalf("\t\t [ERROR] failed to create project:: %v", err.Error())
 	}
 
-	return ProjectID
+	projectTransformer := transformers.Project{}
+	projectTransformer.FromManager(projectManager)
+
+	return projectTransformer
 }
 
-func CreateJobFixture(pool *utils.Pool, t *testing.T) string {
-	ProjectID := CreateProjectFixture(pool, t)
-
+func CreateJobFixture(pool *utils.Pool, t *testing.T) transformers.Job {
+	project := CreateProjectFixture(pool, t)
 
 	jobManager := managers.JobManager{
-		ProjectID: ProjectID,
+		ProjectID: project.ID,
 		StartDate: time.Now().Add(2000000),
 		CallbackUrl: "https://some-random.url",
 		CronSpec: "* * * * 1",
 	}
 
-	JobID, err := jobManager.CreateOne(pool)
+	_, err := jobManager.CreateOne(pool)
 	if err != nil {
 		t.Fatalf("\t\t [ERROR] failed to create job %v", err.Error())
 	}
 
-	return JobID
+	jobTransformer := transformers.Job{}
+	jobTransformer.FromManager(jobManager)
+
+	return jobTransformer
 }
