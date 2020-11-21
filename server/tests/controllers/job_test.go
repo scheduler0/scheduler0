@@ -5,6 +5,7 @@ import (
 	"cron-server/server/src/transformers"
 	"cron-server/server/src/utils"
 	"cron-server/server/tests"
+	"cron-server/server/tests/fixtures"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
@@ -172,16 +173,7 @@ func TestJobController_UpdateOne(t *testing.T) {
 
 	t.Log("Respond with status 200 if update body is valid")
 	{
-		project := transformers.Project{}
-		project.Name = "TestJobController_UpdateOne"
-		project.Description = "TestJobController_UpdateOne"
-
-		projectManager := project.ToManager()
-
-		projectID, err := projectManager.CreateOne(pool)
-		if err != nil {
-			t.Fatalf("\t\t Cannot create project using manager %v", err)
-		}
+		project := fixtures.CreateProjectFixture(pool, t)
 
 		startDate := time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
 
@@ -190,7 +182,7 @@ func TestJobController_UpdateOne(t *testing.T) {
 		inboundJob.CronSpec = "1 * * * *"
 		inboundJob.Description = "some job description"
 		inboundJob.Timezone = "UTC"
-		inboundJob.ProjectID = projectID
+		inboundJob.ProjectID = project.ID
 		inboundJob.CallbackUrl = "some-url"
 
 		jobManager, err := inboundJob.ToManager()
@@ -200,7 +192,7 @@ func TestJobController_UpdateOne(t *testing.T) {
 		updateJob := transformers.Job{}
 		updateJob.ID = jobID
 		updateJob.Description = "some new job description"
-		updateJob.ProjectID = projectID
+		updateJob.ProjectID = project.ID
 		updateJob.CronSpec = "1 * * * *"
 		updateJob.StartDate = time.Now().UTC().Format(time.RFC3339)
 		jobByte, err := updateJob.ToJson()
