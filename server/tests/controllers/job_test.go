@@ -227,19 +227,10 @@ func TestJobController_DeleteOne(t *testing.T) {
 	pool := tests.GetTestPool()
 
 
-	t.Log("Respond with status 200 after successful deletion")
+	t.Log("Respond with status 204 after successful deletion")
 	{
 
-		project := transformers.Project{}
-		project.Name = "TestJobController_DeleteOne"
-		project.Description = "TestJobController_DeleteOne"
-
-		projectManager := project.ToManager()
-
-		projectID, err := projectManager.CreateOne(pool)
-		if err != nil {
-			t.Fatalf("\t\t Cannot create project using manager %v", err)
-		}
+		project := fixtures.CreateProjectFixture(pool, t)
 
 		startDate := time.Now().Add(60 * time.Second).UTC().Format(time.RFC3339)
 
@@ -248,7 +239,7 @@ func TestJobController_DeleteOne(t *testing.T) {
 		inboundJob.CronSpec = "1 * * * *"
 		inboundJob.Description = "some job description"
 		inboundJob.Timezone = "UTC"
-		inboundJob.ProjectID = projectID
+		inboundJob.ProjectID = project.ID
 		inboundJob.CallbackUrl = "some-url"
 
 		jobManager, err := inboundJob.ToManager()
