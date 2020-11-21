@@ -1,0 +1,20 @@
+version: '3.4'
+
+services:
+
+  postgres:
+    image: postgres:11.10-alpine
+    environment:
+      POSTGRES_ADDRESS: localhost:5432
+      POSTGRES_DB: scheduler0_test
+      POSTGRES_USER: core
+      POSTGRES_PASSWORD: localdev
+    networks:
+      - default
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

@@ -73,7 +73,7 @@ func main() {
 	router.HandleFunc("/jobs/{id}", jobController.UpdateJob).Methods(http.MethodPut)
 	router.HandleFunc("/jobs/{id}", jobController.DeleteJob).Methods(http.MethodDelete)
 
-	//// Projects Endpoint
+	// Projects Endpoint
 	router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
 	router.HandleFunc("/projects", projectController.GetAll).Methods(http.MethodGet)
 	router.HandleFunc("/projects/{id}", projectController.GetOne).Methods(http.MethodGet)

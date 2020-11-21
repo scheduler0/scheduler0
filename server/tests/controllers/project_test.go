@@ -18,7 +18,6 @@ import (
 	"time"
 )
 
-
 var (
 	projectOne       = transformers.Project{}
 	projectTwo       = transformers.Project{}

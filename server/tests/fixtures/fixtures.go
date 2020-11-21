@@ -3,20 +3,37 @@ package fixtures
 import (
 	"cron-server/server/src/managers"
 	"cron-server/server/src/utils"
+	"github.com/bxcodec/faker/v3"
 	"testing"
 	"time"
 )
 
-func CreateJobFixture(pool *utils.Pool, t *testing.T, ProjectName string) string {
-	projectManager := managers.ProjectManager{
-		Name: ProjectName,
-		Description: "some random desc",
-	}
-	ProjectID, err := projectManager.CreateOne(pool)
+type ProjectFixture struct {
+	Name string `faker:"username"`
+	Description string `faker:"username"`
+}
 
+
+func CreateProjectFixture(pool *utils.Pool, t *testing.T) string {
+	project := ProjectFixture{}
+	err := faker.FakeData(&project)
+
+	projectManager := managers.ProjectManager{
+		Name: project.Name,
+		Description: project.Description,
+	}
+
+	ProjectID, err := projectManager.CreateOne(pool)
 	if err != nil {
 		t.Fatalf("\t\t [ERROR] failed to create project:: %v", err.Error())
 	}
+
+	return ProjectID
+}
+
+func CreateJobFixture(pool *utils.Pool, t *testing.T) string {
+	ProjectID := CreateProjectFixture(pool, t)
+
 
 	jobManager := managers.JobManager{
 		ProjectID: ProjectID,

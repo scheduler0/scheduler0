@@ -41,7 +41,7 @@ func Test_ExecutionManager(t *testing.T) {
 
 		t.Logf("\t\t Create execution with valid job id")
 		{
-			JobID := fixtures.CreateJobFixture(pool, t, "some job name")
+			JobID := fixtures.CreateJobFixture(pool, t)
 			executionManager := managers.ExecutionManager{
 				JobID: JobID,
 			}
@@ -85,7 +85,7 @@ func Test_ExecutionManager(t *testing.T) {
 			fmt.Println(executionManager)
 		}
 
-		JobID := fixtures.CreateJobFixture(pool, t, "some job name -- ")
+		JobID := fixtures.CreateJobFixture(pool, t)
 
 		t.Logf("\t\t Paginated results from manager")
 		{

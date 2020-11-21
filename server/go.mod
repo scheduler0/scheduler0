@@ -3,6 +3,7 @@ module cron-server/server
 go 1.13
 
 require (
+	github.com/bxcodec/faker/v3 v3.5.0
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-pg/pg v8.0.6+incompatible
 	github.com/go-redis/redis v6.15.5+incompatible

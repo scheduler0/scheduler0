@@ -18,7 +18,7 @@ func TestExecutionController_GetAll(t *testing.T) {
 
 	t.Log("Get All Returns 0 Count and Empty Set")
 	{
-		JobID := fixtures.CreateJobFixture(pool, t, "some random project name")
+		JobID := fixtures.CreateJobFixture(pool, t)
 		executionManager := managers.ExecutionManager{
 			JobID: JobID,
 		}
