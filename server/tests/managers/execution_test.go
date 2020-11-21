@@ -41,9 +41,9 @@ func Test_ExecutionManager(t *testing.T) {
 
 		t.Logf("\t\t Create execution with valid job id")
 		{
-			JobID := fixtures.CreateJobFixture(pool, t)
+			Job := fixtures.CreateJobFixture(pool, t)
 			executionManager := managers.ExecutionManager{
-				JobID: JobID,
+				JobID: Job.ID,
 			}
 
 			_, err := executionManager.CreateOne(pool)
@@ -85,13 +85,13 @@ func Test_ExecutionManager(t *testing.T) {
 			fmt.Println(executionManager)
 		}
 
-		JobID := fixtures.CreateJobFixture(pool, t)
+		Job := fixtures.CreateJobFixture(pool, t)
 
 		t.Logf("\t\t Paginated results from manager")
 		{
 			for i := 0; i < 1000; i++ {
 				executionManager := managers.ExecutionManager{
-					JobID: JobID,
+					JobID: Job.ID,
 				}
 
 				_, err := executionManager.CreateOne(pool)
@@ -103,14 +103,14 @@ func Test_ExecutionManager(t *testing.T) {
 
 			manager := managers.ExecutionManager{}
 
-			executions, err := manager.GetAll(pool, JobID, 0, 100, "date_created")
+			executions, err := manager.GetAll(pool, Job.ID, 0, 100, "date_created")
 			if err != nil {
 				t.Fatalf("\t\t [ERROR] fetching executions %v", err.Error())
 			}
 
 			assert.Equal(t, 100, len(executions))
 
-			executions, err = manager.GetAll(pool, JobID, 1000, 100, "date_created")
+			executions, err = manager.GetAll(pool, Job.ID, 1000, 100, "date_created")
 			if err != nil {
 				t.Fatalf("\t\t [ERROR] fetching executions %v", err.Error())
 			}
