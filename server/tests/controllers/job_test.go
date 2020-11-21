@@ -274,6 +274,6 @@ func TestJobController_DeleteOne(t *testing.T) {
 			t.Fatalf("\t\t Cannot create http request %v", err)
 		}
 
-		assert.Equal(t, w.Code, http.StatusNoContent)
+		assert.Equal(t, http.StatusNoContent, w.Code)
 	}
 }
