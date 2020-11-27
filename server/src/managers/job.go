@@ -169,3 +169,48 @@ func (jd *JobManager) DeleteOne(pool *utils.Pool, jobID string) (int, error) {
 		return r.RowsAffected(), nil
 	}
 }
+
+func (jd *JobManager) GetJobsTotalCount(pool *utils.Pool) (int, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return -1, err
+	}
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
+
+	if count, err := db.Model(jd).Count(); err != nil {
+		return -1, err
+	} else {
+		return count, nil
+	}
+}
+
+func (jd *JobManager) GetJobsTotalCountByProjectID(pool *utils.Pool, projectID string) (int, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return -1, err
+	}
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
+
+	if count, err := db.Model(jd).Where("project_id = ?", projectID).Count(); err != nil {
+		return -1, err
+	} else {
+		return count, nil
+	}
+}
+
+func (jd *JobManager) GetJobsPaginated(pool *utils.Pool, projectID string, offset int, limit int) ([]JobManager, int, error) {
+	total, err := jd.GetJobsTotalCountByProjectID(pool, projectID)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	jobManagers, err := jd.GetAll(pool, projectID, offset, limit, "date_created")
+	if err != nil {
+		return nil, total, err
+	}
+
+	return jobManagers, total, nil
+}

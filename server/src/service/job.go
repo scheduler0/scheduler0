@@ -56,6 +56,8 @@ func (jobService *JobService) CreateJob(job transformers.Job) (*transformers.Job
 
 	job.FromManager(jobManager)
 
+	// TODO: Start go routine for job
+
 	return &job, nil
 }
 
@@ -88,5 +90,6 @@ func (jobService *JobService) DeleteJob(job transformers.Job) error {
 
 	return nil
 }
+
 
 

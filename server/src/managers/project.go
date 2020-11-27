@@ -101,6 +101,26 @@ func (p *ProjectManager) GetAll(pool *utils.Pool, offset int, limit int) ([]Proj
 	return projects, nil
 }
 
+func (p *ProjectManager) GetTotalCount(pool *utils.Pool) (int, error) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return 0, err
+	}
+
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
+
+	count, err := db.Model(p).
+		Order("date_created").
+		Count()
+
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func (p *ProjectManager) UpdateOne(pool *utils.Pool) (int, error) {
 	conn, err := pool.Acquire()
 	if err != nil {
