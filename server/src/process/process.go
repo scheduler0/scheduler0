@@ -4,8 +4,12 @@ import (
 	"cron-server/server/src/managers"
 	"cron-server/server/src/service"
 	"cron-server/server/src/utils"
-	"fmt"
 	"github.com/robfig/cron"
+	"github.com/segmentio/ksuid"
+	"io/ioutil"
+	"net/http"
+	"strings"
+	"time"
 )
 
 // Start the cron job process
@@ -16,8 +20,6 @@ func Start(pool *utils.Pool) {
 	if err != nil {
 		panic(err)
 	}
-
-	fmt.Printf("Total Project Count %v", totalProjectCount)
 
 	projectService := service.ProjectService{
 		Pool: pool,
@@ -42,17 +44,41 @@ func Start(pool *utils.Pool) {
 			panic(err)
 		}
 
-		fmt.Printf("Total Job Count %v", jobsTotalCount)
-
-
 		jobTransformers, err := jobService.GetJobsByProjectID(projectTransformer.ID, 0, jobsTotalCount, "date_created")
 
 		for _, jobTransformer := range jobTransformers {
 
-			fmt.Println("Adding job to ", jobTransformer.Description)
-
 			err := cronJobs.AddFunc(jobTransformer.CronSpec, func() {
-				fmt.Println("Should send request to "+ jobTransformer.CallbackUrl)
+				var response string
+				var statusCode int
+
+				startSecs := time.Now()
+
+				r, err := http.Post(http.MethodPost, jobTransformer.CallbackUrl, strings.NewReader(jobTransformer.Data))
+				if err != nil {
+					response = err.Error()
+					statusCode = 0
+				} else {
+					body, err := ioutil.ReadAll(r.Body)
+					if err != nil {
+						response = err.Error()
+					}
+					response = string(body)
+					statusCode = r.StatusCode
+				}
+
+				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
+				execution := managers.ExecutionManager{
+					ID:          ksuid.New().String(),
+					JobID:       jobTransformer.ID,
+					Timeout:     timeout,
+					Response:    response,
+					StatusCode:  string(statusCode),
+					DateCreated: time.Now().UTC(),
+				}
+
+				_, err = execution.CreateOne(pool)
+				utils.CheckErr(err)
 			})
 
 			if err != nil {
