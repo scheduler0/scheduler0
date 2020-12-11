@@ -1,0 +1,26 @@
+version: '3.4'
+
+services:
+
+  server:
+    build:
+      context: ./server
+      dockerfile: docker/Dockerfile.dev
+      network: host
+      args:
+        PORT: 4321
+        POSTGRES_ADDRESS: localhost:5432
+        POSTGRES_DATABASE: postgres
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
+    ports:
+      - "4321:4321"
+    volumes:
+      - ./server:/usr/src/server
+    environment:
+      POSTGRES_ADDRESS: localhost:5432
+      POSTGRES_DATABASE: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    networks:
+      - default
