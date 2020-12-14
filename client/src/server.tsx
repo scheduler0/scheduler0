@@ -58,33 +58,25 @@ app.use(bodyParser.json());
 
 app.get("(/|/projects|/jobs|/credentials)", async (req, res) => {
     // TODO: Only make fetch page user is visiting
-    const fetchExecutions = axiosInstance.get(`${API_ENDPOINT}/executions`);
-    const fetchCredentials = axiosInstance.get(`${API_ENDPOINT}/credentials`);
-    const fetchProjects = axiosInstance.get(`${API_ENDPOINT}/projects`);
-    const fetchJobs = axiosInstance.get(`${API_ENDPOINT}/jobs`);
+    const fetchCredentials = axiosInstance.get(`${API_ENDPOINT}/credentials?limit=0&offset=50`);
+    const fetchProjects = axiosInstance.get(`${API_ENDPOINT}/projects?limit=0&offset=50`);
 
-    let executions = null;
     let credentials = null;
     let projects = null;
-    let jobs = null;
 
     try {
-        [executions, credentials, projects, jobs] = await Promise.all([
-            fetchExecutions,
+        [credentials, projects] = await Promise.all([
             fetchCredentials,
             fetchProjects,
-            fetchJobs
         ]);
 
-        executions = Array.isArray(executions.data.data) ? executions.data.data :  [];
         credentials = Array.isArray(credentials.data.data) ? credentials.data.data : [];
         projects = Array.isArray(projects.data.data) ? projects.data.data : [];
-        jobs = Array.isArray(jobs.data.data) ? jobs.data.data : [];
     } catch (e) {
-        throw e
+        console.error(e)
     }
 
-    res.send(serverRender({ credentials, projects, jobs, executions }, req.url))
+    res.send(serverRender({ credentials, projects, jobs: [], executions: [] }, req.url))
 });
 
 app.use('/api/executions', executionsRouter);

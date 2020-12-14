@@ -31,6 +31,7 @@ func main() {
 
 	// Set time zone, create database and run db
 	db.CreateModelTables(pool)
+	db.SeedDatabase(pool)
 	//db.RunSQLMigratiqons(pool)
 
 	// Start process to execute cron-server jobs

@@ -106,7 +106,7 @@ func (credentialController *CredentialController) List(w http.ResponseWriter, r 
 	offset := 0
 	limit := 50
 
-	orderBy := "date_created DESC" // TODO: Extract orderBy from query params
+	orderBy := "date_created DESC"
 
 	limitParam, err := utils.ValidateQueryString("limit", r)
 	if err != nil {
@@ -136,7 +136,9 @@ func (credentialController *CredentialController) List(w http.ResponseWriter, r 
 
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	} else {
 		utils.SendJson(w, credentials, true, http.StatusOK, nil)
+		return
 	}
 }

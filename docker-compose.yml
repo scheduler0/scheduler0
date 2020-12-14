@@ -12,6 +12,8 @@ services:
         POSTGRES_DATABASE: postgres
         POSTGRES_USER: postgres
         POSTGRES_PASSWORD: postgres
+        BASIC_AUTH_USER: admin
+        BASIC_AUTH_PASS: admin
       network: host
     ports:
       - "4321:4321"
@@ -24,6 +26,8 @@ services:
       POSTGRES_DATABASE: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      BASIC_AUTH_USER: admin
+      BASIC_AUTH_PASS: admin
     networks:
       - default
     command: "go run main.go"

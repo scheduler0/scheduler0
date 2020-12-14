@@ -56,6 +56,24 @@ func (credentialManager *CredentialManager) GetOne(pool *utils.Pool) error {
 	return nil
 }
 
+func (credentialManager *CredentialManager) GetByAPIKey(pool *utils.Pool) error {
+	conn, err := pool.Acquire()
+	defer pool.Release(conn)
+
+	if err != nil {
+		return err
+	}
+
+	db := conn.(*pg.DB)
+
+	err = db.Model(credentialManager).Where("api_key = ?", credentialManager.ApiKey).Select()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (credentialManager *CredentialManager) GetAll(pool *utils.Pool, offset int, limit int, orderBy string) ([]CredentialManager, error) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
