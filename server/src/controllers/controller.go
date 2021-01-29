@@ -1,6 +1,6 @@
 package controllers
 
-import "cron-server/server/src/utils"
+import "github.com/victorlenerd/scheduler0/server/src/utils"
 
 type Controller struct {
 	Pool *utils.Pool

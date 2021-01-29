@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"cron-server/server/src/utils"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 )
 
 type Service struct {

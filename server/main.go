@@ -1,11 +1,11 @@
 package main
 
 import (
-	"cron-server/server/src/controllers"
-	"cron-server/server/src/db"
-	"cron-server/server/src/middlewares"
-	"cron-server/server/src/process"
-	"cron-server/server/src/utils"
+	"github.com/victorlenerd/scheduler0/server/src/controllers"
+	"github.com/victorlenerd/scheduler0/server/src/db"
+	"github.com/victorlenerd/scheduler0/server/src/middlewares"
+	"github.com/victorlenerd/scheduler0/server/src/process"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
 	"io"

@@ -1,8 +1,8 @@
 package tests
 
 import (
-	"cron-server/server/src/db"
-	"cron-server/server/src/utils"
+	"github.com/victorlenerd/scheduler0/server/src/db"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"encoding/json"
 	"fmt"
 	"github.com/go-pg/pg"

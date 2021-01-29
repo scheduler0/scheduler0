@@ -2,9 +2,9 @@ package managers
 
 import (
 	"context"
-	"cron-server/server/src/managers"
-	"cron-server/server/tests"
 	"github.com/magiconair/properties/assert"
+	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/tests"
 	"strconv"
 	"testing"
 	"time"

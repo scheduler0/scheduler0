@@ -1,11 +1,11 @@
 package db
 
 import (
-	"cron-server/server/src/managers"
-	"cron-server/server/src/models"
-	"cron-server/server/src/utils"
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
+	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/models"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io"
 	"io/ioutil"
 	"log"

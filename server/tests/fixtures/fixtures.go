@@ -1,10 +1,10 @@
 package fixtures
 
 import (
-	"cron-server/server/src/managers"
-	"cron-server/server/src/transformers"
-	"cron-server/server/src/utils"
 	"github.com/bxcodec/faker/v3"
+	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/transformers"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"testing"
 	"time"
 )

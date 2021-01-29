@@ -1,8 +1,8 @@
 package transformers
 
 import (
-	"cron-server/server/src/managers"
 	"encoding/json"
+	"github.com/victorlenerd/scheduler0/server/src/managers"
 	"time"
 )
 

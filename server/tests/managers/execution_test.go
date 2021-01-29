@@ -1,12 +1,12 @@
 package managers
 
 import (
-	"cron-server/server/src/managers"
-	"cron-server/server/tests"
-	"cron-server/server/tests/fixtures"
 	"fmt"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/tests"
+	"github.com/victorlenerd/scheduler0/server/tests/fixtures"
 	"testing"
 )
 

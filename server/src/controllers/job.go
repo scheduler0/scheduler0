@@ -1,10 +1,10 @@
 package controllers
 
 import (
-	"cron-server/server/src/service"
-	"cron-server/server/src/transformers"
-	"cron-server/server/src/utils"
 	"github.com/gorilla/mux"
+	"github.com/victorlenerd/scheduler0/server/src/service"
+	"github.com/victorlenerd/scheduler0/server/src/transformers"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
 	"strconv"
 )

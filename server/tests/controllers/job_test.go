@@ -1,15 +1,15 @@
 package controllers
 
 import (
-	"cron-server/server/src/controllers"
-	"cron-server/server/src/transformers"
-	"cron-server/server/src/utils"
-	"cron-server/server/tests"
-	"cron-server/server/tests/fixtures"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/victorlenerd/scheduler0/server/src/controllers"
+	"github.com/victorlenerd/scheduler0/server/src/transformers"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
+	"github.com/victorlenerd/scheduler0/server/tests"
+	"github.com/victorlenerd/scheduler0/server/tests/fixtures"
 	"io/ioutil"
 	"log"
 	"net/http"

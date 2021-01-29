@@ -1,8 +1,8 @@
 package service
 
 import (
-	"cron-server/server/src/managers"
-	"cron-server/server/src/transformers"
+	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/transformers"
 )
 
 type CredentialService Service

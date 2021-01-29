@@ -1,13 +1,13 @@
 package managers
 
 import (
-	"cron-server/server/src/models"
-	"cron-server/server/src/utils"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
+	"github.com/victorlenerd/scheduler0/server/src/models"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 )
 
 type CredentialManager models.CredentialModel

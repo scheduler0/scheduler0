@@ -1,8 +1,8 @@
 package service
 
 import (
-	"cron-server/server/src/transformers"
 	"errors"
+	"github.com/victorlenerd/scheduler0/server/src/transformers"
 )
 
 type ProjectService Service

@@ -1,11 +1,11 @@
 package managers
 
 import (
-	"cron-server/server/src/utils"
-	"cron-server/server/src/models"
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
+	"github.com/victorlenerd/scheduler0/server/src/models"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 )
 
 type ExecutionManager models.ExecutionModel

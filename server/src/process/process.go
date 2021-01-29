@@ -1,11 +1,11 @@
 package process
 
 import (
-	"cron-server/server/src/managers"
-	"cron-server/server/src/service"
-	"cron-server/server/src/utils"
 	"github.com/robfig/cron"
 	"github.com/segmentio/ksuid"
+	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/service"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io/ioutil"
 	"net/http"
 	"strings"

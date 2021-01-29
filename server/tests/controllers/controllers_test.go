@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"cron-server/server/tests"
+	"github.com/victorlenerd/scheduler0/server/tests"
 	"os"
 	"testing"
 )

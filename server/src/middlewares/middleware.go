@@ -2,10 +2,10 @@ package middlewares
 
 import (
 	"context"
-	"cron-server/server/src/managers"
-	"cron-server/server/src/utils"
 	"crypto/subtle"
 	"github.com/segmentio/ksuid"
+	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
 	"strings"
 	"sync"

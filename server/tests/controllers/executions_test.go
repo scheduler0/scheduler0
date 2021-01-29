@@ -1,12 +1,12 @@
 package controllers
 
 import (
-	"cron-server/server/src/controllers"
-	"cron-server/server/src/managers"
-	"cron-server/server/tests"
-	"cron-server/server/tests/fixtures"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/victorlenerd/scheduler0/server/src/controllers"
+	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/tests"
+	"github.com/victorlenerd/scheduler0/server/tests/fixtures"
 	"net/http"
 	"net/http/httptest"
 	"testing"
