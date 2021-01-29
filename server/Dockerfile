@@ -3,6 +3,7 @@ FROM golang:1.13-alpine
 MAINTAINER Victor Nwaokocha
 
 ARG PORT
+ARG POSTGRES_USER
 ARG POSTGRES_ADDRESS
 ARG POSTGRES_PASSWORD
 ARG POSTGRES_DATABASE
@@ -10,12 +11,24 @@ ARG CLIENT_HOST
 ARG BASIC_AUTH_USER
 ARG BASIC_AUTH_PASS
 
-ENV GO111MODULE=on
-ENV GOFLAGS=-mod=vendor
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64
 
-COPY data data
-COPY src src
-COPY main.go main.go
+WORKDIR /build
+
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+
+COPY . .
+
+RUN go build -o main .
+
+WORKDIR /dist
+
+RUN cp /build/main .
 
 ENV PORT $PORT
 ENV ENV $ENV
@@ -28,3 +41,5 @@ ENV BASIC_AUTH_USER $BASIC_AUTH_USER
 ENV BASIC_AUTH_PASS $BASIC_AUTH_PASS
 
 EXPOSE 8080
+
+CMD ["/dist/main"]

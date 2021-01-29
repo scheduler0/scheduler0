@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/go-http-utils/logger"
 	"github.com/victorlenerd/scheduler0/server/src/controllers"
 	"github.com/victorlenerd/scheduler0/server/src/db"
 	"github.com/victorlenerd/scheduler0/server/src/middlewares"
@@ -82,6 +83,6 @@ func main() {
 	router.HandleFunc("/projects/{id}", projectController.DeleteOne).Methods(http.MethodDelete)
 
 	log.Println("Server is running on port", utils.GetPort(), utils.GetClientHost())
-	err = http.ListenAndServe(utils.GetPort(), router)
+	err = http.ListenAndServe(utils.GetPort(), logger.Handler(router, os.Stdout, logger.DevLoggerType))
 	utils.CheckErr(err)
 }

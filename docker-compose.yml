@@ -5,7 +5,7 @@ services:
   server:
     build:
       context: ./server
-      dockerfile: docker/Dockerfile
+      dockerfile: Dockerfile
       args:
         PORT: 4321
         POSTGRES_ADDRESS: postgres:5432
@@ -19,8 +19,6 @@ services:
       - "4321:4321"
     depends_on:
       - postgres
-    volumes:
-      - ./server:/usr/src/server
     environment:
       POSTGRES_ADDRESS: postgres:5432
       POSTGRES_DATABASE: postgres
@@ -30,7 +28,6 @@ services:
       BASIC_AUTH_PASS: admin
     networks:
       - default
-    command: "go run main.go"
 
   client:
     build:
@@ -59,7 +56,7 @@ services:
       BASIC_AUTH_PASS: admin
 
   postgres:
-    image: postgres:11.10-alpine
+    image: postgres:13-alpine
     networks:
       - default
     ports:
