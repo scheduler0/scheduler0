@@ -1,18 +1,20 @@
 package service
 
 import (
-	"errors"
+	"fmt"
 	"github.com/victorlenerd/scheduler0/server/src/transformers"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
+	"net/http"
 )
 
 type ProjectService Service
 
-func (projectService *ProjectService) CreateOne(project transformers.Project) (string, error) {
+func (projectService *ProjectService) CreateOne(project transformers.Project) (string, *utils.GenericError) {
 	projectManager := project.ToManager()
 	return projectManager.CreateOne(projectService.Pool)
 }
 
-func (projectService *ProjectService) UpdateOne(project transformers.Project) error {
+func (projectService *ProjectService) UpdateOne(project transformers.Project) *utils.GenericError {
 	projectManager := project.ToManager()
 
 	count, err := projectManager.UpdateOne(projectService.Pool)
@@ -21,21 +23,17 @@ func (projectService *ProjectService) UpdateOne(project transformers.Project) er
 	}
 
 	if count < 1 {
-		return errors.New("cannot find project")
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("Cannot find ProjectUUID = %v", projectManager.UUID))
 	}
 
 	return nil
 }
 
-func (projectService *ProjectService) GetOne(project transformers.Project) (*transformers.Project, error) {
+func (projectService *ProjectService) GetOneByUUID(project transformers.Project) (*transformers.Project, *utils.GenericError) {
 	projectManager := project.ToManager()
-	count, err := projectManager.GetOne(projectService.Pool)
+	err := projectManager.GetOneByUUID(projectService.Pool)
 	if err != nil {
 		return nil, err
-	}
-
-	if count < 1 {
-		return nil, errors.New("cannot find project")
 	}
 
 	project.FromManager(projectManager)
@@ -43,7 +41,19 @@ func (projectService *ProjectService) GetOne(project transformers.Project) (*tra
 	return &project, nil
 }
 
-func (projectService *ProjectService) DeleteOne(project transformers.Project) error {
+func (projectService *ProjectService) GetOneByName(project transformers.Project) (*transformers.Project, *utils.GenericError) {
+	projectManager := project.ToManager()
+	err := projectManager.GetOneByName(projectService.Pool)
+	if err != nil {
+		return nil, err
+	}
+
+	project.FromManager(projectManager)
+
+	return &project, nil
+}
+
+func (projectService *ProjectService) DeleteOne(project transformers.Project) *utils.GenericError {
 	projectManager := project.ToManager()
 	count, err := projectManager.DeleteOne(projectService.Pool)
 	if err != nil {
@@ -51,13 +61,13 @@ func (projectService *ProjectService) DeleteOne(project transformers.Project) er
 	}
 
 	if count < 0 {
-		return errors.New("cannot find project")
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("Cannot find ProjectUUID = %v", projectManager.UUID))
 	}
 
 	return nil
 }
 
-func (projectService *ProjectService) List(offset int, limit int) ([]transformers.Project, error) {
+func (projectService *ProjectService) List(offset int, limit int) ([]transformers.Project, *utils.GenericError) {
 	project := transformers.Project{}
 	projectManager := project.ToManager()
 	projects, err := projectManager.GetAll(projectService.Pool, offset, limit)

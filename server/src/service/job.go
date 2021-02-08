@@ -1,17 +1,18 @@
 package service
 
 import (
-	"errors"
-	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/managers/job"
 	"github.com/victorlenerd/scheduler0/server/src/transformers"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
+	"net/http"
 )
 
 type JobService Service
 
-func (jobService *JobService) GetJobsByProjectID(projectID string, offset int, limit int, orderBy string) ([]transformers.Job, error) {
-	jobManager := managers.JobManager{}
+func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset int, limit int, orderBy string) ([]transformers.Job, *utils.GenericError) {
+	jobManager := job.JobManager{}
 
-	jobManagers, err := jobManager.GetAll(jobService.Pool, projectID, offset, limit, orderBy)
+	jobManagers, err := jobManager.GetAll(jobService.Pool, projectUUID, offset, limit, orderBy)
 	if err != nil {
 		return nil, err
 	}
@@ -27,15 +28,15 @@ func (jobService *JobService) GetJobsByProjectID(projectID string, offset int, l
 	return jobs, nil
 }
 
-func (jobService *JobService) GetJob(job transformers.Job) (*transformers.Job, error) {
+func (jobService *JobService) GetJob(job transformers.Job) (*transformers.Job, *utils.GenericError) {
 	jobManager, err := job.ToManager()
 	if err != nil {
-		return nil, err
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	err = jobManager.GetOne(jobService.Pool, job.ID)
-	if err != nil {
-		return nil, err
+	jobMangerGetOneError := jobManager.GetOne(jobService.Pool, job.UUID)
+	if jobMangerGetOneError != nil {
+		return nil, jobMangerGetOneError
 	}
 
 	job.FromManager(jobManager)
@@ -43,15 +44,15 @@ func (jobService *JobService) GetJob(job transformers.Job) (*transformers.Job, e
 	return &job, nil
 }
 
-func (jobService *JobService) CreateJob(job transformers.Job) (*transformers.Job, error) {
+func (jobService *JobService) CreateJob(job transformers.Job) (*transformers.Job, *utils.GenericError) {
 	jobManager, err := job.ToManager()
 	if err != nil {
-		return nil, err
+		return nil, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
 	}
 
-	_, err = jobManager.CreateOne(jobService.Pool)
-	if err != nil {
-		return nil, err
+	_, jobMangerCreateOneError := jobManager.CreateOne(jobService.Pool)
+	if jobMangerCreateOneError != nil {
+		return nil, jobMangerCreateOneError
 	}
 
 	job.FromManager(jobManager)
@@ -61,15 +62,15 @@ func (jobService *JobService) CreateJob(job transformers.Job) (*transformers.Job
 	return &job, nil
 }
 
-func (jobService *JobService) UpdateJob(job transformers.Job) (*transformers.Job, error) {
+func (jobService *JobService) UpdateJob(job transformers.Job) (*transformers.Job, *utils.GenericError) {
 	jobManager, err := job.ToManager()
 	if err != nil {
-		return nil, err
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	_, err = jobManager.UpdateOne(jobService.Pool)
-	if err != nil {
-		return nil, err
+	_, jobMangerUpdateOneError := jobManager.UpdateOne(jobService.Pool)
+	if jobMangerUpdateOneError != nil {
+		return nil, jobMangerUpdateOneError
 	}
 
 	job.FromManager(jobManager)
@@ -77,15 +78,23 @@ func (jobService *JobService) UpdateJob(job transformers.Job) (*transformers.Job
 	return &job, nil
 }
 
-func (jobService *JobService) DeleteJob(job transformers.Job) error {
-	jobManager := managers.JobManager{}
-	count, err := jobManager.DeleteOne(jobService.Pool, job.ID)
+func (jobService *JobService) DeleteJob(jobTransformer transformers.Job) *utils.GenericError {
+	jobManager := job.JobManager{
+		UUID: jobTransformer.UUID,
+	}
+
+	err := jobManager.GetOne(jobService.Pool, jobManager.UUID)
 	if err != nil {
 		return err
 	}
 
+	count, delError := jobManager.DeleteOne(jobService.Pool)
+	if delError != nil {
+		return utils.HTTPGenericError(http.StatusInternalServerError, delError.Message)
+	}
+
 	if count < 1 {
-		return errors.New("could not find and delete job")
+		return utils.HTTPGenericError(http.StatusInternalServerError, "could not find and delete job")
 	}
 
 	return nil

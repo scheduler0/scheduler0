@@ -2,45 +2,45 @@ package transformers
 
 import (
 	"encoding/json"
-	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/managers/project"
 	"time"
 )
 
 type Project struct {
-	Name        string    `json:"name" pg:",notnull"`
-	Description string    `json:"description" pg:",notnull"`
-	ID          string    `json:"id" pg:",notnull"`
-	DateCreated time.Time `json:"date_created" pg:",notnull"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	UUID        string    `json:"uuid"`
+	DateCreated time.Time `json:"date_created"`
 }
 
-func (p *Project) ToJson() ([]byte, error) {
-	if data, err := json.Marshal(p); err != nil {
+func (projectTransformer *Project) ToJson() ([]byte, error) {
+	if data, err := json.Marshal(projectTransformer); err != nil {
 		return data, err
 	} else {
 		return data, nil
 	}
 }
 
-func (p *Project) FromJson(body []byte) error {
-	if err := json.Unmarshal(body, &p); err != nil {
+func (projectTransformer *Project) FromJson(body []byte) error {
+	if err := json.Unmarshal(body, &projectTransformer); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (p *Project) ToManager() managers.ProjectManager {
-	pd := managers.ProjectManager{
-		ID:          p.ID,
-		Name:        p.Name,
-		Description: p.Description,
+func (projectTransformer *Project) ToManager() project.ProjectManager {
+	pd := project.ProjectManager{
+		UUID:        projectTransformer.UUID,
+		Name:        projectTransformer.Name,
+		Description: projectTransformer.Description,
 	}
 
 	return pd
 }
 
-func (p *Project) FromManager(pd managers.ProjectManager) {
-	p.ID = pd.ID
-	p.Name = pd.Name
-	p.Description = pd.Description
-	p.DateCreated = pd.DateCreated
+func (projectTransformer *Project) FromManager(projectManager project.ProjectManager) {
+	projectTransformer.UUID = projectManager.UUID
+	projectTransformer.Name = projectManager.Name
+	projectTransformer.Description = projectManager.Description
+	projectTransformer.DateCreated = projectManager.DateCreated
 }

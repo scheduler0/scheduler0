@@ -3,12 +3,11 @@ package db
 import (
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
-	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/managers/credential"
 	"github.com/victorlenerd/scheduler0/server/src/models"
 	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 )
 
@@ -86,7 +85,7 @@ func RunSQLMigrations(pool *utils.Pool) {
 }
 
 func SeedDatabase(pool *utils.Pool) {
-	credentialManager := managers.CredentialManager{}
+	credentialManager := credential.CredentialManager{}
 	// Seed database
 
 	credentials, err := credentialManager.GetAll(pool, 0, 1, "date_created")
@@ -97,7 +96,6 @@ func SeedDatabase(pool *utils.Pool) {
 	if len(credentials) < 1 {
 		credentialManager.HTTPReferrerRestriction = "*"
 		_, err = credentialManager.CreateOne(pool)
-		log.Println("Created default credentials")
 		if err != nil {
 			panic(err)
 		}

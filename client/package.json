@@ -67,7 +67,7 @@
   },
   "scripts": {
     "bnode": "babel-node --inspect=0.0.0.0 --extensions '.ts,.tsx' src/server.tsx",
-    "start": "concurrently \"npm run dev-server\" \"npm run dev-bundle\"",
+    "start": "NODE_ENV=\"development\" concurrently \"npm run dev-server\" \"npm run dev-bundle\"",
     "dev-server": "nodemon --exec \"npm run bnode\" --ignore public/",
     "dev-bundle": "webpack -wd",
     "type-check": "tsc",

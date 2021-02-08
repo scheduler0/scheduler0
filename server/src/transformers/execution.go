@@ -2,13 +2,13 @@ package transformers
 
 import (
 	"encoding/json"
-	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/managers/execution"
 	"time"
 )
 
 type Execution struct {
-	ID          string    `json:"id"`
-	JobID       string    `json:"job_id"`
+	UUID        string    `json:"id"`
+	JobUUID     string    `json:"job_uuid"`
 	StatusCode  string    `json:"status_code"`
 	Timeout     uint64    `json:"timeout"`
 	Response    string    `json:"response"`
@@ -16,38 +16,38 @@ type Execution struct {
 	DateCreated time.Time `json:"date_created"`
 }
 
-func (exec *Execution) ToJson() ([]byte, error) {
-	data, err := json.Marshal(exec)
+func (executionTransformer *Execution) ToJson() ([]byte, error) {
+	data, err := json.Marshal(executionTransformer)
 	if err != nil {
 		return data, err
 	}
 	return data, nil
 }
 
-func (exec *Execution) FromJson(body []byte) error {
-	if err := json.Unmarshal(body, &exec); err != nil {
+func (executionTransformer *Execution) FromJson(body []byte) error {
+	if err := json.Unmarshal(body, &executionTransformer); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (exec *Execution) ToManager() (managers.ExecutionManager, error) {
-	execD := managers.ExecutionManager{
-		ID:          exec.ID,
-		JobID:       exec.JobID,
-		StatusCode:  exec.StatusCode,
-		Timeout:     exec.Timeout,
-		Response:    exec.Response,
-		DateCreated: exec.DateCreated,
+func (executionTransformer *Execution) ToManager() (execution.ExecutionManager, error) {
+	executionManager := execution.ExecutionManager{
+		UUID:        executionTransformer.UUID,
+		JobUUID:     executionTransformer.JobUUID,
+		StatusCode:  executionTransformer.StatusCode,
+		Timeout:     executionTransformer.Timeout,
+		Response:    executionTransformer.Response,
+		DateCreated: executionTransformer.DateCreated,
 	}
 
-	return execD, nil
+	return executionManager, nil
 }
 
-func (exec *Execution) FromManager(execD managers.ExecutionManager) {
-	exec.ID = execD.ID
-	exec.JobID = execD.JobID
-	exec.StatusCode = execD.StatusCode
-	exec.Response = execD.Response
-	exec.DateCreated = execD.DateCreated
+func (executionTransformer *Execution) FromManager(executionManager execution.ExecutionManager) {
+	executionTransformer.UUID = executionManager.UUID
+	executionTransformer.JobUUID = executionManager.JobUUID
+	executionTransformer.StatusCode = executionManager.StatusCode
+	executionTransformer.Response = executionManager.Response
+	executionTransformer.DateCreated = executionManager.DateCreated
 }

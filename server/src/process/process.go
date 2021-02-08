@@ -2,8 +2,9 @@ package process
 
 import (
 	"github.com/robfig/cron"
-	"github.com/segmentio/ksuid"
-	"github.com/victorlenerd/scheduler0/server/src/managers"
+	execution2 "github.com/victorlenerd/scheduler0/server/src/managers/execution"
+	"github.com/victorlenerd/scheduler0/server/src/managers/job"
+	"github.com/victorlenerd/scheduler0/server/src/managers/project"
 	"github.com/victorlenerd/scheduler0/server/src/service"
 	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io/ioutil"
@@ -14,7 +15,7 @@ import (
 
 // Start the cron job process
 func Start(pool *utils.Pool) {
-	projectManager := managers.ProjectManager{}
+	projectManager := project.ProjectManager{}
 
 	totalProjectCount, err := projectManager.GetTotalCount(pool)
 	if err != nil {
@@ -37,14 +38,14 @@ func Start(pool *utils.Pool) {
 	cronJobs := cron.New()
 
 	for _, projectTransformer := range projectTransformers {
-		jobManager := managers.JobManager{}
+		jobManager := job.JobManager{}
 
-		jobsTotalCount, err :=jobManager.GetJobsTotalCountByProjectID(pool, projectTransformer.ID)
+		jobsTotalCount, err :=jobManager.GetJobsTotalCountByProjectID(pool, projectTransformer.UUID)
 		if err != nil {
 			panic(err)
 		}
 
-		jobTransformers, err := jobService.GetJobsByProjectID(projectTransformer.ID, 0, jobsTotalCount, "date_created")
+		jobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
 		for _, jobTransformer := range jobTransformers {
 
@@ -68,9 +69,8 @@ func Start(pool *utils.Pool) {
 				}
 
 				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
-				execution := managers.ExecutionManager{
-					ID:          ksuid.New().String(),
-					JobID:       jobTransformer.ID,
+				execution := execution2.ExecutionManager{
+					JobUUID:       jobTransformer.UUID,
 					Timeout:     timeout,
 					Response:    response,
 					StatusCode:  string(statusCode),

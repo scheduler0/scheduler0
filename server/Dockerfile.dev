@@ -27,6 +27,16 @@ ENV CLIENT_HOST $CLIENT_HOST
 ENV BASIC_AUTH_USER $BASIC_AUTH_USER
 ENV BASIC_AUTH_PASS $BASIC_AUTH_PASS
 
-RUN go test ./... -cover -v
+RUN go clean -testcache
+
+RUN go test ./src/managers/execution -cover -v -race
+RUN go test ./src/managers/job -cover -v -race
+RUN go test ./src/managers/project -cover -v -race
+RUN go test ./src/managers/credential -cover -v -race
+
+RUN go test ./src/controllers/execution -cover -v -race
+RUN go test ./src/controllers/credential -cover -v -race
+RUN go test ./src/controllers/job -cover -v -race
+RUN go test ./src/controllers/project -cover -v -race
 
 EXPOSE 4321

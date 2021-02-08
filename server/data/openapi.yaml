@@ -1,17 +1,67 @@
 openapi: 3.0.2
 info:
     title: Scheduler0
-    version: 1.0.0
-    description: A backend sever for job scheduling
+    version: 0.0.1
+    description: A self managing scheduler service
     contact:
         name: Victor Nwaokocha
         email: vnwaokocha@gmail.com
+tags:
+    - name: Executions
+      description: Collect info for the jobs that have been executed
 paths:
     /executions:
+        get:
+            tags:
+                - Executions
+            summary: Get all stats for jobs that have been executed
+            description: >-
+                Returns response status for a job
+            operationId: Executions.get
+            responses:
 
     /credentials:
     /projects:
     /jobs:
-schemes:
-parameters:
-responses:
+components:
+    schemas:
+        Execution:
+            type: object
+            properties:
+                id:
+                    type: string
+                status_code:
+                    type: string
+                timeout:
+                    type: string
+                token:
+                    type: string
+                response:
+                    type: string
+                data_created:
+                    type: string
+                job_id:
+                    type: string
+                date_created:
+                    type: string
+            additionalProperties: false
+        Credential:
+            type: object
+            properties:
+                id:
+                    type: string
+                api_key:
+                    type: string
+                http_referrer_restriction:
+                    type: string
+        Job:
+            type: object
+            properties:
+                id: string
+
+
+    responses:
+        '404':
+            description: resourse not found
+        '403':
+            description: unathorized client request

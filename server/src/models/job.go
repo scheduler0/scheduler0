@@ -20,8 +20,10 @@ const (
 type JobModel struct {
 	TableName struct{} `sql:"jobs"`
 
-	ID             string    `json:"id,omitempty" sql:",pk:notnull"`
-	ProjectID      string    `json:"project_id" sql:",notnull"`
+	ID             int64     `json:"id,omitempty" sql:",pk:notnull"`
+	UUID           string    `json:"uuid" sql:",pk:notnull,unique,type:uuid,default:gen_random_uuid()"`
+	ProjectID      int64     `json:"project_id" sql:",notnull"`
+	ProjectUUID    string    `json:"project_uuid" sql:",notnull,type:uuid"`
 	Description    string    `json:"description" sql:",notnull"`
 	CronSpec       string    `json:"cron_spec,omitempty" sql:",notnull"`
 	TotalExecs     int64     `json:"total_execs,omitempty" sql:",notnull"`
@@ -35,5 +37,5 @@ type JobModel struct {
 	NextTime       time.Time `json:"next_time,omitempty" sql:",notnull"`
 	DateCreated    time.Time `json:"date_created" sql:",notnull,default:now()"`
 
-	Project		ProjectModel `sql:",fk:project_id"`
+	Project ProjectModel `sql:",fk:project_id"`
 }

@@ -1,20 +1,21 @@
 package tests
 
 import (
-	"github.com/victorlenerd/scheduler0/server/src/db"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"encoding/json"
 	"fmt"
 	"github.com/go-pg/pg"
+	"github.com/victorlenerd/scheduler0/server/src/db"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io"
 	"io/ioutil"
 	"net/http/httptest"
 )
 
+
 func GetTestPool() *utils.Pool {
 	pool, err := utils.NewPool(func() (closer io.Closer, err error) {
 		return db.CreateConnectionEnv("TEST")
-	}, 100)
+	}, 1000)
 
 	if err != nil {
 		panic(err)
@@ -26,8 +27,6 @@ func GetTestPool() *utils.Pool {
 func Teardown() {
 	postgresCredentials := *utils.GetPostgresCredentials(utils.EnvTest)
 
-	fmt.Println(postgresCredentials)
-
 	db := pg.Connect(&pg.Options{
 		Addr:     postgresCredentials.Addr,
 		User:     postgresCredentials.User,
@@ -37,7 +36,7 @@ func Teardown() {
 	defer db.Close()
 
 	truncateQuery := "" +
-		"TRUNCATE TABLE credentials CASCADE;" +
+		"TRUNCATE TABLE credentials;" +
 		"TRUNCATE TABLE executions CASCADE;" +
 		"TRUNCATE TABLE jobs CASCADE;" +
 		"TRUNCATE TABLE projects CASCADE;"

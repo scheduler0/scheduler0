@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/managers/credential"
 	"github.com/victorlenerd/scheduler0/server/src/transformers"
 )
 
@@ -13,8 +13,8 @@ func (credentialService *CredentialService) CreateNewCredential(HTTPReferrerRest
 	return credentialManager.CreateOne(credentialService.Pool)
 }
 
-func (credentialService *CredentialService) FindOneCredentialByID(ID string) (*transformers.Credential, error) {
-	credentialDto := transformers.Credential{ID: ID}
+func (credentialService *CredentialService) FindOneCredentialByUUID(UUID string) (*transformers.Credential, error) {
+	credentialDto := transformers.Credential{UUID: UUID}
 	credentialManager := credentialDto.ToManager()
 	if err := credentialManager.GetOne(credentialService.Pool); err != nil {
 		return nil, err
@@ -25,8 +25,8 @@ func (credentialService *CredentialService) FindOneCredentialByID(ID string) (*t
 	}
 }
 
-func (credentialService *CredentialService) UpdateOneCredential(ID string, HTTPReferrerRestriction string) (*transformers.Credential, error) {
-	credentialDto := transformers.Credential{ID: ID, HTTPReferrerRestriction: HTTPReferrerRestriction }
+func (credentialService *CredentialService) UpdateOneCredential(UUID string, HTTPReferrerRestriction string) (*transformers.Credential, error) {
+	credentialDto := transformers.Credential{UUID: UUID, HTTPReferrerRestriction: HTTPReferrerRestriction }
 	credentialManager := credentialDto.ToManager()
 	if _, err := credentialManager.UpdateOne(credentialService.Pool); err != nil {
 		return nil, err
@@ -37,8 +37,8 @@ func (credentialService *CredentialService) UpdateOneCredential(ID string, HTTPR
 	}
 }
 
-func (credentialService *CredentialService) DeleteOneCredential(ID string) (*transformers.Credential, error) {
-	credentialDto := transformers.Credential{ID: ID}
+func (credentialService *CredentialService) DeleteOneCredential(UUID string) (*transformers.Credential, error) {
+	credentialDto := transformers.Credential{UUID: UUID}
 	credentialManager := credentialDto.ToManager()
 	if _, err := credentialManager.DeleteOne(credentialService.Pool); err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (credentialService *CredentialService) DeleteOneCredential(ID string) (*tra
 }
 
 func (credentialService *CredentialService) ListCredentials(offset int, limit int, orderBy string) ([]transformers.Credential, error) {
-	credentialManager := managers.CredentialManager{}
+	credentialManager := credential.CredentialManager{}
 	if credentials, err := credentialManager.GetAll(credentialService.Pool, offset, limit, orderBy); err != nil {
 		return nil, err
 	} else {

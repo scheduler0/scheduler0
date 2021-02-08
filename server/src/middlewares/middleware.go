@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"github.com/segmentio/ksuid"
-	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/managers/credential"
 	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
 	"strings"
@@ -41,7 +41,7 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 			}
 
 			if passBasicAuth == false {
-				credential := managers.CredentialManager{}
+				credentialManager := credential.CredentialManager{}
 
 				// Check for api key
 				token := r.Header.Get("x-token")
@@ -64,26 +64,26 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 					return
 				}
 
-				credential.ApiKey = token
+				credentialManager.ApiKey = token
 
-				if err := credential.GetByAPIKey(pool); err != nil {
+				if err := credentialManager.GetByAPIKey(pool); err != nil {
 					utils.SendJson(w, err.Error(), false, http.StatusInternalServerError, nil)
 					return
 				}
 
-				if len(credential.ID) < 1 {
+				if len(credentialManager.UUID) < 1 {
 					utils.SendJson(w, "credential does not exits", false, http.StatusUnauthorized, nil)
 					return
 				}
 
-				if len(credential.ID) < 1 {
+				if len(credentialManager.UUID) < 1 {
 					utils.SendJson(w, "credential does not exits", false, http.StatusUnauthorized, nil)
 					return
 				}
 
-				if len(credential.HTTPReferrerRestriction) > 1 &&
-					credential.HTTPReferrerRestriction != "*" &&
-					credential.HTTPReferrerRestriction != r.URL.Host {
+				if len(credentialManager.HTTPReferrerRestriction) > 1 &&
+					credentialManager.HTTPReferrerRestriction != "*" &&
+					credentialManager.HTTPReferrerRestriction != r.URL.Host {
 					utils.SendJson(w, "credential invalid referral", false, http.StatusUnauthorized, nil)
 					return
 				}

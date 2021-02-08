@@ -3,13 +3,13 @@ package transformers
 import (
 	"encoding/json"
 	"errors"
-	"github.com/victorlenerd/scheduler0/server/src/managers"
+	"github.com/victorlenerd/scheduler0/server/src/managers/job"
 	"time"
 )
 
 type Job struct {
-	ID          string `json:"id,omitempty"`
-	ProjectID   string `json:"project_id"`
+	UUID        string `json:"uuid,omitempty"`
+	ProjectUUID string `json:"project_uuid"`
 	Description string `json:"description"`
 	CronSpec    string `json:"cron_spec,omitempty"`
 	Data        string `json:"transformers,omitempty"`
@@ -19,46 +19,46 @@ type Job struct {
 	EndDate     string `json:"end_date,omitempty"`
 }
 
-func (IJ *Job) FromJson(body []byte) error {
-	if err := json.Unmarshal(body, &IJ); err != nil {
+func (jobTransformer *Job) FromJson(body []byte) error {
+	if err := json.Unmarshal(body, &jobTransformer); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (IJ *Job) ToJson() ([]byte, error) {
-	if data, err := json.Marshal(IJ); err != nil {
+func (jobTransformer *Job) ToJson() ([]byte, error) {
+	if data, err := json.Marshal(jobTransformer); err != nil {
 		return data, err
 	} else {
 		return data, nil
 	}
 }
 
-func (IJ *Job) ToManager() (managers.JobManager, error) {
-	jd := managers.JobManager{
-		ID:          IJ.ID,
-		ProjectID:   IJ.ProjectID,
-		CronSpec:    IJ.CronSpec,
-		Data:        IJ.Data,
-		Description: IJ.Description,
-		CallbackUrl: IJ.CallbackUrl,
-		Timezone:    IJ.Timezone,
+func (jobTransformer *Job) ToManager() (job.JobManager, error) {
+	jd := job.JobManager{
+		UUID:        jobTransformer.UUID,
+		ProjectUUID: jobTransformer.ProjectUUID,
+		CronSpec:    jobTransformer.CronSpec,
+		Data:        jobTransformer.Data,
+		Description: jobTransformer.Description,
+		CallbackUrl: jobTransformer.CallbackUrl,
+		Timezone:    jobTransformer.Timezone,
 	}
 
-	if len(IJ.StartDate) < 1 {
-		return managers.JobManager{}, errors.New("start date is required")
+	if len(jobTransformer.StartDate) < 1 {
+		return job.JobManager{}, errors.New("start date is required")
 	}
 
-	startTime, err := time.Parse(time.RFC3339, IJ.StartDate)
+	startTime, err := time.Parse(time.RFC3339, jobTransformer.StartDate)
 	if err != nil {
-		return managers.JobManager{}, err
+		return job.JobManager{}, err
 	}
 	jd.StartDate = startTime
 
-	if len(IJ.EndDate) > 1 {
-		endTime, err := time.Parse(time.RFC3339, IJ.EndDate)
+	if len(jobTransformer.EndDate) > 1 {
+		endTime, err := time.Parse(time.RFC3339, jobTransformer.EndDate)
 		if err != nil {
-			return managers.JobManager{}, err
+			return job.JobManager{}, err
 		}
 
 		jd.EndDate = endTime
@@ -67,14 +67,14 @@ func (IJ *Job) ToManager() (managers.JobManager, error) {
 	return jd, nil
 }
 
-func (IJ *Job) FromManager(jd managers.JobManager) {
-	IJ.ID = jd.ID
-	IJ.ProjectID = jd.ProjectID
-	IJ.Timezone = jd.Timezone
-	IJ.Description = jd.Description
-	IJ.Data = jd.Data
-	IJ.CallbackUrl = jd.CallbackUrl
-	IJ.CronSpec = jd.CronSpec
-	IJ.StartDate = jd.StartDate.String()
-	IJ.EndDate = jd.EndDate.String()
+func (jobTransformer *Job) FromManager(jobManager job.JobManager) {
+	jobTransformer.UUID = jobManager.UUID
+	jobTransformer.ProjectUUID = jobManager.ProjectUUID
+	jobTransformer.Timezone = jobManager.Timezone
+	jobTransformer.Description = jobManager.Description
+	jobTransformer.Data = jobManager.Data
+	jobTransformer.CallbackUrl = jobManager.CallbackUrl
+	jobTransformer.CronSpec = jobManager.CronSpec
+	jobTransformer.StartDate = jobManager.StartDate.Format(time.RFC3339)
+	jobTransformer.EndDate = jobManager.EndDate.Format(time.RFC3339)
 }
