@@ -13,7 +13,7 @@ jobs:
       - run:
           name: Run Test
           command: |
-            docker-compose -f docker/docker-compose.ci.yml up -d server
+            docker-compose -f ./docker/docker-compose.ci.yml up -d server
 workflows:
     build:
       jobs:
