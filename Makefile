@@ -22,9 +22,9 @@ build_server_test_dockerfile:
 	docker build --file docker/Dockerfile.server-test \
 		--build-arg PORT=4321 \
 		--build-arg POSTGRES_ADDRESS=localhost:5432 \
-		--build-arg POSTGRES_DATABASE=postgres \
-		--build-arg POSTGRES_USER=postgres \
-		--build-arg POSTGRES_PASSWORD=postgres \
+		--build-arg POSTGRES_DATABASE=scheduler0_test \
+		--build-arg POSTGRES_USER=core \
+		--build-arg POSTGRES_PASSWORD=localdev \
 		--build-arg BASIC_AUTH_USER=admin \
 		--build-arg BASIC_AUTH_PASS=admin  \
 		.
