@@ -4,8 +4,8 @@ services:
 
   server:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: ../server
+      dockerfile: docker/Dockerfile
       args:
         PORT: 4321
         POSTGRES_ADDRESS: postgres:5432
@@ -31,8 +31,8 @@ services:
 
   client:
     build:
-      context: ./client
-      dockerfile: Dockerfile.dev
+      context: ../client
+      dockerfile: ../client/Dockerfile.dev
       args:
         NODE_ENV: development
         PORT: 4327

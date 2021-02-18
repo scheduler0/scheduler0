@@ -1,0 +1,46 @@
+FROM golang:1.13
+
+MAINTAINER Victor Nwaokocha
+
+WORKDIR /test
+
+ARG PORT
+ARG POSTGRES_USER
+ARG POSTGRES_ADDRESS
+ARG POSTGRES_PASSWORD
+ARG POSTGRES_DATABASE
+ARG POSTGRES_USER
+ARG CLIENT_HOST
+ARG BASIC_AUTH_USER
+ARG BASIC_AUTH_PASS
+
+COPY . /test
+
+ENV PORT $PORT
+ENV ENV $ENV
+ENV POSTGRES_ADDRESS $POSTGRES_ADDRESS
+ENV POSTGRES_USER $POSTGRES_USER
+ENV POSTGRES_PASSWORD $POSTGRES_PASSWORD
+ENV POSTGRES_DATABASE $POSTGRES_DATABASE
+ENV CLIENT_HOST $CLIENT_HOST
+ENV BASIC_AUTH_USER $BASIC_AUTH_USER
+ENV BASIC_AUTH_PASS $BASIC_AUTH_PASS
+
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOOS=linux \
+    CGO_ENABLED=1 \
+    GOARCH=amd64
+
+RUN ls
+RUN go clean -testcache
+
+RUN go test ./server/src/managers/execution -cover -v -race
+RUN go test ./server/src/managers/job -cover -v -race
+RUN go test ./server/src/managers/project -cover -v -race
+RUN go test ./server/src/managers/credential -cover -v -race
+
+RUN go test ./server/src/controllers/execution -cover -v -race
+RUN go test ./server/src/controllers/credential -cover -v -race
+RUN go test ./server/src/controllers/job -cover -v -race
+RUN go test ./server/src/controllers/project -cover -v -race
