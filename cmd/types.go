@@ -35,8 +35,8 @@ func (provider *CloudProvider) UnmarshalJSON(b []byte) error {
 }
 
 type Config struct {
-	Name           string          `json:"name"`
-	Email          string          `json:"email"`
-	Environments   []Environment   `json:"environments"`
-	CloudProviders []CloudProvider `json:"cloud_providers"`
+	Name          string `json:"name"`
+	Email         string `json:"email"`
+	Environment   string `json:"environment"`
+	CloudProvider string `json:"cloud_provider"`
 }
