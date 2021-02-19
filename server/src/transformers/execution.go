@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+
+// Execution this transformer is used for execution entity type
 type Execution struct {
 	UUID        string    `json:"id"`
 	JobUUID     string    `json:"job_uuid"`
@@ -16,6 +18,8 @@ type Execution struct {
 	DateCreated time.Time `json:"date_created"`
 }
 
+
+// PaginatedExecutions this holds meta information for pagination
 type PaginatedExecutions struct {
 	Total  int         `json:"total"`
 	Offset int         `json:"offset"`
@@ -23,7 +27,8 @@ type PaginatedExecutions struct {
 	Data   []Execution `json:"executions"`
 }
 
-func (executionTransformer *Execution) ToJson() ([]byte, error) {
+// ToJSON returns JSON representation of transformer
+func (executionTransformer *Execution) ToJSON() ([]byte, error) {
 	data, err := json.Marshal(executionTransformer)
 	if err != nil {
 		return data, err
@@ -31,15 +36,17 @@ func (executionTransformer *Execution) ToJson() ([]byte, error) {
 	return data, nil
 }
 
-func (executionTransformer *Execution) FromJson(body []byte) error {
+// FromJSON extracts content of JSON object into transformer
+func (executionTransformer *Execution) FromJSON(body []byte) error {
 	if err := json.Unmarshal(body, &executionTransformer); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (executionTransformer *Execution) ToManager() (execution.ExecutionManager, error) {
-	executionManager := execution.ExecutionManager{
+// ToManager converts content of transformer into manager
+func (executionTransformer *Execution) ToManager() (execution.Manager, error) {
+	executionManager := execution.Manager{
 		UUID:        executionTransformer.UUID,
 		JobUUID:     executionTransformer.JobUUID,
 		StatusCode:  executionTransformer.StatusCode,
@@ -51,7 +58,8 @@ func (executionTransformer *Execution) ToManager() (execution.ExecutionManager, 
 	return executionManager, nil
 }
 
-func (executionTransformer *Execution) FromManager(executionManager execution.ExecutionManager) {
+// FromManager extract content of manager into transformer
+func (executionTransformer *Execution) FromManager(executionManager execution.Manager) {
 	executionTransformer.UUID = executionManager.UUID
 	executionTransformer.JobUUID = executionManager.JobUUID
 	executionTransformer.StatusCode = executionManager.StatusCode
