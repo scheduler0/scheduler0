@@ -6,8 +6,8 @@ import (
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
-	"github.com/victorlenerd/scheduler0/server/src/models"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
+	"scheduler0/server/src/models"
+	"scheduler0/server/src/utils"
 )
 
 type CredentialManager models.CredentialModel

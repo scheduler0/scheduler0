@@ -7,7 +7,7 @@ type ExecutionModel struct {
 
 	ID          int64     `json:"id" sql:",pk:notnull"`
 	UUID        string    `json:"uuid" sql:",unique,type:uuid,default:gen_random_uuid()"`
-	JobID     	int64     `json:"job_id" sql:",notnull"`
+	JobID       int64     `json:"job_id" sql:",notnull"`
 	JobUUID     string    `json:"job_uuid" sql:",notnull,type:uuid"`
 	StatusCode  string    `json:"status_code"`
 	Timeout     uint64    `json:"timeout"`

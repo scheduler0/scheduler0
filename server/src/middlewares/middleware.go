@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/subtle"
 	"github.com/segmentio/ksuid"
-	"github.com/victorlenerd/scheduler0/server/src/managers/credential"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
+	"scheduler0/server/src/managers/credential"
+	"scheduler0/server/src/utils"
 	"strings"
 	"sync"
 )

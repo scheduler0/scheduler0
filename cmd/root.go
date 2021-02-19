@@ -11,7 +11,7 @@ var rootCmd = &cobra.Command{
 	Long: `Scheduler0 can be deployed on AWS, Google Cloud and Azure. 
 Read more documentation on https://scheduler0.com
 `,
-	Args: cobra.OnlyValidArgs,
+	Args:      cobra.OnlyValidArgs,
 	ValidArgs: []string{"help", "version", "update", "setup", "help", "start", "deploy"},
 	Run: func(cmd *cobra.Command, args []string) {
 		// Do Stuff Here

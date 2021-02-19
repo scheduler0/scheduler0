@@ -2,7 +2,7 @@ package transformers
 
 import (
 	"encoding/json"
-	"github.com/victorlenerd/scheduler0/server/src/managers/project"
+	"scheduler0/server/src/managers/project"
 	"time"
 )
 
@@ -11,6 +11,13 @@ type Project struct {
 	Description string    `json:"description"`
 	UUID        string    `json:"uuid"`
 	DateCreated time.Time `json:"date_created"`
+}
+
+type PaginatedProjects struct {
+	Total  int       `json:"total"`
+	Offset int       `json:"offset"`
+	Limit  int       `json:"limit"`
+	Data   []Project `json:"projects"`
 }
 
 func (projectTransformer *Project) ToJson() ([]byte, error) {

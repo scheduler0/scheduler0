@@ -7,19 +7,18 @@ import (
 	"github.com/gorilla/mux"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/victorlenerd/scheduler0/server/src/controllers/project"
-	jobTestFixtures "github.com/victorlenerd/scheduler0/server/src/controllers/job/fixtures"
-	fixtures3 "github.com/victorlenerd/scheduler0/server/src/managers/project/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
-	"github.com/victorlenerd/scheduler0/server/tests"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	jobTestFixtures "scheduler0/server/src/controllers/job/fixtures"
+	"scheduler0/server/src/controllers/project"
+	fixtures3 "scheduler0/server/src/managers/project/fixtures"
+	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
+	"scheduler0/server/tests"
 	"strings"
 	"testing"
 )
-
 
 var _ = Describe("Project Controller", func() {
 
@@ -31,7 +30,7 @@ var _ = Describe("Project Controller", func() {
 	pool := tests.GetTestPool()
 	projectController := project.ProjectController{Pool: pool}
 
-	It("Cannot create a project without name and description", func () {
+	It("Cannot create a project without name and description", func() {
 		projectTransformer := transformers.Project{}
 		projectOneJson, err := projectTransformer.ToJson()
 		utils.CheckErr(err)
@@ -46,7 +45,7 @@ var _ = Describe("Project Controller", func() {
 		}
 	})
 
-	It("Should create a new project with unique name and a description", func () {
+	It("Should create a new project with unique name and a description", func() {
 		project := fixtures3.ProjectFixture{}
 		err := faker.FakeData(&project)
 		utils.CheckErr(err)
@@ -83,7 +82,7 @@ var _ = Describe("Project Controller", func() {
 		}
 	})
 
-	It("Cannot create project with the same name", func () {
+	It("Cannot create project with the same name", func() {
 		project := fixtures3.ProjectFixture{}
 		err := faker.FakeData(&project)
 		Expect(err).To(BeNil())
@@ -110,7 +109,7 @@ var _ = Describe("Project Controller", func() {
 		}
 	})
 
-	It("Delete project without job", func () {
+	It("Delete project without job", func() {
 		project := fixtures3.ProjectFixture{}
 		err := faker.FakeData(&project)
 		if err != nil {
@@ -138,7 +137,7 @@ var _ = Describe("Project Controller", func() {
 		}
 	})
 
-	It("Should not maintain uniqueness of project names", func () {
+	It("Should not maintain uniqueness of project names", func() {
 		project := fixtures3.ProjectFixture{}
 		err := faker.FakeData(&project)
 		Expect(err).To(BeNil())
@@ -184,7 +183,7 @@ var _ = Describe("Project Controller", func() {
 		}
 	})
 
-	It("Update name and description of an existing project", func () {
+	It("Update name and description of an existing project", func() {
 		project := fixtures3.ProjectFixture{}
 		err := faker.FakeData(&project)
 		Expect(err).To(BeNil())
@@ -234,8 +233,7 @@ var _ = Describe("Project Controller", func() {
 		}
 	})
 
-
-	It("Get all projects with the same name or description", func () {
+	It("Get all projects with the same name or description", func() {
 		if req, err := http.NewRequest("GET", "/projects?limit=10&offset=0", nil); err != nil {
 			utils.Error("\t\t Request failed %v", err)
 		} else {
@@ -250,8 +248,7 @@ var _ = Describe("Project Controller", func() {
 		}
 	})
 
-
-	It("Do not delete projects with jobs ", func () {
+	It("Do not delete projects with jobs ", func() {
 		_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
 
 		if req, err := http.NewRequest("DELETE", "/projects/"+jobManager.ProjectUUID, nil); err != nil {

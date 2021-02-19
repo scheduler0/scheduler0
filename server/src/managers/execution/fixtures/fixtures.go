@@ -3,11 +3,11 @@ package fixtures
 import (
 	"errors"
 	"github.com/bxcodec/faker/v3"
-	"github.com/victorlenerd/scheduler0/server/src/managers/job"
-	fixtures2 "github.com/victorlenerd/scheduler0/server/src/managers/job/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/managers/project"
-	fixtures3 "github.com/victorlenerd/scheduler0/server/src/managers/project/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
+	"scheduler0/server/src/managers/job"
+	fixtures2 "scheduler0/server/src/managers/job/fixtures"
+	"scheduler0/server/src/managers/project"
+	fixtures3 "scheduler0/server/src/managers/project/fixtures"
+	"scheduler0/server/src/utils"
 )
 
 func CreateJobFixture(pool *utils.Pool) *job.JobManager {

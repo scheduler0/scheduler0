@@ -1,10 +1,10 @@
 package service
 
 import (
-	"github.com/victorlenerd/scheduler0/server/src/managers/job"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
+	"scheduler0/server/src/managers/job"
+	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
 )
 
 type JobService Service
@@ -99,6 +99,3 @@ func (jobService *JobService) DeleteJob(jobTransformer transformers.Job) *utils.
 
 	return nil
 }
-
-
-

@@ -2,7 +2,7 @@ package transformers
 
 import (
 	"encoding/json"
-	"github.com/victorlenerd/scheduler0/server/src/managers/execution"
+	"scheduler0/server/src/managers/execution"
 	"time"
 )
 
@@ -14,6 +14,13 @@ type Execution struct {
 	Response    string    `json:"response"`
 	Token       string    `json:"token"`
 	DateCreated time.Time `json:"date_created"`
+}
+
+type PaginatedExecutions struct {
+	Total  int         `json:"total"`
+	Offset int         `json:"offset"`
+	Limit  int         `json:"limit"`
+	Data   []Execution `json:"executions"`
 }
 
 func (executionTransformer *Execution) ToJson() ([]byte, error) {

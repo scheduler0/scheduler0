@@ -5,16 +5,15 @@ import (
 	"github.com/bxcodec/faker/v3"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/victorlenerd/scheduler0/server/src/managers/job"
-	"github.com/victorlenerd/scheduler0/server/src/managers/project"
-	fixtures2 "github.com/victorlenerd/scheduler0/server/src/managers/project/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
-	"github.com/victorlenerd/scheduler0/server/tests"
+	"scheduler0/server/src/managers/job"
+	"scheduler0/server/src/managers/project"
+	fixtures2 "scheduler0/server/src/managers/project/fixtures"
+	"scheduler0/server/src/utils"
+	"scheduler0/server/tests"
 	"strconv"
 	"testing"
 	"time"
 )
-
 
 var _ = Describe("Project Manager", func() {
 	pool := tests.GetTestPool()
@@ -24,7 +23,7 @@ var _ = Describe("Project Manager", func() {
 		tests.Prepare()
 	})
 
-	It("Don't create project with name and description empty", func () {
+	It("Don't create project with name and description empty", func() {
 		projectManager := project.ProjectManager{}
 		_, err := projectManager.CreateOne(pool)
 		if err == nil {
@@ -33,7 +32,7 @@ var _ = Describe("Project Manager", func() {
 		Expect(err).ToNot(BeNil())
 	})
 
-	It("Create project with name and description not empty", func () {
+	It("Create project with name and description not empty", func() {
 		projectFixture := fixtures2.ProjectFixture{}
 		err := faker.FakeData(&projectFixture)
 		utils.CheckErr(err)
@@ -49,7 +48,7 @@ var _ = Describe("Project Manager", func() {
 		}
 	})
 
-	It("Don't create project with existing name", func () {
+	It("Don't create project with existing name", func() {
 		projectFixture := fixtures2.ProjectFixture{}
 		err := faker.FakeData(&projectFixture)
 		utils.CheckErr(err)
@@ -77,7 +76,7 @@ var _ = Describe("Project Manager", func() {
 		Expect(createTwoError).ToNot(BeNil())
 	})
 
-	It("Can retrieve a single project by uuid", func () {
+	It("Can retrieve a single project by uuid", func() {
 		projectFixture := fixtures2.ProjectFixture{}
 		err := faker.FakeData(&projectFixture)
 		utils.CheckErr(err)
@@ -104,7 +103,7 @@ var _ = Describe("Project Manager", func() {
 		Expect(projectManagerByName.UUID).To(Equal(projectManager.UUID))
 	})
 
-	It("Can retrieve a single project by name", func () {
+	It("Can retrieve a single project by name", func() {
 		projectFixture := fixtures2.ProjectFixture{}
 		err := faker.FakeData(&projectFixture)
 		utils.CheckErr(err)
@@ -132,7 +131,7 @@ var _ = Describe("Project Manager", func() {
 		Expect(projectManagerByName.Name).To(Equal(projectManager.Name))
 	})
 
-	It("Can update name and description for a project", func () {
+	It("Can update name and description for a project", func() {
 		projectFixture := fixtures2.ProjectFixture{}
 		err := faker.FakeData(&projectFixture)
 		utils.CheckErr(err)
@@ -163,7 +162,7 @@ var _ = Describe("Project Manager", func() {
 		Expect(projectManager.Name).NotTo(Equal(projectTwoPlaceholder.Name))
 	})
 
-	It("Delete All Projects", func () {
+	It("Delete All Projects", func() {
 		projectFixture := fixtures2.ProjectFixture{}
 		err := faker.FakeData(&projectFixture)
 		utils.CheckErr(err)
@@ -183,7 +182,7 @@ var _ = Describe("Project Manager", func() {
 		}
 	})
 
-	It("Don't delete project with a job", func () {
+	It("Don't delete project with a job", func() {
 		projectFixture := fixtures2.ProjectFixture{}
 		err := faker.FakeData(&projectFixture)
 		utils.CheckErr(err)
@@ -225,13 +224,13 @@ var _ = Describe("Project Manager", func() {
 		}
 	})
 
-	It("ProjectManager.GetAll", func () {
+	It("ProjectManager.List", func() {
 		manager := project.ProjectManager{}
 
 		for i := 0; i < 1000; i++ {
 			project := project.ProjectManager{
-				Name: "project " + strconv.Itoa(i),
-				Description: "project description "+ strconv.Itoa(i),
+				Name:        "project " + strconv.Itoa(i),
+				Description: "project description " + strconv.Itoa(i),
 			}
 
 			_, err := project.CreateOne(pool)
@@ -240,7 +239,7 @@ var _ = Describe("Project Manager", func() {
 			}
 		}
 
-		projects, err := manager.GetAll(pool,  0, 100)
+		projects, err := manager.GetAll(pool, 0, 100)
 		if err != nil {
 			utils.Error("[ERROR] failed to fetch projects ::", err.Message)
 		}

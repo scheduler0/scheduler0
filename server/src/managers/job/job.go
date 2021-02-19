@@ -3,10 +3,10 @@ package job
 import (
 	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
-	"github.com/victorlenerd/scheduler0/server/src/managers/project"
-	"github.com/victorlenerd/scheduler0/server/src/models"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
+	"scheduler0/server/src/managers/project"
+	"scheduler0/server/src/models"
+	"scheduler0/server/src/utils"
 	"time"
 )
 

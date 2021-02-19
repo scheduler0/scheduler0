@@ -1,8 +1,8 @@
 package service
 
 import (
-	"github.com/victorlenerd/scheduler0/server/src/managers/credential"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
+	"scheduler0/server/src/managers/credential"
+	"scheduler0/server/src/transformers"
 )
 
 type CredentialService Service
@@ -26,7 +26,7 @@ func (credentialService *CredentialService) FindOneCredentialByUUID(UUID string)
 }
 
 func (credentialService *CredentialService) UpdateOneCredential(UUID string, HTTPReferrerRestriction string) (*transformers.Credential, error) {
-	credentialDto := transformers.Credential{UUID: UUID, HTTPReferrerRestriction: HTTPReferrerRestriction }
+	credentialDto := transformers.Credential{UUID: UUID, HTTPReferrerRestriction: HTTPReferrerRestriction}
 	credentialManager := credentialDto.ToManager()
 	if _, err := credentialManager.UpdateOne(credentialService.Pool); err != nil {
 		return nil, err

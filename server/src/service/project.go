@@ -2,9 +2,9 @@ package service
 
 import (
 	"fmt"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
+	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
 )
 
 type ProjectService Service
@@ -19,7 +19,7 @@ func (projectService *ProjectService) UpdateOne(project transformers.Project) *u
 
 	count, err := projectManager.UpdateOne(projectService.Pool)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	if count < 1 {
@@ -67,10 +67,15 @@ func (projectService *ProjectService) DeleteOne(project transformers.Project) *u
 	return nil
 }
 
-func (projectService *ProjectService) List(offset int, limit int) ([]transformers.Project, *utils.GenericError) {
+func (projectService *ProjectService) List(offset int, limit int) (*transformers.PaginatedProjects, *utils.GenericError) {
 	project := transformers.Project{}
 	projectManager := project.ToManager()
 	projects, err := projectManager.GetAll(projectService.Pool, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	count, err := projectManager.Count(projectService.Pool)
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +88,12 @@ func (projectService *ProjectService) List(offset int, limit int) ([]transformer
 		transformedProjects = append(transformedProjects, transformedProject)
 	}
 
-	return transformedProjects, nil
-}
+	paginatedProjects := transformers.PaginatedProjects{}
 
+	paginatedProjects.Total = count
+	paginatedProjects.Data = transformedProjects
+	paginatedProjects.Limit = limit
+	paginatedProjects.Offset = offset
+
+	return &paginatedProjects, nil
+}

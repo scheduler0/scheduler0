@@ -4,10 +4,10 @@ import (
 	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/victorlenerd/scheduler0/server/src/managers/execution"
-	fixtures "github.com/victorlenerd/scheduler0/server/src/managers/execution/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
-	"github.com/victorlenerd/scheduler0/server/tests"
+	"scheduler0/server/src/managers/execution"
+	fixtures "scheduler0/server/src/managers/execution/fixtures"
+	"scheduler0/server/src/utils"
+	"scheduler0/server/tests"
 	"testing"
 )
 
@@ -84,22 +84,22 @@ var _ = Describe("Execution Manager", func() {
 
 			Expect(err).To(BeNil())
 			if err != nil {
-				utils.Error(err.Error())
+				utils.Error(err.Message)
 			}
 		}
 
 		manager := execution.ExecutionManager{}
 
-		executions, err := manager.GetAll(pool, jobManager.UUID, 0, 100, "date_created")
+		executions, err := manager.List(pool, jobManager.UUID, 0, 100, "date_created")
 		if err != nil {
-			utils.Error(fmt.Sprintf("[ERROR] fetching executions %v", err.Error()))
+			utils.Error(fmt.Sprintf("[ERROR] fetching executions %v", err.Message))
 		}
 
 		Expect(len(executions)).To(Equal(100))
 
-		executions, err = manager.GetAll(pool, jobManager.UUID, 1000, 100, "date_created")
+		executions, err = manager.List(pool, jobManager.UUID, 1000, 100, "date_created")
 		if err != nil {
-			utils.Error(fmt.Sprintf("[ERROR] fetching executions %v", err.Error()))
+			utils.Error(fmt.Sprintf("[ERROR] fetching executions %v", err.Message))
 		}
 
 		Expect(len(executions)).To(Equal(0))

@@ -1,48 +1,47 @@
 package execution
 
 import (
-	"errors"
 	"github.com/go-pg/pg"
-	"github.com/victorlenerd/scheduler0/server/src/managers/job"
-	"github.com/victorlenerd/scheduler0/server/src/models"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
+	"net/http"
+	"scheduler0/server/src/managers/job"
+	"scheduler0/server/src/models"
+	"scheduler0/server/src/utils"
 )
 
 type ExecutionManager models.ExecutionModel
 
-func (executionManager *ExecutionManager) CreateOne(pool *utils.Pool) (string, error) {
+func (executionManager *ExecutionManager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return "", err
+		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
 	if len(executionManager.JobUUID) < 1 {
-		err := errors.New("job uuid is not set")
-		return "", err
+		return "", utils.HTTPGenericError(http.StatusBadRequest, "job uuid is not set")
 	}
 
 	jobWithId := job.JobManager{UUID: executionManager.UUID}
 
-	 if getOneJobError := jobWithId.GetOne(pool, executionManager.JobUUID);  err != nil {
-		return "", errors.New(getOneJobError.Message)
+	if getOneJobError := jobWithId.GetOne(pool, executionManager.JobUUID); err != nil {
+		return "", getOneJobError
 	}
 
 	executionManager.JobID = jobWithId.ID
 
 	if _, err := db.Model(executionManager).Insert(); err != nil {
-		return "", err
+		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	return executionManager.UUID, nil
 }
 
-func (executionManager *ExecutionManager) GetOne(pool *utils.Pool) (int, error) {
+func (executionManager *ExecutionManager) GetOne(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return 0, err
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	db := conn.(*pg.DB)
@@ -56,23 +55,23 @@ func (executionManager *ExecutionManager) GetOne(pool *utils.Pool) (int, error) 
 	}
 
 	if err != nil {
-		return count, err
+		return count, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	selectQuery := db.Model(executionManager).Where("uuid = ?", executionManager.UUID)
 	err = selectQuery.Select()
 
 	if err != nil {
-		return count, err
+		return count, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	return count, nil
 }
 
-func (executionManager *ExecutionManager) GetAll(pool *utils.Pool, jobID string, offset int, limit int, orderBy string) ([]ExecutionManager, error) {
+func (executionManager *ExecutionManager) List(pool *utils.Pool, jobID string, offset int, limit int, orderBy string) ([]ExecutionManager, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return nil, err
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	db := conn.(*pg.DB)
@@ -91,39 +90,65 @@ func (executionManager *ExecutionManager) GetAll(pool *utils.Pool, jobID string,
 	return execs, nil
 }
 
-func (executionManager *ExecutionManager) UpdateOne(pool *utils.Pool) (int, error) {
+func (executionManager *ExecutionManager) Count(pool *utils.Pool, jobID string) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return 0, err
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
+
+	count, err := db.
+		Model(&executionManager).
+		Where("job_uuid = ?", jobID).
+		Count()
+
+	if err != nil {
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	return count, nil
+}
+
+func (executionManager *ExecutionManager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	execPlaceholder := ExecutionManager{
+	executionManagerPlaceholder := ExecutionManager{
 		UUID: executionManager.UUID,
 	}
 
-	_, err = execPlaceholder.GetOne(pool)
+	_, errorGettingOneManager := executionManagerPlaceholder.GetOne(pool)
+	if err != nil {
+		return 0, errorGettingOneManager
+	}
 
 	res, err := db.Model(&executionManager).Update(executionManager)
 	if err != nil {
-		return 0, err
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	return res.RowsAffected(), nil
 }
 
-func (executionManager *ExecutionManager) DeleteOne(pool *utils.Pool) (int, error) {
+func (executionManager *ExecutionManager) DeleteOne(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
-		return -1, err
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	r, err := db.Model(executionManager).Where("id = ?", executionManager.ID).Delete()
+	r, err := db.Model(executionManager).
+		Where("id = ?", executionManager.ID).
+		Delete()
 	if err != nil {
-		return -1, err
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	return r.RowsAffected(), nil

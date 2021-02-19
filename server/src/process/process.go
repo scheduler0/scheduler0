@@ -1,14 +1,15 @@
 package process
 
 import (
+	"errors"
 	"github.com/robfig/cron"
-	execution2 "github.com/victorlenerd/scheduler0/server/src/managers/execution"
-	"github.com/victorlenerd/scheduler0/server/src/managers/job"
-	"github.com/victorlenerd/scheduler0/server/src/managers/project"
-	"github.com/victorlenerd/scheduler0/server/src/service"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io/ioutil"
 	"net/http"
+	execution2 "scheduler0/server/src/managers/execution"
+	"scheduler0/server/src/managers/job"
+	"scheduler0/server/src/managers/project"
+	"scheduler0/server/src/service"
+	"scheduler0/server/src/utils"
 	"strings"
 	"time"
 )
@@ -17,7 +18,7 @@ import (
 func Start(pool *utils.Pool) {
 	projectManager := project.ProjectManager{}
 
-	totalProjectCount, err := projectManager.GetTotalCount(pool)
+	totalProjectCount, err := projectManager.Count(pool)
 	if err != nil {
 		panic(err)
 	}
@@ -26,7 +27,7 @@ func Start(pool *utils.Pool) {
 		Pool: pool,
 	}
 
-	projectTransformers, err :=projectService.List(0, totalProjectCount)
+	projectTransformers, err := projectService.List(0, totalProjectCount)
 	if err != nil {
 		panic(err)
 	}
@@ -37,10 +38,10 @@ func Start(pool *utils.Pool) {
 
 	cronJobs := cron.New()
 
-	for _, projectTransformer := range projectTransformers {
+	for _, projectTransformer := range projectTransformers.Data {
 		jobManager := job.JobManager{}
 
-		jobsTotalCount, err :=jobManager.GetJobsTotalCountByProjectID(pool, projectTransformer.UUID)
+		jobsTotalCount, err := jobManager.GetJobsTotalCountByProjectID(pool, projectTransformer.UUID)
 		if err != nil {
 			panic(err)
 		}
@@ -70,15 +71,15 @@ func Start(pool *utils.Pool) {
 
 				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
 				execution := execution2.ExecutionManager{
-					JobUUID:       jobTransformer.UUID,
+					JobUUID:     jobTransformer.UUID,
 					Timeout:     timeout,
 					Response:    response,
 					StatusCode:  string(statusCode),
 					DateCreated: time.Now().UTC(),
 				}
 
-				_, err = execution.CreateOne(pool)
-				utils.CheckErr(err)
+				_, createOneErr := execution.CreateOne(pool)
+				utils.CheckErr(errors.New(createOneErr.Message))
 			})
 
 			if err != nil {

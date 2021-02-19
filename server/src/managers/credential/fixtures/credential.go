@@ -2,8 +2,8 @@ package fixtures
 
 import (
 	"github.com/bxcodec/faker/v3"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
+	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
 )
 
 type CredentialFixture struct {
@@ -20,13 +20,12 @@ func (credentialFixture *CredentialFixture) CreateNCredentialTransformer(n int) 
 		utils.CheckErr(err)
 
 		credentialTransformer := transformers.Credential{
-			ApiKey: credentialFixture.ApiKey,
+			ApiKey:                  credentialFixture.ApiKey,
 			HTTPReferrerRestriction: credentialFixture.HTTPReferrerRestriction,
 		}
 
 		credentialTransformers = append(credentialTransformers, credentialTransformer)
 	}
-
 
 	return credentialTransformers
 }

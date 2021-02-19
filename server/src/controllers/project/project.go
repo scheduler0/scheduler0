@@ -3,12 +3,12 @@ package project
 import (
 	"errors"
 	"github.com/gorilla/mux"
-	"github.com/victorlenerd/scheduler0/server/src/controllers"
-	"github.com/victorlenerd/scheduler0/server/src/service"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io/ioutil"
 	"net/http"
+	"scheduler0/server/src/controllers"
+	"scheduler0/server/src/service"
+	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
 	"strconv"
 )
 
@@ -73,7 +73,7 @@ func (controller *ProjectController) GetOne(w http.ResponseWriter, r *http.Reque
 	utils.SendJson(w, projectData, true, http.StatusOK, nil)
 }
 
-func (controller *ProjectController) GetAll(w http.ResponseWriter, r *http.Request) {
+func (controller *ProjectController) List(w http.ResponseWriter, r *http.Request) {
 	projectService := service.ProjectService{
 		Pool: controller.Pool,
 	}
@@ -84,7 +84,7 @@ func (controller *ProjectController) GetAll(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	offsetParam, err  := utils.ValidateQueryString("offset", r)
+	offsetParam, err := utils.ValidateQueryString("offset", r)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
@@ -103,7 +103,7 @@ func (controller *ProjectController) GetAll(w http.ResponseWriter, r *http.Reque
 	}
 
 	projects, listError := projectService.List(offset, limit)
-	if err != nil {
+	if listError != nil {
 		utils.SendJson(w, listError.Message, false, listError.Type, nil)
 		return
 	}
@@ -166,7 +166,7 @@ func (controller *ProjectController) UpdateOne(w http.ResponseWriter, r *http.Re
 	}
 
 	projectWithSimilarName := transformers.Project{
-		Name:  project.Name,
+		Name: project.Name,
 	}
 
 	projectT, getOneError := projectService.GetOneByName(projectWithSimilarName)
@@ -188,4 +188,3 @@ func (controller *ProjectController) UpdateOne(w http.ResponseWriter, r *http.Re
 
 	utils.SendJson(w, project, true, http.StatusOK, nil)
 }
-

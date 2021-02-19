@@ -3,12 +3,12 @@ package fixtures
 import (
 	"fmt"
 	"github.com/bxcodec/faker/v3"
-	projectManager "github.com/victorlenerd/scheduler0/server/src/managers/project"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
+	projectManager "scheduler0/server/src/managers/project"
+	"scheduler0/server/src/transformers"
 )
 
 type ProjectFixture struct {
-	Name string `faker:"username"`
+	Name        string `faker:"username"`
 	Description string `faker:"username"`
 }
 
@@ -19,7 +19,7 @@ func CreateProjectTransformerFixture() transformers.Project {
 		fmt.Printf("[ERROR] failed to project fixture")
 	}
 	projectTransformer := transformers.Project{
-		Name: project.Name,
+		Name:        project.Name,
 		Description: project.Description,
 	}
 	return projectTransformer
@@ -33,7 +33,7 @@ func CreateProjectManagerFixture() projectManager.ProjectManager {
 	}
 
 	return projectManager.ProjectManager{
-		Name: project.Name,
+		Name:        project.Name,
 		Description: project.Description,
 	}
 }

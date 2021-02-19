@@ -18,4 +18,6 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/unrolled/secure v1.0.8
 	github.com/victorlenerd/scheduler0/server v0.0.0-20210208050834-cb7d550eb16e
+	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
+	golang.org/x/tools v0.1.0 // indirect
 )

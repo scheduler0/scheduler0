@@ -9,7 +9,6 @@ import (
 	"os"
 )
 
-
 var InitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize Scheduler0",
@@ -17,11 +16,11 @@ var InitCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("-----------------------")
 		prompt := promptui.Prompt{
-			Label:    "Name",
+			Label: "Name",
 		}
 		name, _ := prompt.Run()
 		prompt = promptui.Prompt{
-			Label:    "Email",
+			Label: "Email",
 		}
 		email, _ := prompt.Run()
 		selectPrompt := promptui.Select{
@@ -31,8 +30,8 @@ var InitCmd = &cobra.Command{
 		_, cloudProvider, _ := selectPrompt.Run()
 
 		config := Config{
-			Name: name,
-			Email: email,
+			Name:          name,
+			Email:         email,
 			CloudProvider: cloudProvider,
 		}
 		configByte, err := json.Marshal(config)

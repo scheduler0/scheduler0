@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
+	"scheduler0/server/src/utils"
 )
 
 type Service struct {

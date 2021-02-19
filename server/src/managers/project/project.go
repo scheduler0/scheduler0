@@ -3,9 +3,9 @@ package project
 import (
 	"errors"
 	"github.com/go-pg/pg"
-	"github.com/victorlenerd/scheduler0/server/src/models"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
+	"scheduler0/server/src/models"
+	"scheduler0/server/src/utils"
 )
 
 type ProjectManager models.ProjectModel
@@ -95,7 +95,7 @@ func (projectManager *ProjectManager) GetOneByUUID(pool *utils.Pool) *utils.Gene
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	return  nil
+	return nil
 }
 
 func (projectManager *ProjectManager) GetAll(pool *utils.Pool, offset int, limit int) ([]ProjectManager, *utils.GenericError) {
@@ -122,7 +122,7 @@ func (projectManager *ProjectManager) GetAll(pool *utils.Pool, offset int, limit
 	return projects, nil
 }
 
-func (projectManager *ProjectManager) GetTotalCount(pool *utils.Pool) (int, *utils.GenericError) {
+func (projectManager *ProjectManager) Count(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -156,7 +156,6 @@ func (projectManager *ProjectManager) UpdateOne(pool *utils.Pool) (int, *utils.G
 	if e := savedProject.GetOneByUUID(pool); e != nil {
 		return 0, e
 	}
-
 
 	if len(savedProject.UUID) < 1 {
 		return 0, utils.HTTPGenericError(http.StatusBadRequest, "project does not exist")

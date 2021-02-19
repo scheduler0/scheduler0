@@ -3,12 +3,12 @@ package credential
 import (
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/victorlenerd/scheduler0/server/src/controllers"
-	"github.com/victorlenerd/scheduler0/server/src/service"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io/ioutil"
 	"net/http"
+	"scheduler0/server/src/controllers"
+	"scheduler0/server/src/service"
+	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
 	"strconv"
 )
 
@@ -40,7 +40,7 @@ func (credentialController *CredentialController) CreateOne(w http.ResponseWrite
 		utils.SendJson(w, err.Error(), false, http.StatusInternalServerError, nil)
 	} else {
 		if credential, err := credentialService.FindOneCredentialByUUID(newCredentialUUID); err != nil {
-			fmt.Println(err,newCredentialUUID)
+			fmt.Println(err, newCredentialUUID)
 			utils.SendJson(w, err.Error(), false, http.StatusInternalServerError, nil)
 		} else {
 			utils.SendJson(w, credential, true, http.StatusCreated, nil)

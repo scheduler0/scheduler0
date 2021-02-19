@@ -3,12 +3,12 @@ package db
 import (
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
-	"github.com/victorlenerd/scheduler0/server/src/managers/credential"
-	"github.com/victorlenerd/scheduler0/server/src/models"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io"
 	"io/ioutil"
 	"path/filepath"
+	"scheduler0/server/src/managers/credential"
+	"scheduler0/server/src/models"
+	"scheduler0/server/src/utils"
 )
 
 const MaxConnections = 100
@@ -49,7 +49,7 @@ func CreateModelTables(pool *utils.Pool) {
 		(*models.ExecutionModel)(nil),
 	} {
 		err := db.CreateTable(model, &orm.CreateTableOptions{
-			IfNotExists: true,
+			IfNotExists:   true,
 			FKConstraints: true,
 		})
 		if err != nil {

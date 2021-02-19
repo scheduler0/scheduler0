@@ -38,7 +38,6 @@ func setupViper() {
 	}
 }
 
-
 func main() {
 	setupViper()
 

@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-pg/pg"
-	"github.com/victorlenerd/scheduler0/server/src/db"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io"
 	"io/ioutil"
 	"net/http/httptest"
+	"scheduler0/server/src/db"
+	"scheduler0/server/src/utils"
 )
 
-
+// GetTestPool returns a pool of connection to the database for tests
 func GetTestPool() *utils.Pool {
 	pool, err := utils.NewPool(func() (closer io.Closer, err error) {
 		return db.CreateConnectionEnv("TEST")
@@ -24,6 +24,7 @@ func GetTestPool() *utils.Pool {
 	return pool
 }
 
+// Teardown is executed in tests to clear the database for stateless tests
 func Teardown() {
 	postgresCredentials := *utils.GetPostgresCredentials(utils.EnvTest)
 
@@ -48,6 +49,7 @@ func Teardown() {
 	}
 }
 
+// Prepare creates the tables, runs migrations and seeds
 func Prepare() {
 	// Connect to database
 	pool, err := utils.NewPool(func() (closer io.Closer, err error) {
@@ -63,6 +65,7 @@ func Prepare() {
 	db.SeedDatabase(pool)
 }
 
+// ExtractResponse is used in tests for controllers
 func ExtractResponse(w *httptest.ResponseRecorder) (*utils.Response, string, error) {
 	body, err := ioutil.ReadAll(w.Body)
 

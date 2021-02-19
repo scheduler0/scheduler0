@@ -1,15 +1,14 @@
 package execution
 
 import (
-	"github.com/victorlenerd/scheduler0/server/src/controllers"
-	"github.com/victorlenerd/scheduler0/server/src/service"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
+	"scheduler0/server/src/controllers"
+	"scheduler0/server/src/service"
+	"scheduler0/server/src/utils"
 	"strconv"
 )
 
 type ExecutionController controllers.Controller
-
 
 func (executionController *ExecutionController) List(w http.ResponseWriter, r *http.Request) {
 	executionService := service.ExecutionService{Pool: executionController.Pool, Ctx: r.Context()}
@@ -47,9 +46,9 @@ func (executionController *ExecutionController) List(w http.ResponseWriter, r *h
 		return
 	}
 
-	executions, err := executionService.GetAllExecutionsByJobUUID(jobID, offset, limit)
+	executions, getError := executionService.GetAllExecutionsByJobUUID(jobID, offset, limit)
 
-	if err != nil {
+	if getError != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 	} else {
 		utils.SendJson(w, executions, true, http.StatusOK, nil)

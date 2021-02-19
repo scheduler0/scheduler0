@@ -4,16 +4,15 @@ import (
 	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/victorlenerd/scheduler0/server/src/managers/job"
-	fixtures2 "github.com/victorlenerd/scheduler0/server/src/managers/job/fixtures"
-	fixtures3 "github.com/victorlenerd/scheduler0/server/src/managers/project/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
-	"github.com/victorlenerd/scheduler0/server/tests"
+	"scheduler0/server/src/managers/job"
+	fixtures2 "scheduler0/server/src/managers/job/fixtures"
+	fixtures3 "scheduler0/server/src/managers/project/fixtures"
+	"scheduler0/server/src/utils"
+	"scheduler0/server/tests"
 	"testing"
 )
 
-
-var _ = Describe("Job Manager", func () {
+var _ = Describe("Job Manager", func() {
 	pool := tests.GetTestPool()
 
 	BeforeEach(func() {
@@ -21,8 +20,8 @@ var _ = Describe("Job Manager", func () {
 		tests.Prepare()
 	})
 
-	Context("JobManager.CreateOne", func () {
-		It("Creating job returns error if required inbound fields are nil", func () {
+	Context("JobManager.CreateOne", func() {
+		It("Creating job returns error if required inbound fields are nil", func() {
 			jobFixture := fixtures2.JobFixture{}
 			jobTransformers := jobFixture.CreateNJobTransformers(1)
 			jobManager, toManagerError := jobTransformers[0].ToManager()
@@ -38,7 +37,7 @@ var _ = Describe("Job Manager", func () {
 			Expect(uuid).To(Equal(""))
 		})
 
-		It("Creating job returns new id", func () {
+		It("Creating job returns new id", func() {
 			jobFixture := fixtures2.JobFixture{}
 			jobTransformers := jobFixture.CreateNJobTransformers(1)
 			jobManager, toManagerError := jobTransformers[0].ToManager()
@@ -65,8 +64,8 @@ var _ = Describe("Job Manager", func () {
 		})
 	})
 
-	Context("JobManager.UpdateOne", func () {
-		It("Cannot update cron spec on job", func () {
+	Context("JobManager.UpdateOne", func() {
+		It("Cannot update cron spec on job", func() {
 			jobFixture := fixtures2.JobFixture{}
 			jobTransformers := jobFixture.CreateNJobTransformers(1)
 			jobManager, toManagerError := jobTransformers[0].ToManager()
@@ -101,8 +100,8 @@ var _ = Describe("Job Manager", func () {
 		})
 	})
 
-	Context("JobManager.DeleteOne", func () {
-		It("Delete jobs", func () {
+	Context("JobManager.DeleteOne", func() {
+		It("Delete jobs", func() {
 			jobFixture := fixtures2.JobFixture{}
 			jobTransformers := jobFixture.CreateNJobTransformers(1)
 			jobManager, toManagerError := jobTransformers[0].ToManager()
@@ -126,7 +125,7 @@ var _ = Describe("Job Manager", func () {
 		})
 	})
 
-	It("JobManager.GetAll", func () {
+	It("JobManager.List", func() {
 		jobFixture := fixtures2.JobFixture{}
 		jobTransformers := jobFixture.CreateNJobTransformers(5)
 
@@ -159,7 +158,7 @@ var _ = Describe("Job Manager", func () {
 		Expect(len(jobs)).To(Equal(5))
 	})
 
-	It("JobManager.GetOne", func () {
+	It("JobManager.GetOne", func() {
 		jobFixture := fixtures2.JobFixture{}
 		jobTransformers := jobFixture.CreateNJobTransformers(1)
 		jobManager, toManagerError := jobTransformers[0].ToManager()

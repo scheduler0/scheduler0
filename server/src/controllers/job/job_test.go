@@ -6,16 +6,16 @@ import (
 	"github.com/gorilla/mux"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/victorlenerd/scheduler0/server/src/controllers/job"
-	jobTestFixtures "github.com/victorlenerd/scheduler0/server/src/controllers/job/fixtures"
-	jobManagerTestFixtures "github.com/victorlenerd/scheduler0/server/src/managers/job/fixtures"
-	projectTestFixtures "github.com/victorlenerd/scheduler0/server/src/managers/project/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
-	"github.com/victorlenerd/scheduler0/server/tests"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"scheduler0/server/src/controllers/job"
+	jobTestFixtures "scheduler0/server/src/controllers/job/fixtures"
+	jobManagerTestFixtures "scheduler0/server/src/managers/job/fixtures"
+	projectTestFixtures "scheduler0/server/src/managers/project/fixtures"
+	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
+	"scheduler0/server/tests"
 	"strings"
 	"testing"
 )
@@ -31,8 +31,8 @@ var _ = Describe("Job Controller", func() {
 
 	Context("TestJobController_CreateOne", func() {
 
-		It("Respond with status 400 if request body does not contain required values", func () {
-			jobController := job.JobController{ Pool: pool}
+		It("Respond with status 400 if request body does not contain required values", func() {
+			jobController := job.JobController{Pool: pool}
 			jobFixture := jobManagerTestFixtures.JobFixture{}
 			jobTransformers := jobFixture.CreateNJobTransformers(1)
 			jobByte, err := jobTransformers[0].ToJson()
@@ -45,12 +45,12 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			jobController.CreateJob(w, req)
+			jobController.CreateOne(w, req)
 
 			Expect(w.Code).To(Equal(http.StatusBadRequest))
 		})
 
-		It("Respond with status 201 if request body is valid", func () {
+		It("Respond with status 201 if request body is valid", func() {
 			projectManager := projectTestFixtures.CreateProjectManagerFixture()
 			projectManager.CreateOne(pool)
 
@@ -71,8 +71,8 @@ var _ = Describe("Job Controller", func() {
 
 			w := httptest.NewRecorder()
 
-			controller := job.JobController{ Pool: pool}
-			controller.CreateJob(w, req)
+			controller := job.JobController{Pool: pool}
+			controller.CreateOne(w, req)
 			body, err := ioutil.ReadAll(w.Body)
 
 			if err != nil {
@@ -121,17 +121,16 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			controller := job.JobController{ Pool: pool}
-			controller.ListJobs(w, req)
+			controller := job.JobController{Pool: pool}
+			controller.List(w, req)
 
 			Expect(w.Code).To(Equal(http.StatusOK))
 		})
 	})
 
-
 	Context("TestJobController_UpdateOne", func() {
 
-		It("Respond with status 400 if update attempts to change cron spec", func () {
+		It("Respond with status 400 if update attempts to change cron spec", func() {
 			_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
 			jobTransformer := transformers.Job{}
 			jobTransformer.FromManager(jobManager)
@@ -145,14 +144,13 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			controller := job.JobController{ Pool: pool}
+			controller := job.JobController{Pool: pool}
 
-			controller.UpdateJob(w, req)
+			controller.UpdateOne(w, req)
 			Expect(w.Code).To(Equal(http.StatusBadRequest))
 		})
 
-
-		It("Respond with status 200 if update body is valid", func () {
+		It("Respond with status 200 if update body is valid", func() {
 			_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
 			jobTransformer := transformers.Job{}
 			jobTransformer.FromManager(jobManager)
@@ -167,9 +165,9 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			controller := job.JobController{ Pool: pool}
+			controller := job.JobController{Pool: pool}
 			router := mux.NewRouter()
-			router.HandleFunc("/jobs/{uuid}", controller.UpdateJob)
+			router.HandleFunc("/jobs/{uuid}", controller.UpdateOne)
 			router.ServeHTTP(w, req)
 
 			_, err = ioutil.ReadAll(w.Body)
@@ -182,7 +180,7 @@ var _ = Describe("Job Controller", func() {
 
 	})
 
-	It("TestJobController_DeleteOne", func () {
+	It("TestJobController_DeleteOne", func() {
 		_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
 
 		req, err := http.NewRequest("DELETE", "/jobs/"+jobManager.UUID, nil)
@@ -191,10 +189,10 @@ var _ = Describe("Job Controller", func() {
 		}
 
 		w := httptest.NewRecorder()
-		controller := job.JobController{ Pool: pool}
+		controller := job.JobController{Pool: pool}
 
 		router := mux.NewRouter()
-		router.HandleFunc("/jobs/{uuid}", controller.DeleteJob)
+		router.HandleFunc("/jobs/{uuid}", controller.DeleteOne)
 		router.ServeHTTP(w, req)
 
 		if err != nil {

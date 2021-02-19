@@ -2,17 +2,17 @@ package job
 
 import (
 	"github.com/gorilla/mux"
-	"github.com/victorlenerd/scheduler0/server/src/controllers"
-	"github.com/victorlenerd/scheduler0/server/src/service"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"net/http"
+	"scheduler0/server/src/controllers"
+	"scheduler0/server/src/service"
+	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
 	"strconv"
 )
 
 type JobController controllers.Controller
 
-func (jobController *JobController) ListJobs(w http.ResponseWriter, r *http.Request) {
+func (jobController *JobController) List(w http.ResponseWriter, r *http.Request) {
 	projectUUID, err := utils.ValidateQueryString("projectUUID", r)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
@@ -25,7 +25,7 @@ func (jobController *JobController) ListJobs(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	offsetParam, err  := utils.ValidateQueryString("offset", r)
+	offsetParam, err := utils.ValidateQueryString("offset", r)
 	if err != nil {
 		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
@@ -33,7 +33,7 @@ func (jobController *JobController) ListJobs(w http.ResponseWriter, r *http.Requ
 
 	jobService := service.JobService{
 		Pool: jobController.Pool,
-		Ctx: r.Context(),
+		Ctx:  r.Context(),
 	}
 
 	offset, err := strconv.Atoi(offsetParam)
@@ -57,7 +57,7 @@ func (jobController *JobController) ListJobs(w http.ResponseWriter, r *http.Requ
 	utils.SendJson(w, jobs, true, http.StatusOK, nil)
 }
 
-func (jobController *JobController) CreateJob(w http.ResponseWriter, r *http.Request) {
+func (jobController *JobController) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body := utils.ExtractBody(w, r)
 	jobBody := transformers.Job{}
 	err := jobBody.FromJson(body)
@@ -69,7 +69,7 @@ func (jobController *JobController) CreateJob(w http.ResponseWriter, r *http.Req
 
 	jobService := service.JobService{
 		Pool: jobController.Pool,
-		Ctx: r.Context(),
+		Ctx:  r.Context(),
 	}
 
 	job, createJobError := jobService.CreateJob(jobBody)
@@ -81,12 +81,12 @@ func (jobController *JobController) CreateJob(w http.ResponseWriter, r *http.Req
 	utils.SendJson(w, job, true, http.StatusCreated, nil)
 }
 
-func (jobController *JobController) GetAJob(w http.ResponseWriter, r *http.Request) {
+func (jobController *JobController) GetOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
 	jobService := service.JobService{
 		Pool: jobController.Pool,
-		Ctx: r.Context(),
+		Ctx:  r.Context(),
 	}
 
 	job := transformers.Job{
@@ -102,7 +102,7 @@ func (jobController *JobController) GetAJob(w http.ResponseWriter, r *http.Reque
 	utils.SendJson(w, jobT, true, http.StatusOK, nil)
 }
 
-func (jobController *JobController) UpdateJob(w http.ResponseWriter, r *http.Request) {
+func (jobController *JobController) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
 	body := utils.ExtractBody(w, r)
@@ -118,7 +118,7 @@ func (jobController *JobController) UpdateJob(w http.ResponseWriter, r *http.Req
 
 	jobService := service.JobService{
 		Pool: jobController.Pool,
-		Ctx: r.Context(),
+		Ctx:  r.Context(),
 	}
 
 	jobT, updateOneJobError := jobService.UpdateJob(jobBody)
@@ -130,12 +130,12 @@ func (jobController *JobController) UpdateJob(w http.ResponseWriter, r *http.Req
 	utils.SendJson(w, jobT, true, http.StatusOK, nil)
 }
 
-func (jobController *JobController) DeleteJob(w http.ResponseWriter, r *http.Request) {
+func (jobController *JobController) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
 	jobService := service.JobService{
 		Pool: jobController.Pool,
-		Ctx: r.Context(),
+		Ctx:  r.Context(),
 	}
 
 	job := transformers.Job{

@@ -1,11 +1,11 @@
 package fixtures
 
 import (
-	manager "github.com/victorlenerd/scheduler0/server/src/managers/job"
-	jobTestFixtures "github.com/victorlenerd/scheduler0/server/src/managers/job/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/managers/project"
-	projectTestFixtures "github.com/victorlenerd/scheduler0/server/src/managers/project/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
+	manager "scheduler0/server/src/managers/job"
+	jobTestFixtures "scheduler0/server/src/managers/job/fixtures"
+	"scheduler0/server/src/managers/project"
+	projectTestFixtures "scheduler0/server/src/managers/project/fixtures"
+	"scheduler0/server/src/utils"
 )
 
 func CreateJobAndProjectManagerFixture(pool *utils.Pool) (project.ProjectManager, manager.JobManager) {
@@ -32,4 +32,3 @@ func CreateJobAndProjectManagerFixture(pool *utils.Pool) (project.ProjectManager
 
 	return projectManager, jobManager
 }
-

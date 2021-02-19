@@ -4,18 +4,18 @@ import (
 	"github.com/go-http-utils/logger"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
-	"github.com/victorlenerd/scheduler0/server/src/controllers/credential"
-	"github.com/victorlenerd/scheduler0/server/src/controllers/execution"
-	"github.com/victorlenerd/scheduler0/server/src/controllers/job"
-	"github.com/victorlenerd/scheduler0/server/src/controllers/project"
-	"github.com/victorlenerd/scheduler0/server/src/db"
-	"github.com/victorlenerd/scheduler0/server/src/middlewares"
-	"github.com/victorlenerd/scheduler0/server/src/process"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"scheduler0/server/src/controllers/credential"
+	"scheduler0/server/src/controllers/execution"
+	"scheduler0/server/src/controllers/job"
+	"scheduler0/server/src/controllers/project"
+	"scheduler0/server/src/db"
+	"scheduler0/server/src/middlewares"
+	"scheduler0/server/src/process"
+	"scheduler0/server/src/utils"
 )
 
 func getDatabaseConnectionForEnvironment() (closer io.Closer, err error) {
@@ -72,15 +72,15 @@ func main() {
 	router.HandleFunc("/credentials/{uuid}", credentialController.DeleteOne).Methods(http.MethodDelete)
 
 	// Job Endpoint
-	router.HandleFunc("/jobs", jobController.CreateJob).Methods(http.MethodPost)
-	router.HandleFunc("/jobs", jobController.ListJobs).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{uuid}", jobController.GetAJob).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{uuid}", jobController.UpdateJob).Methods(http.MethodPut)
-	router.HandleFunc("/jobs/{uuid}", jobController.DeleteJob).Methods(http.MethodDelete)
+	router.HandleFunc("/jobs", jobController.CreateOne).Methods(http.MethodPost)
+	router.HandleFunc("/jobs", jobController.List).Methods(http.MethodGet)
+	router.HandleFunc("/jobs/{uuid}", jobController.GetOne).Methods(http.MethodGet)
+	router.HandleFunc("/jobs/{uuid}", jobController.UpdateOne).Methods(http.MethodPut)
+	router.HandleFunc("/jobs/{uuid}", jobController.DeleteOne).Methods(http.MethodDelete)
 
 	// Projects Endpoint
 	router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
-	router.HandleFunc("/projects", projectController.GetAll).Methods(http.MethodGet)
+	router.HandleFunc("/projects", projectController.List).Methods(http.MethodGet)
 	router.HandleFunc("/projects/{uuid}", projectController.GetOne).Methods(http.MethodGet)
 	router.HandleFunc("/projects/{uuid}", projectController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/projects/{uuid}", projectController.DeleteOne).Methods(http.MethodDelete)

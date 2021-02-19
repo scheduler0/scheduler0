@@ -4,18 +4,17 @@ import (
 	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/victorlenerd/scheduler0/server/src/controllers/execution"
-	managers "github.com/victorlenerd/scheduler0/server/src/managers/execution"
-	fixtures "github.com/victorlenerd/scheduler0/server/src/managers/execution/fixtures"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
-	"github.com/victorlenerd/scheduler0/server/tests"
 	"net/http"
 	"net/http/httptest"
+	"scheduler0/server/src/controllers/execution"
+	managers "scheduler0/server/src/managers/execution"
+	fixtures "scheduler0/server/src/managers/execution/fixtures"
+	"scheduler0/server/src/utils"
+	"scheduler0/server/tests"
 	"testing"
 )
 
-
-var _ = Describe("Execution Controller", func () {
+var _ = Describe("Execution Controller", func() {
 
 	BeforeEach(func() {
 		tests.Teardown()

@@ -5,18 +5,17 @@ import (
 	"github.com/gorilla/mux"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/victorlenerd/scheduler0/server/src/controllers/credential"
-	"github.com/victorlenerd/scheduler0/server/src/transformers"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
-	"github.com/victorlenerd/scheduler0/server/tests"
 	"net/http"
 	"net/http/httptest"
+	"scheduler0/server/src/controllers/credential"
+	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
+	"scheduler0/server/tests"
 	"strings"
 	"testing"
 )
 
-
-var _ = Describe("Credential Controller", func () {
+var _ = Describe("Credential Controller", func() {
 
 	BeforeEach(func() {
 		tests.Teardown()
@@ -24,7 +23,7 @@ var _ = Describe("Credential Controller", func () {
 	})
 
 	pool := tests.GetTestPool()
-	credentialController := credential.CredentialController{ Pool: pool}
+	credentialController := credential.CredentialController{Pool: pool}
 
 	It("Creating A New Credential", func() {
 		testCredential := transformers.Credential{HTTPReferrerRestriction: "*"}
@@ -46,7 +45,7 @@ var _ = Describe("Credential Controller", func () {
 		Expect(w.Code).To(Equal(http.StatusCreated))
 	})
 
-	It("Get All Credentials", func () {
+	It("Get All Credentials", func() {
 		req, err := http.NewRequest("GET", "/?limit=50&offset=0", nil)
 		if err != nil {
 			utils.Error(fmt.Sprintf("cannot create http request %v", err))
@@ -58,7 +57,7 @@ var _ = Describe("Credential Controller", func () {
 		Expect(w.Code).To(Equal(http.StatusOK))
 	})
 
-	It("Get One Credential", func () {
+	It("Get One Credential", func() {
 		testCredential := transformers.Credential{HTTPReferrerRestriction: "*"}
 		credentialManager := testCredential.ToManager()
 		_, err := credentialManager.CreateOne(pool)
@@ -90,7 +89,7 @@ var _ = Describe("Credential Controller", func () {
 		}
 		Expect(err).To(BeNil())
 
-		newHTTPReferrerRestriction :=  "http://scheduler0.com"
+		newHTTPReferrerRestriction := "http://scheduler0.com"
 		updateBody := transformers.Credential{HTTPReferrerRestriction: newHTTPReferrerRestriction}
 		jsonTestCredentialBody, err := updateBody.ToJson()
 		if err != nil {
@@ -111,7 +110,7 @@ var _ = Describe("Credential Controller", func () {
 		Expect(w.Code).To(Equal(http.StatusOK))
 	})
 
-	It("Delete One Credential", func () {
+	It("Delete One Credential", func() {
 		testCredential := transformers.Credential{HTTPReferrerRestriction: "*"}
 		credentialManager := testCredential.ToManager()
 		_, err := credentialManager.CreateOne(pool)

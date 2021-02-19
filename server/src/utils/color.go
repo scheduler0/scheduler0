@@ -3,8 +3,8 @@ package utils
 import "fmt"
 
 var (
-	Info = Teal
-	Warn = Yellow
+	Info  = Teal
+	Warn  = Yellow
 	Error = Red
 )
 

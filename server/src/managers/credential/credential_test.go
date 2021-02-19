@@ -4,9 +4,9 @@ import (
 	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/victorlenerd/scheduler0/server/src/managers/credential"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
-	"github.com/victorlenerd/scheduler0/server/tests"
+	"scheduler0/server/src/managers/credential"
+	"scheduler0/server/src/utils"
+	"scheduler0/server/tests"
 	"testing"
 )
 
@@ -88,12 +88,12 @@ var _ = Describe("Credential Manager", func() {
 		Expect(rowAffected == 1).To(BeTrue())
 	})
 
-	It("CredentialManager.GetAll", func() {
+	It("CredentialManager.List", func() {
 		credentialManager := credential.CredentialManager{}
 		credentials, err := credentialManager.GetAll(pool, 0, 100, "date_created")
 		Expect(err).To(BeNil())
 		if err != nil {
-			utils.Error(fmt.Sprintf("CredentialManager.GetAll::Error::%v", err.Error()))
+			utils.Error(fmt.Sprintf("CredentialManager.List::Error::%v", err.Error()))
 		}
 		Expect(len(credentials) > 0).To(BeTrue())
 	})

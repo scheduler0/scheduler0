@@ -2,7 +2,7 @@ package transformers
 
 import (
 	"encoding/json"
-	"github.com/victorlenerd/scheduler0/server/src/managers/credential"
+	"scheduler0/server/src/managers/credential"
 )
 
 type Credential struct {
@@ -28,8 +28,8 @@ func (credentialTransformer *Credential) FromJson(body []byte) error {
 
 func (credentialTransformer *Credential) ToManager() credential.CredentialManager {
 	credentialManager := credential.CredentialManager{
-		UUID: credentialTransformer.UUID,
-		ApiKey: credentialTransformer.ApiKey,
+		UUID:                    credentialTransformer.UUID,
+		ApiKey:                  credentialTransformer.ApiKey,
 		HTTPReferrerRestriction: credentialTransformer.HTTPReferrerRestriction,
 	}
 	return credentialManager

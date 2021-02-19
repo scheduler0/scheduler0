@@ -3,7 +3,7 @@ package transformers
 import (
 	"encoding/json"
 	"errors"
-	"github.com/victorlenerd/scheduler0/server/src/managers/job"
+	"scheduler0/server/src/managers/job"
 	"time"
 )
 
@@ -17,6 +17,13 @@ type Job struct {
 	CallbackUrl string `json:"callback_url"`
 	StartDate   string `json:"start_date,omitempty"`
 	EndDate     string `json:"end_date,omitempty"`
+}
+
+type PaginatedJobs struct {
+	Total  int   `json:"total"`
+	Offset int   `json:"offset"`
+	Limit  int   `json:"limit"`
+	Data   []Job `json:"jobs"`
 }
 
 func (jobTransformer *Job) FromJson(body []byte) error {
