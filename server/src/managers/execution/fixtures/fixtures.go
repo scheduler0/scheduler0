@@ -10,6 +10,7 @@ import (
 	"scheduler0/server/src/utils"
 )
 
+// CreateJobFixture creates a project and job for testing
 func CreateJobFixture(pool *utils.Pool) *job.JobManager {
 	projectFixture := fixtures3.ProjectFixture{}
 	err := faker.FakeData(&projectFixture)
@@ -36,8 +37,8 @@ func CreateJobFixture(pool *utils.Pool) *job.JobManager {
 
 	_, createJobManagerError := jobManager.CreateOne(pool)
 	if createJobManagerError != nil {
-		panic(errors.New(createJobManagerError.Message))
 		utils.Error(createJobManagerError.Message)
+		panic(errors.New(createJobManagerError.Message))
 	}
 
 	return &jobManager

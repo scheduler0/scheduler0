@@ -48,7 +48,7 @@ func Start(pool *utils.Pool) {
 
 		jobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
-		for _, jobTransformer := range jobTransformers {
+		for _, jobTransformer := range jobTransformers.Data {
 
 			err := cronJobs.AddFunc(jobTransformer.CronSpec, func() {
 				var response string
@@ -70,7 +70,7 @@ func Start(pool *utils.Pool) {
 				}
 
 				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
-				execution := execution2.ExecutionManager{
+				execution := execution2.Manager{
 					JobUUID:     jobTransformer.UUID,
 					Timeout:     timeout,
 					Response:    response,

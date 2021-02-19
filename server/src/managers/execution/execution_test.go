@@ -21,7 +21,7 @@ var _ = Describe("Execution Manager", func() {
 		tests.Teardown()
 		tests.Prepare()
 
-		executionManager := execution.ExecutionManager{}
+		executionManager := execution.Manager{}
 		_, err := executionManager.CreateOne(pool)
 		Expect(err).ToNot(BeNil())
 	})
@@ -31,7 +31,7 @@ var _ = Describe("Execution Manager", func() {
 		tests.Prepare()
 
 		jobManager := fixtures.CreateJobFixture(pool)
-		executionManager := execution.ExecutionManager{
+		executionManager := execution.Manager{
 			JobID:   jobManager.ID,
 			JobUUID: jobManager.UUID,
 		}
@@ -43,7 +43,7 @@ var _ = Describe("Execution Manager", func() {
 		tests.Teardown()
 		tests.Prepare()
 
-		executionManager := execution.ExecutionManager{UUID: "some-random-id"}
+		executionManager := execution.Manager{UUID: "some-random-id"}
 		count, err := executionManager.GetOne(pool)
 		Expect(err).To(BeNil())
 		Expect(count == 0).To(BeTrue())
@@ -54,14 +54,14 @@ var _ = Describe("Execution Manager", func() {
 		tests.Prepare()
 
 		jobManager := fixtures.CreateJobFixture(pool)
-		executionManager := execution.ExecutionManager{
+		executionManager := execution.Manager{
 			JobID:   jobManager.ID,
 			JobUUID: jobManager.UUID,
 		}
 		executionManagerUUID, err := executionManager.CreateOne(pool)
 		Expect(err).To(BeNil())
 
-		executionManager = execution.ExecutionManager{UUID: executionManagerUUID}
+		executionManager = execution.Manager{UUID: executionManagerUUID}
 		count, err := executionManager.GetOne(pool)
 		Expect(err).To(BeNil())
 
@@ -75,7 +75,7 @@ var _ = Describe("Execution Manager", func() {
 		jobManager := fixtures.CreateJobFixture(pool)
 
 		for i := 0; i < 1000; i++ {
-			executionManager := execution.ExecutionManager{
+			executionManager := execution.Manager{
 				JobID:   jobManager.ID,
 				JobUUID: jobManager.UUID,
 			}
@@ -88,7 +88,7 @@ var _ = Describe("Execution Manager", func() {
 			}
 		}
 
-		manager := execution.ExecutionManager{}
+		manager := execution.Manager{}
 
 		executions, err := manager.List(pool, jobManager.UUID, 0, 100, "date_created")
 		if err != nil {

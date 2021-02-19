@@ -12,7 +12,7 @@ type ExecutionService Service
 
 // GetAllExecutionsByJobUUID returns a paginated executions result set
 func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID string, offset int, limit int) (*transformers.PaginatedExecutions, *utils.GenericError) {
-	manager := execution.ExecutionManager{}
+	manager := execution.Manager{}
 
 	count, getCountError := manager.Count(executionService.Pool, jobUUID)
 	if getCountError != nil {

@@ -48,7 +48,7 @@ func main() {
 	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
-	executionController := execution.ExecutionController{Pool: pool}
+	executionController := execution.Controller{Pool: pool}
 	jobController := job.JobController{Pool: pool}
 	projectController := project.ProjectController{Pool: pool}
 	credentialController := credential.CredentialController{Pool: pool}

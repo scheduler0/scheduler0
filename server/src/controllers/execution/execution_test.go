@@ -21,12 +21,12 @@ var _ = Describe("Execution Controller", func() {
 		tests.Prepare()
 	})
 
-	executionsController := execution.ExecutionController{}
+	executionsController := execution.Controller{}
 	pool := tests.GetTestPool()
 
 	It("Get All Returns 0 Count and Empty Set", func() {
 		Job := fixtures.CreateJobFixture(pool)
-		executionManager := managers.ExecutionManager{
+		executionManager := managers.Manager{
 			JobUUID: Job.UUID,
 		}
 
@@ -44,6 +44,7 @@ var _ = Describe("Execution Controller", func() {
 
 		w := httptest.NewRecorder()
 		executionsController.List(w, req)
+
 
 		Expect(w.Code).To(Equal(http.StatusOK))
 	})

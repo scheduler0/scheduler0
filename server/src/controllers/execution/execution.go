@@ -8,9 +8,11 @@ import (
 	"strconv"
 )
 
-type ExecutionController controllers.Controller
+// Controller handlers all incoming http requests for /executions
+type Controller controllers.Controller
 
-func (executionController *ExecutionController) List(w http.ResponseWriter, r *http.Request) {
+// List request handler that returns paginated executions result set
+func (executionController *Controller) List(w http.ResponseWriter, r *http.Request) {
 	executionService := service.ExecutionService{Pool: executionController.Pool, Ctx: r.Context()}
 
 	offset := 0
@@ -49,7 +51,7 @@ func (executionController *ExecutionController) List(w http.ResponseWriter, r *h
 	executions, getError := executionService.GetAllExecutionsByJobUUID(jobID, offset, limit)
 
 	if getError != nil {
-		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+		utils.SendJson(w, getError.Message, false, http.StatusBadRequest, nil)
 	} else {
 		utils.SendJson(w, executions, true, http.StatusOK, nil)
 	}
