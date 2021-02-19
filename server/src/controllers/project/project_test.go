@@ -32,11 +32,11 @@ var _ = Describe("Project Controller", func() {
 
 	It("Cannot create a project without name and description", func() {
 		projectTransformer := transformers.Project{}
-		projectOneJson, err := projectTransformer.ToJson()
+		projectOneJSON, err := projectTransformer.ToJson()
 		utils.CheckErr(err)
-		projectOneJsonStr := strings.NewReader(string(projectOneJson))
+		projectOneJSONStr := strings.NewReader(string(projectOneJSON))
 
-		if req, err := http.NewRequest("POST", "/projects", projectOneJsonStr); err != nil {
+		if req, err := http.NewRequest("POST", "/projects", projectOneJSONStr); err != nil {
 			utils.Error("Request failed %v", err)
 		} else {
 			w := httptest.NewRecorder()
@@ -55,11 +55,11 @@ var _ = Describe("Project Controller", func() {
 			Description: project.Description,
 		}
 
-		projectJson, err := projectTransformer.ToJson()
+		projectJSON, err := projectTransformer.ToJson()
 		utils.CheckErr(err)
-		projectJsonStr := strings.NewReader(string(projectJson))
+		projectJSONStr := strings.NewReader(string(projectJSON))
 
-		if req, err := http.NewRequest("POST", "/projects", projectJsonStr); err != nil {
+		if req, err := http.NewRequest("POST", "/projects", projectJSONStr); err != nil {
 			utils.Error("Request failed %v", err)
 		} else {
 			w := httptest.NewRecorder()
@@ -96,11 +96,11 @@ var _ = Describe("Project Controller", func() {
 		_, createOneProjectError := projectManager.CreateOne(pool)
 		Expect(createOneProjectError).To(BeNil())
 
-		projectJson, err := projectTransformer.ToJson()
+		projectJSON, err := projectTransformer.ToJson()
 		Expect(err).To(BeNil())
-		projectJsonStr := strings.NewReader(string(projectJson))
+		projectJSONStr := strings.NewReader(string(projectJSON))
 
-		if req, err := http.NewRequest("POST", "/projects", projectJsonStr); err != nil {
+		if req, err := http.NewRequest("POST", "/projects", projectJSONStr); err != nil {
 			utils.Error("\t\t Request failed %v", err)
 		} else {
 			w := httptest.NewRecorder()
@@ -158,15 +158,15 @@ var _ = Describe("Project Controller", func() {
 			utils.Error(createOneError.Message)
 		}
 
-		projectJson, err := projectTransformer.ToJson()
+		projectJSON, err := projectTransformer.ToJson()
 		Expect(err).To(BeNil())
 		if err != nil {
 			utils.Error(err.Error())
 		}
-		projectJsonStr := strings.NewReader(string(projectJson))
-		utils.Error("projectOneJsonStr", projectJsonStr)
+		projectJSONStr := strings.NewReader(string(projectJSON))
+		utils.Error("projectOneJSONStr", projectJSONStr)
 
-		if req, err := http.NewRequest("PUT", "/projects/"+projectOneManager.UUID, projectJsonStr); err != nil {
+		if req, err := http.NewRequest("PUT", "/projects/"+projectOneManager.UUID, projectJSONStr); err != nil {
 			utils.Error("\t\t request failed %v", err)
 		} else {
 			w := httptest.NewRecorder()
@@ -209,12 +209,12 @@ var _ = Describe("Project Controller", func() {
 			Description: project.Description,
 		}
 
-		projectJson, err := projectTransformer.ToJson()
+		projectJSON, err := projectTransformer.ToJson()
 		utils.Error(err)
 		Expect(err).To(BeNil())
-		projectJsonStr := strings.NewReader(string(projectJson))
+		projectJSONStr := strings.NewReader(string(projectJSON))
 
-		if req, err := http.NewRequest("PUT", "/projects/"+projectOneManagerUUID, projectJsonStr); err != nil {
+		if req, err := http.NewRequest("PUT", "/projects/"+projectOneManagerUUID, projectJSONStr); err != nil {
 			Expect(err).To(BeNil())
 			utils.Error(fmt.Sprintf("Request failed %v", err))
 		} else {
@@ -238,7 +238,7 @@ var _ = Describe("Project Controller", func() {
 			utils.Error("\t\t Request failed %v", err)
 		} else {
 			w := httptest.NewRecorder()
-			projectController.GetAll(w, req)
+			projectController.List(w, req)
 			if _, err := ioutil.ReadAll(w.Body); err != nil {
 				utils.Error(err.Error())
 				Expect(err).To(BeNil())

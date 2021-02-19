@@ -7,9 +7,11 @@ import (
 	"scheduler0/server/src/utils"
 )
 
+// ExecutionService performs main business logic for executions
 type ExecutionService Service
 
-func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID string, offset int, limit int) ([]transformers.Execution, *utils.GenericError) {
+// GetAllExecutionsByJobUUID returns a paginated executions result set
+func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID string, offset int, limit int) (*transformers.PaginatedExecutions, *utils.GenericError) {
 	manager := execution.ExecutionManager{}
 
 	count, getCountError := manager.Count(executionService.Pool, jobUUID)
@@ -29,10 +31,16 @@ func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID stri
 	executions := make([]transformers.Execution, 0, len(executionManagers))
 
 	for _, executionManager := range executionManagers {
-		execution := transformers.Execution{}
-		execution.FromManager(executionManager)
-		executions = append(executions, execution)
+		executionTransformer := transformers.Execution{}
+		executionTransformer.FromManager(executionManager)
+		executions = append(executions, executionTransformer)
 	}
 
-	return executions, nil
+	paginatedExecutions := transformers.PaginatedExecutions{}
+	paginatedExecutions.Data = executions
+	paginatedExecutions.Total = count
+	paginatedExecutions.Offset = offset
+	paginatedExecutions.Limit = limit
+
+	return &paginatedExecutions, nil
 }

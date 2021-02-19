@@ -30,9 +30,9 @@ var _ = Describe("Execution Controller", func() {
 			JobUUID: Job.UUID,
 		}
 
-		_, err := executionManager.CreateOne(pool)
-		if err != nil {
-			utils.Error(fmt.Sprintf("Cannot create execution %v", err))
+		_, createOneError := executionManager.CreateOne(pool)
+		if createOneError != nil {
+			utils.Error(fmt.Sprintf("Cannot create execution %v", createOneError.Message))
 		}
 
 		executionsController.Pool = pool
