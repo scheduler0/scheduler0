@@ -1,16 +1,28 @@
 package service
 
 import (
+	"fmt"
 	"net/http"
 	"scheduler0/server/src/managers/job"
 	"scheduler0/server/src/transformers"
 	"scheduler0/server/src/utils"
 )
 
+// JobService handles the business logic for jobs
 type JobService Service
 
-func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset int, limit int, orderBy string) ([]transformers.Job, *utils.GenericError) {
+// GetJobsByProjectUUID returns a paginated set of jobs for a project
+func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset int, limit int, orderBy string) (*transformers.PaginatedJobs, *utils.GenericError) {
 	jobManager := job.JobManager{}
+
+	count, getCountError := jobManager.GetJobsTotalCountByProjectID(jobService.Pool, projectUUID)
+	if getCountError != nil {
+		return nil, getCountError
+	}
+
+	if count < offset {
+		return nil, utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("there are %v jobs which is less than %v", count, offset))
+	}
 
 	jobManagers, err := jobManager.GetAll(jobService.Pool, projectUUID, offset, limit, orderBy)
 	if err != nil {
@@ -25,9 +37,16 @@ func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset in
 		jobs = append(jobs, jobsTransformer)
 	}
 
-	return jobs, nil
+	paginatedJobs := transformers.PaginatedJobs{}
+	paginatedJobs.Data = jobs
+	paginatedJobs.Limit = limit
+	paginatedJobs.Total = count
+	paginatedJobs.Offset = offset
+
+	return &paginatedJobs, nil
 }
 
+// GetJob returns a job with UUID that matched UUID of transformer
 func (jobService *JobService) GetJob(job transformers.Job) (*transformers.Job, *utils.GenericError) {
 	jobManager, err := job.ToManager()
 	if err != nil {
@@ -44,6 +63,7 @@ func (jobService *JobService) GetJob(job transformers.Job) (*transformers.Job, *
 	return &job, nil
 }
 
+// CreateJob creates a new job based on values in transformer object
 func (jobService *JobService) CreateJob(job transformers.Job) (*transformers.Job, *utils.GenericError) {
 	jobManager, err := job.ToManager()
 	if err != nil {
@@ -62,6 +82,7 @@ func (jobService *JobService) CreateJob(job transformers.Job) (*transformers.Job
 	return &job, nil
 }
 
+// UpdateJob updates job with UUID in transformer. Note that cron expression of job cannot be updated.
 func (jobService *JobService) UpdateJob(job transformers.Job) (*transformers.Job, *utils.GenericError) {
 	jobManager, err := job.ToManager()
 	if err != nil {
@@ -78,6 +99,8 @@ func (jobService *JobService) UpdateJob(job transformers.Job) (*transformers.Job
 	return &job, nil
 }
 
+
+// DeleteJob deletes a job with UUID in transformer
 func (jobService *JobService) DeleteJob(jobTransformer transformers.Job) *utils.GenericError {
 	jobManager := job.JobManager{
 		UUID: jobTransformer.UUID,
