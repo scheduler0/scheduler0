@@ -34,16 +34,16 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o main .
+RUN go build -o scheduler0 .
 
 WORKDIR /dist
 
-RUN cp /build/main .
+RUN cp /build/scheduler0 .
 
 FROM scratch
 
-COPY --from=builder /dist/main /
+COPY --from=builder /dist/scheduler0 /
 
 EXPOSE 8080
 
-ENTRYPOINT ["/main"]
+CMD ["/scheduler0", "start"]

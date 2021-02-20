@@ -26,6 +26,7 @@ services:
       POSTGRES_PASSWORD: postgres
       BASIC_AUTH_USER: admin
       BASIC_AUTH_PASS: admin
+      PORT: 4321
     networks:
       - default
 

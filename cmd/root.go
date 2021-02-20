@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"github.com/spf13/cobra"
 )
 
@@ -14,13 +13,12 @@ Read more documentation on https://scheduler0.com
 	Args:      cobra.OnlyValidArgs,
 	ValidArgs: []string{"help", "version", "update", "setup", "help", "start", "deploy"},
 	Run: func(cmd *cobra.Command, args []string) {
-		// Do Stuff Here
-		fmt.Println("Stuffs")
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(VersionCmd)
+	rootCmd.AddCommand(StartCmd)
 	rootCmd.AddCommand(SetupCmd)
 	rootCmd.AddCommand(InitCmd)
 }
