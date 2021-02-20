@@ -32,7 +32,7 @@ COPY go.mod .
 COPY go.sum .
 RUN go mod download
 
-COPY ../server .
+COPY . .
 
 RUN go build -o main .
 

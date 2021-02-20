@@ -7,15 +7,15 @@ RUN mkdir -p /usr/src/client
 WORKDIR /usr/src/client
 
 # Install app dependencies
-COPY package.json /usr/src/client/
+COPY ../../client/package.json /usr/src/client/
 RUN npm install
 
 # Bundle app source
-COPY src /usr/src/client/src
-COPY webpack.config.js /usr/src/client/
-COPY config.prod.js /usr/src/client/
-COPY tsconfig.json /usr/src/client/
-COPY babel-node.config.js /usr/src/client/
+COPY ../../client/src /usr/src/client/src
+COPY ../../client/webpack.config.js /usr/src/client/
+COPY ../../client/config.prod.js /usr/src/client/
+COPY ../../client/tsconfig.json /usr/src/client/
+COPY ../../client/babel-node.config.js /usr/src/client/
 
 ENV PORT $PORT
 ENV API_ENDPOINT $API_ENDPOINT

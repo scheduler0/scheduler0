@@ -3,19 +3,10 @@ FROM node:13
 MAINTAINER Victor Nwaokocha
 
 # Create app directory
-RUN mkdir -p /usr/src/client
-WORKDIR /usr/src/client
+WORKDIR /client
 
 # Install app dependencies
-COPY package.json /usr/src/client/
-
-# Bundle app source
-COPY src /usr/src/client/src
-COPY .babelrc /usr/src/client/
-COPY webpack.config.js /usr/src/client/
-COPY config.prod.js /usr/src/client/
-COPY tsconfig.json /usr/src/client/
-COPY babel-node.config.js /usr/src/client/
+COPY client .
 
 ARG PORT
 ARG API_ENDPOINT

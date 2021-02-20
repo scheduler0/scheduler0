@@ -5,7 +5,7 @@ services:
   server:
     build:
       context: ../
-      dockerfile: ./docker/Dockerfile.server-test
+      dockerfile: ./docker/server/Dockerfile.server-test
       network: host
       args:
         PORT: 4321
