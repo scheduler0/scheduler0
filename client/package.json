@@ -68,6 +68,9 @@
   "resolutions": {
     "node-fetch": "2.6.1"
   },
+  "peerDependencies": {
+    "node-fetch": "2.6.1"
+  },
   "scripts": {
     "bnode": "babel-node --inspect=0.0.0.0 --extensions '.ts,.tsx' src/server.tsx",
     "start": "NODE_ENV=\"development\" concurrently \"npm run dev-server\" \"npm run dev-bundle\"",
