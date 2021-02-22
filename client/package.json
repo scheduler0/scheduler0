@@ -65,6 +65,9 @@
     "webpack-cli": "^3.3.9",
     "webpack-node-externals": "^1.7.2"
   },
+  "resolutions": {
+    "node-fetch": "^2.6.1"
+  },
   "scripts": {
     "bnode": "babel-node --inspect=0.0.0.0 --extensions '.ts,.tsx' src/server.tsx",
     "start": "NODE_ENV=\"development\" concurrently \"npm run dev-server\" \"npm run dev-bundle\"",
