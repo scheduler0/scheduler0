@@ -1,10 +1,9 @@
-import React, {useCallback, useEffect, useState} from "react";
+import React, {useCallback} from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import theme from '../../theme';
 import {ICredential} from "../../redux/credential";
 import CredentialListItem from "./creadentialListItem";
 import Box from "@material-ui/core/Box";
-import {Typography} from "@material-ui/core";
 import Button from "@material-ui/core/Button";
 import {FormMode} from "./index";
 import Table from "@material-ui/core/Table";
@@ -12,6 +11,7 @@ import TableHead from "@material-ui/core/TableHead";
 import TableRow from "@material-ui/core/TableRow";
 import TableCell from "@material-ui/core/TableCell";
 import TableBody from "@material-ui/core/TableBody";
+import TableContainer from "@material-ui/core/TableContainer";
 
 interface IProps {
     credentials: ICredential[]
@@ -23,7 +23,9 @@ interface IProps {
 
 const useStyles = makeStyles(theme => ({
     root: {},
-    container: {},
+    container: {
+        maxHeight: 'calc(100vh - 180px)',
+    },
     header: {
         marginTop: '50px',
         height: '50px',
@@ -55,30 +57,32 @@ function CredentialList(props: IProps) {
                     setMode(FormMode.Create);
                 }}>Create New Key</Button>
             </Box>
-            <Table>
-                <TableHead>
-                    <TableRow>
-                        <TableCell>API Key</TableCell>
-                        <TableCell align="right">HTTP Referral Restriction</TableCell>
-                        <TableCell align="right"></TableCell>
-                        <TableCell align="right"></TableCell>
-                        <TableCell align="right"></TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {credentials.map((credential, index) => (
-                        <CredentialListItem
-                            key={`credential-${index}`}
-                            credential={credential}
-                            onDelete={handleDelete}
-                            setCurrentCredentialId={() => {
-                                setCurrentCredentialId(credential.id);
-                                setMode(FormMode.Edit);
-                            }}
-                        />
-                    ))}
-                </TableBody>
-            </Table>
+            <TableContainer className={classes.container}>
+                <Table stickyHeader>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>API Key</TableCell>
+                            <TableCell align="right">HTTP Referral Restriction</TableCell>
+                            <TableCell align="right"/>
+                            <TableCell align="right"/>
+                            <TableCell align="right"/>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {credentials.map((credential, index) => (
+                            <CredentialListItem
+                                key={`credential-${index}`}
+                                credential={credential}
+                                onDelete={handleDelete}
+                                setCurrentCredentialId={() => {
+                                    setCurrentCredentialId(credential.uuid);
+                                    setMode(FormMode.Edit);
+                                }}
+                            />
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
         </div>
     );
 }

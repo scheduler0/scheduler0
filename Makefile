@@ -10,7 +10,7 @@ build:
 
 test_cli:
 	go build scheduler0.go
-	./scheduler0 init
+	./scheduler0 start
 
 circle_ci_yaml_validation:
 	brew upgrade circleci

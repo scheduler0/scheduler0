@@ -11,6 +11,13 @@ type Credential struct {
 	HTTPReferrerRestriction string `json:"http_referrer_restriction"`
 }
 
+type PaginatedCredential struct {
+	Total  int          `json:"total"`
+	Offset int          `json:"offset"`
+	Limit  int          `json:"limit"`
+	Data   []Credential `json:"credentials"`
+}
+
 func (credentialTransformer *Credential) ToJson() ([]byte, error) {
 	if data, err := json.Marshal(credentialTransformer); err != nil {
 		return data, err

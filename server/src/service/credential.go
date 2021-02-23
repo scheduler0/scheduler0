@@ -1,8 +1,10 @@
 package service
 
 import (
+	"net/http"
 	"scheduler0/server/src/managers/credential"
 	"scheduler0/server/src/transformers"
+	"scheduler0/server/src/utils"
 )
 
 type CredentialService Service
@@ -49,17 +51,32 @@ func (credentialService *CredentialService) DeleteOneCredential(UUID string) (*t
 	}
 }
 
-func (credentialService *CredentialService) ListCredentials(offset int, limit int, orderBy string) ([]transformers.Credential, error) {
+func (credentialService *CredentialService) ListCredentials(offset int, limit int, orderBy string) (*transformers.PaginatedCredential, *utils.GenericError) {
 	credentialManager := credential.CredentialManager{}
-	if credentials, err := credentialManager.GetAll(credentialService.Pool, offset, limit, orderBy); err != nil {
+
+	total, err := credentialManager.Count(credentialService.Pool)
+	if err != nil {
+		return nil, err
+	}
+
+	if total < 1 {
+		return  nil, utils.HTTPGenericError(http.StatusNotFound, "there no credentials")
+	}
+
+	if credentialManagers, err := credentialManager.GetAll(credentialService.Pool, offset, limit, orderBy); err != nil {
 		return nil, err
 	} else {
-		outboundDto := make([]transformers.Credential, len(credentials))
+		credentialTransformers := make([]transformers.Credential, len(credentialManagers))
 
-		for i, credential := range credentials {
-			outboundDto[i].FromManager(credential)
+		for i, credentialManager := range credentialManagers {
+			credentialTransformers[i].FromManager(credentialManager)
 		}
 
-		return outboundDto, nil
+		return &transformers.PaginatedCredential{
+			Data: credentialTransformers,
+			Total: total,
+			Offset: offset,
+			Limit: limit,
+		}, nil
 	}
 }

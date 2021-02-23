@@ -1,4 +1,3 @@
-// @ts-ignore:
 import express from "express";
 import axiosInstance from "../misc/axiosInstance";
 
@@ -6,13 +5,14 @@ export const generateRouter = (pathName: string) => {
     const router = express.Router();
 
     router.route("/")
-        .post((req, res) => {
-            axiosInstance
-                .post(`/${pathName}`, req.body)
+        .post(async (req, res) => {
+            await axiosInstance
+                .post(`${pathName}`, req.body)
                 .then((resp) => {
                     res.status(resp.status).send(resp.data);
                 }).catch((e) => {
-                res.status(e.response.status).send(e.response.data);
+                    console.log(e.stack)
+                res.status(e?.response?.status ?? 500).send(e?.response?.data ?? e);
             });
         })
         .get(async (_, res) => {

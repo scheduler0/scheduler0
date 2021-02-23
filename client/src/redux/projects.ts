@@ -16,11 +16,22 @@ export enum ProjectActions {
 
 const defaultState = {
     projects: [],
+    offset: 0,
+    limit: 100,
+    total: 0,
     currentProjectId: null
 };
 
+
+export type Paginated<T> = {
+    total: number,
+    offset: number,
+    limit: number,
+    data: T[]
+}
+
 export const {setProjects, setCurrentProjectId} = createActions({
-    [ProjectActions.SET_PROJECTS]: (projects = []) => ({ projects }),
+    [ProjectActions.SET_PROJECTS]: ( data: Paginated<IProject>) => (data),
     [ProjectActions.SET_CURRENT_PROJECT_ID]: (id: string) => ({ id })
 });
 
@@ -33,9 +44,11 @@ export const projectsReducer = handleActions({
     }
 }, defaultState);
 
-export const FetchProjects = () => async (dispatch) => {
+export const FetchProjects = () => async (dispatch, getState) => {
+    const { ProjectsReducer: { offset, limit } } = getState()
+
     try {
-        const { data: { data: projects, success } } = await axios.get('/projects');
+        const { data: { data: projects, success } } = await axios.get(`/projects?offset=${offset}&limit=${limit}`);
         if (success) {
             dispatch(setProjects(projects));
         }

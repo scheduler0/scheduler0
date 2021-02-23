@@ -100,8 +100,10 @@ func SendJson(w http.ResponseWriter, data interface{}, success bool, status int,
 	}
 
 	w.WriteHeader(status)
-	_, err := w.Write(resObj.ToJson())
-	CheckErr(err)
+	if status != http.StatusNoContent {
+		_, err := w.Write(resObj.ToJson())
+		CheckErr(err)
+	}
 }
 
 func CheckErr(e error) {

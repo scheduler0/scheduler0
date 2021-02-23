@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' });
 
 const path = require("path");
 const webpack = require('webpack');
@@ -60,7 +60,8 @@ module.exports = {
                 NODE_ENV: JSON.stringify(process.env.NODE_ENV),
                 PORT: JSON.stringify(process.env.PORT),
                 API_ENDPOINT: JSON.stringify(process.env.API_ENDPOINT),
-
+                BASIC_AUTH_USER: JSON.stringify(process.env.BASIC_AUTH_USER),
+                BASIC_AUTH_PASS: JSON.stringify(process.env.BASIC_AUTH_PASS),
             }
         }),
     ],

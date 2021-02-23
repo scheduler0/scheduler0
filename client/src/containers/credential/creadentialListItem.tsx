@@ -56,7 +56,7 @@ const CredentialListItem = (props: IProps) => {
             </TableCell>
             <TableCell align="right">
                 <Tooltip title="Delete">
-                    <IconButton onClick={() => onDelete(credential.id)}>
+                    <IconButton onClick={() => onDelete(credential.uuid)}>
                         <DeleteIcon />
                     </IconButton>
                 </Tooltip>

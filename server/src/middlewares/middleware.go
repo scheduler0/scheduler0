@@ -35,12 +35,14 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 			username, password := utils.GetAuthentication()
 			user, pass, passBasicAuth := r.BasicAuth()
 
+            isAdmin := false
+
 			// Check for basic authentication
-			if !passBasicAuth || subtle.ConstantTimeCompare([]byte(user), []byte(username)) != 1 || subtle.ConstantTimeCompare([]byte(pass), []byte(password)) != 1 {
-				passBasicAuth = false
+			if passBasicAuth && subtle.ConstantTimeCompare([]byte(user), []byte(username)) == 1 && subtle.ConstantTimeCompare([]byte(pass), []byte(password)) == 1 {
+				isAdmin = true
 			}
 
-			if passBasicAuth == false {
+			if !isAdmin {
 				credentialManager := credential.CredentialManager{}
 
 				// Check for api key

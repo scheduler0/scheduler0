@@ -133,10 +133,10 @@ func (credentialController *CredentialController) List(w http.ResponseWriter, r 
 		return
 	}
 
-	credentials, err := credentialService.ListCredentials(offset, limit, orderBy)
+	credentials, listCredentialError := credentialService.ListCredentials(offset, limit, orderBy)
 
-	if err != nil {
-		utils.SendJson(w, err.Error(), false, http.StatusBadRequest, nil)
+	if listCredentialError != nil {
+		utils.SendJson(w, listCredentialError.Message, false, listCredentialError.Type, nil)
 		return
 	} else {
 		utils.SendJson(w, credentials, true, http.StatusOK, nil)

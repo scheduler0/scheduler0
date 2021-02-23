@@ -1,13 +1,10 @@
-require('dotenv').config();
+require('dotenv').config({ path: '../.env' });
 
-// @ts-ignore
 import path from 'path';
-// @ts-ignore
 import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 
-// @ts-ignore
 import bodyParser from "body-parser";
 import axios from 'axios';
 import { serverRender } from './renderers/server';
@@ -17,7 +14,6 @@ import credentialRouter from "./routers/credential";
 import projectRouter from "./routers/project";
 import jobRouter from "./routers/job";
 
-// @ts-ignore
 import webpack from 'webpack';
 import webpackDevMiddleware from 'webpack-dev-middleware';
 
@@ -30,6 +26,8 @@ const isDev = process.env.NODE_ENV === 'development';
 const API_ENDPOINT = process.env.API_ENDPOINT;
 const username = process.env.BASIC_AUTH_USER;
 const password = process.env.BASIC_AUTH_PASS;
+
+console.log({ API_ENDPOINT })
 
 const axiosInstance = axios.create({
     baseURL: API_ENDPOINT,
@@ -58,8 +56,8 @@ app.use(bodyParser.json());
 
 app.get("(/|/projects|/jobs|/credentials)", async (req, res) => {
     // TODO: Only make fetch page user is visiting
-    const fetchCredentials = axiosInstance.get(`${API_ENDPOINT}/credentials?limit=0&offset=50`);
-    const fetchProjects = axiosInstance.get(`${API_ENDPOINT}/projects?limit=0&offset=50`);
+    const fetchCredentials = axiosInstance.get(`credentials?limit=100&offset=0`);
+    const fetchProjects = axiosInstance.get(`projects?limit=100&offset=0`);
 
     let credentials = null;
     let projects = null;
@@ -69,14 +67,12 @@ app.get("(/|/projects|/jobs|/credentials)", async (req, res) => {
             fetchCredentials,
             fetchProjects,
         ]);
-
-        credentials = Array.isArray(credentials.data.data) ? credentials.data.data : [];
-        projects = Array.isArray(projects.data.data) ? projects.data.data : [];
     } catch (e) {
-        console.error(e)
+        console.error(e?.response?.data)
+        console.error(e?.stack)
     }
 
-    res.send(serverRender({ credentials, projects, jobs: [], executions: [] }, req.url))
+    res.send(serverRender({ credentials: credentials?.data ?? {}, projects: projects?.data ?? {}}, req.url))
 });
 
 app.use('/api/executions', executionsRouter);

@@ -90,14 +90,14 @@ func SeedDatabase(pool *utils.Pool) {
 
 	credentials, err := credentialManager.GetAll(pool, 0, 1, "date_created")
 	if err != nil {
-		panic(err)
+		panic(err.Message)
 	}
 
 	if len(credentials) < 1 {
 		credentialManager.HTTPReferrerRestriction = "*"
-		_, err = credentialManager.CreateOne(pool)
-		if err != nil {
-			panic(err)
+		_, createCredentialError := credentialManager.CreateOne(pool)
+		if createCredentialError != nil {
+			panic(createCredentialError)
 		}
 	}
 }

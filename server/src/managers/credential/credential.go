@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
+	"net/http"
 	"scheduler0/server/src/models"
 	"scheduler0/server/src/utils"
 )
@@ -72,29 +73,47 @@ func (credentialManager *CredentialManager) GetByAPIKey(pool *utils.Pool) error 
 	return nil
 }
 
-func (credentialManager *CredentialManager) GetAll(pool *utils.Pool, offset int, limit int, orderBy string) ([]CredentialManager, error) {
+func (credentialManager *CredentialManager) Count(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
 	if err != nil {
-		return []CredentialManager{}, err
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
-
-	credentials := []CredentialManager{}
 
 	db := conn.(*pg.DB)
 
-	err = db.Model(&credentials).
+	count, err := db.Model(credentialManager).Count()
+	if err != nil {
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	return count, nil
+}
+
+func (credentialManager *CredentialManager) GetAll(pool *utils.Pool, offset int, limit int, orderBy string) ([]CredentialManager, *utils.GenericError) {
+	conn, err := pool.Acquire()
+	defer pool.Release(conn)
+
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	credentialManagers := []CredentialManager{}
+
+	db := conn.(*pg.DB)
+
+	err = db.Model(&credentialManagers).
 		Order(orderBy).
 		Offset(offset).
 		Limit(limit).
 		Select()
 
 	if err != nil {
-		return nil, err
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	return credentials, nil
+	return credentialManagers, nil
 }
 
 func (credentialManager *CredentialManager) UpdateOne(pool *utils.Pool) (int, error) {

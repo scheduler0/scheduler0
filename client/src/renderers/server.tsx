@@ -7,10 +7,8 @@ import { Provider } from "react-redux";
 import CreateStore from "../redux/store";
 import { StaticRouter } from "react-router-dom";
 
-import {setJobs} from '../redux/jobs'
 import {setCredentials} from '../redux/credential';
 import {setProjects} from "../redux/projects";
-import {setExecutions} from "../redux/executions";
 
 const htmlString = (body, css, data) => `
 <!DOCTYPE html>
@@ -54,10 +52,8 @@ export const serverRender = (initialData, url) => {
     const sheets = new ServerStyleSheets();
     const store = CreateStore({});
 
-    store.dispatch(setCredentials(initialData.credentials));
-    store.dispatch(setProjects(initialData.projects));
-    store.dispatch(setJobs(initialData.jobs));
-    store.dispatch(setExecutions(initialData.executions));
+    store.dispatch(setCredentials(initialData.credentials.data));
+    store.dispatch(setProjects(initialData.projects.data));
 
     const html = ReactDOMServer.renderToString(
         sheets.collect(
