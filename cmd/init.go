@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/manifoldco/promptui"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
-	"io/ioutil"
 	"os"
 )
 
@@ -38,7 +38,13 @@ var InitCmd = &cobra.Command{
 		if err != nil {
 			panic(fmt.Errorf("Fatal error config file: %s \n", err))
 		}
-		err = ioutil.WriteFile(fmt.Sprintf("%v/.scheduler0", os.Getenv("HOME")), configByte, os.ModeAppend)
+		fs := afero.NewOsFs()
+		file, err := fs.Create(fmt.Sprintf("%v/.scheduler0", os.Getenv("HOME")))
+		if err != nil {
+			panic(fmt.Errorf("Fatal unable to save scheduler 0: %s \n", err))
+		}
+
+		_, err = file.Write(configByte)
 		if err != nil {
 			panic(fmt.Errorf("Fatal unable to save scheduler 0: %s \n", err))
 		}
