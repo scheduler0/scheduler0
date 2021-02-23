@@ -22,7 +22,7 @@ var (
 func Color(colorString string) func(...interface{}) string {
 	sprint := func(args ...interface{}) string {
 		str := fmt.Sprintf(colorString, fmt.Sprint(args...))
-		fmt.Printf(str)
+		fmt.Println(str)
 		return str
 	}
 	return sprint
