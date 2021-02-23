@@ -63,7 +63,7 @@ export const CreateCredential = (credential: Partial<ICredential>) => async (dis
     }
 };
 
-export const UpdateCredential = (credential: Partial<Credential>) => async (dispatch, getState) => {
+export const UpdateCredential = (credential: Partial<ICredential>) => async (dispatch, getState) => {
     const state = getState();
     const { CredentialsReducer: { credentials, currentCredentialId } } = state;
     const credentialIndex = credentials.findIndex(({ uuid: credentialId }) => credentialId == currentCredentialId);
