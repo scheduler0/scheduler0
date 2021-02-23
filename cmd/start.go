@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/cobra"
-	"scheduler0/server"
+	server "scheduler0/server/src"
 )
 
 var StartCmd = &cobra.Command{
