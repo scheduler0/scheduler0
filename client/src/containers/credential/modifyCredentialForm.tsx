@@ -1,4 +1,3 @@
-// @ts-ignore:
 import React, {useCallback, useEffect, useState} from "react";
 import {connect} from "react-redux";
 import {CreateCredential, ICredential, UpdateCredential} from "../../redux/credential";

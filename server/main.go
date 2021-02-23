@@ -1,4 +1,4 @@
-package server
+package main
 
 import (
 	"github.com/go-http-utils/logger"
@@ -88,4 +88,8 @@ func Start() {
 	log.Println("Server is running on port", utils.GetPort(), utils.GetClientHost())
 	err = http.ListenAndServe(utils.GetPort(), logger.Handler(router, os.Stdout, logger.DevLoggerType))
 	utils.CheckErr(err)
+}
+
+func main()  {
+	Start()
 }
