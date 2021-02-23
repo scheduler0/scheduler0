@@ -93,7 +93,7 @@ var _ = Describe("Credential Manager", func() {
 		credentials, err := credentialManager.GetAll(pool, 0, 100, "date_created")
 		Expect(err).To(BeNil())
 		if err != nil {
-			utils.Error(fmt.Sprintf("CredentialManager.List::Error::%v", err.Error()))
+			utils.Error(fmt.Sprintf("CredentialManager.List::Error::%v", err.Message))
 		}
 		Expect(len(credentials) > 0).To(BeTrue())
 	})
@@ -103,7 +103,7 @@ var _ = Describe("Credential Manager", func() {
 		credentials, err := credentialManager.GetAll(pool, 0, 100, "date_created")
 		Expect(err).To(BeNil())
 		if err != nil {
-			utils.Error(err.Error())
+			utils.Error(err.Message)
 		}
 
 		for i := 0; i < len(credentials)-1; i++ {
@@ -111,8 +111,8 @@ var _ = Describe("Credential Manager", func() {
 			Expect(err).To(BeNil())
 		}
 
-		_, err = credentials[len(credentials)-1].DeleteOne(pool)
-		Expect(err).ToNot(BeNil())
+		_, deleteCredentialError := credentials[len(credentials)-1].DeleteOne(pool)
+		Expect(deleteCredentialError).ToNot(BeNil())
 	})
 
 })
