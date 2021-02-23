@@ -17,6 +17,7 @@ Read more documentation on https://scheduler0.com
 }
 
 func init() {
+	rootCmd.AddCommand(ListCmd)
 	rootCmd.AddCommand(VersionCmd)
 	rootCmd.AddCommand(StartCmd)
 	rootCmd.AddCommand(SetupCmd)
