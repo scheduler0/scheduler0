@@ -29,10 +29,17 @@ var InitCmd = &cobra.Command{
 		}
 		_, cloudProvider, _ := selectPrompt.Run()
 
+		selectPrompt = promptui.Select{
+			Label: "Default Environment",
+			Items: []string{"Local", "Staging", "Production"},
+		}
+		_, defaultEnvironment, _ := selectPrompt.Run()
+
 		config := Config{
 			Name:          name,
 			Email:         email,
 			CloudProvider: cloudProvider,
+			Environment: defaultEnvironment,
 		}
 		configByte, err := json.Marshal(config)
 		if err != nil {

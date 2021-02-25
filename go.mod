@@ -4,6 +4,11 @@ go 1.13
 
 require (
 	github.com/bxcodec/faker/v3 v3.5.0
+	github.com/containerd/containerd v1.4.3 // indirect
+	github.com/docker/distribution v2.7.1+incompatible // indirect
+	github.com/docker/docker v20.10.3+incompatible
+	github.com/docker/go-connections v0.4.0
+	github.com/docker/go-units v0.4.0 // indirect
 	github.com/go-http-utils/logger v0.0.0-20161128092850-f3a42dcdeae6
 	github.com/go-openapi/strfmt v0.20.0 // indirect
 	github.com/go-pg/pg v8.0.7+incompatible
@@ -13,6 +18,8 @@ require (
 	github.com/manifoldco/promptui v0.8.0
 	github.com/onsi/ginkgo v1.15.0
 	github.com/onsi/gomega v1.10.4
+	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/robfig/cron v1.2.0
 	github.com/segmentio/ksuid v1.0.3
 	github.com/spf13/afero v1.1.2

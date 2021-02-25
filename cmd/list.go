@@ -31,14 +31,16 @@ func listCredentials() {
 
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"#", "UUID", "HTTP Referrer Restriction", "ApiKey"})
+	t.AppendHeader(table.Row{"#", "UUID", "HTTP Referrer Restriction", "Api Key"})
 
 	for index, credentialTransformer := range credentialTransformers.Data {
 		t.AppendSeparator()
 		t.AppendRow([]interface{}{index + 1, credentialTransformer.UUID, credentialTransformer.HTTPReferrerRestriction, credentialTransformer.ApiKey})
 	}
 
-	t.AppendFooter(table.Row{"", "", "Total", credentialTransformers.Total})
+	t.AppendFooter(table.Row{"", "", "Total", credentialTransformers.Total })
+	t.AppendFooter(table.Row{"", "", "Offset", credentialTransformers.Offset })
+	t.AppendFooter(table.Row{"", "", "Limit", credentialTransformers.Limit })
 	t.Render()
 }
 
@@ -55,6 +57,11 @@ Usage:
 This will list all the credentials that you can use in the client sdks
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		os.Setenv("POSTGRES_ADDRESS", "localhost:5432")
+		os.Setenv("POSTGRES_DATABASE", "scheduler0_test")
+		os.Setenv("POSTGRES_USER", "core")
+		os.Setenv("POSTGRES_PASSWORD", "localdev")
+
 		switch entityType {
 		case "credentials":
 			listCredentials()

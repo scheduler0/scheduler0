@@ -53,7 +53,7 @@ func CreateModelTables(pool *utils.Pool) {
 			FKConstraints: true,
 		})
 		if err != nil {
-			panic(err)
+			utils.Error(err.Error())
 		}
 	}
 }
@@ -90,6 +90,7 @@ func SeedDatabase(pool *utils.Pool) {
 
 	credentials, err := credentialManager.GetAll(pool, 0, 1, "date_created")
 	if err != nil {
+		utils.Error(err.Message)
 		panic(err.Message)
 	}
 
