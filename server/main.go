@@ -1,9 +1,7 @@
 package main
 
-import (
-	httpserver "scheduler0/server/src"
-)
+import "scheduler0/server/http_server"
 
 func main()  {
-	httpserver.Start()
+	http_server.Start()
 }

@@ -19,7 +19,7 @@ execute_circle_ci_job:
 	circleci local execute --job build
 
 build_server_test_dockerfile:
-	docker build --file docker/Dockerfile.server-test \
+	docker build --file docker/server/Dockerfile.server-test \
 		--build-arg PORT=4321 \
 		--build-arg POSTGRES_ADDRESS=localhost:5432 \
 		--build-arg POSTGRES_DATABASE=scheduler0_test \
@@ -42,12 +42,12 @@ clean_test_cache:
 test:
 	go clean -testcache
 
-	go test ./src/managers/execution -cover -v -race
-	go test ./src/managers/job -cover -v -race
-	go test ./src/managers/project -cover -v -race
-	go test ./src/managers/credential -cover -v -race
+	go test ./server/managers/execution -cover -v -race
+	go test ./server/managers/job -cover -v -race
+	go test ./server/managers/project -cover -v -race
+	go test ./server/managers/credential -cover -v -race
 
-	go test ./src/controllers/execution -cover -v -race
-	go test ./src/controllers/credential -cover -v -race
-	go test ./src/controllers/job -cover -v -race
-	go test ./src/controllers/project -cover -v -race
+	go test ./server/http_server/controllers/execution -cover -v -race
+	go test ./server/http_server/controllers/credential -cover -v -race
+	go test ./server/http_server/controllers/job -cover -v -race
+	go test ./server/http_server/controllers/project -cover -v -race

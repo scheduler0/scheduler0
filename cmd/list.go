@@ -2,20 +2,18 @@ package cmd
 
 import (
 	"fmt"
-	table "github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"os"
-	server "scheduler0/server/src"
-	"scheduler0/server/src/db"
-	"scheduler0/server/src/service"
-	"scheduler0/server/src/utils"
+	"scheduler0/server/db"
+	"scheduler0/server/service"
+	"scheduler0/utils"
 )
 
 var entityType = ""
 
-
 func listCredentials() {
-	pool, err := utils.NewPool(server.GetDatabaseConnectionForEnvironment, db.MaxConnections)
+	pool, err := utils.NewPool(db.OpenConnection, 1)
 	if err != nil {
 		utils.Error(err.Error())
 		return
@@ -35,7 +33,12 @@ func listCredentials() {
 
 	for index, credentialTransformer := range credentialTransformers.Data {
 		t.AppendSeparator()
-		t.AppendRow([]interface{}{index + 1, credentialTransformer.UUID, credentialTransformer.HTTPReferrerRestriction, credentialTransformer.ApiKey})
+		t.AppendRow([]interface{}{
+			index + 1,
+			credentialTransformer.UUID,
+			credentialTransformer.HTTPReferrerRestriction,
+			credentialTransformer.ApiKey,
+		})
 	}
 
 	t.AppendFooter(table.Row{"", "", "Total", credentialTransformers.Total })
@@ -57,11 +60,7 @@ Usage:
 This will list all the credentials that you can use in the client sdks
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		os.Setenv("POSTGRES_ADDRESS", "localhost:5432")
-		os.Setenv("POSTGRES_DATABASE", "scheduler0_test")
-		os.Setenv("POSTGRES_USER", "core")
-		os.Setenv("POSTGRES_PASSWORD", "localdev")
-
+		utils.SetPostgresCredentialsFromConfig()
 		switch entityType {
 		case "credentials":
 			listCredentials()

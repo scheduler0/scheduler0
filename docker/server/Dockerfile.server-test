@@ -35,12 +35,12 @@ ENV GO111MODULE=on \
 RUN ls
 RUN go clean -testcache
 
-RUN go test ./server/src/managers/execution -cover -v -race
-RUN go test ./server/src/managers/job -cover -v -race
-RUN go test ./server/src/managers/project -cover -v -race
-RUN go test ./server/src/managers/credential -cover -v -race
+RUN go test ./server/managers/execution -cover -v -race
+RUN go test ./server/managers/job -cover -v -race
+RUN go test ./server/managers/project -cover -v -race
+RUN go test ./server/managers/credential -cover -v -race
 
-RUN go test ./server/src/controllers/execution -cover -v -race
-RUN go test ./server/src/controllers/credential -cover -v -race
-RUN go test ./server/src/controllers/job -cover -v -race
-RUN go test ./server/src/controllers/project -cover -v -race
+RUN go test ./server/http_server/controllers/execution -cover -v -race
+RUN go test ./server/http_server/controllers/credential -cover -v -race
+RUN go test ./server/http_server/controllers/job -cover -v -race
+RUN go test ./server/http_server/controllers/project -cover -v -race
