@@ -12,10 +12,10 @@ import (
 type JobService Service
 
 // GetJobsByProjectUUID returns a paginated set of jobs for a project
-func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset int, limit int, orderBy string) (*transformers.PaginatedJobs, *utils.GenericError) {
-	jobManager := job.JobManager{}
+func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset int, limit int, orderBy string) (*transformers.PaginatedJob, *utils.GenericError) {
+	jobManager := job.Manager{}
 
-	count, getCountError := jobManager.GetJobsTotalCountByProjectID(jobService.Pool, projectUUID)
+	count, getCountError := jobManager.GetJobsTotalCountByProjectUUID(jobService.Pool, projectUUID)
 	if getCountError != nil {
 		return nil, getCountError
 	}
@@ -37,7 +37,7 @@ func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset in
 		jobs = append(jobs, jobsTransformer)
 	}
 
-	paginatedJobs := transformers.PaginatedJobs{}
+	paginatedJobs := transformers.PaginatedJob{}
 	paginatedJobs.Data = jobs
 	paginatedJobs.Limit = limit
 	paginatedJobs.Total = count
@@ -102,7 +102,7 @@ func (jobService *JobService) UpdateJob(job transformers.Job) (*transformers.Job
 
 // DeleteJob deletes a job with UUID in transformer
 func (jobService *JobService) DeleteJob(jobTransformer transformers.Job) *utils.GenericError {
-	jobManager := job.JobManager{
+	jobManager := job.Manager{
 		UUID: jobTransformer.UUID,
 	}
 

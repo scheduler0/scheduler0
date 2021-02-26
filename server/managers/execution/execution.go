@@ -25,7 +25,7 @@ func (executionManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.Gen
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "job uuid is not set")
 	}
 
-	jobWithID := job.JobManager{UUID: executionManager.UUID}
+	jobWithID := job.Manager{UUID: executionManager.UUID}
 
 	if getOneJobError := jobWithID.GetOne(pool, executionManager.JobUUID); err != nil {
 		return "", getOneJobError

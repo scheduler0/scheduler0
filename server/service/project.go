@@ -67,7 +67,7 @@ func (projectService *ProjectService) DeleteOne(project transformers.Project) *u
 	return nil
 }
 
-func (projectService *ProjectService) List(offset int, limit int) (*transformers.PaginatedProjects, *utils.GenericError) {
+func (projectService *ProjectService) List(offset int, limit int) (*transformers.PaginatedProject, *utils.GenericError) {
 	project := transformers.Project{}
 	projectManager := project.ToManager()
 	projects, err := projectManager.GetAll(projectService.Pool, offset, limit)
@@ -88,7 +88,7 @@ func (projectService *ProjectService) List(offset int, limit int) (*transformers
 		transformedProjects = append(transformedProjects, transformedProject)
 	}
 
-	paginatedProjects := transformers.PaginatedProjects{}
+	paginatedProjects := transformers.PaginatedProject{}
 
 	paginatedProjects.Total = count
 	paginatedProjects.Data = transformedProjects

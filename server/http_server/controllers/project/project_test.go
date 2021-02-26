@@ -28,11 +28,11 @@ var _ = Describe("Project Controller", func() {
 	})
 
 	pool := db.GetTestPool()
-	projectController := project.ProjectController{Pool: pool}
+	projectController := project.Controller{Pool: pool}
 
 	It("Cannot create a project without name and description", func() {
 		projectTransformer := transformers.Project{}
-		projectOneJSON, err := projectTransformer.ToJson()
+		projectOneJSON, err := projectTransformer.ToJSON()
 		utils.CheckErr(err)
 		projectOneJSONStr := strings.NewReader(string(projectOneJSON))
 
@@ -55,7 +55,7 @@ var _ = Describe("Project Controller", func() {
 			Description: project.Description,
 		}
 
-		projectJSON, err := projectTransformer.ToJson()
+		projectJSON, err := projectTransformer.ToJSON()
 		utils.CheckErr(err)
 		projectJSONStr := strings.NewReader(string(projectJSON))
 
@@ -96,7 +96,7 @@ var _ = Describe("Project Controller", func() {
 		_, createOneProjectError := projectManager.CreateOne(pool)
 		Expect(createOneProjectError).To(BeNil())
 
-		projectJSON, err := projectTransformer.ToJson()
+		projectJSON, err := projectTransformer.ToJSON()
 		Expect(err).To(BeNil())
 		projectJSONStr := strings.NewReader(string(projectJSON))
 
@@ -158,7 +158,7 @@ var _ = Describe("Project Controller", func() {
 			utils.Error(createOneError.Message)
 		}
 
-		projectJSON, err := projectTransformer.ToJson()
+		projectJSON, err := projectTransformer.ToJSON()
 		Expect(err).To(BeNil())
 		if err != nil {
 			utils.Error(err.Error())
@@ -209,7 +209,7 @@ var _ = Describe("Project Controller", func() {
 			Description: project.Description,
 		}
 
-		projectJSON, err := projectTransformer.ToJson()
+		projectJSON, err := projectTransformer.ToJSON()
 		utils.Error(err)
 		Expect(err).To(BeNil())
 		projectJSONStr := strings.NewReader(string(projectJSON))

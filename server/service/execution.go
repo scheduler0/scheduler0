@@ -11,7 +11,7 @@ import (
 type ExecutionService Service
 
 // GetAllExecutionsByJobUUID returns a paginated executions result set
-func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID string, offset int, limit int) (*transformers.PaginatedExecutions, *utils.GenericError) {
+func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID string, offset int, limit int) (*transformers.PaginatedExecution, *utils.GenericError) {
 	manager := execution.Manager{}
 
 	count, getCountError := manager.Count(executionService.Pool, jobUUID)
@@ -36,7 +36,7 @@ func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID stri
 		executions = append(executions, executionTransformer)
 	}
 
-	paginatedExecutions := transformers.PaginatedExecutions{}
+	paginatedExecutions := transformers.PaginatedExecution{}
 	paginatedExecutions.Data = executions
 	paginatedExecutions.Total = count
 	paginatedExecutions.Offset = offset

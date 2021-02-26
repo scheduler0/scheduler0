@@ -23,11 +23,14 @@ var _ = Describe("Credential Controller", func() {
 	})
 
 	pool := db.GetTestPool()
-	credentialController := credential.CredentialController{Pool: pool}
+	credentialController := credential.Controller{Pool: pool}
 
 	It("Creating A New Credential", func() {
-		testCredential := transformers.Credential{HTTPReferrerRestriction: "*"}
-		jsonTestCredentialBody, err := testCredential.ToJson()
+		testCredential := transformers.Credential{
+			HTTPReferrerRestriction: "*",
+			Platform: "web",
+		}
+		jsonTestCredentialBody, err := testCredential.ToJSON()
 		if err != nil {
 			utils.Error(fmt.Sprintf("cannot create http request %v", err))
 		}
@@ -46,6 +49,12 @@ var _ = Describe("Credential Controller", func() {
 	})
 
 	It("Get All Credentials", func() {
+		testCredential := transformers.Credential{
+			HTTPReferrerRestriction: "*",
+			Platform: "web",
+		}
+		manager := testCredential.ToManager()
+		manager.CreateOne(pool)
 		req, err := http.NewRequest("GET", "/?limit=50&offset=0", nil)
 		if err != nil {
 			utils.Error(fmt.Sprintf("cannot create http request %v", err))
@@ -58,13 +67,16 @@ var _ = Describe("Credential Controller", func() {
 	})
 
 	It("Get One Credential", func() {
-		testCredential := transformers.Credential{HTTPReferrerRestriction: "*"}
-		credentialManager := testCredential.ToManager()
-		_, err := credentialManager.CreateOne(pool)
-		if err != nil {
-			utils.Error(err.Error())
+		testCredential := transformers.Credential{
+			HTTPReferrerRestriction: "*",
+			Platform: "web",
 		}
-		Expect(err).To(BeNil())
+		credentialManager := testCredential.ToManager()
+		_, createOneErr := credentialManager.CreateOne(pool)
+		if createOneErr != nil {
+			utils.Error(createOneErr.Message)
+		}
+		Expect(createOneErr).To(BeNil())
 
 		path := fmt.Sprintf("/credentials/%s", credentialManager.UUID)
 		req, err := http.NewRequest("GET", path, nil)
@@ -81,25 +93,31 @@ var _ = Describe("Credential Controller", func() {
 	})
 
 	It("Update One Credential", func() {
-		testCredential := transformers.Credential{HTTPReferrerRestriction: "*"}
+		testCredential := transformers.Credential{
+			HTTPReferrerRestriction: "*",
+			Platform: "web",
+		}
 		credentialManager := testCredential.ToManager()
 		_, err := credentialManager.CreateOne(pool)
 		if err != nil {
-			utils.Error(err.Error())
+			utils.Error(err.Message)
 		}
 		Expect(err).To(BeNil())
 
 		newHTTPReferrerRestriction := "http://scheduler0.com"
-		updateBody := transformers.Credential{HTTPReferrerRestriction: newHTTPReferrerRestriction}
-		jsonTestCredentialBody, err := updateBody.ToJson()
-		if err != nil {
-			utils.Error("\t\tcannot create http request %v", err)
+		updateBody := transformers.Credential{
+			HTTPReferrerRestriction: newHTTPReferrerRestriction,
+			Platform: "web",
+		}
+		jsonTestCredentialBody, toJSONErr := updateBody.ToJSON()
+		if toJSONErr != nil {
+			utils.Error("\t\tcannot create http request %v", toJSONErr)
 		}
 
 		path := fmt.Sprintf("/credentials/%s", credentialManager.UUID)
-		req, err := http.NewRequest("PUT", path, strings.NewReader(string(jsonTestCredentialBody)))
-		if err != nil {
-			utils.Error(fmt.Sprintf("cannot create http request %v", err))
+		req, httpRequestErr := http.NewRequest("PUT", path, strings.NewReader(string(jsonTestCredentialBody)))
+		if httpRequestErr != nil {
+			utils.Error(fmt.Sprintf("cannot create http request %v", httpRequestErr))
 		}
 
 		w := httptest.NewRecorder()
@@ -111,18 +129,32 @@ var _ = Describe("Credential Controller", func() {
 	})
 
 	It("Delete One Credential", func() {
-		testCredential := transformers.Credential{HTTPReferrerRestriction: "*"}
+		testCredential := transformers.Credential{
+			HTTPReferrerRestriction: "*",
+			Platform: "web",
+		}
 		credentialManager := testCredential.ToManager()
 		_, err := credentialManager.CreateOne(pool)
 		if err != nil {
-			utils.Error(err.Error())
+			utils.Error(err.Message)
+		}
+		Expect(err).To(BeNil())
+
+		test2Credential := transformers.Credential{
+			HTTPReferrerRestriction: "*",
+			Platform: "web",
+		}
+		credential2Manager := test2Credential.ToManager()
+		_, err = credential2Manager.CreateOne(pool)
+		if err != nil {
+			utils.Error(err.Message)
 		}
 		Expect(err).To(BeNil())
 
 		path := fmt.Sprintf("/credentials/%s", credentialManager.UUID)
-		req, err := http.NewRequest("DELETE", path, nil)
-		if err != nil {
-			utils.Error(fmt.Sprintf("cannot create http request %v", err))
+		req, httpRequestErr := http.NewRequest("DELETE", path, nil)
+		if httpRequestErr != nil {
+			utils.Error(fmt.Sprintf("cannot create http request %v", httpRequestErr))
 		}
 
 		w := httptest.NewRecorder()

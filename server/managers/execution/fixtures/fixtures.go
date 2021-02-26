@@ -11,7 +11,7 @@ import (
 )
 
 // CreateJobFixture creates a project and job for testing
-func CreateJobFixture(pool *utils.Pool) *job.JobManager {
+func CreateJobFixture(pool *utils.Pool) *job.Manager {
 	projectFixture := fixtures3.ProjectFixture{}
 	err := faker.FakeData(&projectFixture)
 	utils.CheckErr(err)

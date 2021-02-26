@@ -2,7 +2,6 @@ package job
 
 import (
 	"github.com/go-pg/pg"
-	"github.com/robfig/cron"
 	"net/http"
 	"scheduler0/server/managers/project"
 	"scheduler0/server/models"
@@ -10,9 +9,10 @@ import (
 	"time"
 )
 
-type JobManager models.JobModel
+type Manager models.JobModel
 
-func (jobManager *JobManager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
+// CreateOne create a new job
+func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -51,16 +51,9 @@ func (jobManager *JobManager) CreateOne(pool *utils.Pool) (string, *utils.Generi
 		return "", e
 	}
 
-	schedule, err := cron.ParseStandard(jobManager.CronSpec)
-	if err != nil {
-		return "", utils.HTTPGenericError(http.StatusBadRequest, err.Error())
-	}
 
 	jobManager.ProjectID = projectWithUUID.ID
 	jobManager.ProjectUUID = projectWithUUID.UUID
-	jobManager.State = models.InActiveJob
-	jobManager.NextTime = schedule.Next(jobManager.StartDate)
-	jobManager.TotalExecs = -1
 	jobManager.StartDate = jobManager.StartDate.UTC()
 
 	if _, err := db.Model(jobManager).Insert(); err != nil {
@@ -70,7 +63,8 @@ func (jobManager *JobManager) CreateOne(pool *utils.Pool) (string, *utils.Generi
 	return jobManager.UUID, nil
 }
 
-func (jobManager *JobManager) GetOne(pool *utils.Pool, jobUUID string) *utils.GenericError {
+// GetOne returns a single job that matches uuid
+func (jobManager *Manager) GetOne(pool *utils.Pool, jobUUID string) *utils.GenericError {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return utils.HTTPGenericError(http.StatusBadRequest, err.Error())
@@ -90,7 +84,8 @@ func (jobManager *JobManager) GetOne(pool *utils.Pool, jobUUID string) *utils.Ge
 	return nil
 }
 
-func (jobManager *JobManager) GetAll(pool *utils.Pool, projectUUID string, offset int, limit int, orderBy string) ([]JobManager, *utils.GenericError) {
+// GetAll returns paginated set of jobs that are not archived
+func (jobManager *Manager) GetAll(pool *utils.Pool, projectUUID string, offset int, limit int, orderBy string) ([]Manager, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
@@ -99,10 +94,10 @@ func (jobManager *JobManager) GetAll(pool *utils.Pool, projectUUID string, offse
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	jobs := make([]JobManager, 0, limit)
+	jobs := make([]Manager, 0, limit)
 
 	err = db.Model(&jobs).
-		Where("project_uuid = ?", projectUUID).
+		Where("project_uuid = ? AND archived = ?", projectUUID, false).
 		Order(orderBy).
 		Offset(offset).
 		Limit(limit).
@@ -111,7 +106,8 @@ func (jobManager *JobManager) GetAll(pool *utils.Pool, projectUUID string, offse
 	return jobs, nil
 }
 
-func (jobManager *JobManager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError) {
+// UpdateOne updates a job and returns number of affected rows
+func (jobManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return 0, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
@@ -119,7 +115,7 @@ func (jobManager *JobManager) UpdateOne(pool *utils.Pool) (int, *utils.GenericEr
 	db := conn.(*pg.DB)
 	defer pool.Release(conn)
 
-	jobPlaceholder := JobManager{
+	jobPlaceholder := Manager{
 		UUID: jobManager.UUID,
 	}
 
@@ -149,7 +145,8 @@ func (jobManager *JobManager) UpdateOne(pool *utils.Pool) (int, *utils.GenericEr
 	return res.RowsAffected(), nil
 }
 
-func (jobManager *JobManager) DeleteOne(pool *utils.Pool) (int, *utils.GenericError) {
+// DeleteOne deletes a job with uuid and returns number of affected row
+func (jobManager *Manager) DeleteOne(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -164,7 +161,8 @@ func (jobManager *JobManager) DeleteOne(pool *utils.Pool) (int, *utils.GenericEr
 	}
 }
 
-func (jobManager *JobManager) GetJobsTotalCount(pool *utils.Pool) (int, *utils.GenericError) {
+// GetJobsTotalCount returns total number of jobs
+func (jobManager *Manager) GetJobsTotalCount(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -179,7 +177,8 @@ func (jobManager *JobManager) GetJobsTotalCount(pool *utils.Pool) (int, *utils.G
 	}
 }
 
-func (jobManager *JobManager) GetJobsTotalCountByProjectID(pool *utils.Pool, projectUUID string) (int, *utils.GenericError) {
+// GetJobsTotalCountByProjectUUID returns the number of jobs for project with uuid
+func (jobManager *Manager) GetJobsTotalCountByProjectUUID(pool *utils.Pool, projectUUID string) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -194,8 +193,9 @@ func (jobManager *JobManager) GetJobsTotalCountByProjectID(pool *utils.Pool, pro
 	}
 }
 
-func (jobManager *JobManager) GetJobsPaginated(pool *utils.Pool, projectUUID string, offset int, limit int) ([]JobManager, int, *utils.GenericError) {
-	total, err := jobManager.GetJobsTotalCountByProjectID(pool, projectUUID)
+// GetJobsPaginated returns a set of jobs starting at offset with the limit
+func (jobManager *Manager) GetJobsPaginated(pool *utils.Pool, projectUUID string, offset int, limit int) ([]Manager, int, *utils.GenericError) {
+	total, err := jobManager.GetJobsTotalCountByProjectUUID(pool, projectUUID)
 
 	if err != nil {
 		return nil, 0, err

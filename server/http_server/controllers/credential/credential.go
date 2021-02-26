@@ -12,9 +12,9 @@ import (
 	"strconv"
 )
 
-type CredentialController controllers.Controller
+type Controller controllers.Controller
 
-func (credentialController *CredentialController) CreateOne(w http.ResponseWriter, r *http.Request) {
+func (credentialController *Controller) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		utils.SendJSON(w, "request body required", false, http.StatusUnprocessableEntity, nil)
@@ -28,7 +28,7 @@ func (credentialController *CredentialController) CreateOne(w http.ResponseWrite
 
 	credentialBody := transformers.Credential{}
 
-	err = credentialBody.FromJson(body)
+	err = credentialBody.FromJSON(body)
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
 		return
@@ -36,8 +36,8 @@ func (credentialController *CredentialController) CreateOne(w http.ResponseWrite
 
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
 
-	if newCredentialUUID, err := credentialService.CreateNewCredential(credentialBody.HTTPReferrerRestriction); err != nil {
-		utils.SendJSON(w, err.Error(), false, http.StatusInternalServerError, nil)
+	if newCredentialUUID, err := credentialService.CreateNewCredential(credentialBody); err != nil {
+		utils.SendJSON(w, err.Message, false, err.Type, nil)
 	} else {
 		if credential, err := credentialService.FindOneCredentialByUUID(newCredentialUUID); err != nil {
 			fmt.Println(err, newCredentialUUID)
@@ -48,7 +48,7 @@ func (credentialController *CredentialController) CreateOne(w http.ResponseWrite
 	}
 }
 
-func (credentialController *CredentialController) GetOne(w http.ResponseWriter, r *http.Request) {
+func (credentialController *Controller) GetOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
@@ -61,7 +61,7 @@ func (credentialController *CredentialController) GetOne(w http.ResponseWriter, 
 	}
 }
 
-func (credentialController *CredentialController) UpdateOne(w http.ResponseWriter, r *http.Request) {
+func (credentialController *Controller) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
 	body, err := ioutil.ReadAll(r.Body)
@@ -72,16 +72,18 @@ func (credentialController *CredentialController) UpdateOne(w http.ResponseWrite
 		return
 	}
 
-	credentialBody := transformers.Credential{}
+	credentialBody := transformers.Credential{
+		UUID: params["uuid"],
+	}
 
-	err = credentialBody.FromJson(body)
+	err = credentialBody.FromJSON(body)
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
 		return
 	}
 
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
-	credential, err := credentialService.UpdateOneCredential(params["uuid"], credentialBody.HTTPReferrerRestriction)
+	credential, err := credentialService.UpdateOneCredential(credentialBody)
 
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusOK, nil)
@@ -90,18 +92,18 @@ func (credentialController *CredentialController) UpdateOne(w http.ResponseWrite
 	}
 }
 
-func (credentialController *CredentialController) DeleteOne(w http.ResponseWriter, r *http.Request) {
+func (credentialController *Controller) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
 	_, err := credentialService.DeleteOneCredential(params["uuid"])
 	if err != nil {
-		utils.SendJSON(w, err.Error(), false, http.StatusOK, nil)
+		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
 	} else {
 		utils.SendJSON(w, nil, true, http.StatusNoContent, nil)
 	}
 }
 
-func (credentialController *CredentialController) List(w http.ResponseWriter, r *http.Request) {
+func (credentialController *Controller) List(w http.ResponseWriter, r *http.Request) {
 	credentialService := service.CredentialService{Pool: credentialController.Pool, Ctx: r.Context()}
 
 	offset := 0

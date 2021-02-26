@@ -9,9 +9,8 @@ import (
 
 type CredentialService Service
 
-func (credentialService *CredentialService) CreateNewCredential(HTTPReferrerRestriction string) (string, error) {
-	credentialDto := transformers.Credential{HTTPReferrerRestriction: HTTPReferrerRestriction}
-	credentialManager := credentialDto.ToManager()
+func (credentialService *CredentialService) CreateNewCredential(credentialTransformer transformers.Credential) (string, *utils.GenericError) {
+	credentialManager := credentialTransformer.ToManager()
 	return credentialManager.CreateOne(credentialService.Pool)
 }
 
@@ -27,9 +26,8 @@ func (credentialService *CredentialService) FindOneCredentialByUUID(UUID string)
 	}
 }
 
-func (credentialService *CredentialService) UpdateOneCredential(UUID string, HTTPReferrerRestriction string) (*transformers.Credential, error) {
-	credentialDto := transformers.Credential{UUID: UUID, HTTPReferrerRestriction: HTTPReferrerRestriction}
-	credentialManager := credentialDto.ToManager()
+func (credentialService *CredentialService) UpdateOneCredential(credentialTransformer transformers.Credential) (*transformers.Credential, error) {
+	credentialManager := credentialTransformer.ToManager()
 	if _, err := credentialManager.UpdateOne(credentialService.Pool); err != nil {
 		return nil, err
 	} else {
@@ -52,7 +50,7 @@ func (credentialService *CredentialService) DeleteOneCredential(UUID string) (*t
 }
 
 func (credentialService *CredentialService) ListCredentials(offset int, limit int, orderBy string) (*transformers.PaginatedCredential, *utils.GenericError) {
-	credentialManager := credential.CredentialManager{}
+	credentialManager := credential.Manager{}
 
 	total, err := credentialManager.Count(credentialService.Pool)
 	if err != nil {

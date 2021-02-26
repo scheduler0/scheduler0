@@ -30,8 +30,6 @@ func Start() {
 
 	// Set time zone, create database and run db
 	db.CreateModelTables(pool)
-	db.CreateDefaults(pool)
-	//db.RunSQLMigratiqons(pool)
 
 	// Start process to execute cron-server jobs
 	go process.Start(pool)
@@ -44,9 +42,9 @@ func Start() {
 
 	// Initialize controllers
 	executionController := execution.Controller{Pool: pool}
-	jobController := job.JobController{Pool: pool}
-	projectController := project.ProjectController{Pool: pool}
-	credentialController := credential.CredentialController{Pool: pool}
+	jobController := job.Controller{Pool: pool}
+	projectController := project.Controller{Pool: pool}
+	credentialController := credential.Controller{Pool: pool}
 
 	// Mount middleware
 	middleware := middlewares.MiddlewareType{}

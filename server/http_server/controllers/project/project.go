@@ -12,14 +12,14 @@ import (
 	"strconv"
 )
 
-type ProjectController controllers.Controller
+type Controller controllers.Controller
 
-func (controller *ProjectController) CreateOne(w http.ResponseWriter, r *http.Request) {
+func (controller *Controller) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	utils.CheckErr(err)
 
 	project := transformers.Project{}
-	err = project.FromJson(body)
+	err = project.FromJSON(body)
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
@@ -46,7 +46,7 @@ func (controller *ProjectController) CreateOne(w http.ResponseWriter, r *http.Re
 	utils.SendJSON(w, project, true, http.StatusCreated, customHeader)
 }
 
-func (controller *ProjectController) GetOne(w http.ResponseWriter, r *http.Request) {
+func (controller *Controller) GetOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
 	projectUUID := params["uuid"]
@@ -73,7 +73,7 @@ func (controller *ProjectController) GetOne(w http.ResponseWriter, r *http.Reque
 	utils.SendJSON(w, projectData, true, http.StatusOK, nil)
 }
 
-func (controller *ProjectController) List(w http.ResponseWriter, r *http.Request) {
+func (controller *Controller) List(w http.ResponseWriter, r *http.Request) {
 	projectService := service.ProjectService{
 		Pool: controller.Pool,
 	}
@@ -111,7 +111,7 @@ func (controller *ProjectController) List(w http.ResponseWriter, r *http.Request
 	utils.SendJSON(w, projects, true, http.StatusOK, nil)
 }
 
-func (controller *ProjectController) DeleteOne(w http.ResponseWriter, r *http.Request) {
+func (controller *Controller) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
 	projectUUID := params["uuid"]
@@ -138,7 +138,7 @@ func (controller *ProjectController) DeleteOne(w http.ResponseWriter, r *http.Re
 	utils.SendJSON(w, nil, true, http.StatusNoContent, nil)
 }
 
-func (controller *ProjectController) UpdateOne(w http.ResponseWriter, r *http.Request) {
+func (controller *Controller) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
 	projectUUID := params["uuid"]
@@ -153,7 +153,7 @@ func (controller *ProjectController) UpdateOne(w http.ResponseWriter, r *http.Re
 
 	project := transformers.Project{}
 
-	err = project.FromJson(body)
+	err = project.FromJSON(body)
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
 		return

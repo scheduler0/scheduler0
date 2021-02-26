@@ -196,7 +196,7 @@ var _ = Describe("Project Manager", func() {
 			utils.Error(createProjectManagerError.Message)
 		}
 
-		job := job.JobManager{
+		job := job.Manager{
 			ProjectUUID: projectManager.UUID,
 			StartDate:   time.Now().Add(60 * time.Second),
 			CronSpec:    "* * * * *",

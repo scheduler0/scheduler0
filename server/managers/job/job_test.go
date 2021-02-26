@@ -86,7 +86,7 @@ var _ = Describe("Job Manager", func() {
 				utils.Error(fmt.Sprintf("[ERROR] Cannot create job %v", err.Message))
 			}
 
-			jobGetManager := job.JobManager{
+			jobGetManager := job.Manager{
 				UUID: uuid,
 			}
 
@@ -149,7 +149,7 @@ var _ = Describe("Job Manager", func() {
 			}
 		}
 
-		jobGetManager := job.JobManager{}
+		jobGetManager := job.Manager{}
 		jobs, _, getAllJobsError := jobGetManager.GetJobsPaginated(pool, projectManager.UUID, 0, 5)
 		if getAllJobsError != nil {
 			utils.Error(fmt.Sprintf("[ERROR] Cannot get all projects %v", getAllJobsError.Message))
@@ -173,7 +173,7 @@ var _ = Describe("Job Manager", func() {
 		}
 		jobManager.ProjectUUID = projectManager.UUID
 		jobManager.CreateOne(pool)
-		jobResult := job.JobManager{}
+		jobResult := job.Manager{}
 		getOneJobError := jobResult.GetOne(pool, jobManager.UUID)
 		if getOneJobError != nil {
 			utils.Error(fmt.Sprintf("[ERROR]  Failed to get job by id %v", getOneJobError.Message))

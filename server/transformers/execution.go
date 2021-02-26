@@ -18,9 +18,8 @@ type Execution struct {
 	DateCreated time.Time `json:"date_created"`
 }
 
-
-// PaginatedExecutions this holds meta information for pagination
-type PaginatedExecutions struct {
+// PaginatedExecution this holds meta information for pagination
+type PaginatedExecution struct {
 	Total  int         `json:"total"`
 	Offset int         `json:"offset"`
 	Limit  int         `json:"limit"`

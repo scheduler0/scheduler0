@@ -43,7 +43,7 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 			}
 
 			if !isAdmin {
-				credentialManager := credential.CredentialManager{}
+				credentialManager := credential.Manager{}
 
 				// Check for api key
 				token := r.Header.Get("x-token")

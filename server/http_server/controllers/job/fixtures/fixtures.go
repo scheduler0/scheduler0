@@ -8,7 +8,7 @@ import (
 	"scheduler0/utils"
 )
 
-func CreateJobAndProjectManagerFixture(pool *utils.Pool) (project.ProjectManager, manager.JobManager) {
+func CreateJobAndProjectManagerFixture(pool *utils.Pool) (project.ProjectManager, manager.Manager) {
 	projectManager := projectTestFixtures.CreateProjectManagerFixture()
 	_, createProjectError := projectManager.CreateOne(pool)
 	if createProjectError != nil {

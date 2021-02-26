@@ -5,7 +5,6 @@ import (
 	"github.com/go-pg/pg"
 	"github.com/go-pg/pg/orm"
 	"io"
-	"scheduler0/server/managers/credential"
 	"scheduler0/server/models"
 	"scheduler0/utils"
 )
@@ -46,26 +45,6 @@ func CreateModelTables(pool *utils.Pool) {
 		})
 		if err != nil {
 			utils.Error(err.Error())
-		}
-	}
-}
-
-// CreateDefaults this will create a default credential
-func CreateDefaults(pool *utils.Pool) {
-	credentialManager := credential.CredentialManager{}
-	// Seed database
-
-	credentials, err := credentialManager.GetAll(pool, 0, 1, "date_created")
-	if err != nil {
-		utils.Error(err.Message)
-		panic(err.Message)
-	}
-
-	if len(credentials) < 1 {
-		credentialManager.HTTPReferrerRestriction = "*"
-		_, createCredentialError := credentialManager.CreateOne(pool)
-		if createCredentialError != nil {
-			panic(createCredentialError)
 		}
 	}
 }
@@ -117,5 +96,4 @@ func Prepare() {
 		panic(err)
 	}
 	CreateModelTables(pool)
-	CreateDefaults(pool)
 }

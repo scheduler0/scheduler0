@@ -3,15 +3,19 @@ package utils
 import (
 	"encoding/json"
 	"errors"
+	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 )
 
+// Response response returned by http server
 type Response struct {
 	Data    interface{} `json:"data"`
 	Success bool        `json:"success"`
 }
 
+// ToJSON converts response to JSON
 func (r *Response) ToJSON() []byte {
 	data, err := json.Marshal(r)
 	if err != nil {
@@ -20,6 +24,8 @@ func (r *Response) ToJSON() []byte {
 	return data
 }
 
+
+// SendJSON returns JSON response to client
 func SendJSON(w http.ResponseWriter, data interface{}, success bool, status int, headers map[string]string) {
 	resObj := Response{Data: data, Success: success}
 
@@ -39,7 +45,7 @@ func SendJSON(w http.ResponseWriter, data interface{}, success bool, status int,
 	}
 }
 
-
+// ValidateQueryString check is a query string is included in the request
 func ValidateQueryString(queryString string, r *http.Request) (string, error) {
 	param := r.URL.Query()[queryString]
 
@@ -50,6 +56,7 @@ func ValidateQueryString(queryString string, r *http.Request) (string, error) {
 	return param[0], nil
 }
 
+// ExtractBody validates and extracts request body
 func ExtractBody(w http.ResponseWriter, r *http.Request) []byte {
 	body, err := ioutil.ReadAll(r.Body)
 
@@ -63,3 +70,22 @@ func ExtractBody(w http.ResponseWriter, r *http.Request) []byte {
 
 	return body
 }
+
+// ExtractResponse extract response from response writer as string
+func ExtractResponse(w *httptest.ResponseRecorder) (*utils.Response, string, error) {
+	body, err := ioutil.ReadAll(w.Body)
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	res := &utils.Response{}
+
+	err = json.Unmarshal(body, res)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return res, string(body), nil
+}
+

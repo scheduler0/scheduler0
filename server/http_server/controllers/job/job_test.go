@@ -32,10 +32,10 @@ var _ = Describe("Job Controller", func() {
 	Context("TestJobController_CreateOne", func() {
 
 		It("Respond with status 400 if request body does not contain required values", func() {
-			jobController := job.JobController{Pool: pool}
+			jobController := job.Controller{Pool: pool}
 			jobFixture := jobManagerTestFixtures.JobFixture{}
 			jobTransformers := jobFixture.CreateNJobTransformers(1)
-			jobByte, err := jobTransformers[0].ToJson()
+			jobByte, err := jobTransformers[0].ToJSON()
 			utils.CheckErr(err)
 			jobStr := string(jobByte)
 
@@ -57,7 +57,7 @@ var _ = Describe("Job Controller", func() {
 			jobFixture := jobManagerTestFixtures.JobFixture{}
 			jobTransformers := jobFixture.CreateNJobTransformers(1)
 			jobTransformers[0].ProjectUUID = projectManager.UUID
-			jobByte, err := jobTransformers[0].ToJson()
+			jobByte, err := jobTransformers[0].ToJSON()
 
 			if err != nil {
 				utils.Error(fmt.Sprintf("Cannot create job %v", err))
@@ -71,7 +71,7 @@ var _ = Describe("Job Controller", func() {
 
 			w := httptest.NewRecorder()
 
-			controller := job.JobController{Pool: pool}
+			controller := job.Controller{Pool: pool}
 			controller.CreateOne(w, req)
 			body, err := ioutil.ReadAll(w.Body)
 
@@ -121,7 +121,7 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			controller := job.JobController{Pool: pool}
+			controller := job.Controller{Pool: pool}
 			controller.List(w, req)
 
 			Expect(w.Code).To(Equal(http.StatusOK))
@@ -135,7 +135,7 @@ var _ = Describe("Job Controller", func() {
 			jobTransformer := transformers.Job{}
 			jobTransformer.FromManager(jobManager)
 			jobTransformer.CronSpec = "* * 3 * *"
-			jobByte, err := jobTransformer.ToJson()
+			jobByte, err := jobTransformer.ToJSON()
 			utils.CheckErr(err)
 			jobStr := string(jobByte)
 			req, err := http.NewRequest("PUT", "/jobs/"+jobTransformer.UUID, strings.NewReader(jobStr))
@@ -144,7 +144,7 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			controller := job.JobController{Pool: pool}
+			controller := job.Controller{Pool: pool}
 
 			controller.UpdateOne(w, req)
 			Expect(w.Code).To(Equal(http.StatusBadRequest))
@@ -155,7 +155,7 @@ var _ = Describe("Job Controller", func() {
 			jobTransformer := transformers.Job{}
 			jobTransformer.FromManager(jobManager)
 			jobTransformer.Description = "some job description"
-			jobByte, err := jobTransformer.ToJson()
+			jobByte, err := jobTransformer.ToJSON()
 			jobStr := string(jobByte)
 
 			req, err := http.NewRequest("PUT", "/jobs/"+jobTransformer.UUID, strings.NewReader(jobStr))
@@ -165,7 +165,7 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			controller := job.JobController{Pool: pool}
+			controller := job.Controller{Pool: pool}
 			router := mux.NewRouter()
 			router.HandleFunc("/jobs/{uuid}", controller.UpdateOne)
 			router.ServeHTTP(w, req)
@@ -189,7 +189,7 @@ var _ = Describe("Job Controller", func() {
 		}
 
 		w := httptest.NewRecorder()
-		controller := job.JobController{Pool: pool}
+		controller := job.Controller{Pool: pool}
 
 		router := mux.NewRouter()
 		router.HandleFunc("/jobs/{uuid}", controller.DeleteOne)

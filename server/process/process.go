@@ -39,9 +39,9 @@ func Start(pool *utils.Pool) {
 	cronJobs := cron.New()
 
 	for _, projectTransformer := range projectTransformers.Data {
-		jobManager := job.JobManager{}
+		jobManager := job.Manager{}
 
-		jobsTotalCount, err := jobManager.GetJobsTotalCountByProjectID(pool, projectTransformer.UUID)
+		jobsTotalCount, err := jobManager.GetJobsTotalCountByProjectUUID(pool, projectTransformer.UUID)
 		if err != nil {
 			panic(err)
 		}
