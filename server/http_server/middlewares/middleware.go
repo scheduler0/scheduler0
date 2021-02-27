@@ -71,6 +71,11 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 						return
 					}
 				}
+
+				if paths[1] == "api-docs" {
+					next.ServeHTTP(w, r)
+					return
+				}
 			}
 
 			utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)

@@ -78,6 +78,8 @@ func Start() {
 	router.HandleFunc("/projects/{uuid}", projectController.UpdateOne).Methods(http.MethodPut)
 	router.HandleFunc("/projects/{uuid}", projectController.DeleteOne).Methods(http.MethodDelete)
 
+	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
+
 	log.Println("Server is running on port", utils.GetPort())
 	err = http.ListenAndServe(utils.GetPort(), logger.Handler(router, os.Stdout, logger.DevLoggerType))
 	utils.CheckErr(err)
