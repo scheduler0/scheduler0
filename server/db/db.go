@@ -19,6 +19,7 @@ func OpenConnection() (io.Closer, error) {
 		User:     postgresCredentials.User,
 		Password: postgresCredentials.Password,
 		Database: postgresCredentials.Database,
+		PoolSize: 1,
 	}), nil
 }
 

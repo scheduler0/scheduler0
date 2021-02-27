@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
 	"net/http"
@@ -11,35 +12,41 @@ import (
 	"scheduler0/utils"
 )
 
+// Manager Credential
 type Manager models.CredentialModel
 
+const (
+	AndroidPlatform = "android"
+	WebPlatform     = "web"
+	IOSPlatform     = "ios"
+	ServerPlatform  = "server"
+)
 
 // CreateOne creates a single credential and returns the uuid
 func (credentialManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
-
 	if len(credentialManager.Platform) < 1 {
-		return "", utils.HTTPGenericError(http.StatusBadRequest,"credential should have a platform")
+		return "", utils.HTTPGenericError(http.StatusBadRequest, "credential should have a platform")
 	}
 
-	if credentialManager.Platform != "server" &&
-		credentialManager.Platform != "web" &&
-		credentialManager.Platform != "ios" &&
-		credentialManager.Platform != "android" {
+	if credentialManager.Platform != AndroidPlatform &&
+		credentialManager.Platform != WebPlatform &&
+		credentialManager.Platform != IOSPlatform &&
+		credentialManager.Platform != ServerPlatform {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "credential platform should be one of server, web, android, or ios")
 	}
 
 	switch credentialManager.Platform {
-	case "android":
+	case AndroidPlatform:
 		if len(credentialManager.AndroidPackageNameRestriction) < 1 {
-			return "", utils.HTTPGenericError(http.StatusBadRequest,"android credentials should have a package name restriction")
+			return "", utils.HTTPGenericError(http.StatusBadRequest, "android credentials should have a package name restriction")
 		}
-	case "ios":
+	case IOSPlatform:
 		if len(credentialManager.IOSBundleIDRestriction) < 1 {
-			return "", utils.HTTPGenericError(http.StatusBadRequest,"ios credentials should have a bundle restriction")
+			return "", utils.HTTPGenericError(http.StatusBadRequest, "ios credentials should have a bundle restriction")
 		}
-	case "web":
+	case WebPlatform:
 		if len(credentialManager.HTTPReferrerRestriction) < 1 && len(credentialManager.IPRestriction) < 1 {
-			return "", utils.HTTPGenericError(http.StatusBadRequest,"web credentials should either an ip restriction or a url restriction")
+			return "", utils.HTTPGenericError(http.StatusBadRequest, "web credentials should either an ip restriction or a url restriction")
 		}
 	}
 
@@ -48,9 +55,10 @@ func (credentialManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.Ge
 	hash.Write([]byte(randomId))
 	credentialManager.ApiKey = hex.EncodeToString(hash.Sum(nil))
 
-	if credentialManager.Platform == "server" {
+	if credentialManager.Platform == ServerPlatform {
+		randomId := ksuid.New().String()
 		hash := sha256.New()
-		hash.Write([]byte(credentialManager.ApiKey))
+		hash.Write([]byte(randomId))
 		credentialManager.ApiSecret = hex.EncodeToString(hash.Sum(nil))
 	}
 
@@ -88,19 +96,24 @@ func (credentialManager *Manager) GetOne(pool *utils.Pool) error {
 }
 
 // GetByAPIKey returns a credential with the matching api key
-func (credentialManager *Manager) GetByAPIKey(pool *utils.Pool) error {
+func (credentialManager *Manager) GetByAPIKey(pool *utils.Pool) *utils.GenericError {
 	conn, err := pool.Acquire()
 	defer pool.Release(conn)
 
 	if err != nil {
-		return err
+		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	db := conn.(*pg.DB)
 
+	count, err := db.Model(credentialManager).Where("api_key = ?", credentialManager.ApiKey).Count()
+	if count < 1 {
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("cannot find api_key=%v", credentialManager.ApiKey))
+	}
+
 	err = db.Model(credentialManager).Where("api_key = ?", credentialManager.ApiKey).Select()
 	if err != nil {
-		return err
+		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	return nil
@@ -150,7 +163,6 @@ func (credentialManager *Manager) GetAll(pool *utils.Pool, offset int, limit int
 
 	return credentialManagers, nil
 }
-
 
 // UpdateOne updates a single credential
 func (credentialManager *Manager) UpdateOne(pool *utils.Pool) (int, error) {

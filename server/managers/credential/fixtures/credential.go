@@ -1,15 +1,21 @@
 package fixtures
 
 import (
+	"fmt"
 	"github.com/bxcodec/faker"
 	"scheduler0/server/transformers"
 	"scheduler0/utils"
 )
 
 type CredentialFixture struct {
-	UUID                    string `faker:"uuid_hyphenated"`
-	ApiKey                  string `faker:"ipv6"`
-	HTTPReferrerRestriction string `faker:"http_referrer_restriction"`
+	Platform                      string `faker:"word"`
+	UUID                          string `faker:"uuid_hyphenated"`
+	ApiKey                        string `faker:"ipv6"`
+	ApiSecret                     string `faker:"ipv6"`
+	HTTPReferrerRestriction       string `faker:"domain_name"`
+	IPRestrictionRestriction      string `faker:"ipv4"`
+	AndroidPackageNameRestriction string `faker:"domain_name"`
+	IOSBundleIDRestriction        string `faker:"domain_name"`
 }
 
 func (credentialFixture *CredentialFixture) CreateNCredentialTransformer(n int) []transformers.Credential {
@@ -17,11 +23,18 @@ func (credentialFixture *CredentialFixture) CreateNCredentialTransformer(n int) 
 
 	for i := 0; i < n; i++ {
 		err := faker.FakeData(credentialFixture)
-		utils.CheckErr(err)
+		if err != nil {
+			utils.Error(fmt.Sprintf("error creating fixture %v", err.Error()))
+		}
 
 		credentialTransformer := transformers.Credential{
-			ApiKey:                  credentialFixture.ApiKey,
-			HTTPReferrerRestriction: credentialFixture.HTTPReferrerRestriction,
+			Platform:                      credentialFixture.Platform,
+			ApiKey:                        credentialFixture.ApiKey,
+			ApiSecret:                     credentialFixture.ApiSecret,
+			IPRestrictionRestriction:      credentialFixture.IPRestrictionRestriction,
+			HTTPReferrerRestriction:       credentialFixture.HTTPReferrerRestriction,
+			AndroidPackageNameRestriction: credentialFixture.AndroidPackageNameRestriction,
+			IOSBundleIDRestriction:        credentialFixture.IOSBundleIDRestriction,
 		}
 
 		credentialTransformers = append(credentialTransformers, credentialTransformer)

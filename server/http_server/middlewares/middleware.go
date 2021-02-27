@@ -2,10 +2,9 @@ package middlewares
 
 import (
 	"context"
-	"crypto/subtle"
 	"github.com/segmentio/ksuid"
 	"net/http"
-	"scheduler0/server/managers/credential"
+	"scheduler0/server/http_server/middlewares/auth"
 	"scheduler0/utils"
 	"strings"
 	"sync"
@@ -32,66 +31,44 @@ func (m *MiddlewareType) ContextMiddleware(next http.Handler) http.Handler {
 func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			username, password := utils.GetAuthentication()
-			user, pass, passBasicAuth := r.BasicAuth()
-
-            isAdmin := false
-
-			// Check for basic authentication
-			if passBasicAuth && subtle.ConstantTimeCompare([]byte(user), []byte(username)) == 1 && subtle.ConstantTimeCompare([]byte(pass), []byte(password)) == 1 {
-				isAdmin = true
+			paths := strings.Split(r.URL.Path, "/")
+			if len(paths) < 1 {
+				utils.SendJSON(w, "endpoint is not supported", false, http.StatusNotImplemented, nil)
+				return
 			}
 
-			if !isAdmin {
-				credentialManager := credential.Manager{}
+			restrictedPaths := strings.Join([]string{"credentials", "projects", "executions"}, ",")
+			isVisitingRestrictedPaths := strings.Contains(restrictedPaths, strings.ToLower(paths[1]))
 
-				// Check for api key
-				token := r.Header.Get("x-token")
-
-				if len(token) < 1 {
-					utils.SendJSON(w, "missing token header", false, http.StatusUnauthorized, nil)
-					return
+			if isVisitingRestrictedPaths && auth.IsServerClient(r) {
+				if validity, _ := auth.IsAuthorizedServerClient(r, pool); validity {
+					next.ServeHTTP(w, r)
+				}
+			} else {
+				if auth.IsIOSClient(r) {
+					if validity, _ := auth.IsAuthorizedIOSClient(r, pool); validity {
+						next.ServeHTTP(w, r)
+						return
+					}
 				}
 
-				paths := strings.Split(r.URL.Path, "/")
-				if len(paths) < 1 {
-					utils.SendJSON(w, "endpoint is not supported", false, http.StatusNotImplemented, nil)
-					return
+				if auth.IsAndroidClient(r) {
+					if validity, _ := auth.IsAuthorizedAndroidClient(r, pool); validity {
+						next.ServeHTTP(w, r)
+						return
+					}
 				}
 
-				var restrictedPaths = strings.Join([]string{"credentials", "projects", "executions"}, ",")
-
-				if strings.Contains(restrictedPaths, strings.ToLower(paths[1])) && token != "test-token" {
-					utils.SendJSON(w, paths[1]+" are not available", false, http.StatusUnauthorized, nil)
-					return
-				}
-
-				credentialManager.ApiKey = token
-
-				if err := credentialManager.GetByAPIKey(pool); err != nil {
-					utils.SendJSON(w, err.Error(), false, http.StatusInternalServerError, nil)
-					return
-				}
-
-				if len(credentialManager.UUID) < 1 {
-					utils.SendJSON(w, "credential does not exits", false, http.StatusUnauthorized, nil)
-					return
-				}
-
-				if len(credentialManager.UUID) < 1 {
-					utils.SendJSON(w, "credential does not exits", false, http.StatusUnauthorized, nil)
-					return
-				}
-
-				if len(credentialManager.HTTPReferrerRestriction) > 1 &&
-					credentialManager.HTTPReferrerRestriction != "*" &&
-					credentialManager.HTTPReferrerRestriction != r.URL.Host {
-					utils.SendJSON(w, "credential invalid referral", false, http.StatusUnauthorized, nil)
-					return
+				if auth.IsWebClient(r)  {
+					if validity, _ := auth.IsAuthorizedWebClient(r, pool); validity {
+						next.ServeHTTP(w, r)
+						return
+					}
 				}
 			}
 
-			next.ServeHTTP(w, r)
+			utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
+			return
 		})
 	}
 }

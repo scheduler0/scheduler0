@@ -18,7 +18,7 @@ func listCredentials() {
 		utils.Error(err.Error())
 		return
 	}
-	credentialService := service.CredentialService{
+	credentialService := service.Credential{
 		Pool: pool,
 	}
 	credentialTransformers, listError := credentialService.ListCredentials(0, 10, "date_created DESC")

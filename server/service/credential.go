@@ -7,14 +7,14 @@ import (
 	"scheduler0/utils"
 )
 
-type CredentialService Service
+type Credential Service
 
-func (credentialService *CredentialService) CreateNewCredential(credentialTransformer transformers.Credential) (string, *utils.GenericError) {
+func (credentialService *Credential) CreateNewCredential(credentialTransformer transformers.Credential) (string, *utils.GenericError) {
 	credentialManager := credentialTransformer.ToManager()
 	return credentialManager.CreateOne(credentialService.Pool)
 }
 
-func (credentialService *CredentialService) FindOneCredentialByUUID(UUID string) (*transformers.Credential, error) {
+func (credentialService *Credential) FindOneCredentialByUUID(UUID string) (*transformers.Credential, error) {
 	credentialDto := transformers.Credential{UUID: UUID}
 	credentialManager := credentialDto.ToManager()
 	if err := credentialManager.GetOne(credentialService.Pool); err != nil {
@@ -26,7 +26,7 @@ func (credentialService *CredentialService) FindOneCredentialByUUID(UUID string)
 	}
 }
 
-func (credentialService *CredentialService) UpdateOneCredential(credentialTransformer transformers.Credential) (*transformers.Credential, error) {
+func (credentialService *Credential) UpdateOneCredential(credentialTransformer transformers.Credential) (*transformers.Credential, error) {
 	credentialManager := credentialTransformer.ToManager()
 	if _, err := credentialManager.UpdateOne(credentialService.Pool); err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (credentialService *CredentialService) UpdateOneCredential(credentialTransf
 	}
 }
 
-func (credentialService *CredentialService) DeleteOneCredential(UUID string) (*transformers.Credential, error) {
+func (credentialService *Credential) DeleteOneCredential(UUID string) (*transformers.Credential, error) {
 	credentialDto := transformers.Credential{UUID: UUID}
 	credentialManager := credentialDto.ToManager()
 	if _, err := credentialManager.DeleteOne(credentialService.Pool); err != nil {
@@ -49,7 +49,7 @@ func (credentialService *CredentialService) DeleteOneCredential(UUID string) (*t
 	}
 }
 
-func (credentialService *CredentialService) ListCredentials(offset int, limit int, orderBy string) (*transformers.PaginatedCredential, *utils.GenericError) {
+func (credentialService *Credential) ListCredentials(offset int, limit int, orderBy string) (*transformers.PaginatedCredential, *utils.GenericError) {
 	credentialManager := credential.Manager{}
 
 	total, err := credentialManager.Count(credentialService.Pool)
@@ -77,4 +77,60 @@ func (credentialService *CredentialService) ListCredentials(offset int, limit in
 			Limit: limit,
 		}, nil
 	}
+}
+
+func (credentialService *Credential) ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError) {
+	credentialManager := credential.Manager{
+		ApiKey: apiKey,
+	}
+
+	getApIError := credentialManager.GetByAPIKey(credentialService.Pool)
+	if getApIError != nil {
+		return false, getApIError
+	}
+
+	return credentialManager.ApiSecret == apiSecret, nil
+}
+
+func (credentialService *Credential) ValidateIOSAPIKey(apiKey string, IOSBundle string) (bool, *utils.GenericError) {
+	credentialManager := credential.Manager{
+		ApiKey: apiKey,
+	}
+
+	getApIError := credentialManager.GetByAPIKey(credentialService.Pool)
+	if getApIError != nil {
+		return false, getApIError
+	}
+
+	return credentialManager.IOSBundleIDRestriction == IOSBundle, nil
+}
+
+func (credentialService *Credential) ValidateAndroidAPIKey(apiKey string, androidPackageName string) (bool, *utils.GenericError) {
+	credentialManager := credential.Manager{
+		ApiKey: apiKey,
+	}
+
+	getApIError := credentialManager.GetByAPIKey(credentialService.Pool)
+	if getApIError != nil {
+		return false, getApIError
+	}
+
+	return credentialManager.AndroidPackageNameRestriction == androidPackageName, nil
+}
+
+func (credentialService *Credential) ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string) (bool, *utils.GenericError) {
+	credentialManager := credential.Manager{
+		ApiKey: apiKey,
+	}
+
+	getApIError := credentialManager.GetByAPIKey(credentialService.Pool)
+	if getApIError != nil {
+		return false, getApIError
+	}
+
+	if callerUrl == credentialManager.HTTPReferrerRestriction {
+		return true, nil
+	}
+
+	return false, utils.HTTPGenericError(http.StatusUnauthorized, "the user is not authorized")
 }
