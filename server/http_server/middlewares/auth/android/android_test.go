@@ -1,4 +1,4 @@
-package auth_test
+package android_test
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"scheduler0/server/db"
 	"scheduler0/server/http_server/middlewares/auth"
+	"scheduler0/server/http_server/middlewares/auth/android"
 	"scheduler0/server/managers/credential"
 	"scheduler0/server/managers/credential/fixtures"
 	"scheduler0/server/service"
@@ -14,12 +15,14 @@ import (
 	"testing"
 )
 
-var _ = Describe("IOS Auth Test", func() {
+var _ = Describe("Android Auth Test", func() {
 
-	db.Teardown()
-	db.Prepare()
+	BeforeEach(func() {
+		db.Teardown()
+		db.Prepare()
+	})
 
-	It("Should identify request from IOS apps", func() {
+	It("Should identify request from android apps", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
@@ -33,7 +36,7 @@ var _ = Describe("IOS Auth Test", func() {
 		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 		credentialTransformer := credentialTransformers[0]
 
-		credentialTransformer.Platform = credential.IOSPlatform
+		credentialTransformer.Platform = credential.AndroidPlatform
 
 		_, createError := credentialService.CreateNewCredential(credentialTransformer)
 		if createError != nil {
@@ -41,12 +44,12 @@ var _ = Describe("IOS Auth Test", func() {
 		}
 
 		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
+		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
 
-		Expect(auth.IsIOSClient(req)).To(BeTrue())
+		Expect(android.IsAndroidClient(req)).To(BeTrue())
 	})
 
-	It("Should not identify request from non IOS apps", func() {
+	It("Should not identify request from non android apps", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
@@ -67,18 +70,19 @@ var _ = Describe("IOS Auth Test", func() {
 		credentialTransformer := credentialTransformers[0]
 
 		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
-		Expect(auth.IsIOSClient(req)).ToNot(BeTrue())
+		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
+		Expect(android.IsAndroidClient(req)).ToNot(BeTrue())
 
 		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
 		req.Header.Set(auth.SecretKeyHeader, credentialTransformer.ApiSecret)
-		Expect(auth.IsIOSClient(req)).ToNot(BeTrue())
+		Expect(android.IsAndroidClient(req)).ToNot(BeTrue())
 
 		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-		Expect(auth.IsIOSClient(req)).ToNot(BeTrue())
+		Expect(android.IsAndroidClient(req)).ToNot(BeTrue())
 	})
 
-	It("Should identify authorized request from ios apps", func() {
+
+	It("Should identify authorized request from android apps", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
@@ -92,7 +96,7 @@ var _ = Describe("IOS Auth Test", func() {
 		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 		credentialTransformer := credentialTransformers[0]
 
-		credentialTransformer.Platform = credential.IOSPlatform
+		credentialTransformer.Platform = credential.AndroidPlatform
 
 		credentialManagerUUID, createError := credentialService.CreateNewCredential(credentialTransformer)
 		if createError != nil {
@@ -110,14 +114,14 @@ var _ = Describe("IOS Auth Test", func() {
 		}
 
 		req.Header.Set(auth.APIKeyHeader, updatedCredentialTransformer.ApiKey)
-		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
+		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
 
-		Expect(auth.IsAuthorizedIOSClient(req, pool)).To(BeTrue())
+		Expect(android.IsAuthorizedAndroidClient(req, pool)).To(BeTrue())
 	})
 })
 
 
-func TestIOSAuth_Middleware(t *testing.T) {
+func TestAndroidAuth_Middleware(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "IOS Auth Test")
+	RunSpecs(t, "Android Auth Test")
 }

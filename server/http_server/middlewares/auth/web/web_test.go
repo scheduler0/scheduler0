@@ -1,12 +1,13 @@
-package auth_test
+package web_test
 import (
-"fmt"
+	"fmt"
 . "github.com/onsi/ginkgo"
 . "github.com/onsi/gomega"
 "net/http"
 "scheduler0/server/db"
 "scheduler0/server/http_server/middlewares/auth"
-"scheduler0/server/managers/credential"
+	"scheduler0/server/http_server/middlewares/auth/web"
+	"scheduler0/server/managers/credential"
 "scheduler0/server/managers/credential/fixtures"
 "scheduler0/server/service"
 "scheduler0/utils"
@@ -15,8 +16,10 @@ import (
 
 var _ = Describe("Web Auth Test", func() {
 
-	db.Teardown()
-	db.Prepare()
+	BeforeEach(func() {
+		db.Teardown()
+		db.Prepare()
+	})
 
 	It("Should identify request from web clients", func() {
 		req, err := http.NewRequest("POST", "/", nil)
@@ -42,7 +45,7 @@ var _ = Describe("Web Auth Test", func() {
 
 		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
 
-		Expect(auth.IsWebClient(req)).To(BeTrue())
+		Expect(web.IsWebClient(req)).To(BeTrue())
 	})
 
 })

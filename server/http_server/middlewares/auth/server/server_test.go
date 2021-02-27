@@ -1,4 +1,4 @@
-package auth_test
+package server_test
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"scheduler0/server/db"
 	"scheduler0/server/http_server/middlewares/auth"
+	"scheduler0/server/http_server/middlewares/auth/server"
 	"scheduler0/server/managers/credential"
 	"scheduler0/server/managers/credential/fixtures"
 	"scheduler0/server/service"
@@ -14,12 +15,14 @@ import (
 	"testing"
 )
 
-var _ = Describe("Android Auth Test", func() {
+var _ = Describe("Server Side Auth Test", func() {
 
-	db.Teardown()
-	db.Prepare()
+	BeforeEach(func() {
+		db.Teardown()
+		db.Prepare()
+	})
 
-	It("Should identify request from android apps", func() {
+	It("Should identify request from server side", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
@@ -33,7 +36,7 @@ var _ = Describe("Android Auth Test", func() {
 		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 		credentialTransformer := credentialTransformers[0]
 
-		credentialTransformer.Platform = credential.AndroidPlatform
+		credentialTransformer.Platform = credential.ServerPlatform
 
 		_, createError := credentialService.CreateNewCredential(credentialTransformer)
 		if createError != nil {
@@ -41,12 +44,12 @@ var _ = Describe("Android Auth Test", func() {
 		}
 
 		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
+		req.Header.Set(auth.SecretKeyHeader, credentialTransformer.ApiSecret)
 
-		Expect(auth.IsAndroidClient(req)).To(BeTrue())
+		Expect(server.IsServerClient(req)).To(BeTrue())
 	})
 
-	It("Should not identify request from non android apps", func() {
+	It("Should not identify request from non server side", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
@@ -67,19 +70,18 @@ var _ = Describe("Android Auth Test", func() {
 		credentialTransformer := credentialTransformers[0]
 
 		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
+		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
+		Expect(server.IsServerClient(req)).ToNot(BeTrue())
+
+		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
 		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
-		Expect(auth.IsAndroidClient(req)).ToNot(BeTrue())
+		Expect(server.IsServerClient(req)).ToNot(BeTrue())
 
 		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-		req.Header.Set(auth.SecretKeyHeader, credentialTransformer.ApiSecret)
-		Expect(auth.IsAndroidClient(req)).ToNot(BeTrue())
-
-		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-		Expect(auth.IsAndroidClient(req)).ToNot(BeTrue())
+		Expect(server.IsServerClient(req)).ToNot(BeTrue())
 	})
 
-
-	It("Should identify authorized request from android apps", func() {
+	It("Should identify authorized request from server clients", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
@@ -93,7 +95,7 @@ var _ = Describe("Android Auth Test", func() {
 		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 		credentialTransformer := credentialTransformers[0]
 
-		credentialTransformer.Platform = credential.AndroidPlatform
+		credentialTransformer.Platform = credential.ServerPlatform
 
 		credentialManagerUUID, createError := credentialService.CreateNewCredential(credentialTransformer)
 		if createError != nil {
@@ -111,14 +113,14 @@ var _ = Describe("Android Auth Test", func() {
 		}
 
 		req.Header.Set(auth.APIKeyHeader, updatedCredentialTransformer.ApiKey)
-		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
+		req.Header.Set(auth.SecretKeyHeader, updatedCredentialTransformer.ApiSecret)
 
-		Expect(auth.IsAuthorizedAndroidClient(req, pool)).To(BeTrue())
+		Expect(server.IsAuthorizedServerClient(req, pool)).To(BeTrue())
 	})
 })
 
 
-func TestAndroidAuth_Middleware(t *testing.T) {
+func TestServerSideAuth_Middleware(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Android Auth Test")
+	RunSpecs(t, "Server Side Auth Test")
 }

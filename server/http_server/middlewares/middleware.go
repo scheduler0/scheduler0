@@ -4,7 +4,10 @@ import (
 	"context"
 	"github.com/segmentio/ksuid"
 	"net/http"
-	"scheduler0/server/http_server/middlewares/auth"
+	"scheduler0/server/http_server/middlewares/auth/android"
+	"scheduler0/server/http_server/middlewares/auth/ios"
+	"scheduler0/server/http_server/middlewares/auth/server"
+	"scheduler0/server/http_server/middlewares/auth/web"
 	"scheduler0/utils"
 	"strings"
 	"sync"
@@ -43,27 +46,27 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 			restrictedPaths := strings.Join([]string{"credentials", "projects", "executions"}, ",")
 			isVisitingRestrictedPaths := strings.Contains(restrictedPaths, strings.ToLower(paths[1]))
 
-			if isVisitingRestrictedPaths && auth.IsServerClient(r) {
-				if validity, _ := auth.IsAuthorizedServerClient(r, pool); validity {
+			if isVisitingRestrictedPaths && server.IsServerClient(r) {
+				if validity, _ := server.IsAuthorizedServerClient(r, pool); validity {
 					next.ServeHTTP(w, r)
 				}
 			} else {
-				if auth.IsIOSClient(r) {
-					if validity, _ := auth.IsAuthorizedIOSClient(r, pool); validity {
+				if ios.IsIOSClient(r) {
+					if validity, _ := ios.IsAuthorizedIOSClient(r, pool); validity {
 						next.ServeHTTP(w, r)
 						return
 					}
 				}
 
-				if auth.IsAndroidClient(r) {
-					if validity, _ := auth.IsAuthorizedAndroidClient(r, pool); validity {
+				if android.IsAndroidClient(r) {
+					if validity, _ := android.IsAuthorizedAndroidClient(r, pool); validity {
 						next.ServeHTTP(w, r)
 						return
 					}
 				}
 
-				if auth.IsWebClient(r)  {
-					if validity, _ := auth.IsAuthorizedWebClient(r, pool); validity {
+				if web.IsWebClient(r)  {
+					if validity, _ := web.IsAuthorizedWebClient(r, pool); validity {
 						next.ServeHTTP(w, r)
 						return
 					}

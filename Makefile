@@ -51,3 +51,8 @@ test:
 	go test ./server/http_server/controllers/credential -cover -v -race
 	go test ./server/http_server/controllers/job -cover -v -race
 	go test ./server/http_server/controllers/project -cover -v -race
+
+	go test ./server/http_server/middlewares/auth/ios
+	go test ./server/http_server/middlewares/auth/android
+	go test ./server/http_server/middlewares/auth/server
+	go test ./server/http_server/middlewares/auth/web

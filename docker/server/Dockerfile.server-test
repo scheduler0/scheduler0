@@ -44,3 +44,8 @@ RUN go test ./server/http_server/controllers/execution -cover -v -race
 RUN go test ./server/http_server/controllers/credential -cover -v -race
 RUN go test ./server/http_server/controllers/job -cover -v -race
 RUN go test ./server/http_server/controllers/project -cover -v -race
+
+RUN go test ./server/http_server/middlewares/auth/ios
+RUN	go test ./server/http_server/middlewares/auth/android
+RUN	go test ./server/http_server/middlewares/auth/server
+RUN	go test ./server/http_server/middlewares/auth/web
