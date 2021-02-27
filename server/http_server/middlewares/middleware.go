@@ -14,11 +14,13 @@ const (
 	RequestID = iota + 1
 )
 
+// MiddlewareType middleware type
 type MiddlewareType struct {
 	doOnce sync.Once
 	ctx    context.Context
 }
 
+// ContextMiddleware context middleware
 func (m *MiddlewareType) ContextMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := ksuid.New().String()
@@ -28,6 +30,7 @@ func (m *MiddlewareType) ContextMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// AuthMiddleware authentication middleware
 func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
