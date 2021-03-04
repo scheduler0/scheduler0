@@ -6,15 +6,13 @@ import (
 	"time"
 )
 
-
 // Execution this transformer is used for execution entity type
 type Execution struct {
-	UUID        string    `json:"id"`
+	UUID        string    `json:"uuid"`
 	JobUUID     string    `json:"job_uuid"`
 	StatusCode  string    `json:"status_code"`
 	Timeout     uint64    `json:"timeout"`
 	Response    string    `json:"response"`
-	Token       string    `json:"token"`
 	DateCreated time.Time `json:"date_created"`
 }
 
