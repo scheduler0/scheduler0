@@ -41,16 +41,16 @@ func listCredentials() {
 		})
 	}
 
-	t.AppendFooter(table.Row{"", "", "Total", credentialTransformers.Total })
-	t.AppendFooter(table.Row{"", "", "Offset", credentialTransformers.Offset })
-	t.AppendFooter(table.Row{"", "", "Limit", credentialTransformers.Limit })
+	t.AppendFooter(table.Row{"", "", "Total", credentialTransformers.Total})
+	t.AppendFooter(table.Row{"", "", "Offset", credentialTransformers.Offset})
+	t.AppendFooter(table.Row{"", "", "Limit", credentialTransformers.Limit})
 	t.Render()
 }
 
 var ListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List credentials, projects, jobs e.t.c",
-	Long:  `
+	Long: `
 Use this to list entities like credentials, projects, jobs and executions. 
 
 Usage: 
@@ -60,7 +60,7 @@ Usage:
 This will list all the credentials that you can use in the client sdks
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		utils.SetPostgresCredentialsFromConfig()
+		utils.SetScheduler0Configurations()
 		switch entityType {
 		case "credentials":
 			listCredentials()
@@ -69,7 +69,6 @@ This will list all the credentials that you can use in the client sdks
 		}
 	},
 }
-
 
 func init() {
 	ListCmd.Flags().StringVarP(&entityType, "table", "t", "", "entity type to list")
