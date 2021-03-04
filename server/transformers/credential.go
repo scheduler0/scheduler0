@@ -8,6 +8,7 @@ import (
 // Credential transform into or from Managers or JSONs
 type Credential struct {
 	UUID                          string `json:"uuid"`
+	Archived                      bool   `json:"archived"`
 	Platform                      string `json:"platform"`
 	ApiKey                        string `json:"api_key"`
 	ApiSecret                     string `json:"api_secret"`
@@ -47,6 +48,7 @@ func (credentialTransformer *Credential) ToManager() credential.Manager {
 	credentialManager := credential.Manager{
 		UUID:                          credentialTransformer.UUID,
 		Platform:                      credentialTransformer.Platform,
+		Archived:                      credentialTransformer.Archived,
 		ApiKey:                        credentialTransformer.ApiKey,
 		ApiSecret:                     credentialTransformer.ApiSecret,
 		HTTPReferrerRestriction:       credentialTransformer.HTTPReferrerRestriction,
@@ -61,6 +63,7 @@ func (credentialTransformer *Credential) ToManager() credential.Manager {
 func (credentialTransformer *Credential) FromManager(credentialManager credential.Manager) {
 	credentialTransformer.UUID = credentialManager.UUID
 	credentialTransformer.Platform = credentialManager.Platform
+	credentialTransformer.Archived = credentialManager.Archived
 	credentialTransformer.ApiKey = credentialManager.ApiKey
 	credentialTransformer.ApiSecret = credentialManager.ApiSecret
 	credentialTransformer.IPRestrictionRestriction = credentialManager.IPRestriction

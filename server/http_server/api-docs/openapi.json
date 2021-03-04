@@ -13,9 +13,80 @@
     {
       "name": "Executions",
       "description": "Collect info for the jobs that have been executed"
+    },
+    {
+      "name": "Credentials",
+      "description": "credential resource represents all api keys"
     }
   ],
   "paths": {
+    "/credentials": {
+      "get": {
+        "tags": [
+          "Credentials"
+        ],
+        "summary": "Get all credentials",
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "description": "Credentials required for client applications / sdk that want to access scheduler0 api",
+        "operationId": "Credentials.get",
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "a collection of all the stats for jobs executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedCredentialsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Credentials"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "summary": "Create a new credential",
+        "operationId": "Credentials.post",
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "201": {
+            "description": "object representation of newly created credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/executions": {
       "get": {
         "tags": [
@@ -29,15 +100,21 @@
         "description": "this endpoint returns a collection containing basic information about jobs that have been executed",
         "operationId": "Executions.get",
         "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
           "404": {
-            "description": "resource not found: typically means no jobs have been executed"
+            "$ref": "#/components/responses/404"
           },
           "200": {
             "description": "a collection of all the stats for jobs executed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExecutionResponse"
+                  "$ref": "#/components/schemas/PaginatedExecutionsResponse"
                 }
               }
             }
@@ -84,6 +161,35 @@
         },
         "additionalProperties": false
       },
+      "PaginatedExecutionsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "offset": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              },
+              "credentials": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "$ref": "#/components/schemas/Execution"
+                }
+              }
+            }
+          }
+        }
+      },
       "ExecutionResponse": {
         "type": "object",
         "properties": {
@@ -92,18 +198,13 @@
           },
           "data": {
             "type": "object",
-            "items": {
-              "$ref": "#/components/schemas/Execution"
-            }
+            "$ref": "#/components/schemas/Execution"
           }
         }
       },
       "Credential": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string"
-          },
           "uuid": {
             "type": "string"
           },
@@ -120,39 +221,144 @@
           },
           "api_secret": {
             "type": "string",
-            "description": "this key is created by the server"
+            "description": "this key is created by the server",
+            "nullable": true
           },
           "http_referrer_restriction": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "ip_restriction": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "ios_bundle_id_restriction": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "android_package_name_restriction": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "date_created": {
             "type": "string"
           }
         }
       },
-
+      "CredentialResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "$ref": "#/components/schemas/Credential"
+          }
+        }
+      },
+      "PaginatedCredentialsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "offset": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              },
+              "credentials": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "$ref": "#/components/schemas/Credential"
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "responses": {
       "404": {
-        "description": "resource not found"
+        "description": "resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean"
+                },
+                "data": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       },
       "403": {
-        "description": "the client is forbidden to access resource"
+        "description": "the client is forbidden to access resource",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean"
+                },
+                "data": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       },
       "401": {
-        "description": "the client is not authorized to access resource"
+        "description": "the client is not authorized to access resource",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean"
+                },
+                "data": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       },
       "400": {
-        "description": "the client request parameters or body is malformed"
+        "description": "the client request parameters or body is malformed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean"
+                },
+                "data": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       }
     }
   }
