@@ -32,6 +32,9 @@
         }],
         "description": "Credentials required for client applications / sdk that want to access scheduler0 api",
         "operationId": "Credentials.get",
+        "requestBody": {
+
+        },
         "responses": {
           "401": {
             "$ref": "#/components/responses/401"
