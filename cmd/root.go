@@ -18,7 +18,7 @@ func init() {
 	rootCmd.AddCommand(ListCmd)
 	rootCmd.AddCommand(VersionCmd)
 	rootCmd.AddCommand(StartCmd)
-	rootCmd.AddCommand(InitCmd)
+	rootCmd.AddCommand(ConfigCmd)
 }
 
 func Execute() error {
