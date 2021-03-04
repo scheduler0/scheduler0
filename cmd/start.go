@@ -8,11 +8,20 @@ import (
 
 var StartCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start a local version of the server",
-	Long:  `The would run the server on your`,
+	Short: "Start scheduler0 http server",
+	Long: `
+This start command will spin up the http server. 
+The server will be ready to receive request on the PORT specified during init otherwise use :9090
+
+Usage: 
+
+> scheduler0 start
+
+The server needs to be running in order to execute jobs.
+`,
 	Run: func(cmd *cobra.Command, args []string) {
 		utils.Info("Starting Server.")
-		utils.SetPostgresCredentialsFromConfig()
+		utils.SetScheduler0Configurations()
 		http_server.Start()
 	},
 }
