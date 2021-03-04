@@ -51,6 +51,13 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 					next.ServeHTTP(w, r)
 				}
 			} else {
+				if server.IsServerClient(r) {
+					if validity, _ := ios.IsAuthorizedIOSClient(r, pool); validity {
+						next.ServeHTTP(w, r)
+						return
+					}
+				}
+
 				if ios.IsIOSClient(r) {
 					if validity, _ := ios.IsAuthorizedIOSClient(r, pool); validity {
 						next.ServeHTTP(w, r)
