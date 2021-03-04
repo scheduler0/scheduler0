@@ -6,36 +6,55 @@ import (
 	"os"
 )
 
-type PostgresCredentials struct {
-	Addr     string `json:"addr"`
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Database string `json:"database"`
+type Scheduler0Configurations struct {
+	PostgresAddress  string `json:"postgres_address"`
+	PostgresUser     string `json:"postgres_user"`
+	PostgresPassword string `json:"postgres_password"`
+	PostgresDatabase string `json:"postgres_database"`
+	PostgresURL      string `json:"postgres_url"`
+	PORT             string `json:"port"`
 }
 
-// GetPostgresCredentials this will retrieve the postgres credentials stored on disk and set it as an os env
-func GetPostgresCredentials() *PostgresCredentials {
-	return &PostgresCredentials{
-		Addr:     os.Getenv("POSTGRES_ADDRESS"),
-		Password: os.Getenv("POSTGRES_PASSWORD"),
-		Database: os.Getenv("POSTGRES_DATABASE"),
-		User:     os.Getenv("POSTGRES_USER"),
+const (
+	PostgresAddressEnv  = "POSTGRES_ADDRESS"
+	PostgresPasswordEnv = "POSTGRES_PASSWORD"
+	PostgresDatabaseEnv = "POSTGRES_DATABASE"
+	PostgresUserEnv     = "POSTGRES_USER"
+	PostgresURLEnv      = "POSTGRES_URL"
+	PortEnv             = "PORT"
+)
+
+// GetScheduler0Configurations this will retrieve scheduler0 configurations stored on disk and set it as an os env
+func GetScheduler0Configurations() *Scheduler0Configurations {
+	return &Scheduler0Configurations{
+		PostgresAddress:  os.Getenv(PostgresAddressEnv),
+		PostgresPassword: os.Getenv(PostgresPasswordEnv),
+		PostgresDatabase: os.Getenv(PostgresDatabaseEnv),
+		PostgresUser:     os.Getenv(PostgresUserEnv),
+		PostgresURL:      os.Getenv(PostgresURLEnv),
+		PORT:             os.Getenv(PortEnv),
 	}
 }
 
-// SetPostgresCredentialsFromConfig this will set the postgres environment variables to what what provided during initialization
-func SetPostgresCredentialsFromConfig() {
+// SetScheduler0Configurations this will set the server environment variables to initialized values
+func SetScheduler0Configurations() {
 	SetupConfig()
 
-	err := os.Setenv("POSTGRES_ADDRESS", viper.GetString("Addr"))
+	err := os.Setenv(PostgresAddressEnv, viper.GetString("postgres_address"))
 	utils.CheckErr(err)
 
-	err = os.Setenv("POSTGRES_USER", viper.GetString("User"))
+	err = os.Setenv(PostgresUserEnv, viper.GetString("postgres_user"))
 	utils.CheckErr(err)
 
-	err = os.Setenv("POSTGRES_PASSWORD", viper.GetString("Password"))
+	err = os.Setenv(PostgresPasswordEnv, viper.GetString("postgres_password"))
 	utils.CheckErr(err)
 
-	err = os.Setenv("POSTGRES_DATABASE", viper.GetString("Database"))
+	err = os.Setenv(PostgresDatabaseEnv, viper.GetString("postgres_database"))
+	utils.CheckErr(err)
+
+	err = os.Setenv(PostgresURLEnv, viper.GetString("postgres_url"))
+	utils.CheckErr(err)
+
+	err = os.Setenv(PortEnv, viper.GetString("port"))
 	utils.CheckErr(err)
 }
