@@ -17,6 +17,14 @@
     {
       "name": "Credentials",
       "description": "credential resource represents all api keys"
+    },
+    {
+      "name": "Projects",
+      "description": "projects are required for scheduled jobs to be created"
+    },
+    {
+      "name": "Jobs",
+      "description": "jobs are scheduled to be executed later"
     }
   ],
   "paths": {
@@ -32,9 +40,6 @@
         }],
         "description": "Credentials required for client applications / sdk that want to access scheduler0 api",
         "operationId": "Credentials.get",
-        "requestBody": {
-
-        },
         "responses": {
           "401": {
             "$ref": "#/components/responses/401"
@@ -46,7 +51,7 @@
             "$ref": "#/components/responses/404"
           },
           "200": {
-            "description": "a collection of all the stats for jobs executed",
+            "description": "successfully returned credentials",
             "content": {
               "application/json": {
                 "schema": {
@@ -67,6 +72,17 @@
         }],
         "summary": "Create a new credential",
         "operationId": "Credentials.post",
+        "requestBody": {
+          "description": "request body to create a new credentials",
+          "required": true,
+          "content": {
+            "application/json:": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialRequestBody"
+              }
+            }
+          }
+        },
         "responses": {
           "401": {
             "$ref": "#/components/responses/401"
@@ -78,7 +94,7 @@
             "$ref": "#/components/responses/404"
           },
           "201": {
-            "description": "object representation of newly created credential",
+            "description": "successfully created a credential",
             "content": {
               "application/json": {
                 "schema": {
@@ -86,6 +102,120 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/credentials/:uuid": {
+      "get": {
+        "tags": [
+          "Credentials"
+        ],
+        "summary": "Get one credential",
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "description": "Credentials required for client applications / sdk that want to access scheduler0 api",
+        "operationId": "Credentials.getOne",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/uuid"
+          }
+        ],
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "successfully returned a single credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Credentials"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "summary": "update an existing credential",
+        "operationId": "Credentials.put",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/uuid"
+          }
+        ],
+        "requestBody": {
+          "description": "request body to update a credential",
+          "required": true,
+          "content": {
+            "application/json:": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialUpdateRequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "successfully updated credential",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Credentials"
+        ],
+        "summary": "Delete one credential",
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "description": "Credentials required for client applications / sdk that want to access scheduler0 api",
+        "operationId": "Credentials.delete",
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "204": {
+            "description": "successfully deleted a single credential",
           }
         }
       }
@@ -124,9 +254,444 @@
           }
         }
       }
+    },
+    "/projects": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "summary": "Get all projects but in a paginated style",
+        "operationId": "Projects.get",
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "successfully returned a new project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "summary": "Create a new project",
+        "operationId": "Projects.post",
+        "requestBody": {
+          "description": "request body to create a project",
+          "required": true,
+          "content": {
+            "application/json:": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "201": {
+            "description": "successfully created a single project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/:uuid": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "summary": "Get a single project",
+        "operationId": "Projects.getOne",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/uuid"
+          }
+        ],
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "successfully returned a single project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Projects"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/uuid"
+          }
+        ],
+        "summary": "Update a single project",
+        "operationId": "Projects.put",
+        "requestBody": {
+          "description": "request body to update a project",
+          "required": true,
+          "content": {
+            "application/json:": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdateRequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "successfully updated a single project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/uuid"
+          }
+        ],
+        "summary": "Delete a single project",
+        "operationId": "Projects.delete",
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "204": {
+            "description": "successfully deleted a single project"
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/x-ios-bundle-id"
+          },
+          {
+            "$ref": "#/components/parameters/x-android-package-id"
+          }
+        ],
+        "summary": "Get all jobs but in a paginated style",
+        "operationId": "Jobs.get",
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "successfully paginated projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedJobsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/x-ios-bundle-id"
+          },
+          {
+            "$ref": "#/components/parameters/x-android-package-id"
+          }
+        ],
+        "summary": "Create a new scheduled job for a project",
+        "operationId": "Jobs.post",
+        "requestBody": {
+          "description": "request body to create a job",
+          "required": true,
+          "content": {
+            "application/json:": {
+              "schema": {
+                "$ref": "#/components/schemas/JobRequestBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "successfully created a job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/:uuid": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/uuid"
+          },
+          {
+            "$ref": "#/components/parameters/x-ios-bundle-id"
+          },
+          {
+            "$ref": "#/components/parameters/x-android-package-id"
+          }
+        ],
+        "summary": "Returns a single job",
+        "operationId": "Jobs.getOne",
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "successfully return a single job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Jobs"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/uuid"
+          },
+          {
+            "$ref": "#/components/parameters/x-ios-bundle-id"
+          },
+          {
+            "$ref": "#/components/parameters/x-android-package-id"
+          }
+        ],
+        "summary": "Updated a single job",
+        "operationId": "Jobs.update",
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "200": {
+            "description": "successfully updated a project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Jobs"
+        ],
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/uuid"
+          },
+          {
+            "$ref": "#/components/parameters/x-ios-bundle-id"
+          },
+          {
+            "$ref": "#/components/parameters/x-android-package-id"
+          }
+        ],
+        "summary": "Deleted a single job",
+        "operationId": "Jobs.delete",
+        "responses": {
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "204": {
+            "description": "successfully deleted a project",
+          }
+        }
+      }
     }
   },
   "components": {
+    "parameters": {
+      "uuid": {
+        "name": "uuid",
+        "schema":{
+          "type": "string"
+        },
+        "in": "path",
+        "required": true
+      },
+      "x-ios-bundle-id": {
+        "name": "x-ios-bundle-id",
+        "schema": {
+          "type": "string"
+        },
+        "in": "header"
+      },
+      "x-android-package-id": {
+        "name": "x-android-package-id",
+        "schema": {
+          "type": "string"
+        },
+        "in": "header"
+      }
+    },
     "securitySchemes": {
       "ApiKeyAuth": {
         "type": "apiKey",
@@ -140,71 +705,6 @@
       }
     },
     "schemas": {
-      "Execution": {
-        "type": "object",
-        "properties": {
-          "uuid": {
-            "type": "string"
-          },
-          "job_uuid": {
-            "type": "string"
-          },
-          "status_code": {
-            "type": "string"
-          },
-          "timeout": {
-            "type": "string"
-          },
-          "response": {
-            "type": "string"
-          },
-          "date_created": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "PaginatedExecutionsResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "total": {
-                "type": "number"
-              },
-              "offset": {
-                "type": "number"
-              },
-              "limit": {
-                "type": "number"
-              },
-              "credentials": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "$ref": "#/components/schemas/Execution"
-                }
-              }
-            }
-          }
-        }
-      },
-      "ExecutionResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object",
-            "$ref": "#/components/schemas/Execution"
-          }
-        }
-      },
       "Credential": {
         "type": "object",
         "properties": {
@@ -260,6 +760,242 @@
           }
         }
       },
+      "CredentialRequestBody": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          },
+          "platform": {
+            "type": "string",
+            "enum": ["android", "ios", "web", "server"]
+          },
+          "http_referrer_restriction": {
+            "type": "string",
+            "nullable": true
+          },
+          "ip_restriction": {
+            "type": "string",
+            "nullable": true
+          },
+          "ios_bundle_id_restriction": {
+            "type": "string",
+            "nullable": true
+          },
+          "android_package_name_restriction": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CredentialUpdateRequestBody": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          },
+          "platform": {
+            "type": "string",
+            "enum": ["android", "ios", "web", "server"]
+          },
+          "http_referrer_restriction": {
+            "type": "string",
+            "nullable": true
+          },
+          "ip_restriction": {
+            "type": "string",
+            "nullable": true
+          },
+          "ios_bundle_id_restriction": {
+            "type": "string",
+            "nullable": true
+          },
+          "android_package_name_restriction": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Execution": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "job_uuid": {
+            "type": "string"
+          },
+          "status_code": {
+            "type": "string"
+          },
+          "timeout": {
+            "type": "string"
+          },
+          "response": {
+            "type": "string"
+          },
+          "date_created": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExecutionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "$ref": "#/components/schemas/Execution"
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "project_uuid": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "cron_spec": {
+            "type": "string"
+          },
+          "transformers": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "callback_url": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          },
+          "end_date": {
+            "type": "string"
+          }
+        }
+      },
+      "JobResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "$ref": "#/components/schemas/Job"
+          }
+        }
+      },
+      "JobRequestBody": {
+        "type": "object",
+        "properties": {
+          "project_uuid": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "cron_spec": {
+            "type": "string"
+          },
+          "transformers": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "callback_url": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          },
+          "end_date": {
+            "type": "string"
+          }
+        }
+      },
+      "JobUpdateRequestBody": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "transformers": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "callback_url": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string"
+          },
+          "end_date": {
+            "type": "string"
+          }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "uuid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "date_created": {
+            "type": "string"
+          }
+        }
+      },
+      "ProjectRequestBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ProjectUpdateRequestBody": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ProjectResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "$ref": "#/components/schemas/Project"
+          }
+        }
+      },
       "PaginatedCredentialsResponse": {
         "type": "object",
         "properties": {
@@ -285,6 +1021,85 @@
                   "$ref": "#/components/schemas/Credential"
                 }
               }
+            }
+          }
+        }
+      },
+      "PaginatedExecutionsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "offset": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              },
+              "credentials": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "$ref": "#/components/schemas/Execution"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PaginatedJobsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "number"
+              },
+              "offset": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              },
+              "credentials": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PaginatedProjectsResponse": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number"
+          },
+          "offset": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "$ref": "#/components/schemas/Project"
             }
           }
         }
