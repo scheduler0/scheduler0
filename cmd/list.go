@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
-	"os"
 	"scheduler0/server/db"
 	"scheduler0/server/service"
 	"scheduler0/utils"
@@ -26,25 +24,28 @@ func listCredentials() {
 		utils.Error(listError.Message)
 		return
 	}
+	for _, credentialTransformer := range credentialTransformers.Data {
 
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{"#", "UUID", "HTTP Referrer Restriction", "Api Key"})
-
-	for index, credentialTransformer := range credentialTransformers.Data {
-		t.AppendSeparator()
-		t.AppendRow([]interface{}{
-			index + 1,
+		utils.Info(fmt.Sprintf(
+`
+-----------------------------------------
+UUID = %v
+Platform = %v
+API Key = %v
+API Secret = %v
+HTTP Referrer Restriction = %v
+IP Restriction = %v
+iOS Bundle Restriction = %v
+Android Package Name Restriction = %v
+`,
 			credentialTransformer.UUID,
-			credentialTransformer.HTTPReferrerRestriction,
+			credentialTransformer.Platform,
 			credentialTransformer.ApiKey,
-		})
+			credentialTransformer.ApiSecret,
+			credentialTransformer.HTTPReferrerRestriction,
+			credentialTransformer.IPRestrictionRestriction,
+			credentialTransformer.AndroidPackageNameRestriction))
 	}
-
-	t.AppendFooter(table.Row{"", "", "Total", credentialTransformers.Total})
-	t.AppendFooter(table.Row{"", "", "Offset", credentialTransformers.Offset})
-	t.AppendFooter(table.Row{"", "", "Limit", credentialTransformers.Limit})
-	t.Render()
 }
 
 var ListCmd = &cobra.Command{
