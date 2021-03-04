@@ -3,7 +3,7 @@
   "info": {
     "title": "Scheduler0",
     "version": "0.0.1",
-    "description": "A self managing scheduler service",
+    "description": "REST API documentation for the Scheduler0 http server",
     "contact": {
       "name": "Victor Nwaokocha",
       "email": "vnwaokocha@gmail.com"
@@ -22,22 +22,51 @@
           "Executions"
         ],
         "summary": "Get all stats for jobs that have been executed",
-        "description": "Returns response status for a job",
+        "security": [{
+          "ApiKeyAuth": [],
+          "ApiSecretAuth": []
+        }],
+        "description": "this endpoint returns a collection containing basic information about jobs that have been executed",
         "operationId": "Executions.get",
         "responses": {
           "404": {
-            "description": "resourse not found"
+            "description": "resource not found: typically means no jobs have been executed"
+          },
+          "200": {
+            "description": "a collection of all the stats for jobs executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionResponse"
+                }
+              }
+            }
           }
         }
       }
     }
   },
   "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      },
+      "ApiSecretAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Secret"
+      }
+    },
     "schemas": {
       "Execution": {
         "type": "object",
         "properties": {
-          "id": {
+          "uuid": {
+            "type": "string"
+          },
+          "job_uuid": {
             "type": "string"
           },
           "status_code": {
@@ -46,16 +75,7 @@
           "timeout": {
             "type": "string"
           },
-          "token": {
-            "type": "string"
-          },
           "response": {
-            "type": "string"
-          },
-          "data_created": {
-            "type": "string"
-          },
-          "job_id": {
             "type": "string"
           },
           "date_created": {
@@ -64,27 +84,75 @@
         },
         "additionalProperties": false
       },
+      "ExecutionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "items": {
+              "$ref": "#/components/schemas/Execution"
+            }
+          }
+        }
+      },
       "Credential": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string"
           },
-          "api_key": {
+          "uuid": {
             "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "platform": {
+            "type": "string",
+            "enum": ["android", "ios", "web", "server"]
+          },
+          "api_key": {
+            "type": "string",
+            "description": "this key is created by the server"
+          },
+          "api_secret": {
+            "type": "string",
+            "description": "this key is created by the server"
           },
           "http_referrer_restriction": {
             "type": "string"
+          },
+          "ip_restriction": {
+            "type": "string"
+          },
+          "ios_bundle_id_restriction": {
+            "type": "string"
+          },
+          "android_package_name_restriction": {
+            "type": "string"
+          },
+          "date_created": {
+            "type": "string"
           }
         }
-      }
+      },
+
     },
     "responses": {
-      "403": {
-        "description": "unathorized client request"
-      },
       "404": {
-        "description": "resourse not found"
+        "description": "resource not found"
+      },
+      "403": {
+        "description": "the client is forbidden to access resource"
+      },
+      "401": {
+        "description": "the client is not authorized to access resource"
+      },
+      "400": {
+        "description": "the client request parameters or body is malformed"
       }
     }
   }
