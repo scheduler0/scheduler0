@@ -13,12 +13,12 @@ const MaxConnections = 100
 
 // OpenConnection
 func OpenConnection() (io.Closer, error) {
-	postgresCredentials := *utils.GetPostgresCredentials()
+	postgresCredentials := *utils.GetScheduler0Configurations()
 	return pg.Connect(&pg.Options{
-		Addr:     postgresCredentials.Addr,
-		User:     postgresCredentials.User,
-		Password: postgresCredentials.Password,
-		Database: postgresCredentials.Database,
+		Addr:     postgresCredentials.PostgresAddress,
+		User:     postgresCredentials.PostgresUser,
+		Password: postgresCredentials.PostgresPassword,
+		Database: postgresCredentials.PostgresDatabase,
 		PoolSize: 1,
 	}), nil
 }
@@ -63,13 +63,13 @@ func GetTestPool() *utils.Pool {
 
 // Teardown is executed in tests to clear the database for stateless tests
 func Teardown() {
-	postgresCredentials := *utils.GetPostgresCredentials()
+	postgresCredentials := *utils.GetScheduler0Configurations()
 
 	db := pg.Connect(&pg.Options{
-		Addr:     postgresCredentials.Addr,
-		User:     postgresCredentials.User,
-		Password: postgresCredentials.Password,
-		Database: postgresCredentials.Database,
+		Addr:     postgresCredentials.PostgresAddress,
+		User:     postgresCredentials.PostgresUser,
+		Password: postgresCredentials.PostgresPassword,
+		Database: postgresCredentials.PostgresDatabase,
 	})
 	defer db.Close()
 
