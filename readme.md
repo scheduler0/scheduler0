@@ -6,6 +6,8 @@ A simple scheduling server for apps and backend server.
 [![CircleCI](https://circleci.com/gh/victorlenerd/scheduler0/tree/master.svg?style=svg)](https://circleci.com/gh/victorlenerd/scheduler0/tree/master)
 
 ## Current Status
+
+To use this you must first clone the repository and add the scheduler0 binary at the root of repo to your $PATH
     
 The scheduler0 CLI tool in the root of this repo can be used to configure and start the server.
 Postgres is needed to start the server, therefore after cloning the repo you need to run the config command.
@@ -19,13 +21,18 @@ To start the http server.
 scheduler0 start
 ```
 
+For more information. Use the help flag
+```shell
+scheduler0 --help
+```
+
 ## API Documentation
 
 There is a REST API documentation on http://localhost:9090/api-docs [](http://localhost:9090/api-docs)
 
 Note: that port 9090 is the default port for the server.
 
-## WIP: Dashboard
+## [WIP]: Dashboard
 
 The dashboard is supposed to be a GUI for managing projects, credentials and jobs.
 
