@@ -5,17 +5,61 @@ import (
 	"github.com/robfig/cron"
 	"io/ioutil"
 	"net/http"
-	execution2 "scheduler0/server/managers/execution"
+	"scheduler0/server/db"
+	executionManager "scheduler0/server/managers/execution"
 	"scheduler0/server/managers/job"
 	"scheduler0/server/managers/project"
 	"scheduler0/server/service"
+	"scheduler0/server/transformers"
 	"scheduler0/utils"
 	"strings"
 	"time"
 )
 
-// Start the cron job process
-func Start(pool *utils.Pool) {
+// Cron used for cron specific func
+var Cron = cron.New()
+
+// ExecuteHTTPJob this will execute an http job
+func ExecuteHTTPJob(jobTransformer transformers.Job) func() {
+	return func() {
+		go func() {
+			pool, err := utils.NewPool(db.OpenConnection, 1)
+
+			var response string
+			var statusCode int
+
+			startSecs := time.Now()
+
+			r, err := http.Post(http.MethodPost, jobTransformer.CallbackUrl, strings.NewReader(jobTransformer.Data))
+			if err != nil {
+				response = err.Error()
+				statusCode = 0
+			} else {
+				body, err := ioutil.ReadAll(r.Body)
+				if err != nil {
+					response = err.Error()
+				}
+				response = string(body)
+				statusCode = r.StatusCode
+			}
+
+			timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
+			execution := executionManager.Manager{
+				JobUUID:     jobTransformer.UUID,
+				Timeout:     timeout,
+				Response:    response,
+				StatusCode:  string(statusCode),
+				DateCreated: time.Now().UTC(),
+			}
+
+			_, createOneErr := execution.CreateOne(pool)
+			utils.CheckErr(errors.New(createOneErr.Message))
+		}()
+	}
+}
+
+// StartAllHTTPJobs the cron job process
+func StartAllHTTPJobs(pool *utils.Pool) {
 	projectManager := project.ProjectManager{}
 
 	totalProjectCount, err := projectManager.Count(pool)
@@ -36,8 +80,6 @@ func Start(pool *utils.Pool) {
 		Pool: pool,
 	}
 
-	cronJobs := cron.New()
-
 	for _, projectTransformer := range projectTransformers.Data {
 		jobManager := job.Manager{}
 
@@ -49,45 +91,17 @@ func Start(pool *utils.Pool) {
 		jobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
 		for _, jobTransformer := range jobTransformers.Data {
-
-			err := cronJobs.AddFunc(jobTransformer.CronSpec, func() {
-				var response string
-				var statusCode int
-
-				startSecs := time.Now()
-
-				r, err := http.Post(http.MethodPost, jobTransformer.CallbackUrl, strings.NewReader(jobTransformer.Data))
-				if err != nil {
-					response = err.Error()
-					statusCode = 0
-				} else {
-					body, err := ioutil.ReadAll(r.Body)
-					if err != nil {
-						response = err.Error()
-					}
-					response = string(body)
-					statusCode = r.StatusCode
-				}
-
-				timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
-				execution := execution2.Manager{
-					JobUUID:     jobTransformer.UUID,
-					Timeout:     timeout,
-					Response:    response,
-					StatusCode:  string(statusCode),
-					DateCreated: time.Now().UTC(),
-				}
-
-				_, createOneErr := execution.CreateOne(pool)
-				utils.CheckErr(errors.New(createOneErr.Message))
-			})
-
+			err := Cron.AddFunc(jobTransformer.CronSpec, ExecuteHTTPJob(jobTransformer))
 			if err != nil {
 				panic(err)
 			}
-
 		}
 	}
 
-	cronJobs.Start()
+	Cron.Start()
+}
+
+// StartASingleHTTPJob adds a single job to the queue
+func StartASingleHTTPJob(jobTransformer transformers.Job) {
+	Cron.AddFunc(jobTransformer.CronSpec, ExecuteHTTPJob(jobTransformer))
 }

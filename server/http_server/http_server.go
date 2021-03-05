@@ -31,8 +31,8 @@ func Start() {
 	// Set time zone, create database and run db
 	db.CreateModelTables(pool)
 
-	// Start process to execute cron-server jobs
-	go process.Start(pool)
+	// StartAllHTTPJobs process to execute cron-server jobs
+	go process.StartAllHTTPJobs(pool)
 
 	// HTTP router setup
 	router := mux.NewRouter()

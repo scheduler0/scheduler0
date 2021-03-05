@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"scheduler0/server/managers/job"
+	"scheduler0/server/process"
 	"scheduler0/server/transformers"
 	"scheduler0/utils"
 )
@@ -47,25 +48,25 @@ func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset in
 }
 
 // GetJob returns a job with UUID that matched UUID of transformer
-func (jobService *JobService) GetJob(job transformers.Job) (*transformers.Job, *utils.GenericError) {
-	jobManager, err := job.ToManager()
+func (jobService *JobService) GetJob(jobTransformer transformers.Job) (*transformers.Job, *utils.GenericError) {
+	jobManager, err := jobTransformer.ToManager()
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	jobMangerGetOneError := jobManager.GetOne(jobService.Pool, job.UUID)
+	jobMangerGetOneError := jobManager.GetOne(jobService.Pool, jobTransformer.UUID)
 	if jobMangerGetOneError != nil {
 		return nil, jobMangerGetOneError
 	}
 
-	job.FromManager(jobManager)
+	jobTransformer.FromManager(jobManager)
 
-	return &job, nil
+	return &jobTransformer, nil
 }
 
 // CreateJob creates a new job based on values in transformer object
-func (jobService *JobService) CreateJob(job transformers.Job) (*transformers.Job, *utils.GenericError) {
-	jobManager, err := job.ToManager()
+func (jobService *JobService) CreateJob(jobTransformer transformers.Job) (*transformers.Job, *utils.GenericError) {
+	jobManager, err := jobTransformer.ToManager()
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
 	}
@@ -75,16 +76,15 @@ func (jobService *JobService) CreateJob(job transformers.Job) (*transformers.Job
 		return nil, jobMangerCreateOneError
 	}
 
-	job.FromManager(jobManager)
+	jobTransformer.FromManager(jobManager)
+	process.StartASingleHTTPJob(jobTransformer)
 
-	// TODO: Start go routine for job
-
-	return &job, nil
+	return &jobTransformer, nil
 }
 
 // UpdateJob updates job with UUID in transformer. Note that cron expression of job cannot be updated.
-func (jobService *JobService) UpdateJob(job transformers.Job) (*transformers.Job, *utils.GenericError) {
-	jobManager, err := job.ToManager()
+func (jobService *JobService) UpdateJob(jobTransformer transformers.Job) (*transformers.Job, *utils.GenericError) {
+	jobManager, err := jobTransformer.ToManager()
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -94,9 +94,9 @@ func (jobService *JobService) UpdateJob(job transformers.Job) (*transformers.Job
 		return nil, jobMangerUpdateOneError
 	}
 
-	job.FromManager(jobManager)
+	jobTransformer.FromManager(jobManager)
 
-	return &job, nil
+	return &jobTransformer, nil
 }
 
 
