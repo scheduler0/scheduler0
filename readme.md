@@ -9,20 +9,20 @@ A simple scheduling server for apps and backend server.
     
 The scheduler0 CLI tool in the root of this repo can be used to configure and start the server.
 Postgres is needed to start the server, therefore after cloning the repo you need to run the config command.
-
 ```shell
 scheduler0 config init
 ```
 
 Will take you through the configuration flow, where you will be prompted to enter your database credentials.
-
-To start the http server
+To start the http server.
 ```shell
 scheduler0 start
 ```
 
 ## API Documentation
-https://scheduler0.com/api-docs
+
+There is a REST API documentation on http://localhost:9090/api-docs [](http://localhost:9090/api-docs)
+Note: that port 9090 is the default port for the server.
 
 ## WIP: Dashboard
 !["Dashboard"](./screenshots/screenshot.png)
