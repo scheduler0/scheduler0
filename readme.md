@@ -22,12 +22,14 @@ scheduler0 start
 ## API Documentation
 
 There is a REST API documentation on http://localhost:9090/api-docs [](http://localhost:9090/api-docs)
+
 Note: that port 9090 is the default port for the server.
 
 ## WIP: Dashboard
-!["Dashboard"](./screenshots/screenshot.png)
 
 The dashboard is supposed to be a GUI for managing projects, credentials and jobs.
+
+!["Dashboard"](./screenshots/screenshot.png)
  
 # License
 
