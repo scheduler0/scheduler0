@@ -11,7 +11,7 @@ import (
 
 const MaxConnections = 100
 
-// OpenConnection
+// OpenConnection opens a database connection with one pool
 func OpenConnection() (io.Closer, error) {
 	postgresCredentials := *utils.GetScheduler0Configurations()
 	return pg.Connect(&pg.Options{
