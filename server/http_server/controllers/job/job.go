@@ -10,8 +10,11 @@ import (
 	"strconv"
 )
 
+// Controller http request handler for /job requests
 type Controller controllers.Controller
 
+
+// List returns a paginated list of jobs
 func (jobController *Controller) List(w http.ResponseWriter, r *http.Request) {
 	projectUUID, err := utils.ValidateQueryString("projectUUID", r)
 	if err != nil {
@@ -57,6 +60,7 @@ func (jobController *Controller) List(w http.ResponseWriter, r *http.Request) {
 	utils.SendJSON(w, jobs, true, http.StatusOK, nil)
 }
 
+// CreateOne handles request to create a new job
 func (jobController *Controller) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body := utils.ExtractBody(w, r)
 	jobBody := transformers.Job{}
@@ -81,6 +85,8 @@ func (jobController *Controller) CreateOne(w http.ResponseWriter, r *http.Reques
 	utils.SendJSON(w, job, true, http.StatusCreated, nil)
 }
 
+
+// GetOne handles request to return a single job
 func (jobController *Controller) GetOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
@@ -102,6 +108,8 @@ func (jobController *Controller) GetOne(w http.ResponseWriter, r *http.Request) 
 	utils.SendJSON(w, jobT, true, http.StatusOK, nil)
 }
 
+
+// UpdateOne handles request to update a single job
 func (jobController *Controller) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
@@ -130,6 +138,8 @@ func (jobController *Controller) UpdateOne(w http.ResponseWriter, r *http.Reques
 	utils.SendJSON(w, jobT, true, http.StatusOK, nil)
 }
 
+
+// DeleteOne handles request to delete a single job
 func (jobController *Controller) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
