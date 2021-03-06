@@ -52,6 +52,7 @@ var _ = Describe("Execution Controller", func() {
 })
 
 func TestExecution_Controller(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Execution Controller Suite")
 }

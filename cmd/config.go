@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/manifoldco/promptui"
@@ -10,6 +12,8 @@ import (
 	"scheduler0/server/db"
 	"scheduler0/utils"
 )
+
+
 
 var ConfigCmd = &cobra.Command{
 	Use:   "config",
@@ -99,12 +103,19 @@ Note that the PORT is optional. By default the server will use :9090
 			utils.Error(err.Error())
 			return
 		} else {
+			bytes := make([]byte, 32) //generate a random 32 byte key for AES-256
+			if _, err := rand.Read(bytes); err != nil {
+				panic(err.Error())
+			}
+			key := hex.EncodeToString(bytes) //encode key in bytes to string for saving
+
 			config := utils.Scheduler0Configurations{
 				PostgresAddress:  Addr,
 				PostgresUser:     User,
 				PostgresDatabase: DB,
 				PostgresPassword: Pass,
 				PORT:             Port,
+				SecretKey:        key,
 			}
 
 			configByte, err := json.Marshal(config)
@@ -143,10 +154,7 @@ Use the --show-password flag if you want the password to be visible.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		utils.SetScheduler0Configurations()
-
 		configs := utils.GetScheduler0Configurations()
-
-		fmt.Println(configs)
 
 		if showPassword {
 			utils.Info(fmt.Sprintf(

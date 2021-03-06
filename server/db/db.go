@@ -65,6 +65,8 @@ func GetTestPool() *utils.Pool {
 func Teardown() {
 	postgresCredentials := *utils.GetScheduler0Configurations()
 
+	fmt.Println(postgresCredentials)
+
 	db := pg.Connect(&pg.Options{
 		Addr:     postgresCredentials.PostgresAddress,
 		User:     postgresCredentials.PostgresUser,

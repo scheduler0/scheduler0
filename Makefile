@@ -42,15 +42,15 @@ clean_test_cache:
 test:
 	go clean -testcache
 
-	go test ./server/managers/execution -cover -v -race
-	go test ./server/managers/job -cover -v -race
-	go test ./server/managers/project -cover -v -race
-	go test ./server/managers/credential -cover -v -race
+	go test ./server/managers/execution
+	go test ./server/managers/job -cover
+	go test ./server/managers/project -cover
+	go test ./server/managers/credential -cover
 
-	go test ./server/http_server/controllers/execution -cover -v -race
-	go test ./server/http_server/controllers/credential -cover -v -race
-	go test ./server/http_server/controllers/job -cover -v -race
-	go test ./server/http_server/controllers/project -cover -v -race
+	go test ./server/http_server/controllers/execution
+	go test ./server/http_server/controllers/credential
+	go test ./server/http_server/controllers/job -cover
+	go test ./server/http_server/controllers/project
 
 	go test ./server/http_server/middlewares/auth/ios
 	go test ./server/http_server/middlewares/auth/android

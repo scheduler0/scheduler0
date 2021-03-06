@@ -264,6 +264,7 @@ var _ = Describe("Project Controller", func() {
 })
 
 func TestProject_Controller(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Project Controller Suite")
 }

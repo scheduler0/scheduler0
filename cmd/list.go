@@ -44,6 +44,7 @@ Android Package Name Restriction = %v
 			credentialTransformer.ApiSecret,
 			credentialTransformer.HTTPReferrerRestriction,
 			credentialTransformer.IPRestrictionRestriction,
+			credentialTransformer.IOSBundleIDRestriction,
 			credentialTransformer.AndroidPackageNameRestriction))
 	}
 }

@@ -206,6 +206,7 @@ var _ = Describe("Credential Manager", func() {
 })
 
 func TestCredential_Manager(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Credential Manager Suite")
 }

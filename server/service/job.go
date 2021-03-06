@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"scheduler0/server/managers/job"
-	"scheduler0/server/process"
 	"scheduler0/server/transformers"
 	"scheduler0/utils"
 )
@@ -77,7 +76,6 @@ func (jobService *JobService) CreateJob(jobTransformer transformers.Job) (*trans
 	}
 
 	jobTransformer.FromManager(jobManager)
-	process.StartASingleHTTPJob(jobTransformer)
 
 	return &jobTransformer, nil
 }

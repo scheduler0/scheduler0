@@ -22,6 +22,13 @@ const (
 	ServerPlatform  = "server"
 )
 
+func getRandomSha256() string {
+	randomId := ksuid.New().String()
+	hash := sha256.New()
+	hash.Write([]byte(randomId))
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
 // CreateOne creates a single credential and returns the uuid
 func (credentialManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
 	if len(credentialManager.Platform) < 1 {
@@ -50,16 +57,14 @@ func (credentialManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.Ge
 		}
 	}
 
-	randomId := ksuid.New().String()
-	hash := sha256.New()
-	hash.Write([]byte(randomId))
-	credentialManager.ApiKey = hex.EncodeToString(hash.Sum(nil))
+	configs := utils.GetScheduler0Configurations()
+
+	fmt.Println(configs.SecretKey)
+
+	credentialManager.ApiKey = utils.Encrypt(getRandomSha256(), configs.SecretKey)
 
 	if credentialManager.Platform == ServerPlatform {
-		randomId := ksuid.New().String()
-		hash := sha256.New()
-		hash.Write([]byte(randomId))
-		credentialManager.ApiSecret = hex.EncodeToString(hash.Sum(nil))
+		credentialManager.ApiSecret = utils.Encrypt(getRandomSha256(), configs.SecretKey)
 	}
 
 	conn, err := pool.Acquire()

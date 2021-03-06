@@ -249,6 +249,7 @@ var _ = Describe("Project Manager", func() {
 })
 
 func TestProject_Manager(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Project Manager Suite")
 }

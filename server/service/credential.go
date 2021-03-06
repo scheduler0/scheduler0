@@ -7,13 +7,17 @@ import (
 	"scheduler0/utils"
 )
 
+// Credential service layer for credentials
 type Credential Service
 
+
+// CreateNewCredential creates a new credentials
 func (credentialService *Credential) CreateNewCredential(credentialTransformer transformers.Credential) (string, *utils.GenericError) {
 	credentialManager := credentialTransformer.ToManager()
 	return credentialManager.CreateOne(credentialService.Pool)
 }
 
+// FindOneCredentialByUUID searches for credential by uuid
 func (credentialService *Credential) FindOneCredentialByUUID(UUID string) (*transformers.Credential, error) {
 	credentialDto := transformers.Credential{UUID: UUID}
 	credentialManager := credentialDto.ToManager()
@@ -26,6 +30,9 @@ func (credentialService *Credential) FindOneCredentialByUUID(UUID string) (*tran
 	}
 }
 
+
+
+// UpdateOneCredential updates a single credential
 func (credentialService *Credential) UpdateOneCredential(credentialTransformer transformers.Credential) (*transformers.Credential, error) {
 	credentialManager := credentialTransformer.ToManager()
 	if _, err := credentialManager.UpdateOne(credentialService.Pool); err != nil {
@@ -37,6 +44,7 @@ func (credentialService *Credential) UpdateOneCredential(credentialTransformer t
 	}
 }
 
+// DeleteOneCredential deletes a single credential
 func (credentialService *Credential) DeleteOneCredential(UUID string) (*transformers.Credential, error) {
 	credentialDto := transformers.Credential{UUID: UUID}
 	credentialManager := credentialDto.ToManager()
@@ -49,6 +57,8 @@ func (credentialService *Credential) DeleteOneCredential(UUID string) (*transfor
 	}
 }
 
+
+// ListCredentials returns paginated list of credentials
 func (credentialService *Credential) ListCredentials(offset int, limit int, orderBy string) (*transformers.PaginatedCredential, *utils.GenericError) {
 	credentialManager := credential.Manager{}
 
@@ -79,6 +89,8 @@ func (credentialService *Credential) ListCredentials(offset int, limit int, orde
 	}
 }
 
+
+// ValidateServerAPIKey authenticates incoming request from servers
 func (credentialService *Credential) ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError) {
 	credentialManager := credential.Manager{
 		ApiKey: apiKey,
@@ -89,9 +101,16 @@ func (credentialService *Credential) ValidateServerAPIKey(apiKey string, apiSecr
 		return false, getApIError
 	}
 
-	return credentialManager.ApiSecret == apiSecret, nil
+	configs := utils.GetScheduler0Configurations()
+
+	decryptedIncomingSecret := utils.Decrypt(apiSecret, configs.SecretKey)
+	decryptedCredentialManagerSecret := utils.Decrypt(credentialManager.ApiSecret, configs.SecretKey)
+
+	return decryptedIncomingSecret == decryptedCredentialManagerSecret, nil
 }
 
+
+// ValidateIOSAPIKey authenticates incoming request from iOS app s
 func (credentialService *Credential) ValidateIOSAPIKey(apiKey string, IOSBundle string) (bool, *utils.GenericError) {
 	credentialManager := credential.Manager{
 		ApiKey: apiKey,
@@ -105,6 +124,8 @@ func (credentialService *Credential) ValidateIOSAPIKey(apiKey string, IOSBundle 
 	return credentialManager.IOSBundleIDRestriction == IOSBundle, nil
 }
 
+
+// ValidateAndroidAPIKey authenticates incoming request from android app
 func (credentialService *Credential) ValidateAndroidAPIKey(apiKey string, androidPackageName string) (bool, *utils.GenericError) {
 	credentialManager := credential.Manager{
 		ApiKey: apiKey,
@@ -118,6 +139,8 @@ func (credentialService *Credential) ValidateAndroidAPIKey(apiKey string, androi
 	return credentialManager.AndroidPackageNameRestriction == androidPackageName, nil
 }
 
+
+// ValidateWebAPIKeyHTTPReferrerRestriction authenticates incoming request from web clients
 func (credentialService *Credential) ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string) (bool, *utils.GenericError) {
 	credentialManager := credential.Manager{
 		ApiKey: apiKey,

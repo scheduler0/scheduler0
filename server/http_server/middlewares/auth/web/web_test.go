@@ -52,6 +52,7 @@ var _ = Describe("Web Auth Test", func() {
 
 
 func TestWebAuth_Middleware(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Web Auth Test")
 }

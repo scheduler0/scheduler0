@@ -204,6 +204,7 @@ var _ = Describe("Job Controller", func() {
 })
 
 func TestJob_Controller(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Job Controller Suite")
 }

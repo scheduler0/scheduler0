@@ -122,6 +122,7 @@ var _ = Describe("Android Auth Test", func() {
 
 
 func TestAndroidAuth_Middleware(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Android Auth Test")
 }

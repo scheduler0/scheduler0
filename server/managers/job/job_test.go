@@ -184,6 +184,7 @@ var _ = Describe("Job Manager", func() {
 })
 
 func TestJob_Manager(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Job Manager Suite")
 }

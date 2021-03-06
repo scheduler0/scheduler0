@@ -108,6 +108,7 @@ var _ = Describe("Execution Manager", func() {
 })
 
 func TestExecution_Manager(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Execution Manager Suite")
 }

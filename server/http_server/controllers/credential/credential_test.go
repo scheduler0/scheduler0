@@ -168,6 +168,7 @@ var _ = Describe("Credential Controller", func() {
 })
 
 func TestCredential_Controller(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Credential Controller Suite")
 }
