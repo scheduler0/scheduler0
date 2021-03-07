@@ -43,9 +43,9 @@ test:
 	go clean -testcache
 
 	go test ./server/managers/execution
-	go test ./server/managers/job -cover
-	go test ./server/managers/project -cover
-	go test ./server/managers/credential -cover
+	go test ./server/managers/job
+	go test ./server/managers/project
+	go test ./server/managers/credential
 
 	go test ./server/http_server/controllers/execution
 	go test ./server/http_server/controllers/credential
