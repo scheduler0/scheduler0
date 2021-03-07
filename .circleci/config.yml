@@ -9,7 +9,7 @@ jobs:
       - run:
           name: Run Database
           command: |
-            docker run --name postgres -e POSTGRES_USER=core -e POSTGRES_PASSWORD=localdev -p 5432:5432 -d scheduler0_test
+            docker run --name postgres -e POSTGRES_USER=core -e POSTGRES_PASSWORD=localdev -e POSTGRES_DB=scheduler0_test -p 5432:5432 -d postgres
       - run:
           name: Run Test
           command: |
