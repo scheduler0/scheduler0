@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"errors"
 	"fmt"
 	"github.com/spf13/viper"
 	"github.com/victorlenerd/scheduler0/server/src/utils"
@@ -48,6 +47,5 @@ func SetupConfig() {
 	if err := viper.ReadInConfig(); err != nil {
 		utils.Info("To fix this error try executing the init command")
 		utils.Error(err.Error())
-		panic(errors.New(err.Error()))
 	}
 }
