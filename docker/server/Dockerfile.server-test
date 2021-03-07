@@ -32,18 +32,18 @@ ENV GO111MODULE=on \
     CGO_ENABLED=1 \
     GOARCH=amd64
 
-RUN ls
+RUN go build scheduler0.go
 RUN go clean -testcache
 
-RUN go test ./server/managers/execution -cover -v -race
-RUN go test ./server/managers/job -cover -v -race
-RUN go test ./server/managers/project -cover -v -race
-RUN go test ./server/managers/credential -cover -v -race
+RUN go test ./server/managers/execution
+RUN go test ./server/managers/job
+RUN go test ./server/managers/project
+RUN go test ./server/managers/credential
 
-RUN go test ./server/http_server/controllers/execution -cover -v -race
-RUN go test ./server/http_server/controllers/credential -cover -v -race
-RUN go test ./server/http_server/controllers/job -cover -v -race
-RUN go test ./server/http_server/controllers/project -cover -v -race
+RUN go test ./server/http_server/controllers/execution
+RUN go test ./server/http_server/controllers/credential
+RUN go test ./server/http_server/controllers/job -cover
+RUN go test ./server/http_server/controllers/project
 
 RUN go test ./server/http_server/middlewares/auth/ios
 RUN	go test ./server/http_server/middlewares/auth/android
