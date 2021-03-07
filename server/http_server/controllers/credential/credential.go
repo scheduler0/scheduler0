@@ -12,8 +12,10 @@ import (
 	"strconv"
 )
 
+// Controller Handle all requests to /credentials
 type Controller controllers.Controller
 
+// CreateOne create a single credential
 func (credentialController *Controller) CreateOne(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -48,6 +50,7 @@ func (credentialController *Controller) CreateOne(w http.ResponseWriter, r *http
 	}
 }
 
+// GetOne returns a single credential
 func (credentialController *Controller) GetOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
@@ -61,6 +64,7 @@ func (credentialController *Controller) GetOne(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// UpdateOne updates a single credential
 func (credentialController *Controller) UpdateOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
@@ -92,6 +96,8 @@ func (credentialController *Controller) UpdateOne(w http.ResponseWriter, r *http
 	}
 }
 
+
+// DeleteOne deletes a single credential
 func (credentialController *Controller) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	credentialService := service.Credential{Pool: credentialController.Pool, Ctx: r.Context()}
@@ -103,6 +109,7 @@ func (credentialController *Controller) DeleteOne(w http.ResponseWriter, r *http
 	}
 }
 
+// List returns a paginated list of credentials
 func (credentialController *Controller) List(w http.ResponseWriter, r *http.Request) {
 	credentialService := service.Credential{Pool: credentialController.Pool, Ctx: r.Context()}
 
