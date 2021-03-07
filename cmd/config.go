@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/manifoldco/promptui"
@@ -12,8 +10,6 @@ import (
 	"scheduler0/server/db"
 	"scheduler0/utils"
 )
-
-
 
 var ConfigCmd = &cobra.Command{
 	Use:   "config",
@@ -82,6 +78,14 @@ Note that the PORT is optional. By default the server will use :9090
 		}
 		Port, _ := portPrompt.Run()
 
+		secretKeyPrompt := promptui.Prompt{
+			Label:       "Secret Key (AES-256)",
+			HideEntered: true,
+			Default:     "9090",
+		}
+		SecretKey, _ := secretKeyPrompt.Run()
+
+
 		err := os.Setenv(utils.PostgresAddressEnv, Addr)
 		utils.CheckErr(err)
 
@@ -103,19 +107,13 @@ Note that the PORT is optional. By default the server will use :9090
 			utils.Error(err.Error())
 			return
 		} else {
-			bytes := make([]byte, 32) //generate a random 32 byte key for AES-256
-			if _, err := rand.Read(bytes); err != nil {
-				panic(err.Error())
-			}
-			key := hex.EncodeToString(bytes) //encode key in bytes to string for saving
-
 			config := utils.Scheduler0Configurations{
 				PostgresAddress:  Addr,
 				PostgresUser:     User,
 				PostgresDatabase: DB,
 				PostgresPassword: Pass,
 				PORT:             Port,
-				SecretKey:        key,
+				SecretKey:        SecretKey,
 			}
 
 			configByte, err := json.Marshal(config)
@@ -158,13 +156,11 @@ Use the --show-password flag if you want the password to be visible.
 
 		if showPassword {
 			utils.Info(fmt.Sprintf(
-				`
-PORT = %v
-POSTGRES_ADDRESS = %v
-POSTGRES_USER = %v
-POSTGRES_PASSWORD = %v
-POSTGRES_DATABASE = %v
-`,
+				"PORT = %v " +
+				"POSTGRES_ADDRESS = %v " +
+				"POSTGRES_USER = %v " +
+				"POSTGRES_PASSWORD = %v " +
+				"POSTGRES_DATABASE = %v ",
 				configs.PORT,
 				configs.PostgresAddress,
 				configs.PostgresUser,
@@ -172,12 +168,10 @@ POSTGRES_DATABASE = %v
 				configs.PostgresDatabase))
 		} else {
 			utils.Info(fmt.Sprintf(
-				`
-PORT = %s
-POSTGRES_ADDRESS = %s
-POSTGRES_USER = %s
-POSTGRES_DATABASE = %s
-`,
+			"PORT = %v " +
+				"POSTGRES_ADDRESS = %v " +
+				"POSTGRES_USER = %v " +
+				"POSTGRES_DATABASE = %v ",
 				configs.PORT,
 				configs.PostgresAddress,
 				configs.PostgresUser,
