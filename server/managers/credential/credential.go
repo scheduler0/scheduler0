@@ -59,8 +59,6 @@ func (credentialManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.Ge
 
 	configs := utils.GetScheduler0Configurations()
 
-	fmt.Println(configs.SecretKey)
-
 	credentialManager.ApiKey = utils.Encrypt(getRandomSha256(), configs.SecretKey)
 
 	if credentialManager.Platform == ServerPlatform {
@@ -109,9 +107,13 @@ func (credentialManager *Manager) GetByAPIKey(pool *utils.Pool) *utils.GenericEr
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
+	configs := utils.GetScheduler0Configurations()
+	apiKeySource := utils.Decrypt(credentialManager.ApiKey, configs.SecretKey)
+	reEncryptedApiKey := utils.Encrypt(apiKeySource, configs.SecretKey)
+
 	db := conn.(*pg.DB)
 
-	count, err := db.Model(credentialManager).Where("api_key = ?", credentialManager.ApiKey).Count()
+	count, err := db.Model(credentialManager).Where("api_key = ?", reEncryptedApiKey).Count()
 	if count < 1 {
 		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("cannot find api_key=%v", credentialManager.ApiKey))
 	}
