@@ -79,7 +79,7 @@ Note that the PORT is optional. By default the server will use :9090
 		Port, _ := portPrompt.Run()
 
 		secretKeyPrompt := promptui.Prompt{
-			Label:       "Secret Key (AES-256)",
+			Label:       "Secret Key",
 			HideEntered: true,
 			Default:     "9090",
 		}

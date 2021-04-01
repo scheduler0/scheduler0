@@ -1,0 +1,10 @@
+Secret: AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94
+PostgresDatabase: scheduler0_test
+PostgresPassword: localdev
+PostgresUser: core
+PostgresHost: localhost:5432
+Port: 9090
+MaxMemory: 500mb
+Replicas:
+  - localhost:9091
+  - localhost:9092

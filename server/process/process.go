@@ -103,5 +103,6 @@ func StartAllHTTPJobs(pool *utils.Pool) {
 
 // StartASingleHTTPJob adds a single job to the queue
 func StartASingleHTTPJob(jobTransformer transformers.Job) {
-	Cron.AddFunc(jobTransformer.CronSpec, ExecuteHTTPJob(jobTransformer))
+	err := Cron.AddFunc(jobTransformer.CronSpec, ExecuteHTTPJob(jobTransformer))
+	utils.CheckErr(err)
 }

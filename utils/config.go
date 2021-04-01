@@ -3,19 +3,26 @@ package utils
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"fmt"
+	"github.com/spf13/afero"
 	"github.com/spf13/viper"
 	"github.com/victorlenerd/scheduler0/server/src/utils"
+	"gopkg.in/yaml.v2"
 	"os"
+	"path"
+	"strings"
 )
 
 type Scheduler0Configurations struct {
-	PostgresAddress  string `json:"postgres_address"`
-	PostgresUser     string `json:"postgres_user"`
-	PostgresPassword string `json:"postgres_password"`
-	PostgresDatabase string `json:"postgres_database"`
-	PostgresURL      string `json:"postgres_url"`
-	PORT             string `json:"port"`
-	SecretKey        string `json:"secret_key"`
+	PostgresAddress  string   `json:"postgres_address" yaml:"PostgresHost"`
+	PostgresUser     string   `json:"postgres_user" yaml:"PostgresUser"`
+	PostgresPassword string   `json:"postgres_password" yaml:"PostgresPassword"`
+	PostgresDatabase string   `json:"postgres_database" yaml:"PostgresDatabase"`
+	PORT             string   `json:"port" yaml:"Port"`
+	MaxMemory        string   `json:"max_memory" yaml:"MaxMemory"`
+	SecretKey        string   `json:"secret_key" yaml:"Secret"`
+	Replicas         []string `json:"replicas" yaml:"Replicas"`
 }
 
 const (
@@ -23,27 +30,102 @@ const (
 	PostgresPasswordEnv = "SCHEDULER0_POSTGRES_PASSWORD"
 	PostgresDatabaseEnv = "SCHEDULER0_POSTGRES_DATABASE"
 	PostgresUserEnv     = "SCHEDULER0_POSTGRES_USER"
-	PostgresURLEnv      = "SCHEDULER0_POSTGRES_URL"
 	SecretKeyEnv        = "SCHEDULER0_SECRET_KEY"
+	MaxMemory           = "SCHEDULER0_MAX_MEMORY"
+	Replicas            = "SCHEDULER0_REPLICAS"
 	PortEnv             = "SCHEDULER0_PORT"
 )
 
+var requiredEnvs = []string{
+	"SCHEDULER0_POSTGRES_ADDRESS",
+	"SCHEDULER0_POSTGRES_PASSWORD",
+	"SCHEDULER0_POSTGRES_DATABASE",
+	"SCHEDULER0_POSTGRES_USER",
+	"SCHEDULER0_SECRET_KEY",
+}
+
 // GetScheduler0Configurations this will retrieve scheduler0 configurations stored on disk and set it as an os env
 func GetScheduler0Configurations() *Scheduler0Configurations {
+	replicasStr := os.Getenv(Replicas)
+	replicas := strings.Split(replicasStr, ",")
+
 	return &Scheduler0Configurations{
 		PostgresAddress:  os.Getenv(PostgresAddressEnv),
 		PostgresPassword: os.Getenv(PostgresPasswordEnv),
 		PostgresDatabase: os.Getenv(PostgresDatabaseEnv),
 		PostgresUser:     os.Getenv(PostgresUserEnv),
-		PostgresURL:      os.Getenv(PostgresURLEnv),
 		SecretKey:        os.Getenv(SecretKeyEnv),
+		Replicas:         replicas,
+		MaxMemory:        os.Getenv(MaxMemory),
 		PORT:             os.Getenv(PortEnv),
 	}
 }
 
-// SetScheduler0Configurations this will set the server environment variables to initialized values
-func SetScheduler0Configurations() {
-	SetupConfig()
+// CheckRequiredEnvs returns true if all the envs requires are set otherwise returns a list of missing required env
+func CheckRequiredEnvs() (bool, []string) {
+	missingRequiredEnvs := []string{}
+
+	for _, requiredEnv := range requiredEnvs {
+		if len(os.Getenv(requiredEnv)) < 1 {
+			missingRequiredEnvs = append(missingRequiredEnvs, requiredEnv)
+		}
+	}
+
+	if len(missingRequiredEnvs) > 0 {
+		return false, missingRequiredEnvs
+	}
+
+	return true, nil
+}
+
+func getBinPath() string {
+	e, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	return path.Dir(e)
+}
+
+func ReadRootConfigFile() {
+	binPath := getBinPath()
+
+	fs := afero.NewOsFs()
+	data, err := afero.ReadFile(fs, binPath+"/config.yml")
+	utils.CheckErr(err)
+
+	config := Scheduler0Configurations{}
+
+	err = yaml.Unmarshal(data, &config)
+	utils.CheckErr(err)
+
+	err = os.Setenv(PostgresAddressEnv, config.PostgresAddress)
+	utils.CheckErr(err)
+
+	err = os.Setenv(PostgresUserEnv, config.PostgresUser)
+	utils.CheckErr(err)
+
+	err = os.Setenv(PostgresPasswordEnv, config.PostgresPassword)
+	utils.CheckErr(err)
+
+	err = os.Setenv(PostgresDatabaseEnv, config.PostgresDatabase)
+	utils.CheckErr(err)
+
+	err = os.Setenv(SecretKeyEnv, config.SecretKey)
+	utils.CheckErr(err)
+
+	err = os.Setenv(PortEnv, config.PORT)
+	utils.CheckErr(err)
+}
+
+// ReadInitCMDConfigIntoProcessEnv reads the content of the config file created by the init command
+func ReadInitCMDConfigIntoProcessEnv() {
+	viper.SetConfigName("scheduler0")
+	viper.SetConfigType("json")
+	viper.SetConfigFile(fmt.Sprintf("%v/.scheduler0", os.Getenv("HOME")))
+
+	if err := viper.ReadInConfig(); err != nil {
+		return
+	}
 
 	err := os.Setenv(PostgresAddressEnv, viper.GetString("postgres_address"))
 	utils.CheckErr(err)
@@ -57,9 +139,6 @@ func SetScheduler0Configurations() {
 	err = os.Setenv(PostgresDatabaseEnv, viper.GetString("postgres_database"))
 	utils.CheckErr(err)
 
-	err = os.Setenv(PostgresURLEnv, viper.GetString("postgres_url"))
-	utils.CheckErr(err)
-
 	err = os.Setenv(SecretKeyEnv, viper.GetString("secret_key"))
 	utils.CheckErr(err)
 
@@ -67,10 +146,28 @@ func SetScheduler0Configurations() {
 	utils.CheckErr(err)
 }
 
+// SetScheduler0Configurations this will set the server environment variables to initialized values
+func SetScheduler0Configurations() {
+	check, missingEnv := CheckRequiredEnvs()
+	if check {
+		return
+	}
+
+	ReadRootConfigFile()
+	check, _ = CheckRequiredEnvs()
+	if check {
+		return
+	}
+
+	ReadInitCMDConfigIntoProcessEnv()
+	lastCheck, missingEnv := CheckRequiredEnvs()
+	if !lastCheck  {
+		panic(errors.New(fmt.Sprintf("the following required environment variable has not been provided: %v", strings.Join(missingEnv, ","))))
+	}
+}
+
 // SetTestScheduler0Configurations this will set the server environment variables to initialized values
 func SetTestScheduler0Configurations() {
-	SetupConfig()
-
 	bytes := make([]byte, 32) //generate a random 32 byte key for AES-256
 	if _, err := rand.Read(bytes); err != nil {
 		panic(err.Error())
