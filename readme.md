@@ -28,7 +28,7 @@ scheduler0 --help
 
 ## API Documentation
 
-There is a REST API documentation on http://localhost:9090/api-docs [](http://localhost:9090/api-docs)
+There is a REST API documentation on http://localhost:9090/api-docs/ [](http://localhost:9090/api-docs/)
 
 Note: that port 9090 is the default port for the server.
 
