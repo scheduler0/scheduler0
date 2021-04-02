@@ -14,6 +14,7 @@ import (
 	"strings"
 )
 
+// Scheduler0Configurations global configurations
 type Scheduler0Configurations struct {
 	PostgresAddress  string   `json:"postgres_address" yaml:"PostgresHost"`
 	PostgresUser     string   `json:"postgres_user" yaml:"PostgresUser"`
