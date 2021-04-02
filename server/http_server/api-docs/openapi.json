@@ -820,22 +820,24 @@
         "type": "object",
         "properties": {
           "uuid": {
-            "type": "string"
+            "type": "string",
+            "description": "uuid for execution"
           },
           "job_uuid": {
-            "type": "string"
+            "type": "string",
+            "description": "uuid of job that got executed"
           },
           "status_code": {
-            "type": "string"
+            "type": "string",
+            "description": "response status from callback url of the job that got executed"
           },
           "timeout": {
-            "type": "string"
-          },
-          "response": {
-            "type": "string"
+            "type": "string",
+            "description": "how long it took for the job to execute"
           },
           "date_created": {
-            "type": "string"
+            "type": "string",
+            "description": "date in which the job got executed"
           }
         },
         "additionalProperties": false
@@ -856,31 +858,32 @@
         "type": "object",
         "properties": {
           "uuid": {
-            "type": "string"
+            "type": "string",
+            "description": "uuid for job"
           },
           "project_uuid": {
-            "type": "string"
+            "type": "string",
+            "description": "project uuid in which job belongs too"
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "description": "description of job"
           },
           "cron_spec": {
-            "type": "string"
-          },
-          "transformers": {
-            "type": "string"
-          },
-          "timezone": {
-            "type": "string"
+            "type": "string",
+            "description": "Spec can be a cron tab e.g (0 30 * * * *)  or pre-defined values like (@hourly, @daily, @midnight, @weekly, @monthly, @yearly, @annually) or intervals @every <duration> for example (@every 1h30m10s)"
           },
           "callback_url": {
-            "type": "string"
+            "type": "string",
+            "description": "URL in which job would execute"
           },
           "start_date": {
-            "type": "string"
+            "type": "string",
+            "description": "Date and time that job would start executing"
           },
           "end_date": {
-            "type": "string"
+            "type": "string",
+            "description": "Date and time that job should stop executing"
           }
         }
       },
@@ -900,29 +903,28 @@
         "type": "object",
         "properties": {
           "project_uuid": {
-            "type": "string"
+            "type": "string",
+            "description": "project uuid in which job belongs too"
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "description": "description of job"
           },
           "cron_spec": {
             "type": "string",
             "description": "Spec can be a cron tab e.g (0 30 * * * *)  or pre-defined values like (@hourly, @daily, @midnight, @weekly, @monthly, @yearly, @annually) or intervals @every <duration> for example (@every 1h30m10s)"
           },
-          "transformers": {
-            "type": "string"
-          },
-          "timezone": {
-            "type": "string"
-          },
           "callback_url": {
-            "type": "string"
+            "type": "string",
+            "description": "URL in which job would execute"
           },
           "start_date": {
-            "type": "string"
+            "type": "string",
+            "description": "Date and time that job would start executing"
           },
           "end_date": {
-            "type": "string"
+            "type": "string",
+            "description": "Date and time that job should stop executing"
           }
         }
       },
