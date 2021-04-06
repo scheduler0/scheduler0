@@ -43,12 +43,23 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 				return
 			}
 
-			restrictedPaths := strings.Join([]string{"credentials", "projects", "executions"}, ",")
-			isVisitingRestrictedPaths := strings.Contains(restrictedPaths, strings.ToLower(paths[1]))
+			restrictedPaths := []string{"credentials", "projects", "executions"}
+
+			matchRestrictedPaths := func (path string) bool {
+				for _, restrictedPath := range restrictedPaths {
+					if restrictedPath == path {
+						return true
+					}
+				}
+				return false
+			}
+
+			isVisitingRestrictedPaths := matchRestrictedPaths(strings.ToLower(paths[1]))
 
 			if isVisitingRestrictedPaths && server.IsServerClient(r) {
 				if validity, _ := server.IsAuthorizedServerClient(r, pool); validity {
 					next.ServeHTTP(w, r)
+					return
 				}
 			} else {
 				if server.IsServerClient(r) {
