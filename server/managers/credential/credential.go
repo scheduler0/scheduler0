@@ -107,13 +107,9 @@ func (credentialManager *Manager) GetByAPIKey(pool *utils.Pool) *utils.GenericEr
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := utils.GetScheduler0Configurations()
-	apiKeySource := utils.Decrypt(credentialManager.ApiKey, configs.SecretKey)
-	reEncryptedApiKey := utils.Encrypt(apiKeySource, configs.SecretKey)
-
 	db := conn.(*pg.DB)
 
-	count, err := db.Model(credentialManager).Where("api_key = ?", reEncryptedApiKey).Count()
+	count, err := db.Model(credentialManager).Where("api_key = ?", credentialManager.ApiKey).Count()
 	if count < 1 {
 		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("cannot find api_key=%v", credentialManager.ApiKey))
 	}
