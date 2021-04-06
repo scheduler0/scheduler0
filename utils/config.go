@@ -38,11 +38,11 @@ const (
 )
 
 var requiredEnvs = []string{
-	"SCHEDULER0_POSTGRES_ADDRESS",
-	"SCHEDULER0_POSTGRES_PASSWORD",
-	"SCHEDULER0_POSTGRES_DATABASE",
-	"SCHEDULER0_POSTGRES_USER",
-	"SCHEDULER0_SECRET_KEY",
+	PostgresAddressEnv,
+	PostgresPasswordEnv,
+	PostgresDatabaseEnv,
+	PostgresUserEnv,
+	SecretKeyEnv,
 }
 
 // GetScheduler0Configurations this will retrieve scheduler0 configurations stored on disk and set it as an os env
