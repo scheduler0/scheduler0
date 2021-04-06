@@ -34,16 +34,15 @@ func (controller *Controller) CreateOne(w http.ResponseWriter, r *http.Request) 
 		Pool: controller.Pool,
 	}
 
-	id, createOneError := projectService.CreateOne(project)
+	projectTransformer, createOneError := projectService.CreateOne(project)
 	if createOneError != nil {
 		utils.SendJSON(w, createOneError, false, http.StatusBadRequest, nil)
 		return
 	}
 
 	customHeader := map[string]string{}
-	customHeader["Location"] = "projects/" + id
 
-	utils.SendJSON(w, project, true, http.StatusCreated, customHeader)
+	utils.SendJSON(w, projectTransformer, true, http.StatusCreated, customHeader)
 }
 
 func (controller *Controller) GetOne(w http.ResponseWriter, r *http.Request) {
