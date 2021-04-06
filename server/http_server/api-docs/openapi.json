@@ -869,7 +869,7 @@
             "type": "string",
             "description": "description of job"
           },
-          "cron_spec": {
+          "spec": {
             "type": "string",
             "description": "Spec can be a cron tab e.g (0 30 * * * *)  or pre-defined values like (@hourly, @daily, @midnight, @weekly, @monthly, @yearly, @annually) or intervals @every <duration> for example (@every 1h30m10s)"
           },
@@ -910,7 +910,7 @@
             "type": "string",
             "description": "description of job"
           },
-          "cron_spec": {
+          "spec": {
             "type": "string",
             "description": "Spec can be a cron tab e.g (0 30 * * * *)  or pre-defined values like (@hourly, @daily, @midnight, @weekly, @monthly, @yearly, @annually) or intervals @every <duration> for example (@every 1h30m10s)"
           },

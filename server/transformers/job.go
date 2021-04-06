@@ -12,7 +12,7 @@ type Job struct {
 	UUID        string `json:"uuid,omitempty"`
 	ProjectUUID string `json:"project_uuid"`
 	Description string `json:"description"`
-	CronSpec    string `json:"cron_spec,omitempty"`
+	CronSpec    string `json:"spec,omitempty"`
 	Data        string `json:"transformers,omitempty"`
 	Timezone    string `json:"timezone,omitempty"`
 	CallbackUrl string `json:"callback_url"`

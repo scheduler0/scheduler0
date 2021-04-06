@@ -11,7 +11,7 @@ type JobModel struct {
 	ProjectID      int64     `json:"project_id" sql:",notnull"`
 	ProjectUUID    string    `json:"project_uuid" sql:",notnull,type:uuid"`
 	Description    string    `json:"description" sql:",notnull"`
-	CronSpec       string    `json:"cron_spec,omitempty" sql:",notnull"`
+	CronSpec       string    `json:"spec,omitempty" sql:",notnull"`
 	CallbackUrl    string    `json:"callback_url" sql:",notnull"`
 	Timezone       string    `json:"timezone"`
 	StartDate      time.Time `json:"start_date,omitempty" sql:",notnull"`
