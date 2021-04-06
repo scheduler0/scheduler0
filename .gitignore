@@ -3,6 +3,7 @@
 client/.idea
 cron-server
 cron-server.test
+node_modules/
 client/node_modules
 client/src/public/dist/
 client/build
