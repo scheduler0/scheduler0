@@ -9,9 +9,19 @@ import (
 
 type ProjectService Service
 
-func (projectService *ProjectService) CreateOne(project transformers.Project) (string, *utils.GenericError) {
+func (projectService *ProjectService) CreateOne(project transformers.Project) (*transformers.Project, *utils.GenericError) {
 	projectManager := project.ToManager()
-	return projectManager.CreateOne(projectService.Pool)
+
+	_, err := projectManager.CreateOne(projectService.Pool)
+	if err != nil {
+		return nil, err
+	}
+
+	projectTransformer := transformers.Project{}
+
+	projectTransformer.FromManager(projectManager)
+
+	return &projectTransformer, nil
 }
 
 func (projectService *ProjectService) UpdateOne(project transformers.Project) *utils.GenericError {
