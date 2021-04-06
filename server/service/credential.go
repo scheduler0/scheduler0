@@ -101,12 +101,7 @@ func (credentialService *Credential) ValidateServerAPIKey(apiKey string, apiSecr
 		return false, getApIError
 	}
 
-	configs := utils.GetScheduler0Configurations()
-
-	decryptedIncomingSecret := utils.Decrypt(apiSecret, configs.SecretKey)
-	decryptedCredentialManagerSecret := utils.Decrypt(credentialManager.ApiSecret, configs.SecretKey)
-
-	return decryptedIncomingSecret == decryptedCredentialManagerSecret, nil
+	return apiSecret == credentialManager.ApiSecret, nil
 }
 
 
