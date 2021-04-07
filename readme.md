@@ -50,6 +50,22 @@ These configurations can set in the environment or `config.yml` in the root or b
 scheduler0 config init
 ```
 
+## Credentials
+
+Credentials are basically api keys and secrets needed for client apps to reach the scheduler0 server. 
+Use command to generate credentials and more.
+
+```shell
+scheduler0 create credential --client server
+```
+
+The above command will create a credential for server, this includes api key and secret used in the node example app below.
+You can use the list command to view all credentials, projects and jobs.
+
+```shell
+scheduler0 list -t credentials
+```
+
 ## API Documentation
 
 Assuming the scheduler0 server is running on `http://localhost:9090` there is a REST API documentation on http://localhost:9090/api-docs/ [](http://localhost:9090/api-docs/)
@@ -61,13 +77,8 @@ Note: that port 9090 is the default port for the server.
 ```javascript
 'use strict'
 
-/**
- * The purpose of this program is to test the scheduler0 server.
- * It sends a request scheduler0 server and counts scheduler0 request to the callback url.
- * It's kinda like a scratch pad.
- * **/
-
 require('dotenv').config()
+
 const axios = require('axios')
 const express = require('express')
 
