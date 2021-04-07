@@ -26,6 +26,26 @@ For more information. Use the help flag
 scheduler0 --help
 ```
 
+## Configurations
+
+```shell
+Secret: AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94
+PostgresDatabase: scheduler0_test
+PostgresPassword: localdev
+PostgresUser: core
+PostgresHost: localhost:5432
+Port: 9090
+MaxMemory: 500mb
+MaxCPU: 50
+```
+
+These configurations can set in the environment or `config.yml` in the root or by executing:
+
+```shell
+scheduler0 config init
+```
+Replace the secret key with your AES-256 key. It will be used to generate API Key and Secret Key.
+
 ## API Documentation
 
 There is a REST API documentation on http://localhost:9090/api-docs/ [](http://localhost:9090/api-docs/)
