@@ -91,7 +91,7 @@ var _ = Describe("Job Manager", func() {
 			}
 
 			jobGetManager.ProjectUUID = projectManager.UUID
-			jobGetManager.CronSpec = "1 * * * *"
+			jobGetManager.Spec = "1 * * * *"
 
 			_, updateOneError := jobGetManager.UpdateOne(pool)
 			if updateOneError == nil {

@@ -2,22 +2,17 @@ package transformers
 
 import (
 	"encoding/json"
-	"errors"
 	"scheduler0/server/managers/job"
-	"time"
 )
 
 // Job transformer type
 type Job struct {
 	UUID        string `json:"uuid,omitempty"`
 	ProjectUUID string `json:"project_uuid"`
-	Description string `json:"description"`
-	CronSpec    string `json:"spec,omitempty"`
+	Archived    bool   `json:"archived"`
+	Spec        string `json:"spec,omitempty"`
 	Data        string `json:"transformers,omitempty"`
-	Timezone    string `json:"timezone,omitempty"`
 	CallbackUrl string `json:"callback_url"`
-	StartDate   string `json:"start_date,omitempty"`
-	EndDate     string `json:"end_date,omitempty"`
 }
 
 // PaginatedJob paginated container of job transformer
@@ -47,45 +42,22 @@ func (jobTransformer *Job) FromJSON(body []byte) error {
 
 // ToManager returns content of transformer as manager
 func (jobTransformer *Job) ToManager() (job.Manager, error) {
-	jd := job.Manager{
+	jobManager := job.Manager{
 		UUID:        jobTransformer.UUID,
 		ProjectUUID: jobTransformer.ProjectUUID,
-		CronSpec:    jobTransformer.CronSpec,
-		Description: jobTransformer.Description,
+		Spec:        jobTransformer.Spec,
 		CallbackUrl: jobTransformer.CallbackUrl,
-		Timezone:    jobTransformer.Timezone,
+		Archived:    jobTransformer.Archived,
 	}
 
-	if len(jobTransformer.StartDate) < 1 {
-		return job.Manager{}, errors.New("start date is required")
-	}
-
-	startTime, err := time.Parse(time.RFC3339, jobTransformer.StartDate)
-	if err != nil {
-		return job.Manager{}, err
-	}
-	jd.StartDate = startTime
-
-	if len(jobTransformer.EndDate) > 1 {
-		endTime, err := time.Parse(time.RFC3339, jobTransformer.EndDate)
-		if err != nil {
-			return job.Manager{}, err
-		}
-
-		jd.EndDate = endTime
-	}
-
-	return jd, nil
+	return jobManager, nil
 }
 
 // FromManager extracts content from manager into transformer
 func (jobTransformer *Job) FromManager(jobManager job.Manager) {
 	jobTransformer.UUID = jobManager.UUID
 	jobTransformer.ProjectUUID = jobManager.ProjectUUID
-	jobTransformer.Timezone = jobManager.Timezone
-	jobTransformer.Description = jobManager.Description
+	jobTransformer.Archived = jobManager.Archived
 	jobTransformer.CallbackUrl = jobManager.CallbackUrl
-	jobTransformer.CronSpec = jobManager.CronSpec
-	jobTransformer.StartDate = jobManager.StartDate.Format(time.RFC3339)
-	jobTransformer.EndDate = jobManager.EndDate.Format(time.RFC3339)
+	jobTransformer.Spec = jobManager.Spec
 }

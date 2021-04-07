@@ -4,7 +4,6 @@ import (
 	"github.com/bxcodec/faker"
 	"scheduler0/server/transformers"
 	"scheduler0/utils"
-	"time"
 )
 
 type JobFixture struct {
@@ -26,18 +25,12 @@ func (jobFixture *JobFixture) CreateNJobTransformers(n int) []transformers.Job {
 		err := faker.FakeData(&jobFixture)
 		utils.CheckErr(err)
 
-		startDate := time.Now().Add(99999999000000000).UTC().Format(time.RFC3339)
-
 		jobTransformers = append(jobTransformers, transformers.Job{
 			UUID:        jobFixture.UUID,
 			ProjectUUID: "",
-			Description: jobFixture.Description,
-			CronSpec:    "* * * * 1",
+			Spec:    "* * * * 1",
 			Data:        jobFixture.Data,
-			Timezone:    jobFixture.Timezone,
 			CallbackUrl: jobFixture.CallbackUrl,
-			StartDate:   startDate,
-			EndDate:     "",
 		})
 	}
 

@@ -6,7 +6,6 @@ import (
 	"scheduler0/server/managers/project"
 	"scheduler0/server/models"
 	"scheduler0/utils"
-	"time"
 )
 
 type Manager models.JobModel
@@ -25,23 +24,11 @@ func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericEr
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "project id is not sets")
 	}
 
-	if jobManager.StartDate.IsZero() {
-		return "", utils.HTTPGenericError(http.StatusBadRequest, "start date cannot be zero")
-	}
-
-	if jobManager.StartDate.UTC().Before(time.Now().UTC()) {
-		return "", utils.HTTPGenericError(http.StatusBadRequest, "start date cannot be in the past: "+jobManager.StartDate.String()+", now "+time.Now().UTC().String())
-	}
-
-	if !jobManager.EndDate.IsZero() && jobManager.EndDate.UTC().Before(jobManager.StartDate.UTC()) {
-		return "", utils.HTTPGenericError(http.StatusBadRequest, "end date cannot be in the past")
-	}
-
 	if len(jobManager.CallbackUrl) < 1 {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "callback url is required")
 	}
 
-	if len(jobManager.CronSpec) < 1 {
+	if len(jobManager.Spec) < 1 {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "cron spec is required")
 	}
 
@@ -54,7 +41,6 @@ func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericEr
 
 	jobManager.ProjectID = projectWithUUID.ID
 	jobManager.ProjectUUID = projectWithUUID.UUID
-	jobManager.StartDate = jobManager.StartDate.UTC()
 
 	if _, err := db.Model(jobManager).Insert(); err != nil {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, err.Error())
@@ -123,16 +109,8 @@ func (jobManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError
 		return 0, jobPlaceholderError
 	}
 
-	if jobPlaceholder.CronSpec != jobManager.CronSpec {
+	if jobPlaceholder.Spec != jobManager.Spec {
 		return 0, utils.HTTPGenericError(http.StatusBadRequest, "cannot update cron spec")
-	}
-
-	if !jobManager.EndDate.IsZero() && jobManager.EndDate.UTC().Before(jobPlaceholder.StartDate.UTC()) {
-		return 0, utils.HTTPGenericError(http.StatusBadRequest, "end date cannot be in the past")
-	}
-
-	if !jobManager.EndDate.IsZero() && len(jobManager.EndDate.String()) < 1 {
-		return 0, utils.HTTPGenericError(http.StatusBadRequest, "end date cannot be in the past")
 	}
 
 	jobManager.ProjectID = jobPlaceholder.ProjectID

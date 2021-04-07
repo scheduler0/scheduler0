@@ -12,7 +12,6 @@ import (
 	"scheduler0/utils"
 	"strconv"
 	"testing"
-	"time"
 )
 
 var _ = Describe("Project Manager", func() {
@@ -198,8 +197,7 @@ var _ = Describe("Project Manager", func() {
 
 		job := job.Manager{
 			ProjectUUID: projectManager.UUID,
-			StartDate:   time.Now().Add(60 * time.Second),
-			CronSpec:    "* * * * *",
+			Spec:    "* * * * *",
 			CallbackUrl: "https://some-random-url",
 		}
 

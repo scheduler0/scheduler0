@@ -134,7 +134,7 @@ var _ = Describe("Job Controller", func() {
 			_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
 			jobTransformer := transformers.Job{}
 			jobTransformer.FromManager(jobManager)
-			jobTransformer.CronSpec = "* * 3 * *"
+			jobTransformer.Spec = "* * 3 * *"
 			jobByte, err := jobTransformer.ToJSON()
 			utils.CheckErr(err)
 			jobStr := string(jobByte)
@@ -154,7 +154,6 @@ var _ = Describe("Job Controller", func() {
 			_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
 			jobTransformer := transformers.Job{}
 			jobTransformer.FromManager(jobManager)
-			jobTransformer.Description = "some job description"
 			jobByte, err := jobTransformer.ToJSON()
 			jobStr := string(jobByte)
 

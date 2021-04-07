@@ -48,7 +48,7 @@ func ExecuteHTTPJob(jobTransformer transformers.Job) func() {
 				JobUUID:     jobTransformer.UUID,
 				Timeout:     timeout,
 				Response:    response,
-				StatusCode:  string(statusCode),
+				StatusCode:  string(rune(statusCode)),
 				DateCreated: time.Now().UTC(),
 			}
 
@@ -91,7 +91,10 @@ func StartAllHTTPJobs(pool *utils.Pool) {
 		jobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
 		for _, jobTransformer := range jobTransformers.Data {
-			err := Cron.AddFunc(jobTransformer.CronSpec, ExecuteHTTPJob(jobTransformer))
+
+			// TODO: Make sure jobs are not archived
+
+			err := Cron.AddFunc(jobTransformer.Spec, ExecuteHTTPJob(jobTransformer))
 			if err != nil {
 				panic(err)
 			}
@@ -103,6 +106,6 @@ func StartAllHTTPJobs(pool *utils.Pool) {
 
 // StartASingleHTTPJob adds a single job to the queue
 func StartASingleHTTPJob(jobTransformer transformers.Job) {
-	err := Cron.AddFunc(jobTransformer.CronSpec, ExecuteHTTPJob(jobTransformer))
+	err := Cron.AddFunc(jobTransformer.Spec, ExecuteHTTPJob(jobTransformer))
 	utils.CheckErr(err)
 }
