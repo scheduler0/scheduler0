@@ -5,7 +5,7 @@ A simple scheduling server for apps and backend server.
 [![Go Report Card](https://goreportcard.com/badge/github.com/victorlenerd/scheduler0)](https://goreportcard.com/report/github.com/victorlenerd/scheduler0) 
 [![CircleCI](https://circleci.com/gh/victorlenerd/scheduler0/tree/master.svg?style=svg)](https://circleci.com/gh/victorlenerd/scheduler0/tree/master)
 
-## Current Status
+## Introduction
 
 To use this you must first clone the repository and add the scheduler0 binary at the root of repo to your $PATH
     
@@ -16,7 +16,9 @@ scheduler0 config init
 ```
 
 Will take you through the configuration flow, where you will be prompted to enter your database credentials.
-To start the http server.
+
+### To start the http server.
+
 ```shell
 scheduler0 start
 ```
@@ -27,6 +29,9 @@ scheduler0 --help
 ```
 
 ## Configurations
+
+Replace the secret key with your AES-256 key. It will be used to generate API Key and Secret Key.
+As well as the other configurations.
 
 ```shell
 Secret: AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94
@@ -44,11 +49,10 @@ These configurations can set in the environment or `config.yml` in the root or b
 ```shell
 scheduler0 config init
 ```
-Replace the secret key with your AES-256 key. It will be used to generate API Key and Secret Key.
 
 ## API Documentation
 
-There is a REST API documentation on http://localhost:9090/api-docs/ [](http://localhost:9090/api-docs/)
+Assuming the scheduler0 server is running on `http://localhost:9090` there is a REST API documentation on http://localhost:9090/api-docs/ [](http://localhost:9090/api-docs/)
 
 Note: that port 9090 is the default port for the server.
 
