@@ -12,6 +12,7 @@ import (
 	"scheduler0/server/service"
 	"scheduler0/server/transformers"
 	"scheduler0/utils"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,7 +31,7 @@ func ExecuteHTTPJob(jobTransformer transformers.Job) func() {
 
 			startSecs := time.Now()
 
-			r, err := http.Post(http.MethodPost, jobTransformer.CallbackUrl, strings.NewReader(jobTransformer.Data))
+			r, err := http.Post(jobTransformer.CallbackUrl, "application/json", strings.NewReader(jobTransformer.Data))
 			if err != nil {
 				response = err.Error()
 				statusCode = 0
@@ -48,12 +49,14 @@ func ExecuteHTTPJob(jobTransformer transformers.Job) func() {
 				JobUUID:     jobTransformer.UUID,
 				Timeout:     timeout,
 				Response:    response,
-				StatusCode:  string(rune(statusCode)),
+				StatusCode: strconv.Itoa(statusCode),
 				DateCreated: time.Now().UTC(),
 			}
 
 			_, createOneErr := execution.CreateOne(pool)
-			utils.CheckErr(errors.New(createOneErr.Message))
+			if createOneErr != nil {
+				utils.CheckErr(errors.New(createOneErr.Message))
+			}
 		}()
 	}
 }
@@ -91,12 +94,11 @@ func StartAllHTTPJobs(pool *utils.Pool) {
 		jobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
 		for _, jobTransformer := range jobTransformers.Data {
-
-			// TODO: Make sure jobs are not archived
-
-			err := Cron.AddFunc(jobTransformer.Spec, ExecuteHTTPJob(jobTransformer))
-			if err != nil {
-				panic(err)
+			if !jobTransformer.Archived {
+				err := Cron.AddFunc(jobTransformer.Spec, ExecuteHTTPJob(jobTransformer))
+				if err != nil {
+					panic(err)
+				}
 			}
 		}
 	}
