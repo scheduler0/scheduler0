@@ -28,7 +28,7 @@ func (jobFixture *JobFixture) CreateNJobTransformers(n int) []transformers.Job {
 		jobTransformers = append(jobTransformers, transformers.Job{
 			UUID:        jobFixture.UUID,
 			ProjectUUID: "",
-			Spec:    "* * * * 1",
+			Spec:        "* * * * 1",
 			Data:        jobFixture.Data,
 			CallbackUrl: jobFixture.CallbackUrl,
 		})
