@@ -21,7 +21,7 @@ func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericEr
 	defer pool.Release(conn)
 
 	if len(jobManager.ProjectUUID) < 1 {
-		return "", utils.HTTPGenericError(http.StatusBadRequest, "project id is not sets")
+		return "", utils.HTTPGenericError(http.StatusBadRequest, "project uuid is not defined")
 	}
 
 	if len(jobManager.CallbackUrl) < 1 {
@@ -29,7 +29,7 @@ func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericEr
 	}
 
 	if len(jobManager.Spec) < 1 {
-		return "", utils.HTTPGenericError(http.StatusBadRequest, "cron spec is required")
+		return "", utils.HTTPGenericError(http.StatusBadRequest, "spec is required")
 	}
 
 	projectWithUUID := project.ProjectManager{UUID: jobManager.ProjectUUID}
