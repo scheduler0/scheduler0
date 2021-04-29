@@ -6,6 +6,7 @@ PostgresHost: localhost:5432
 Port: 9090
 MaxMemory: 500mb
 MaxCPU: 50
+MaxJobExecutionsPerSeconds: 1000
 Replicas:
   - localhost:9091
   - localhost:9092
