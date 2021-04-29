@@ -48,7 +48,6 @@ func (executionTransformer *Execution) ToManager() (execution.Manager, error) {
 		JobUUID:     executionTransformer.JobUUID,
 		StatusCode:  executionTransformer.StatusCode,
 		Timeout:     executionTransformer.Timeout,
-		Response:    executionTransformer.Response,
 		DateCreated: executionTransformer.DateCreated,
 	}
 
@@ -60,6 +59,5 @@ func (executionTransformer *Execution) FromManager(executionManager execution.Ma
 	executionTransformer.UUID = executionManager.UUID
 	executionTransformer.JobUUID = executionManager.JobUUID
 	executionTransformer.StatusCode = executionManager.StatusCode
-	executionTransformer.Response = executionManager.Response
 	executionTransformer.DateCreated = executionManager.DateCreated
 }

@@ -11,7 +11,6 @@ type ExecutionModel struct {
 	JobUUID     string    `json:"job_uuid" sql:",notnull,type:uuid"`
 	StatusCode  string    `json:"status_code"`
 	Timeout     uint64    `json:"timeout"`
-	Response    string    `json:"response"`
 	DateCreated time.Time `json:"date_created" sql:",notnull,default:now()"`
 
 	Job JobModel `sql:",fk:job_id"`

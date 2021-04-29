@@ -3,7 +3,6 @@ package process
 import (
 	"errors"
 	"github.com/robfig/cron"
-	"io/ioutil"
 	"net/http"
 	"scheduler0/server/db"
 	executionManager "scheduler0/server/managers/execution"
@@ -26,21 +25,14 @@ func ExecuteHTTPJob(jobTransformer transformers.Job) func() {
 		go func() {
 			pool, err := utils.NewPool(db.OpenConnection, 1)
 
-			var response string
 			var statusCode int
 
 			startSecs := time.Now()
 
 			r, err := http.Post(jobTransformer.CallbackUrl, "application/json", strings.NewReader(jobTransformer.Data))
 			if err != nil {
-				response = err.Error()
-				statusCode = 0
+				statusCode = -1
 			} else {
-				body, err := ioutil.ReadAll(r.Body)
-				if err != nil {
-					response = err.Error()
-				}
-				response = string(body)
 				statusCode = r.StatusCode
 			}
 
@@ -48,7 +40,6 @@ func ExecuteHTTPJob(jobTransformer transformers.Job) func() {
 			execution := executionManager.Manager{
 				JobUUID:     jobTransformer.UUID,
 				Timeout:     timeout,
-				Response:    response,
 				StatusCode: strconv.Itoa(statusCode),
 				DateCreated: time.Now().UTC(),
 			}
@@ -94,11 +85,9 @@ func StartAllHTTPJobs(pool *utils.Pool) {
 		jobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
 		for _, jobTransformer := range jobTransformers.Data {
-			if !jobTransformer.Archived {
-				err := Cron.AddFunc(jobTransformer.Spec, ExecuteHTTPJob(jobTransformer))
-				if err != nil {
-					panic(err)
-				}
+			err := Cron.AddFunc(jobTransformer.Spec, ExecuteHTTPJob(jobTransformer))
+			if err != nil {
+				panic(err)
 			}
 		}
 	}

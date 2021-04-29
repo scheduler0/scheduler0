@@ -9,7 +9,6 @@ import (
 type Job struct {
 	UUID        string `json:"uuid,omitempty"`
 	ProjectUUID string `json:"project_uuid"`
-	Archived    bool   `json:"archived"`
 	Spec        string `json:"spec,omitempty"`
 	Data        string `json:"transformers,omitempty"`
 	CallbackUrl string `json:"callback_url"`
@@ -47,7 +46,6 @@ func (jobTransformer *Job) ToManager() (job.Manager, error) {
 		ProjectUUID: jobTransformer.ProjectUUID,
 		Spec:        jobTransformer.Spec,
 		CallbackUrl: jobTransformer.CallbackUrl,
-		Archived:    jobTransformer.Archived,
 	}
 
 	return jobManager, nil
@@ -57,7 +55,6 @@ func (jobTransformer *Job) ToManager() (job.Manager, error) {
 func (jobTransformer *Job) FromManager(jobManager job.Manager) {
 	jobTransformer.UUID = jobManager.UUID
 	jobTransformer.ProjectUUID = jobManager.ProjectUUID
-	jobTransformer.Archived = jobManager.Archived
 	jobTransformer.CallbackUrl = jobManager.CallbackUrl
 	jobTransformer.Spec = jobManager.Spec
 }
