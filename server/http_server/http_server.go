@@ -3,6 +3,7 @@ package http_server
 import (
 	"github.com/go-http-utils/logger"
 	"github.com/gorilla/mux"
+	"github.com/robfig/cron"
 	"github.com/unrolled/secure"
 	"log"
 	"net/http"
@@ -27,12 +28,16 @@ func Start() {
 	// SetupDB logging
 	log.SetFlags(0)
 	log.SetOutput(new(utils.LogWriter))
+	jobProcessor := process.JobProcessor{
+		Pool: pool,
+		Cron: cron.New(),
+	}
 
 	// Set time zone, create database and run db
 	db.CreateModelTables(pool)
 
-	// StartAllHTTPJobs process to execute cron-server jobs
-	go process.StartAllHTTPJobs(pool)
+	// StartJobs process to execute cron-server jobs
+	go jobProcessor.StartJobs()
 
 	// HTTP router setup
 	router := mux.NewRouter()
@@ -42,7 +47,10 @@ func Start() {
 
 	// Initialize controllers
 	executionController := execution.Controller{Pool: pool}
-	jobController := job.Controller{Pool: pool}
+	jobController := job.Controller{
+		Pool: pool,
+		JobProcessor: &jobProcessor,
+	}
 	projectController := project.Controller{Pool: pool}
 	credentialController := credential.Controller{Pool: pool}
 
