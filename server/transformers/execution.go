@@ -44,11 +44,11 @@ func (executionTransformer *Execution) FromJSON(body []byte) error {
 // ToManager converts content of transformer into manager
 func (executionTransformer *Execution) ToManager() (execution.Manager, error) {
 	executionManager := execution.Manager{
-		UUID:        executionTransformer.UUID,
-		JobUUID:     executionTransformer.JobUUID,
-		StatusCode:  executionTransformer.StatusCode,
-		Timeout:     executionTransformer.Timeout,
-		DateCreated: executionTransformer.DateCreated,
+		UUID:          executionTransformer.UUID,
+		JobUUID:       executionTransformer.JobUUID,
+		StatusCode:    executionTransformer.StatusCode,
+		ExecutionTime: executionTransformer.Timeout,
+		DateCreated:   executionTransformer.DateCreated,
 	}
 
 	return executionManager, nil
