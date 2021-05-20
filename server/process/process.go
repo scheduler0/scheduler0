@@ -126,12 +126,8 @@ func (jobProcessor *JobProcessor) StartJobs() {
 		jobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
 		for _, jobTransformer := range jobTransformers.Data {
-			// TODO: re-Use add job function below
 			// TODO: Use wait group
-			err := jobProcessor.Cron.AddFunc(jobTransformer.Spec, jobProcessor.ExecuteHTTPJob(jobTransformer))
-			if err != nil {
-				panic(err)
-			}
+			go jobProcessor.AddJob(jobTransformer)
 		}
 	}
 
@@ -141,7 +137,16 @@ func (jobProcessor *JobProcessor) StartJobs() {
 // AddJob adds a single job to the queue
 func (jobProcessor *JobProcessor) AddJob(jobTransformer transformers.Job) {
 	// TODO: Check if we're within resource usage before adding another job
-	// TODO: Update executions table with newly added job
+	execution := executionManager.Manager{
+		JobID: jobTransformer.ID,
+		JobUUID: jobTransformer.UUID,
+		TimeAdded: time.Now().UTC(),
+		DateCreated: time.Now().UTC(),
+	}
+
+	_, createErr := execution.CreateOne(jobProcessor.Pool)
+	utils.CheckErr(errors.New(createErr.Message))
+
 	err := jobProcessor.Cron.AddFunc(jobTransformer.Spec, jobProcessor.ExecuteHTTPJob(jobTransformer))
 	utils.CheckErr(err)
 }

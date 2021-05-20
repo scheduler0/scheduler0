@@ -8,12 +8,16 @@ import (
 
 // Execution this transformer is used for execution entity type
 type Execution struct {
-	UUID        string    `json:"uuid"`
-	JobUUID     string    `json:"job_uuid"`
-	StatusCode  string    `json:"status_code"`
-	Timeout     uint64    `json:"timeout"`
-	Response    string    `json:"response"`
-	DateCreated time.Time `json:"date_created"`
+	ID            int64     `json:"id" sql:",pk:notnull"`
+	UUID          string    `json:"uuid"`
+	JobUUID       string    `json:"job_uuid"`
+	StatusCode    string    `json:"status_code"`
+	Timeout       uint64    `json:"timeout"`
+	Response      string    `json:"response"`
+	ExecutionTime uint64    `json:"execution_time"`
+	TimeAdded     time.Time `json:"time_added"`
+	TimeExecuted  time.Time `json:"time_executed"`
+	DateCreated   time.Time `json:"date_created"`
 }
 
 // PaginatedExecution this holds meta information for pagination
