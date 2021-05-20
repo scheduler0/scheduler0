@@ -14,6 +14,7 @@ import (
 	"scheduler0/utils"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -115,6 +116,8 @@ func (jobProcessor *JobProcessor) StartJobs() {
 		Pool: jobProcessor.Pool,
 	}
 
+	var wg sync.WaitGroup
+
 	for _, projectTransformer := range projectTransformers.Data {
 		jobManager := job.Manager{}
 
@@ -126,17 +129,21 @@ func (jobProcessor *JobProcessor) StartJobs() {
 		jobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
 		for _, jobTransformer := range jobTransformers.Data {
-			// TODO: Use wait group
-			go jobProcessor.AddJob(jobTransformer)
+			wg.Add(1)
+			go jobProcessor.AddJob(jobTransformer, &wg)
 		}
+		wg.Wait()
+
 	}
 
 	jobProcessor.Cron.Start()
 }
 
 // AddJob adds a single job to the queue
-func (jobProcessor *JobProcessor) AddJob(jobTransformer transformers.Job) {
+func (jobProcessor *JobProcessor) AddJob(jobTransformer transformers.Job, wg *sync.WaitGroup) {
 	// TODO: Check if we're within resource usage before adding another job
+	defer wg.Done()
+
 	execution := executionManager.Manager{
 		JobID: jobTransformer.ID,
 		JobUUID: jobTransformer.UUID,
