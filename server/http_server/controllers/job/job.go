@@ -82,7 +82,7 @@ func (jobController *Controller) CreateOne(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	go jobController.JobProcessor.AddJob(*job)
+	go jobController.JobProcessor.AddJob(*job, nil)
 	utils.SendJSON(w, job, true, http.StatusCreated, nil)
 }
 
