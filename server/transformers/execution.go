@@ -10,6 +10,7 @@ import (
 type Execution struct {
 	ID            int64     `json:"id" sql:",pk:notnull"`
 	UUID          string    `json:"uuid"`
+	JobID         int64     `json:"job_id"`
 	JobUUID       string    `json:"job_uuid"`
 	StatusCode    string    `json:"status_code"`
 	Timeout       uint64    `json:"timeout"`
@@ -48,10 +49,13 @@ func (executionTransformer *Execution) FromJSON(body []byte) error {
 // ToManager converts content of transformer into manager
 func (executionTransformer *Execution) ToManager() (execution.Manager, error) {
 	executionManager := execution.Manager{
+		ID:            executionTransformer.ID,
 		UUID:          executionTransformer.UUID,
+		JobID:         executionTransformer.JobID,
 		JobUUID:       executionTransformer.JobUUID,
 		StatusCode:    executionTransformer.StatusCode,
-		ExecutionTime: executionTransformer.Timeout,
+		TimeAdded:     executionTransformer.TimeAdded,
+		ExecutionTime: executionTransformer.ExecutionTime,
 		DateCreated:   executionTransformer.DateCreated,
 	}
 
@@ -60,8 +64,12 @@ func (executionTransformer *Execution) ToManager() (execution.Manager, error) {
 
 // FromManager extract content of manager into transformer
 func (executionTransformer *Execution) FromManager(executionManager execution.Manager) {
+	executionTransformer.ID = executionManager.ID
 	executionTransformer.UUID = executionManager.UUID
+	executionTransformer.JobID = executionManager.JobID
 	executionTransformer.JobUUID = executionManager.JobUUID
 	executionTransformer.StatusCode = executionManager.StatusCode
 	executionTransformer.DateCreated = executionManager.DateCreated
+	executionTransformer.ExecutionTime = executionManager.ExecutionTime
+	executionTransformer.TimeAdded = executionManager.TimeAdded
 }
