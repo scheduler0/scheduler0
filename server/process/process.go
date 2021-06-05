@@ -1,12 +1,11 @@
 package process
 
 import (
-	"errors"
-	"github.com/go-pg/pg"
+	"fmt"
 	"github.com/robfig/cron"
 	"net/http"
 	"scheduler0/server/db"
-	executionManager "scheduler0/server/managers/execution"
+	"scheduler0/server/managers/execution"
 	"scheduler0/server/managers/job"
 	"scheduler0/server/managers/project"
 	"scheduler0/server/service"
@@ -21,7 +20,7 @@ import (
 // JobProcessor handles executions of jobs
 type JobProcessor struct {
 	Cron          *cron.Cron
-	RecoveredJobs []transformers.Job
+	RecoveredJobs []RecoveredJob
 	MaxMemory     int64
 	MaxCPU        int64
 	Pool          *utils.Pool
@@ -29,68 +28,149 @@ type JobProcessor struct {
 
 // RecoverJobExecutions find jobs that could've not been executed due to timeout
 func (jobProcessor *JobProcessor) RecoverJobExecutions(jobTransformers []transformers.Job) {
-	/**
-	TODO: Find execution for job that does not have a TimeExecuted but TimeAdded.
-			if one exists find the difference between when the job was added and when it ought to have executed
-			if we've not exceed the execution window.
-			Add the job to queue of recovered jobs to be executed.
-	*/
-	conn, err := jobProcessor.Pool.Acquire()
-	utils.CheckErr(err)
-	jobIDs := make([]string, len(jobTransformers))
-
-	params := ""
-
+	manager := execution.Manager{}
 	for _, jobTransformer := range jobTransformers {
-		jobIDs = append(jobIDs, jobTransformer.UUID)
-		params = params + "?,"
-	}
+		if jobProcessor.IsRecovered(jobTransformer.UUID) {
+			continue
+		}
 
-	dbConn := conn.(*pg.DB)
-	query := "SELECT * FROM executions " +
-			"WHERE executions.job_uuid IN ("+params+") AND executions.time_executed is NULL"
+		count, err, executionManagers := manager.FindJobExecutionPlaceholderByUUID(jobProcessor.Pool, jobTransformer.UUID)
+		if err != nil {
+			utils.Error(fmt.Sprintf("Error occurred while fetching execution mangers for jobs to be recovered %s", err.Message))
+			continue
+		}
 
-	result, err := dbConn.Exec(query, jobIDs)
-	utils.CheckErr(err)
+		if count < 1 {
+			continue
+		}
 
-	if result.RowsReturned() > 0 {
+		executionManager := executionManagers[0]
+		schedule, parseErr := cron.Parse(jobTransformer.Spec)
 
+		if parseErr != nil {
+			utils.Error(fmt.Sprintf("Failed to create schedule%s", parseErr.Error()))
+			continue
+		}
+		now := time.Now().UTC()
+		executionTime := schedule.Next(executionManager.TimeAdded).UTC()
+
+		if now.Before(executionTime) {
+			executionTransformer := transformers.Execution{}
+			executionTransformer.FromManager(executionManager)
+			recovery := RecoveredJob{
+				Execution: &executionTransformer,
+				Job:       &jobTransformer,
+			}
+			jobProcessor.RecoveredJobs = append(jobProcessor.RecoveredJobs, recovery)
+		}
 	}
 }
 
-// ExecuteHTTPJob this will execute an http job
-func (jobProcessor *JobProcessor) ExecuteHTTPJob(jobTransformer transformers.Job) func() {
+// IsRecovered Check if a job is in recovered job queues
+func (jobProcessor *JobProcessor) IsRecovered(jobUUID string) bool {
+	for _, recoveredJob := range jobProcessor.RecoveredJobs {
+		if recoveredJob.Job.UUID == jobUUID {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetRecovery Returns recovery object
+func (jobProcessor *JobProcessor) GetRecovery(jobUUID string) *RecoveredJob {
+	for _, recoveredJob := range jobProcessor.RecoveredJobs {
+		if recoveredJob.Job.UUID == jobUUID {
+			return &recoveredJob
+		}
+	}
+
+	return nil
+}
+
+// RemoveJobRecovery Removes a recovery object
+func (jobProcessor *JobProcessor) RemoveJobRecovery(jobUUID string) {
+	jobIndex := -1
+
+	for index, recoveredJob := range jobProcessor.RecoveredJobs {
+		if recoveredJob.Job.UUID == jobUUID {
+			jobIndex = index
+			break
+		}
+	}
+
+	jobProcessor.RecoveredJobs = append(jobProcessor.RecoveredJobs[:jobIndex], jobProcessor.RecoveredJobs[jobIndex+1:]...)
+}
+
+// ExecuteHTTPJob executes and http job
+func (jobProcessor *JobProcessor) ExecuteHTTPJob(jobTransformer *transformers.Job, executionManager *execution.Manager) {
+	pool, err := utils.NewPool(db.OpenConnection, 1)
+
+	utils.Info(fmt.Sprintf("Running Job Execution for Job ID = %s with execution = %s",
+		jobTransformer.UUID, executionManager.UUID))
+
+	jobManager, transformError := jobTransformer.ToManager()
+	if transformError != nil {
+		utils.Error("Job Transform Error:", transformError.Error())
+		return
+	}
+	getOneError := jobManager.GetOne(pool, jobManager.UUID)
+	if getOneError != nil {
+		utils.Error("Get One Job Error:", getOneError.Message)
+		return
+	}
+
+	var statusCode int
+	startSecs := time.Now()
+
+	r, err := http.Post(jobTransformer.CallbackUrl, "application/json", strings.NewReader(jobTransformer.Data))
+	if err != nil {
+		statusCode = -1
+	} else {
+		statusCode = r.StatusCode
+	}
+
+	utils.Info(fmt.Sprintf("Executed job %v", jobTransformer.UUID))
+
+	timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
+
+	executionManager.TimeExecuted = time.Now().UTC()
+	executionManager.ExecutionTime = timeout
+	executionManager.StatusCode = strconv.Itoa(statusCode)
+
+	updatedRows, updateError := executionManager.UpdateOne(pool)
+	if updateError != nil {
+		utils.Error("Cannot Update Execution Error:", updateError.Message)
+		return
+	}
+
+	if updatedRows < 1 {
+		utils.Info("Failed to update execution without any error")
+	}
+
+	if jobProcessor.IsRecovered(jobTransformer.UUID) {
+		jobProcessor.RemoveJobRecovery(jobTransformer.UUID)
+		jobProcessor.AddJob(*jobTransformer, nil)
+	} else {
+		newExecutionManager := execution.Manager{
+			JobID:       jobTransformer.ID,
+			JobUUID:     jobTransformer.UUID,
+			TimeAdded:   time.Now().UTC(),
+			DateCreated: time.Now().UTC(),
+		}
+		_, createErr := newExecutionManager.CreateOne(jobProcessor.Pool)
+		if createErr != nil {
+			utils.Error("Error Creating New Placeholder Execution :", createErr.Message)
+			return
+		}
+	}
+}
+
+// HTTPJobExecutor this will execute an http job
+func (jobProcessor *JobProcessor) HTTPJobExecutor(jobTransformer *transformers.Job, executionManger *execution.Manager) func() {
 	return func() {
-		go func() {
-			pool, err := utils.NewPool(db.OpenConnection, 1)
-
-			// TODO: Check that job still exists before executing
-			var statusCode int
-
-			startSecs := time.Now()
-
-			r, err := http.Post(jobTransformer.CallbackUrl, "application/json", strings.NewReader(jobTransformer.Data))
-			if err != nil {
-				statusCode = -1
-			} else {
-				statusCode = r.StatusCode
-			}
-
-			timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
-			// TODO: Replace this with finding the existing execution for the job and modifying it
-			// TODO: If the job is a recovered job add it to the pool of main executions
-			execution := executionManager.Manager{
-				JobUUID:       jobTransformer.UUID,
-				ExecutionTime: timeout,
-				StatusCode:    strconv.Itoa(statusCode),
-				DateCreated:   time.Now().UTC(),
-			}
-
-			_, createOneErr := execution.CreateOne(pool)
-			if createOneErr != nil {
-				utils.CheckErr(errors.New(createOneErr.Message))
-			}
-		}()
+		// TODO: Switch execution type
+		go jobProcessor.ExecuteHTTPJob(jobTransformer, executionManger)
 	}
 }
 
@@ -102,6 +182,8 @@ func (jobProcessor *JobProcessor) StartJobs() {
 	if err != nil {
 		panic(err)
 	}
+
+	utils.Info("Total number of projects: ", totalProjectCount)
 
 	projectService := service.ProjectService{
 		Pool: jobProcessor.Pool,
@@ -126,14 +208,27 @@ func (jobProcessor *JobProcessor) StartJobs() {
 			panic(err)
 		}
 
-		jobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
+		utils.Info(fmt.Sprintf("Total number of jobs for project %v is %v : ", projectTransformer.ID, jobsTotalCount))
+		paginatedJobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
-		for _, jobTransformer := range jobTransformers.Data {
+		jobTransformers := []transformers.Job{}
+
+		for _, jobTransformer := range paginatedJobTransformers.Data {
+			jobTransformers = append(jobTransformers, jobTransformer)
+		}
+
+		jobProcessor.RecoverJobExecutions(jobTransformers)
+
+		utils.Info(fmt.Sprintf("Recovered %v Jobs for Project with ID: %v",
+			len(jobProcessor.RecoveredJobs),
+			projectTransformer.ID))
+
+		for _, jobTransformer := range paginatedJobTransformers.Data {
 			wg.Add(1)
+			utils.Info(fmt.Sprintf("Adding job %v of project %v : ", jobTransformer.ID, projectTransformer.ID))
 			go jobProcessor.AddJob(jobTransformer, &wg)
 		}
 		wg.Wait()
-
 	}
 
 	jobProcessor.Cron.Start()
@@ -142,18 +237,32 @@ func (jobProcessor *JobProcessor) StartJobs() {
 // AddJob adds a single job to the queue
 func (jobProcessor *JobProcessor) AddJob(jobTransformer transformers.Job, wg *sync.WaitGroup) {
 	// TODO: Check if we're within resource usage before adding another job
-	defer wg.Done()
+	defer func() {
+		if wg != nil {
+			wg.Done()
+		}
+	}()
 
-	execution := executionManager.Manager{
-		JobID: jobTransformer.ID,
-		JobUUID: jobTransformer.UUID,
-		TimeAdded: time.Now().UTC(),
-		DateCreated: time.Now().UTC(),
+	if recovery := jobProcessor.GetRecovery(jobTransformer.UUID); recovery != nil {
+		go recovery.Run(jobProcessor)
+		return
 	}
 
-	_, createErr := execution.CreateOne(jobProcessor.Pool)
-	utils.CheckErr(errors.New(createErr.Message))
+	executionManager := execution.Manager{
+		JobID:       jobTransformer.ID,
+		JobUUID:     jobTransformer.UUID,
+		TimeAdded:   time.Now().UTC(),
+		DateCreated: time.Now().UTC(),
+	}
+	_, createErr := executionManager.CreateOne(jobProcessor.Pool)
+	if createErr != nil {
+		fmt.Println("Error Getting Execution", utils.Error(createErr.Message))
+		return
+	}
 
-	err := jobProcessor.Cron.AddFunc(jobTransformer.Spec, jobProcessor.ExecuteHTTPJob(jobTransformer))
-	utils.CheckErr(err)
+	cronAddJobErr := jobProcessor.Cron.AddFunc(jobTransformer.Spec, jobProcessor.HTTPJobExecutor(&jobTransformer, &executionManager))
+	if cronAddJobErr != nil {
+		fmt.Println("Error Add Cron JOb", cronAddJobErr.Error())
+		return
+	}
 }
