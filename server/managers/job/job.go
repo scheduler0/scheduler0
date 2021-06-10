@@ -38,7 +38,6 @@ func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericEr
 		return "", e
 	}
 
-
 	jobManager.ProjectID = projectWithUUID.ID
 	jobManager.ProjectUUID = projectWithUUID.UUID
 

@@ -197,7 +197,7 @@ var _ = Describe("Project Manager", func() {
 
 		job := job.Manager{
 			ProjectUUID: projectManager.UUID,
-			Spec:    "* * * * *",
+			Spec:        "* * * * *",
 			CallbackUrl: "https://some-random-url",
 		}
 

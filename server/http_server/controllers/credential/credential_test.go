@@ -28,7 +28,7 @@ var _ = Describe("Credential Controller", func() {
 	It("Creating A New Credential", func() {
 		testCredential := transformers.Credential{
 			HTTPReferrerRestriction: "*",
-			Platform: "web",
+			Platform:                "web",
 		}
 		jsonTestCredentialBody, err := testCredential.ToJSON()
 		if err != nil {
@@ -51,7 +51,7 @@ var _ = Describe("Credential Controller", func() {
 	It("Get All Credentials", func() {
 		testCredential := transformers.Credential{
 			HTTPReferrerRestriction: "*",
-			Platform: "web",
+			Platform:                "web",
 		}
 		manager := testCredential.ToManager()
 		manager.CreateOne(pool)
@@ -69,7 +69,7 @@ var _ = Describe("Credential Controller", func() {
 	It("Get One Credential", func() {
 		testCredential := transformers.Credential{
 			HTTPReferrerRestriction: "*",
-			Platform: "web",
+			Platform:                "web",
 		}
 		credentialManager := testCredential.ToManager()
 		_, createOneErr := credentialManager.CreateOne(pool)
@@ -95,7 +95,7 @@ var _ = Describe("Credential Controller", func() {
 	It("Update One Credential", func() {
 		testCredential := transformers.Credential{
 			HTTPReferrerRestriction: "*",
-			Platform: "web",
+			Platform:                "web",
 		}
 		credentialManager := testCredential.ToManager()
 		_, err := credentialManager.CreateOne(pool)
@@ -107,7 +107,7 @@ var _ = Describe("Credential Controller", func() {
 		newHTTPReferrerRestriction := "http://scheduler0.com"
 		updateBody := transformers.Credential{
 			HTTPReferrerRestriction: newHTTPReferrerRestriction,
-			Platform: "web",
+			Platform:                "web",
 		}
 		jsonTestCredentialBody, toJSONErr := updateBody.ToJSON()
 		if toJSONErr != nil {
@@ -131,7 +131,7 @@ var _ = Describe("Credential Controller", func() {
 	It("Delete One Credential", func() {
 		testCredential := transformers.Credential{
 			HTTPReferrerRestriction: "*",
-			Platform: "web",
+			Platform:                "web",
 		}
 		credentialManager := testCredential.ToManager()
 		_, err := credentialManager.CreateOne(pool)
@@ -142,7 +142,7 @@ var _ = Describe("Credential Controller", func() {
 
 		test2Credential := transformers.Credential{
 			HTTPReferrerRestriction: "*",
-			Platform: "web",
+			Platform:                "web",
 		}
 		credential2Manager := test2Credential.ToManager()
 		_, err = credential2Manager.CreateOne(pool)

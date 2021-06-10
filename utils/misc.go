@@ -15,7 +15,6 @@ func GetPort() string {
 	return ":" + port
 }
 
-
 // GetAuthentication returns basic auth used to for identifying request from the dashboard
 func GetAuthentication() (string, string) {
 	usernameEnv := os.Getenv("username")

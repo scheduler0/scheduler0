@@ -5,7 +5,7 @@ import (
 	"scheduler0/utils"
 )
 
-func main()  {
+func main() {
 	utils.SetScheduler0Configurations()
 	http_server.Start()
 }

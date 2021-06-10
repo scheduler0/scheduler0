@@ -85,7 +85,6 @@ Note that the PORT is optional. By default the server will use :9090
 		}
 		SecretKey, _ := secretKeyPrompt.Run()
 
-
 		err := os.Setenv(utils.PostgresAddressEnv, Addr)
 		utils.CheckErr(err)
 
@@ -156,11 +155,11 @@ Use the --show-password flag if you want the password to be visible.
 
 		if showPassword {
 			utils.Info(fmt.Sprintf(
-				"PORT = %v " +
-				"POSTGRES_ADDRESS = %v " +
-				"POSTGRES_USER = %v " +
-				"POSTGRES_PASSWORD = %v " +
-				"POSTGRES_DATABASE = %v ",
+				"PORT = %v "+
+					"POSTGRES_ADDRESS = %v "+
+					"POSTGRES_USER = %v "+
+					"POSTGRES_PASSWORD = %v "+
+					"POSTGRES_DATABASE = %v ",
 				configs.PORT,
 				configs.PostgresAddress,
 				configs.PostgresUser,
@@ -168,10 +167,10 @@ Use the --show-password flag if you want the password to be visible.
 				configs.PostgresDatabase))
 		} else {
 			utils.Info(fmt.Sprintf(
-			"PORT = %v " +
-				"POSTGRES_ADDRESS = %v " +
-				"POSTGRES_USER = %v " +
-				"POSTGRES_DATABASE = %v ",
+				"PORT = %v "+
+					"POSTGRES_ADDRESS = %v "+
+					"POSTGRES_USER = %v "+
+					"POSTGRES_DATABASE = %v ",
 				configs.PORT,
 				configs.PostgresAddress,
 				configs.PostgresUser,

@@ -27,7 +27,7 @@ func listCredentials() {
 	for _, credentialTransformer := range credentialTransformers.Data {
 
 		utils.Info(fmt.Sprintf(
-`
+			`
 -----------------------------------------
 UUID = %v
 Platform = %v

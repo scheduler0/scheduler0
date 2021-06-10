@@ -10,7 +10,6 @@ import (
 // Credential service layer for credentials
 type Credential Service
 
-
 // CreateNewCredential creates a new credentials
 func (credentialService *Credential) CreateNewCredential(credentialTransformer transformers.Credential) (string, *utils.GenericError) {
 	credentialManager := credentialTransformer.ToManager()
@@ -29,8 +28,6 @@ func (credentialService *Credential) FindOneCredentialByUUID(UUID string) (*tran
 		return &outboundDto, nil
 	}
 }
-
-
 
 // UpdateOneCredential updates a single credential
 func (credentialService *Credential) UpdateOneCredential(credentialTransformer transformers.Credential) (*transformers.Credential, error) {
@@ -57,7 +54,6 @@ func (credentialService *Credential) DeleteOneCredential(UUID string) (*transfor
 	}
 }
 
-
 // ListCredentials returns paginated list of credentials
 func (credentialService *Credential) ListCredentials(offset int, limit int, orderBy string) (*transformers.PaginatedCredential, *utils.GenericError) {
 	credentialManager := credential.Manager{}
@@ -68,7 +64,7 @@ func (credentialService *Credential) ListCredentials(offset int, limit int, orde
 	}
 
 	if total < 1 {
-		return  nil, utils.HTTPGenericError(http.StatusNotFound, "there no credentials")
+		return nil, utils.HTTPGenericError(http.StatusNotFound, "there no credentials")
 	}
 
 	if credentialManagers, err := credentialManager.GetAll(credentialService.Pool, offset, limit, orderBy); err != nil {
@@ -81,14 +77,13 @@ func (credentialService *Credential) ListCredentials(offset int, limit int, orde
 		}
 
 		return &transformers.PaginatedCredential{
-			Data: credentialTransformers,
-			Total: total,
+			Data:   credentialTransformers,
+			Total:  total,
 			Offset: offset,
-			Limit: limit,
+			Limit:  limit,
 		}, nil
 	}
 }
-
 
 // ValidateServerAPIKey authenticates incoming request from servers
 func (credentialService *Credential) ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError) {
@@ -104,7 +99,6 @@ func (credentialService *Credential) ValidateServerAPIKey(apiKey string, apiSecr
 	return apiSecret == credentialManager.ApiSecret, nil
 }
 
-
 // ValidateIOSAPIKey authenticates incoming request from iOS app s
 func (credentialService *Credential) ValidateIOSAPIKey(apiKey string, IOSBundle string) (bool, *utils.GenericError) {
 	credentialManager := credential.Manager{
@@ -119,7 +113,6 @@ func (credentialService *Credential) ValidateIOSAPIKey(apiKey string, IOSBundle 
 	return credentialManager.IOSBundleIDRestriction == IOSBundle, nil
 }
 
-
 // ValidateAndroidAPIKey authenticates incoming request from android app
 func (credentialService *Credential) ValidateAndroidAPIKey(apiKey string, androidPackageName string) (bool, *utils.GenericError) {
 	credentialManager := credential.Manager{
@@ -133,7 +126,6 @@ func (credentialService *Credential) ValidateAndroidAPIKey(apiKey string, androi
 
 	return credentialManager.AndroidPackageNameRestriction == androidPackageName, nil
 }
-
 
 // ValidateWebAPIKeyHTTPReferrerRestriction authenticates incoming request from web clients
 func (credentialService *Credential) ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string) (bool, *utils.GenericError) {

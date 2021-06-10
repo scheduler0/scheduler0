@@ -142,7 +142,6 @@ func (executionManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.Generi
 	return res.RowsAffected(), nil
 }
 
-
 // DeleteOne deletes a single execution entity from the database
 func (executionManager *Manager) DeleteOne(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()

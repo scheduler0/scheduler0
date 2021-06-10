@@ -1,17 +1,18 @@
 package web_test
+
 import (
 	"fmt"
-. "github.com/onsi/ginkgo"
-. "github.com/onsi/gomega"
-"net/http"
-"scheduler0/server/db"
-"scheduler0/server/http_server/middlewares/auth"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"net/http"
+	"scheduler0/server/db"
+	"scheduler0/server/http_server/middlewares/auth"
 	"scheduler0/server/http_server/middlewares/auth/web"
 	"scheduler0/server/managers/credential"
-"scheduler0/server/managers/credential/fixtures"
-"scheduler0/server/service"
-"scheduler0/utils"
-"testing"
+	"scheduler0/server/managers/credential/fixtures"
+	"scheduler0/server/service"
+	"scheduler0/utils"
+	"testing"
 )
 
 var _ = Describe("Web Auth Test", func() {
@@ -49,7 +50,6 @@ var _ = Describe("Web Auth Test", func() {
 	})
 
 })
-
 
 func TestWebAuth_Middleware(t *testing.T) {
 	utils.SetTestScheduler0Configurations()

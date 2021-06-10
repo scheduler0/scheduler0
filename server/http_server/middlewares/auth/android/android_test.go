@@ -81,7 +81,6 @@ var _ = Describe("Android Auth Test", func() {
 		Expect(android.IsAndroidClient(req)).ToNot(BeTrue())
 	})
 
-
 	It("Should identify authorized request from android apps", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
@@ -119,7 +118,6 @@ var _ = Describe("Android Auth Test", func() {
 		Expect(android.IsAuthorizedAndroidClient(req, pool)).To(BeTrue())
 	})
 })
-
 
 func TestAndroidAuth_Middleware(t *testing.T) {
 	utils.SetTestScheduler0Configurations()

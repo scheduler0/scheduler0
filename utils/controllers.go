@@ -24,7 +24,6 @@ func (r *Response) ToJSON() []byte {
 	return data
 }
 
-
 // SendJSON returns JSON response to client
 func SendJSON(w http.ResponseWriter, data interface{}, success bool, status int, headers map[string]string) {
 	resObj := Response{Data: data, Success: success}
@@ -88,4 +87,3 @@ func ExtractResponse(w *httptest.ResponseRecorder) (*utils.Response, string, err
 
 	return res, string(body), nil
 }
-

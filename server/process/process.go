@@ -40,7 +40,7 @@ func ExecuteHTTPJob(jobTransformer transformers.Job) func() {
 			execution := executionManager.Manager{
 				JobUUID:     jobTransformer.UUID,
 				Timeout:     timeout,
-				StatusCode: strconv.Itoa(statusCode),
+				StatusCode:  strconv.Itoa(statusCode),
 				DateCreated: time.Now().UTC(),
 			}
 

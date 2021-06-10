@@ -96,7 +96,6 @@ func (credentialController *Controller) UpdateOne(w http.ResponseWriter, r *http
 	}
 }
 
-
 // DeleteOne deletes a single credential
 func (credentialController *Controller) DeleteOne(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)

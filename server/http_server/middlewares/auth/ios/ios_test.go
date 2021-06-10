@@ -119,7 +119,6 @@ var _ = Describe("IOS Auth Test", func() {
 	})
 })
 
-
 func TestIOSAuth_Middleware(t *testing.T) {
 	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)

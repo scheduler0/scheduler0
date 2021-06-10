@@ -162,7 +162,7 @@ func SetScheduler0Configurations() {
 
 	ReadInitCMDConfigIntoProcessEnv()
 	lastCheck, missingEnv := CheckRequiredEnvs()
-	if !lastCheck  {
+	if !lastCheck {
 		panic(errors.New(fmt.Sprintf("the following required environment variable has not been provided: %v", strings.Join(missingEnv, ","))))
 	}
 }

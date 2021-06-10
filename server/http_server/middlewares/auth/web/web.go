@@ -10,7 +10,7 @@ import (
 // IsWebClient returns true is the request is coming from a web client
 func IsWebClient(req *http.Request) bool {
 	apiKey := req.Header.Get(auth.APIKeyHeader)
-	return  len(apiKey) > 9
+	return len(apiKey) > 9
 }
 
 // IsAuthorizedWebClient returns true if the credential is an authorized web client
