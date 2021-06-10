@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/robfig/cron"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	jobTestFixtures "scheduler0/server/http_server/controllers/job/fixtures"
 	jobManagerTestFixtures "scheduler0/server/managers/job/fixtures"
 	projectTestFixtures "scheduler0/server/managers/project/fixtures"
+	"scheduler0/server/process"
 	"scheduler0/server/transformers"
 	"scheduler0/utils"
 	"strings"
@@ -23,6 +25,11 @@ import (
 var _ = Describe("Job Controller", func() {
 
 	pool := db.GetTestPool()
+	jobProcessor := process.JobProcessor{
+		Pool: pool,
+		Cron: cron.New(),
+		RecoveredJobs: []process.RecoveredJob{},
+	}
 
 	BeforeEach(func() {
 		db.Teardown()
@@ -32,7 +39,10 @@ var _ = Describe("Job Controller", func() {
 	Context("TestJobController_CreateOne", func() {
 
 		It("Respond with status 400 if request body does not contain required values", func() {
-			jobController := job.Controller{Pool: pool}
+			jobController := job.Controller{
+				Pool: pool,
+				JobProcessor: &jobProcessor,
+			}
 			jobFixture := jobManagerTestFixtures.JobFixture{}
 			jobTransformers := jobFixture.CreateNJobTransformers(1)
 			jobByte, err := jobTransformers[0].ToJSON()
@@ -71,7 +81,10 @@ var _ = Describe("Job Controller", func() {
 
 			w := httptest.NewRecorder()
 
-			controller := job.Controller{Pool: pool}
+			controller := job.Controller{
+				Pool: pool,
+				JobProcessor: &jobProcessor,
+			}
 			controller.CreateOne(w, req)
 			body, err := ioutil.ReadAll(w.Body)
 
@@ -188,7 +201,10 @@ var _ = Describe("Job Controller", func() {
 		}
 
 		w := httptest.NewRecorder()
-		controller := job.Controller{Pool: pool}
+		controller := job.Controller{
+			Pool: pool,
+			JobProcessor: &jobProcessor,
+		}
 
 		router := mux.NewRouter()
 		router.HandleFunc("/jobs/{uuid}", controller.DeleteOne)

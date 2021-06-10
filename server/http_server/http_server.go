@@ -31,6 +31,7 @@ func Start() {
 	jobProcessor := process.JobProcessor{
 		Pool: pool,
 		Cron: cron.New(),
+		RecoveredJobs: []process.RecoveredJob{},
 	}
 
 	// Set time zone, create database and run db
