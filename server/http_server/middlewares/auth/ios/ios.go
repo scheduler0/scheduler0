@@ -11,7 +11,7 @@ import (
 func IsIOSClient(req *http.Request) bool {
 	apiKey := req.Header.Get(auth.APIKeyHeader)
 	bundleID := req.Header.Get(auth.IOSBundleHeader)
-	return  len(apiKey) > 9 && len(bundleID) > 9
+	return len(apiKey) > 9 && len(bundleID) > 9
 }
 
 // IsAuthorizedIOSClient returns true if the credential is authorized ios app

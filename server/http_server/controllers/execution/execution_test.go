@@ -45,7 +45,6 @@ var _ = Describe("Execution Controller", func() {
 		w := httptest.NewRecorder()
 		executionsController.List(w, req)
 
-
 		Expect(w.Code).To(Equal(http.StatusOK))
 	})
 

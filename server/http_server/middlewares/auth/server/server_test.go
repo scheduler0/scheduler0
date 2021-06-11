@@ -119,7 +119,6 @@ var _ = Describe("Server Side Auth Test", func() {
 	})
 })
 
-
 func TestServerSideAuth_Middleware(t *testing.T) {
 	utils.SetTestScheduler0Configurations()
 	RegisterFailHandler(Fail)

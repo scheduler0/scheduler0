@@ -11,7 +11,7 @@ import (
 func IsServerClient(req *http.Request) bool {
 	apiKey := req.Header.Get(auth.APIKeyHeader)
 	apiSecret := req.Header.Get(auth.SecretKeyHeader)
-	return  len(apiKey) > 9 && len(apiSecret) > 9
+	return len(apiKey) > 9 && len(apiSecret) > 9
 }
 
 // IsAuthorizedServerClient returns true if the credential is authorized server side

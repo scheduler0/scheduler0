@@ -45,7 +45,7 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 
 			restrictedPaths := []string{"credentials", "projects", "executions"}
 
-			matchRestrictedPaths := func (path string) bool {
+			matchRestrictedPaths := func(path string) bool {
 				for _, restrictedPath := range restrictedPaths {
 					if restrictedPath == path {
 						return true
@@ -83,7 +83,7 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 					}
 				}
 
-				if web.IsWebClient(r)  {
+				if web.IsWebClient(r) {
 					if validity, _ := web.IsAuthorizedWebClient(r, pool); validity {
 						next.ServeHTTP(w, r)
 						return

@@ -62,7 +62,7 @@ var _ = Describe("Credential Manager", func() {
 	Context("Android platform credential", func() {
 		It("Should not create android platform credential without android package name restriction", func() {
 			credentialManager := credential.Manager{}
-			credentialManager.Platform  = "android"
+			credentialManager.Platform = "android"
 			_, err := credentialManager.CreateOne(pool)
 			if err == nil {
 				utils.Error("[ERROR] Created an android credential without package name restriction")
@@ -72,7 +72,7 @@ var _ = Describe("Credential Manager", func() {
 
 		It("Should create android platform credential with android package name restriction", func() {
 			credentialManager := credential.Manager{}
-			credentialManager.Platform  = "android"
+			credentialManager.Platform = "android"
 			credentialManager.AndroidPackageNameRestriction = "com.android.org"
 			_, err := credentialManager.CreateOne(pool)
 			if err != nil {
@@ -95,7 +95,7 @@ var _ = Describe("Credential Manager", func() {
 
 		It("Should create ios platform credential with android package name restriction", func() {
 			credentialManager := credential.Manager{}
-			credentialManager.Platform  = "ios"
+			credentialManager.Platform = "ios"
 			credentialManager.IOSBundleIDRestriction = "com.ios.org"
 			_, err := credentialManager.CreateOne(pool)
 			if err != nil {
@@ -140,7 +140,7 @@ var _ = Describe("Credential Manager", func() {
 
 	It("Update credential HTTPReferrerRestriction", func() {
 		credentialManager := credential.Manager{
-			Platform: "web",
+			Platform:                "web",
 			HTTPReferrerRestriction: "*",
 		}
 		_, err := credentialManager.CreateOne(pool)

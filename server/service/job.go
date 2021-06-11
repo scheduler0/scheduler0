@@ -97,7 +97,6 @@ func (jobService *JobService) UpdateJob(jobTransformer transformers.Job) (*trans
 	return &jobTransformer, nil
 }
 
-
 // DeleteJob deletes a job with UUID in transformer
 func (jobService *JobService) DeleteJob(jobTransformer transformers.Job) *utils.GenericError {
 	jobManager := job.Manager{

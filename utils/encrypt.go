@@ -9,7 +9,6 @@ import (
 	"io"
 )
 
-
 // Encrypt string
 func Encrypt(stringToEncrypt string, keyString string) (encryptedString string) {
 	//Since the key is in string, we need to convert decode it to bytes
@@ -40,7 +39,6 @@ func Encrypt(stringToEncrypt string, keyString string) (encryptedString string) 
 	ciphertext := aesGCM.Seal(nonce, nonce, plaintext, nil)
 	return fmt.Sprintf("%x", ciphertext)
 }
-
 
 // Decrypt string
 func Decrypt(encryptedString string, keyString string) (decryptedString string) {

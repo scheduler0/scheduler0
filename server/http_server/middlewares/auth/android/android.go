@@ -11,7 +11,7 @@ import (
 func IsAndroidClient(req *http.Request) bool {
 	apiKey := req.Header.Get(auth.APIKeyHeader)
 	bundleID := req.Header.Get(auth.AndroidPackageIDHeader)
-	return  len(apiKey) > 9 && len(bundleID) > 9
+	return len(apiKey) > 9 && len(bundleID) > 9
 }
 
 // IsAuthorizedAndroidClient returns true if the credential is authorized android app

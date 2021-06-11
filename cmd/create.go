@@ -12,7 +12,7 @@ import (
 )
 
 var CreateCmd = &cobra.Command{
-	Use: "create",
+	Use:   "create",
 	Short: "create a credential or project",
 	Long: `
 Use this command to create credentials for any client or a project. 
@@ -28,9 +28,9 @@ For other clients such as Android, iOS and Web an restriction key is required.
 var clientFlag = ""
 
 var CredentialCmd = &cobra.Command{
-	Use: "credential",
+	Use:   "credential",
 	Short: "create credential",
-	Long:`
+	Long: `
 Use this command to create a new credential for any client.
 
 Usage:
@@ -54,7 +54,7 @@ For android, ios, web credential at least one restriction will be required.
 			utils.Error(err.Error())
 			return
 		}
-		credentialService :=  service.Credential{ Pool: pool }
+		credentialService := service.Credential{Pool: pool}
 		credentialTransformer := transformers.Credential{
 			Platform: clientFlag,
 		}
@@ -110,13 +110,13 @@ For android, ios, web credential at least one restriction will be required.
 		credentialUUID, creteCredentialError := credentialService.CreateNewCredential(credentialTransformer)
 		if creteCredentialError != nil {
 			utils.Error(creteCredentialError.Message)
-		} else  {
+		} else {
 			utils.Info(fmt.Sprintf("Successfully created a new credential with ID = %v", credentialUUID))
 		}
 	},
 }
 
-func init()  {
+func init() {
 	CredentialCmd.Flags().StringVarP(&clientFlag, "client", "c", "", "scheduler0 create credential --client server")
 	CreateCmd.AddCommand(CredentialCmd)
 }
