@@ -10,6 +10,8 @@ import (
 
 type ProjectManager models.ProjectModel
 
+
+// CreateOne creates a single project
 func (projectManager *ProjectManager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
@@ -44,6 +46,7 @@ func (projectManager *ProjectManager) CreateOne(pool *utils.Pool) (string, *util
 	return projectManager.UUID, nil
 }
 
+// GetOneByName returns a project with a matching name
 func (projectManager *ProjectManager) GetOneByName(pool *utils.Pool) *utils.GenericError {
 	conn, err := pool.Acquire()
 	if err != nil {
@@ -77,6 +80,7 @@ func (projectManager *ProjectManager) GetOneByName(pool *utils.Pool) *utils.Gene
 	return nil
 }
 
+// GetOneByUUID returns a project that matches the uuid
 func (projectManager *ProjectManager) GetOneByUUID(pool *utils.Pool) *utils.GenericError {
 	conn, err := pool.Acquire()
 	if err != nil {
@@ -98,6 +102,7 @@ func (projectManager *ProjectManager) GetOneByUUID(pool *utils.Pool) *utils.Gene
 	return nil
 }
 
+// GetAll returns a paginated set of results
 func (projectManager *ProjectManager) GetAll(pool *utils.Pool, offset int, limit int) ([]ProjectManager, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
@@ -122,6 +127,7 @@ func (projectManager *ProjectManager) GetAll(pool *utils.Pool, offset int, limit
 	return projects, nil
 }
 
+// Count return the number of projects
 func (projectManager *ProjectManager) Count(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
@@ -142,6 +148,7 @@ func (projectManager *ProjectManager) Count(pool *utils.Pool) (int, *utils.Gener
 	return count, nil
 }
 
+// UpdateOne updates a single project
 func (projectManager *ProjectManager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
@@ -180,6 +187,7 @@ func (projectManager *ProjectManager) UpdateOne(pool *utils.Pool) (int, *utils.G
 	return res.RowsAffected(), nil
 }
 
+// DeleteOne deletes a single project
 func (projectManager *ProjectManager) DeleteOne(pool *utils.Pool) (int, *utils.GenericError) {
 	conn, err := pool.Acquire()
 	if err != nil {
