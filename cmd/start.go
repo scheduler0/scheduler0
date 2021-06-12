@@ -6,6 +6,7 @@ import (
 	"scheduler0/utils"
 )
 
+// StartCmd http server command
 var StartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start scheduler0 http server",

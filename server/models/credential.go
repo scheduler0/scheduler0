@@ -2,6 +2,7 @@ package models
 
 import "time"
 
+// CredentialModel credential model
 type CredentialModel struct {
 	TableName struct{} `sql:"credentials"`
 

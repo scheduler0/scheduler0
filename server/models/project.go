@@ -2,6 +2,7 @@ package models
 
 import "time"
 
+// ProjectModel project model
 type ProjectModel struct {
 	TableName struct{} `sql:"projects"`
 

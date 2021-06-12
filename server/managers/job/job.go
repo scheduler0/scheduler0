@@ -8,6 +8,7 @@ import (
 	"scheduler0/utils"
 )
 
+// Manager job table manager
 type Manager models.JobModel
 
 // CreateOne create a new job

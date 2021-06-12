@@ -2,6 +2,7 @@ package models
 
 import "time"
 
+// ExecutionModel execution model
 type ExecutionModel struct {
 	TableName struct{} `sql:"executions"`
 

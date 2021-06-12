@@ -2,6 +2,7 @@ package models
 
 import "time"
 
+// JobModel job model
 type JobModel struct {
 	TableName struct{} `sql:"jobs"`
 

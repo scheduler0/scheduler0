@@ -10,7 +10,6 @@ import (
 // ProjectService project server the layer on top db managers
 type ProjectService Service
 
-
 // CreateOne creates a new project
 func (projectService *ProjectService) CreateOne(project transformers.Project) (*transformers.Project, *utils.GenericError) {
 	projectManager := project.ToManager()
@@ -56,7 +55,6 @@ func (projectService *ProjectService) GetOneByUUID(project transformers.Project)
 	return &project, nil
 }
 
-
 // GetOneByName returns a project that matches the name
 func (projectService *ProjectService) GetOneByName(project transformers.Project) (*transformers.Project, *utils.GenericError) {
 	projectManager := project.ToManager()
@@ -84,7 +82,6 @@ func (projectService *ProjectService) DeleteOne(project transformers.Project) *u
 
 	return nil
 }
-
 
 // List return a paginated list of projects
 func (projectService *ProjectService) List(offset int, limit int) (*transformers.PaginatedProject, *utils.GenericError) {

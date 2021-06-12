@@ -49,6 +49,7 @@ Android Package Name Restriction = %v
 	}
 }
 
+// ListCmd returns list of scheduler0 credentials
 var ListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List credentials, projects, jobs e.t.c",

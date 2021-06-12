@@ -6,6 +6,7 @@ import (
 	"scheduler0/utils"
 )
 
+// JobFixture job fixture for testing
 type JobFixture struct {
 	UUID        string `faker:"uuid_hyphenated"`
 	ProjectUUID string `faker:"uuid_hyphenated"`
@@ -18,6 +19,7 @@ type JobFixture struct {
 	EndDate     string `faker:"timestamp"`
 }
 
+// CreateNJobTransformers create n number of job transformer fixtures for testing
 func (jobFixture *JobFixture) CreateNJobTransformers(n int) []transformers.Job {
 	jobTransformers := []transformers.Job{}
 
