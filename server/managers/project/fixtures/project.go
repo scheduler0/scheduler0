@@ -7,11 +7,13 @@ import (
 	"scheduler0/server/transformers"
 )
 
+// ProjectFixture project test fixtures
 type ProjectFixture struct {
 	Name        string `faker:"username"`
 	Description string `faker:"username"`
 }
 
+// CreateProjectTransformerFixture creates a new project transformer
 func CreateProjectTransformerFixture() transformers.Project {
 	project := ProjectFixture{}
 	err := faker.FakeData(&project)
@@ -25,6 +27,7 @@ func CreateProjectTransformerFixture() transformers.Project {
 	return projectTransformer
 }
 
+// CreateProjectManagerFixture creates a new project test fixture
 func CreateProjectManagerFixture() projectManager.ProjectManager {
 	project := ProjectFixture{}
 	err := faker.FakeData(&project)

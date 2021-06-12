@@ -10,7 +10,6 @@ import (
 
 type ProjectManager models.ProjectModel
 
-
 // CreateOne creates a single project
 func (projectManager *ProjectManager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
 	conn, err := pool.Acquire()

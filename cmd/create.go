@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// CreateCmd create job, credentials and projects command
 var CreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "create a credential or project",
@@ -27,6 +28,7 @@ For other clients such as Android, iOS and Web an restriction key is required.
 
 var clientFlag = ""
 
+// CredentialCmd create credential command
 var CredentialCmd = &cobra.Command{
 	Use:   "credential",
 	Short: "create credential",

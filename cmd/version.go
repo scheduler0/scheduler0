@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// VersionCmd used to get current version of scheduler0
 var VersionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number of scheduler0",

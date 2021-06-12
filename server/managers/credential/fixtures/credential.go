@@ -7,6 +7,7 @@ import (
 	"scheduler0/utils"
 )
 
+// CredentialFixture credential fixture
 type CredentialFixture struct {
 	Platform                      string `faker:"word"`
 	UUID                          string `faker:"uuid_hyphenated"`
@@ -18,6 +19,7 @@ type CredentialFixture struct {
 	IOSBundleIDRestriction        string `faker:"domain_name"`
 }
 
+// CreateNCredentialTransformer creates N number of credential transformers
 func (credentialFixture *CredentialFixture) CreateNCredentialTransformer(n int) []transformers.Credential {
 	credentialTransformers := []transformers.Credential{}
 

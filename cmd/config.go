@@ -11,6 +11,7 @@ import (
 	"scheduler0/utils"
 )
 
+// ConfigCmd configuration command
 var ConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "create, view or modify scheduler0 configurations",
@@ -27,6 +28,7 @@ Note that starting the server without going through the init flow will not work.
 `,
 }
 
+// InitCmd initializes scheduler0 configuration
 var InitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize database configurations and port for the scheduler0 server",
@@ -137,6 +139,7 @@ Note that the PORT is optional. By default the server will use :9090
 
 var showPassword = false
 
+// ShowCmd show scheduler0 password configuration
 var ShowCmd = &cobra.Command{
 	Use:   "show",
 	Short: "This will show the configurations that have been set.",
