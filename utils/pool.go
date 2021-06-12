@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// Pool a pool data type
 type Pool struct {
 	m         sync.Mutex
 	resources chan io.Closer
@@ -13,8 +14,10 @@ type Pool struct {
 	closed    bool
 }
 
+// ErrPoolClosed pool was closed error
 var ErrPoolClosed = errors.New("pool has been closed")
 
+// NewPool create a new pool
 func NewPool(fn func() (io.Closer, error), size uint) (*Pool, error) {
 	if size <= 0 {
 		return nil, errors.New("size value too small")
@@ -26,6 +29,7 @@ func NewPool(fn func() (io.Closer, error), size uint) (*Pool, error) {
 	}, nil
 }
 
+// Acquire returns a new pool
 func (p *Pool) Acquire() (io.Closer, error) {
 	select {
 	// check if we have a connection in the pull
@@ -40,6 +44,7 @@ func (p *Pool) Acquire() (io.Closer, error) {
 	}
 }
 
+// Release release an acquired pool
 func (p *Pool) Release(r io.Closer) {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -56,6 +61,7 @@ func (p *Pool) Release(r io.Closer) {
 	}
 }
 
+// Close close and existing pool
 func (p *Pool) Close() {
 	p.m.Lock()
 	defer p.m.Unlock()
