@@ -7,9 +7,13 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Create DB Image
+          command: |
+            docker build -t scheduler0:postgres ./docker/postgres
+      - run:
           name: Run Database
           command: |
-            docker run --name postgres -e POSTGRES_USER=core -e POSTGRES_PASSWORD=localdev -e POSTGRES_DB=scheduler0_test -p 5432:5432 -d postgres
+            docker run -d -p 5432:5432 scheduler0:postgres
       - run:
           name: Run Test
           command: |
