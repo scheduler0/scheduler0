@@ -21,6 +21,7 @@ import (
 type JobProcessor struct {
 	Cron          *cron.Cron
 	RecoveredJobs []RecoveredJob
+	PendingJobs   chan *PendingJob
 	MaxMemory     int64
 	MaxCPU        int64
 	DBConnection  *pg.DB
@@ -167,8 +168,10 @@ func (jobProcessor *JobProcessor) ExecuteHTTPJob(jobTransformer *transformers.Jo
 // HTTPJobExecutor this will execute an http job
 func (jobProcessor *JobProcessor) HTTPJobExecutor(jobTransformer *transformers.Job, executionManger *execution.Manager) func() {
 	return func() {
-		// TODO: Switch execution type
-		go jobProcessor.ExecuteHTTPJob(jobTransformer, executionManger)
+		jobProcessor.PendingJobs <- &PendingJob{
+			Job: jobTransformer,
+			Execution: executionManger,
+		}
 	}
 }
 
@@ -230,6 +233,15 @@ func (jobProcessor *JobProcessor) StartJobs() {
 	}
 
 	jobProcessor.Cron.Start()
+
+	go func() {
+		for {
+			select {
+			case pendingJob := <- jobProcessor.PendingJobs:
+				jobProcessor.ExecuteHTTPJob(pendingJob.Job, pendingJob.Execution)
+			}
+		}
+	}()
 }
 
 // AddJob adds a single job to the queue

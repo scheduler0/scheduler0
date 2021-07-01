@@ -35,6 +35,7 @@ func Start() {
 		DBConnection: dbConnection,
 		Cron: cron.New(),
 		RecoveredJobs: []process.RecoveredJob{},
+		PendingJobs: make(chan *process.PendingJob, 100),
 	}
 
 	// Set time zone, create database and run db
