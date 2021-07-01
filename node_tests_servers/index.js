@@ -53,7 +53,7 @@ async function createJob(projectUUID, name) {
 
 app.post('/callback', (req, res) => {
     console.log(`Callback executed at :${(new Date()).toUTCString()} For Job ${req.query.job_id}`)
-    res.send(`Callback executed at :${(new Date()).toUTCString()}`)
+    res.send(`Callback executed at :${(new Date()).toUTCString()}`);
 });
 
 app.listen(port, async () => {
