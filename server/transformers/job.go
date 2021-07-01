@@ -7,6 +7,7 @@ import (
 
 // Job transformer type
 type Job struct {
+	ID          int64  `json:"id,omitempty"`
 	UUID        string `json:"uuid,omitempty"`
 	ProjectUUID string `json:"project_uuid"`
 	Spec        string `json:"spec,omitempty"`
@@ -42,6 +43,7 @@ func (jobTransformer *Job) FromJSON(body []byte) error {
 // ToManager returns content of transformer as manager
 func (jobTransformer *Job) ToManager() (job.Manager, error) {
 	jobManager := job.Manager{
+		ID:          jobTransformer.ID,
 		UUID:        jobTransformer.UUID,
 		ProjectUUID: jobTransformer.ProjectUUID,
 		Spec:        jobTransformer.Spec,
@@ -53,6 +55,7 @@ func (jobTransformer *Job) ToManager() (job.Manager, error) {
 
 // FromManager extracts content from manager into transformer
 func (jobTransformer *Job) FromManager(jobManager job.Manager) {
+	jobTransformer.ID = jobManager.ID
 	jobTransformer.UUID = jobManager.UUID
 	jobTransformer.ProjectUUID = jobManager.ProjectUUID
 	jobTransformer.CallbackUrl = jobManager.CallbackUrl

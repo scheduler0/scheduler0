@@ -36,11 +36,14 @@ build_server_test_dockerfile:
 		.
 
 start_test_db:
-	docker run --rm -it --name postgres -p 5432:5432 \
+	docker run --rm -d --name postgres -p 5432:5432 \
 		-e POSTGRES_USER=core \
 		-e POSTGRES_DB=scheduler0_test \
 		-e POSTGRES_PASSWORD=localdev \
-		postgres:13-alpine
+		postgres:13-alpine -c log_min_messages=DEBUG5
+
+stop_test_db:
+	docker container stop postgres
 
 clean_test_cache:
 	go clean -testcache
@@ -49,16 +52,18 @@ test:
 	go clean -testcache
 
 	go test ./server/managers/execution
+
 	go test ./server/managers/job
 	go test ./server/managers/project
-	go test ./server/managers/credential
 
 	go test ./server/http_server/controllers/execution
 	go test ./server/http_server/controllers/credential
-	go test ./server/http_server/controllers/job -cover
+	go test ./server/http_server/controllers/job
 	go test ./server/http_server/controllers/project
 
 	go test ./server/http_server/middlewares/auth/ios
 	go test ./server/http_server/middlewares/auth/android
 	go test ./server/http_server/middlewares/auth/server
 	go test ./server/http_server/middlewares/auth/web
+
+	go test ./server/process

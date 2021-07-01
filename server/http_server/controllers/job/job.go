@@ -4,7 +4,6 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	"scheduler0/server/http_server/controllers"
-	"scheduler0/server/process"
 	"scheduler0/server/service"
 	"scheduler0/server/transformers"
 	"scheduler0/utils"
@@ -82,7 +81,7 @@ func (jobController *Controller) CreateOne(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	process.StartASingleHTTPJob(*job)
+	go jobController.JobProcessor.AddJob(*job, nil)
 	utils.SendJSON(w, job, true, http.StatusCreated, nil)
 }
 

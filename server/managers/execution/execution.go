@@ -126,6 +126,7 @@ func (executionManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.Generi
 	defer pool.Release(conn)
 
 	executionManagerPlaceholder := Manager{
+		ID: executionManager.ID,
 		UUID: executionManager.UUID,
 	}
 
@@ -134,7 +135,9 @@ func (executionManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.Generi
 		return 0, errorGettingOneManager
 	}
 
-	res, err := db.Model(&executionManager).Update(executionManager)
+	res, err := db.Model(executionManager).
+		Where("id  = ? ", executionManager.ID).
+		Update(executionManager)
 	if err != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -159,4 +162,39 @@ func (executionManager *Manager) DeleteOne(pool *utils.Pool) (int, *utils.Generi
 	}
 
 	return r.RowsAffected(), nil
+}
+
+// FindJobExecutionPlaceholderByUUID returns an execution placeholder for a job that's not been executed
+func (executionManager *Manager) FindJobExecutionPlaceholderByUUID(pool *utils.Pool, jobUUID string) (int, *utils.GenericError, []Manager) {
+	conn, err := pool.Acquire()
+	if err != nil {
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error()), nil
+	}
+
+	db := conn.(*pg.DB)
+	defer pool.Release(conn)
+
+	countQuery := db.Model(executionManager).Where("job_uuid = ? AND time_executed is NULL", jobUUID)
+
+	count, countError := countQuery.Count()
+	if countError != nil {
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, countError.Error()), nil
+	}
+	if count < 1 {
+		return 0, nil, nil
+	}
+
+	executionManagers := make([]Manager, 0, count)
+
+	getError := db.
+		Model(&executionManagers).
+		Where("job_uuid = ? AND time_executed is NULL", jobUUID).
+		Order("time_added DESC").
+		Select()
+
+	if getError != nil {
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, getError.Error()), nil
+	}
+
+	return count, nil, executionManagers
 }

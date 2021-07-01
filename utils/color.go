@@ -1,6 +1,9 @@
 package utils
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 var (
 	Info  = Teal
@@ -22,7 +25,7 @@ var (
 func Color(colorString string) func(...interface{}) string {
 	sprint := func(args ...interface{}) string {
 		str := fmt.Sprintf(colorString, fmt.Sprint(args...))
-		fmt.Println(str)
+		fmt.Println(time.Now().UTC().Format(time.RFC1123) + "::" +str)
 		return str
 	}
 	return sprint

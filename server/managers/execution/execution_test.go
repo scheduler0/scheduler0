@@ -14,22 +14,13 @@ import (
 var _ = Describe("Execution Manager", func() {
 	pool := db.GetTestPool()
 
-	db.Teardown()
-	db.Prepare()
-
 	It("Do not create execution without job id", func() {
-		db.Teardown()
-		db.Prepare()
-
 		executionManager := execution.Manager{}
 		_, err := executionManager.CreateOne(pool)
 		Expect(err).ToNot(BeNil())
 	})
 
 	It("Create execution with valid job id", func() {
-		db.Teardown()
-		db.Prepare()
-
 		jobManager := fixtures.CreateJobFixture(pool)
 		executionManager := execution.Manager{
 			JobID:   jobManager.ID,
@@ -40,9 +31,6 @@ var _ = Describe("Execution Manager", func() {
 	})
 
 	It("Returns 0 if execution does not exist", func() {
-		db.Teardown()
-		db.Prepare()
-
 		executionManager := execution.Manager{UUID: "some-random-id"}
 		count, err := executionManager.GetOne(pool)
 		Expect(err).To(BeNil())
@@ -50,9 +38,6 @@ var _ = Describe("Execution Manager", func() {
 	})
 
 	It("Returns count 1 if execution exist", func() {
-		db.Teardown()
-		db.Prepare()
-
 		jobManager := fixtures.CreateJobFixture(pool)
 		executionManager := execution.Manager{
 			JobID:   jobManager.ID,
@@ -69,9 +54,6 @@ var _ = Describe("Execution Manager", func() {
 	})
 
 	It("Paginated results from manager", func() {
-		db.Teardown()
-		db.Prepare()
-
 		jobManager := fixtures.CreateJobFixture(pool)
 
 		for i := 0; i < 1000; i++ {

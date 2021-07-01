@@ -8,12 +8,17 @@ import (
 
 // Execution this transformer is used for execution entity type
 type Execution struct {
-	UUID        string    `json:"uuid"`
-	JobUUID     string    `json:"job_uuid"`
-	StatusCode  string    `json:"status_code"`
-	Timeout     uint64    `json:"timeout"`
-	Response    string    `json:"response"`
-	DateCreated time.Time `json:"date_created"`
+	ID            int64     `json:"id" sql:",pk:notnull"`
+	UUID          string    `json:"uuid"`
+	JobID         int64     `json:"job_id"`
+	JobUUID       string    `json:"job_uuid"`
+	StatusCode    string    `json:"status_code"`
+	Timeout       uint64    `json:"timeout"`
+	Response      string    `json:"response"`
+	ExecutionTime uint64    `json:"execution_time"`
+	TimeAdded     time.Time `json:"time_added"`
+	TimeExecuted  time.Time `json:"time_executed"`
+	DateCreated   time.Time `json:"date_created"`
 }
 
 // PaginatedExecution this holds meta information for pagination
@@ -44,11 +49,14 @@ func (executionTransformer *Execution) FromJSON(body []byte) error {
 // ToManager converts content of transformer into manager
 func (executionTransformer *Execution) ToManager() (execution.Manager, error) {
 	executionManager := execution.Manager{
-		UUID:        executionTransformer.UUID,
-		JobUUID:     executionTransformer.JobUUID,
-		StatusCode:  executionTransformer.StatusCode,
-		Timeout:     executionTransformer.Timeout,
-		DateCreated: executionTransformer.DateCreated,
+		ID:            executionTransformer.ID,
+		UUID:          executionTransformer.UUID,
+		JobID:         executionTransformer.JobID,
+		JobUUID:       executionTransformer.JobUUID,
+		StatusCode:    executionTransformer.StatusCode,
+		TimeAdded:     executionTransformer.TimeAdded,
+		ExecutionTime: executionTransformer.ExecutionTime,
+		DateCreated:   executionTransformer.DateCreated,
 	}
 
 	return executionManager, nil
@@ -56,8 +64,12 @@ func (executionTransformer *Execution) ToManager() (execution.Manager, error) {
 
 // FromManager extract content of manager into transformer
 func (executionTransformer *Execution) FromManager(executionManager execution.Manager) {
+	executionTransformer.ID = executionManager.ID
 	executionTransformer.UUID = executionManager.UUID
+	executionTransformer.JobID = executionManager.JobID
 	executionTransformer.JobUUID = executionManager.JobUUID
 	executionTransformer.StatusCode = executionManager.StatusCode
 	executionTransformer.DateCreated = executionManager.DateCreated
+	executionTransformer.ExecutionTime = executionManager.ExecutionTime
+	executionTransformer.TimeAdded = executionManager.TimeAdded
 }

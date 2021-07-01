@@ -83,7 +83,7 @@ func (jobManager *Manager) GetAll(pool *utils.Pool, projectUUID string, offset i
 	jobs := make([]Manager, 0, limit)
 
 	err = db.Model(&jobs).
-		Where("project_uuid = ? AND archived = ?", projectUUID, false).
+		Where("project_uuid = ?", projectUUID).
 		Order(orderBy).
 		Offset(offset).
 		Limit(limit).
