@@ -34,7 +34,7 @@ func (jobController *Controller) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jobService := service.JobService{
-		Pool: jobController.Pool,
+		DBConnection: jobController.DBConnection,
 		Ctx:  r.Context(),
 	}
 
@@ -71,7 +71,7 @@ func (jobController *Controller) CreateOne(w http.ResponseWriter, r *http.Reques
 	}
 
 	jobService := service.JobService{
-		Pool: jobController.Pool,
+		DBConnection: jobController.DBConnection,
 		Ctx:  r.Context(),
 	}
 
@@ -90,7 +90,7 @@ func (jobController *Controller) GetOne(w http.ResponseWriter, r *http.Request) 
 	params := mux.Vars(r)
 
 	jobService := service.JobService{
-		Pool: jobController.Pool,
+		DBConnection: jobController.DBConnection,
 		Ctx:  r.Context(),
 	}
 
@@ -123,7 +123,7 @@ func (jobController *Controller) UpdateOne(w http.ResponseWriter, r *http.Reques
 	}
 
 	jobService := service.JobService{
-		Pool: jobController.Pool,
+		DBConnection: jobController.DBConnection,
 		Ctx:  r.Context(),
 	}
 
@@ -141,7 +141,7 @@ func (jobController *Controller) DeleteOne(w http.ResponseWriter, r *http.Reques
 	params := mux.Vars(r)
 
 	jobService := service.JobService{
-		Pool: jobController.Pool,
+		DBConnection: jobController.DBConnection,
 		Ctx:  r.Context(),
 	}
 

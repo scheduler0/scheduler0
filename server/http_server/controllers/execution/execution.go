@@ -13,7 +13,7 @@ type Controller controllers.Controller
 
 // List request handler that returns paginated executions result set
 func (executionController *Controller) List(w http.ResponseWriter, r *http.Request) {
-	executionService := service.ExecutionService{Pool: executionController.Pool, Ctx: r.Context()}
+	executionService := service.ExecutionService{DBConnection: executionController.DBConnection, Ctx: r.Context()}
 
 	offset := 0
 	limit := 50

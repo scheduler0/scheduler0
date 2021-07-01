@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/go-pg/pg"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"scheduler0/server/db"
@@ -51,12 +52,10 @@ For android, ios, web credential at least one restriction will be required.
 			utils.Error(fmt.Sprintf("%v is not a valid client", clientFlag))
 			return
 		}
-		pool, err := utils.NewPool(db.OpenConnection, 1)
-		if err != nil {
-			utils.Error(err.Error())
-			return
-		}
-		credentialService := service.Credential{Pool: pool}
+		conn, err := db.OpenConnection()
+		dbConnection := conn.(*pg.DB)
+		utils.CheckErr(err)
+		credentialService := service.Credential{DBConnection: dbConnection}
 		credentialTransformer := transformers.Credential{
 			Platform: clientFlag,
 		}

@@ -13,7 +13,7 @@ import (
 )
 
 var _ = Describe("Job Manager", func() {
-	pool := db.GetTestPool()
+	pool := db.GetTestDBConnection()
 
 	BeforeEach(func() {
 		db.Teardown()

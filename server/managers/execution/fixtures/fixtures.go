@@ -3,6 +3,7 @@ package fixtures
 import (
 	"errors"
 	"github.com/bxcodec/faker/v3"
+	"github.com/go-pg/pg"
 	"scheduler0/server/managers/job"
 	fixtures2 "scheduler0/server/managers/job/fixtures"
 	"scheduler0/server/managers/project"
@@ -11,7 +12,7 @@ import (
 )
 
 // CreateJobFixture creates a project and job for testing
-func CreateJobFixture(pool *utils.Pool) *job.Manager {
+func CreateJobFixture(dbConnection *pg.DB) *job.Manager {
 	projectFixture := fixtures3.ProjectFixture{}
 	err := faker.FakeData(&projectFixture)
 	utils.CheckErr(err)
@@ -20,7 +21,7 @@ func CreateJobFixture(pool *utils.Pool) *job.Manager {
 		Name:        projectFixture.Name,
 		Description: projectFixture.Description,
 	}
-	_, projectManagerError := projectManager.CreateOne(pool)
+	_, projectManagerError := projectManager.CreateOne(dbConnection)
 	if projectManagerError != nil {
 		utils.Error(projectManagerError.Message)
 	}
@@ -35,7 +36,7 @@ func CreateJobFixture(pool *utils.Pool) *job.Manager {
 	jobManager.ProjectUUID = projectManager.UUID
 	jobManager.ID = projectManager.ID
 
-	_, createJobManagerError := jobManager.CreateOne(pool)
+	_, createJobManagerError := jobManager.CreateOne(dbConnection)
 	if createJobManagerError != nil {
 		utils.Error(createJobManagerError.Message)
 		panic(errors.New(createJobManagerError.Message))

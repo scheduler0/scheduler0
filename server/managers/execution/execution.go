@@ -12,28 +12,20 @@ import (
 type Manager models.ExecutionModel
 
 // CreateOne creates a new executions
-func (executionManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (executionManager *Manager) CreateOne(dbConnection *pg.DB) (string, *utils.GenericError) {
 	if len(executionManager.JobUUID) < 1 {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "job uuid is not set")
 	}
 
 	jobWithID := job.Manager{UUID: executionManager.UUID}
 
-	if getOneJobError := jobWithID.GetOne(pool, executionManager.JobUUID); err != nil {
+	if getOneJobError := jobWithID.GetOne(dbConnection, executionManager.JobUUID); getOneJobError != nil {
 		return "", getOneJobError
 	}
 
 	executionManager.JobID = jobWithID.ID
 
-	if _, err := db.Model(executionManager).Insert(); err != nil {
+	if _, err := dbConnection.Model(executionManager).Insert(); err != nil {
 		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
@@ -41,16 +33,8 @@ func (executionManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.Gen
 }
 
 // GetOne returns a executions with the UUID
-func (executionManager *Manager) GetOne(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	countQuery := db.Model(executionManager).Where("uuid = ?", executionManager.UUID)
+func (executionManager *Manager) GetOne(dbConnection *pg.DB) (int, *utils.GenericError) {
+	countQuery := dbConnection.Model(executionManager).Where("uuid = ?", executionManager.UUID)
 
 	count, err := countQuery.Count()
 	if count < 1 {
@@ -61,7 +45,7 @@ func (executionManager *Manager) GetOne(pool *utils.Pool) (int, *utils.GenericEr
 		return count, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	selectQuery := db.Model(executionManager).Where("uuid = ?", executionManager.UUID)
+	selectQuery := dbConnection.Model(executionManager).Where("uuid = ?", executionManager.UUID)
 	err = selectQuery.Select()
 
 	if err != nil {
@@ -72,18 +56,10 @@ func (executionManager *Manager) GetOne(pool *utils.Pool) (int, *utils.GenericEr
 }
 
 // List returns a list of executions
-func (executionManager *Manager) List(pool *utils.Pool, jobID string, offset int, limit int, orderBy string) ([]Manager, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (executionManager *Manager) List(dbConnection *pg.DB, jobID string, offset int, limit int, orderBy string) ([]Manager, *utils.GenericError) {
 	execs := make([]Manager, 0, limit)
 
-	err = db.
+	err := dbConnection.
 		Model(&execs).
 		Where("job_uuid = ?", jobID).
 		Order(orderBy).
@@ -91,20 +67,16 @@ func (executionManager *Manager) List(pool *utils.Pool, jobID string, offset int
 		Limit(limit).
 		Select()
 
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
 	return execs, nil
 }
 
 // Count returns the total number of executions with JobID matching jobID
-func (executionManager *Manager) Count(pool *utils.Pool, jobID string) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	count, err := db.
+func (executionManager *Manager) Count(dbConnection *pg.DB, jobID string) (int, *utils.GenericError) {
+	count, err := dbConnection.
 		Model(executionManager).
 		Where("job_uuid = ?", jobID).
 		Count()
@@ -117,25 +89,18 @@ func (executionManager *Manager) Count(pool *utils.Pool, jobID string) (int, *ut
 }
 
 // UpdateOne updates a single execution entity
-func (executionManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (executionManager *Manager) UpdateOne(dbConnection *pg.DB) (int, *utils.GenericError) {
 	executionManagerPlaceholder := Manager{
 		ID: executionManager.ID,
 		UUID: executionManager.UUID,
 	}
 
-	_, errorGettingOneManager := executionManagerPlaceholder.GetOne(pool)
+	_, errorGettingOneManager := executionManagerPlaceholder.GetOne(dbConnection)
 	if errorGettingOneManager != nil {
 		return 0, errorGettingOneManager
 	}
 
-	res, err := db.Model(executionManager).
+	res, err := dbConnection.Model(executionManager).
 		Where("id  = ? ", executionManager.ID).
 		Update(executionManager)
 	if err != nil {
@@ -146,15 +111,8 @@ func (executionManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.Generi
 }
 
 // DeleteOne deletes a single execution entity from the database
-func (executionManager *Manager) DeleteOne(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	r, err := db.Model(executionManager).
+func (executionManager *Manager) DeleteOne(dbConnection *pg.DB) (int, *utils.GenericError) {
+	r, err := dbConnection.Model(executionManager).
 		Where("id = ?", executionManager.ID).
 		Delete()
 	if err != nil {
@@ -165,16 +123,8 @@ func (executionManager *Manager) DeleteOne(pool *utils.Pool) (int, *utils.Generi
 }
 
 // FindJobExecutionPlaceholderByUUID returns an execution placeholder for a job that's not been executed
-func (executionManager *Manager) FindJobExecutionPlaceholderByUUID(pool *utils.Pool, jobUUID string) (int, *utils.GenericError, []Manager) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error()), nil
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	countQuery := db.Model(executionManager).Where("job_uuid = ? AND time_executed is NULL", jobUUID)
+func (executionManager *Manager) FindJobExecutionPlaceholderByUUID(dbConnection *pg.DB, jobUUID string) (int, *utils.GenericError, []Manager) {
+	countQuery := dbConnection.Model(executionManager).Where("job_uuid = ? AND time_executed is NULL", jobUUID)
 
 	count, countError := countQuery.Count()
 	if countError != nil {
@@ -186,7 +136,7 @@ func (executionManager *Manager) FindJobExecutionPlaceholderByUUID(pool *utils.P
 
 	executionManagers := make([]Manager, 0, count)
 
-	getError := db.
+	getError := dbConnection.
 		Model(&executionManagers).
 		Where("job_uuid = ? AND time_executed is NULL", jobUUID).
 		Order("time_added DESC").

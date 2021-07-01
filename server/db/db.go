@@ -19,20 +19,12 @@ func OpenConnection() (io.Closer, error) {
 		User:     postgresCredentials.PostgresUser,
 		Password: postgresCredentials.PostgresPassword,
 		Database: postgresCredentials.PostgresDatabase,
-		PoolSize: 1,
+		PoolSize: MaxConnections,
 	}), nil
 }
 
 // CreateModelTables this will create the tables needed
-func CreateModelTables(pool *utils.Pool) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		panic(err)
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func CreateModelTables(dbConnection *pg.DB) {
 	// Create tables
 	for _, model := range []interface{}{
 		(*models.CredentialModel)(nil),
@@ -40,7 +32,7 @@ func CreateModelTables(pool *utils.Pool) {
 		(*models.JobModel)(nil),
 		(*models.ExecutionModel)(nil),
 	} {
-		err := db.CreateTable(model, &orm.CreateTableOptions{
+		err := dbConnection.CreateTable(model, &orm.CreateTableOptions{
 			IfNotExists:   true,
 			FKConstraints: true,
 		})
@@ -50,15 +42,15 @@ func CreateModelTables(pool *utils.Pool) {
 	}
 }
 
-// GetTestPool returns a pool of connection to the database for tests
-func GetTestPool() *utils.Pool {
-	pool, err := utils.NewPool(OpenConnection, 1000)
+// GetTestDBConnection returns a pool of connection to the database for tests
+func GetTestDBConnection() *pg.DB {
+	conn, err := OpenConnection()
 
 	if err != nil {
 		panic(err)
 	}
 
-	return pool
+	return conn.(*pg.DB)
 }
 
 // Teardown is executed in tests to clear the database for stateless tests
@@ -88,13 +80,16 @@ func Teardown() {
 
 // Prepare creates the tables, runs migrations and seeds
 func Prepare() {
-	// Connect to database
-	pool, err := utils.NewPool(func() (closer io.Closer, err error) {
-		return OpenConnection()
-	}, 1)
+	postgresCredentials := *utils.GetScheduler0Configurations()
 
-	if err != nil {
-		panic(err)
-	}
-	CreateModelTables(pool)
+	// Connect to database
+	db := pg.Connect(&pg.Options{
+		Addr:     postgresCredentials.PostgresAddress,
+		User:     postgresCredentials.PostgresUser,
+		Password: postgresCredentials.PostgresPassword,
+		Database: postgresCredentials.PostgresDatabase,
+	})
+	defer db.Close()
+
+	CreateModelTables(db)
 }

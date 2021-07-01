@@ -12,7 +12,7 @@ import (
 )
 
 var _ = Describe("Execution Manager", func() {
-	pool := db.GetTestPool()
+	pool := db.GetTestDBConnection()
 
 	It("Do not create execution without job id", func() {
 		executionManager := execution.Manager{}

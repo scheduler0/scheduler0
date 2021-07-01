@@ -14,7 +14,7 @@ type ExecutionService Service
 func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID string, offset int, limit int) (*transformers.PaginatedExecution, *utils.GenericError) {
 	manager := execution.Manager{}
 
-	count, getCountError := manager.Count(executionService.Pool, jobUUID)
+	count, getCountError := manager.Count(executionService.DBConnection, jobUUID)
 	if getCountError != nil {
 		return nil, getCountError
 	}
@@ -23,7 +23,7 @@ func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID stri
 		return nil, utils.HTTPGenericError(http.StatusNotFound, "cannot find executions for file")
 	}
 
-	executionManagers, err := manager.List(executionService.Pool, jobUUID, offset, limit, "date_created")
+	executionManagers, err := manager.List(executionService.DBConnection, jobUUID, offset, limit, "date_created")
 	if err != nil {
 		return nil, err
 	}

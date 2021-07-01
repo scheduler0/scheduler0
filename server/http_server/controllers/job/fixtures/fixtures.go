@@ -1,6 +1,7 @@
 package fixtures
 
 import (
+	"github.com/go-pg/pg"
 	manager "scheduler0/server/managers/job"
 	jobTestFixtures "scheduler0/server/managers/job/fixtures"
 	"scheduler0/server/managers/project"
@@ -8,9 +9,9 @@ import (
 	"scheduler0/utils"
 )
 
-func CreateJobAndProjectManagerFixture(pool *utils.Pool) (project.ProjectManager, manager.Manager) {
+func CreateJobAndProjectManagerFixture(dbConnection *pg.DB) (project.ProjectManager, manager.Manager) {
 	projectManager := projectTestFixtures.CreateProjectManagerFixture()
-	_, createProjectError := projectManager.CreateOne(pool)
+	_, createProjectError := projectManager.CreateOne(dbConnection)
 	if createProjectError != nil {
 		utils.Error(createProjectError.Message)
 	}
@@ -25,7 +26,7 @@ func CreateJobAndProjectManagerFixture(pool *utils.Pool) (project.ProjectManager
 	}
 	jobManager.ProjectUUID = projectManager.UUID
 	jobManager.ProjectID = projectManager.ID
-	_, createJobError := jobManager.CreateOne(pool)
+	_, createJobError := jobManager.CreateOne(dbConnection)
 	if createJobError != nil {
 		utils.Error(createJobError.Message)
 	}

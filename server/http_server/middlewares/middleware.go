@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
 	"net/http"
 	"scheduler0/server/http_server/middlewares/auth/android"
@@ -34,7 +35,7 @@ func (m *MiddlewareType) ContextMiddleware(next http.Handler) http.Handler {
 }
 
 // AuthMiddleware authentication middleware
-func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler) http.Handler {
+func (_ *MiddlewareType) AuthMiddleware(dbConnection *pg.DB) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			paths := strings.Split(r.URL.Path, "/")
@@ -57,34 +58,34 @@ func (_ *MiddlewareType) AuthMiddleware(pool *utils.Pool) func(next http.Handler
 			isVisitingRestrictedPaths := matchRestrictedPaths(strings.ToLower(paths[1]))
 
 			if isVisitingRestrictedPaths && server.IsServerClient(r) {
-				if validity, _ := server.IsAuthorizedServerClient(r, pool); validity {
+				if validity, _ := server.IsAuthorizedServerClient(r, dbConnection); validity {
 					next.ServeHTTP(w, r)
 					return
 				}
 			} else {
 				if server.IsServerClient(r) {
-					if validity, _ := ios.IsAuthorizedIOSClient(r, pool); validity {
+					if validity, _ := ios.IsAuthorizedIOSClient(r, dbConnection); validity {
 						next.ServeHTTP(w, r)
 						return
 					}
 				}
 
 				if ios.IsIOSClient(r) {
-					if validity, _ := ios.IsAuthorizedIOSClient(r, pool); validity {
+					if validity, _ := ios.IsAuthorizedIOSClient(r, dbConnection); validity {
 						next.ServeHTTP(w, r)
 						return
 					}
 				}
 
 				if android.IsAndroidClient(r) {
-					if validity, _ := android.IsAuthorizedAndroidClient(r, pool); validity {
+					if validity, _ := android.IsAuthorizedAndroidClient(r, dbConnection); validity {
 						next.ServeHTTP(w, r)
 						return
 					}
 				}
 
 				if web.IsWebClient(r) {
-					if validity, _ := web.IsAuthorizedWebClient(r, pool); validity {
+					if validity, _ := web.IsAuthorizedWebClient(r, dbConnection); validity {
 						next.ServeHTTP(w, r)
 						return
 					}

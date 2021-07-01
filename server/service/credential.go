@@ -13,14 +13,14 @@ type Credential Service
 // CreateNewCredential creates a new credentials
 func (credentialService *Credential) CreateNewCredential(credentialTransformer transformers.Credential) (string, *utils.GenericError) {
 	credentialManager := credentialTransformer.ToManager()
-	return credentialManager.CreateOne(credentialService.Pool)
+	return credentialManager.CreateOne(credentialService.DBConnection)
 }
 
 // FindOneCredentialByUUID searches for credential by uuid
 func (credentialService *Credential) FindOneCredentialByUUID(UUID string) (*transformers.Credential, error) {
 	credentialDto := transformers.Credential{UUID: UUID}
 	credentialManager := credentialDto.ToManager()
-	if err := credentialManager.GetOne(credentialService.Pool); err != nil {
+	if err := credentialManager.GetOne(credentialService.DBConnection); err != nil {
 		return nil, err
 	} else {
 		outboundDto := transformers.Credential{}
@@ -32,7 +32,7 @@ func (credentialService *Credential) FindOneCredentialByUUID(UUID string) (*tran
 // UpdateOneCredential updates a single credential
 func (credentialService *Credential) UpdateOneCredential(credentialTransformer transformers.Credential) (*transformers.Credential, error) {
 	credentialManager := credentialTransformer.ToManager()
-	if _, err := credentialManager.UpdateOne(credentialService.Pool); err != nil {
+	if _, err := credentialManager.UpdateOne(credentialService.DBConnection); err != nil {
 		return nil, err
 	} else {
 		outboundDto := transformers.Credential{}
@@ -45,7 +45,7 @@ func (credentialService *Credential) UpdateOneCredential(credentialTransformer t
 func (credentialService *Credential) DeleteOneCredential(UUID string) (*transformers.Credential, error) {
 	credentialDto := transformers.Credential{UUID: UUID}
 	credentialManager := credentialDto.ToManager()
-	if _, err := credentialManager.DeleteOne(credentialService.Pool); err != nil {
+	if _, err := credentialManager.DeleteOne(credentialService.DBConnection); err != nil {
 		return nil, err
 	} else {
 		outboundDto := transformers.Credential{}
@@ -58,7 +58,7 @@ func (credentialService *Credential) DeleteOneCredential(UUID string) (*transfor
 func (credentialService *Credential) ListCredentials(offset int, limit int, orderBy string) (*transformers.PaginatedCredential, *utils.GenericError) {
 	credentialManager := credential.Manager{}
 
-	total, err := credentialManager.Count(credentialService.Pool)
+	total, err := credentialManager.Count(credentialService.DBConnection)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (credentialService *Credential) ListCredentials(offset int, limit int, orde
 		return nil, utils.HTTPGenericError(http.StatusNotFound, "there no credentials")
 	}
 
-	if credentialManagers, err := credentialManager.GetAll(credentialService.Pool, offset, limit, orderBy); err != nil {
+	if credentialManagers, err := credentialManager.GetAll(credentialService.DBConnection, offset, limit, orderBy); err != nil {
 		return nil, err
 	} else {
 		credentialTransformers := make([]transformers.Credential, len(credentialManagers))
@@ -91,7 +91,7 @@ func (credentialService *Credential) ValidateServerAPIKey(apiKey string, apiSecr
 		ApiKey: apiKey,
 	}
 
-	getApIError := credentialManager.GetByAPIKey(credentialService.Pool)
+	getApIError := credentialManager.GetByAPIKey(credentialService.DBConnection)
 	if getApIError != nil {
 		return false, getApIError
 	}
@@ -105,7 +105,7 @@ func (credentialService *Credential) ValidateIOSAPIKey(apiKey string, IOSBundle 
 		ApiKey: apiKey,
 	}
 
-	getApIError := credentialManager.GetByAPIKey(credentialService.Pool)
+	getApIError := credentialManager.GetByAPIKey(credentialService.DBConnection)
 	if getApIError != nil {
 		return false, getApIError
 	}
@@ -119,7 +119,7 @@ func (credentialService *Credential) ValidateAndroidAPIKey(apiKey string, androi
 		ApiKey: apiKey,
 	}
 
-	getApIError := credentialManager.GetByAPIKey(credentialService.Pool)
+	getApIError := credentialManager.GetByAPIKey(credentialService.DBConnection)
 	if getApIError != nil {
 		return false, getApIError
 	}
@@ -133,7 +133,7 @@ func (credentialService *Credential) ValidateWebAPIKeyHTTPReferrerRestriction(ap
 		ApiKey: apiKey,
 	}
 
-	getApIError := credentialManager.GetByAPIKey(credentialService.Pool)
+	getApIError := credentialManager.GetByAPIKey(credentialService.DBConnection)
 	if getApIError != nil {
 		return false, getApIError
 	}

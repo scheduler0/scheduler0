@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/go-pg/pg"
 	"github.com/spf13/cobra"
 	"scheduler0/server/db"
 	"scheduler0/server/service"
@@ -11,14 +12,10 @@ import (
 var entityType = ""
 
 func listCredentials() {
-	pool, err := utils.NewPool(db.OpenConnection, 1)
-	if err != nil {
-		utils.Error(err.Error())
-		return
-	}
-	credentialService := service.Credential{
-		Pool: pool,
-	}
+	conn, err := db.OpenConnection()
+	dbConnection := conn.(*pg.DB)
+	utils.CheckErr(err)
+	credentialService := service.Credential{DBConnection: dbConnection}
 	credentialTransformers, listError := credentialService.ListCredentials(0, 10, "date_created DESC")
 	if listError != nil {
 		utils.Error(listError.Message)

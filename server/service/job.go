@@ -15,7 +15,7 @@ type JobService Service
 func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset int, limit int, orderBy string) (*transformers.PaginatedJob, *utils.GenericError) {
 	jobManager := job.Manager{}
 
-	count, getCountError := jobManager.GetJobsTotalCountByProjectUUID(jobService.Pool, projectUUID)
+	count, getCountError := jobManager.GetJobsTotalCountByProjectUUID(jobService.DBConnection, projectUUID)
 	if getCountError != nil {
 		return nil, getCountError
 	}
@@ -24,7 +24,7 @@ func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset in
 		return nil, utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("there are %v jobs which is less than %v", count, offset))
 	}
 
-	jobManagers, err := jobManager.GetAll(jobService.Pool, projectUUID, offset, limit, orderBy)
+	jobManagers, err := jobManager.GetAll(jobService.DBConnection, projectUUID, offset, limit, orderBy)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (jobService *JobService) GetJob(jobTransformer transformers.Job) (*transfor
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	jobMangerGetOneError := jobManager.GetOne(jobService.Pool, jobTransformer.UUID)
+	jobMangerGetOneError := jobManager.GetOne(jobService.DBConnection, jobTransformer.UUID)
 	if jobMangerGetOneError != nil {
 		return nil, jobMangerGetOneError
 	}
@@ -70,7 +70,7 @@ func (jobService *JobService) CreateJob(jobTransformer transformers.Job) (*trans
 		return nil, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
 	}
 
-	_, jobMangerCreateOneError := jobManager.CreateOne(jobService.Pool)
+	_, jobMangerCreateOneError := jobManager.CreateOne(jobService.DBConnection)
 	if jobMangerCreateOneError != nil {
 		return nil, jobMangerCreateOneError
 	}
@@ -87,7 +87,7 @@ func (jobService *JobService) UpdateJob(jobTransformer transformers.Job) (*trans
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	_, jobMangerUpdateOneError := jobManager.UpdateOne(jobService.Pool)
+	_, jobMangerUpdateOneError := jobManager.UpdateOne(jobService.DBConnection)
 	if jobMangerUpdateOneError != nil {
 		return nil, jobMangerUpdateOneError
 	}
@@ -103,12 +103,12 @@ func (jobService *JobService) DeleteJob(jobTransformer transformers.Job) *utils.
 		UUID: jobTransformer.UUID,
 	}
 
-	err := jobManager.GetOne(jobService.Pool, jobManager.UUID)
+	err := jobManager.GetOne(jobService.DBConnection, jobManager.UUID)
 	if err != nil {
 		return err
 	}
 
-	count, delError := jobManager.DeleteOne(jobService.Pool)
+	count, delError := jobManager.DeleteOne(jobService.DBConnection)
 	if delError != nil {
 		return utils.HTTPGenericError(http.StatusInternalServerError, delError.Message)
 	}

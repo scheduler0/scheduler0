@@ -27,8 +27,8 @@ var _ = Describe("Project Controller", func() {
 		db.Prepare()
 	})
 
-	pool := db.GetTestPool()
-	projectController := project.Controller{Pool: pool}
+	DBConnection := db.GetTestDBConnection()
+	projectController := project.Controller{DBConnection: DBConnection}
 
 	It("Cannot create a project without name and description", func() {
 		projectTransformer := transformers.Project{}
@@ -93,7 +93,7 @@ var _ = Describe("Project Controller", func() {
 		}
 
 		projectManager := projectTransformer.ToManager()
-		_, createOneProjectError := projectManager.CreateOne(pool)
+		_, createOneProjectError := projectManager.CreateOne(DBConnection)
 		Expect(createOneProjectError).To(BeNil())
 
 		projectJSON, err := projectTransformer.ToJSON()
@@ -120,7 +120,7 @@ var _ = Describe("Project Controller", func() {
 		projectTransformer.Name = project.Name
 		projectTransformer.Description = project.Description
 		projectManager := projectTransformer.ToManager()
-		projectManagerUUID, createProjectManagerError := projectManager.CreateOne(pool)
+		projectManagerUUID, createProjectManagerError := projectManager.CreateOne(DBConnection)
 		if createProjectManagerError != nil {
 			utils.Error(createProjectManagerError.Message)
 		}
@@ -151,7 +151,7 @@ var _ = Describe("Project Controller", func() {
 		}
 
 		projectOneManager := projectTransformer.ToManager()
-		_, createOneError := projectOneManager.CreateOne(pool)
+		_, createOneError := projectOneManager.CreateOne(DBConnection)
 		Expect(createOneError).To(BeNil())
 
 		if createOneError != nil {
@@ -194,7 +194,7 @@ var _ = Describe("Project Controller", func() {
 		}
 
 		projectOneManager := projectTransformer.ToManager()
-		projectOneManagerUUID, createProjectManagerError := projectOneManager.CreateOne(pool)
+		projectOneManagerUUID, createProjectManagerError := projectOneManager.CreateOne(DBConnection)
 		if createProjectManagerError != nil {
 			utils.Error(createProjectManagerError.Message)
 		}
@@ -249,7 +249,7 @@ var _ = Describe("Project Controller", func() {
 	})
 
 	It("Do not delete projects with jobs ", func() {
-		_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
+		_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(DBConnection)
 
 		if req, err := http.NewRequest("DELETE", "/projects/"+jobManager.ProjectUUID, nil); err != nil {
 			utils.Error("\t\t Request failed %v", err)

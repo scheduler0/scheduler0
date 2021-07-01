@@ -1,6 +1,7 @@
 package ios
 
 import (
+	"github.com/go-pg/pg"
 	"net/http"
 	"scheduler0/server/http_server/middlewares/auth"
 	"scheduler0/server/service"
@@ -15,12 +16,12 @@ func IsIOSClient(req *http.Request) bool {
 }
 
 // IsAuthorizedIOSClient returns true if the credential is authorized ios app
-func IsAuthorizedIOSClient(req *http.Request, pool *utils.Pool) (bool, *utils.GenericError) {
+func IsAuthorizedIOSClient(req *http.Request, dbConnection *pg.DB) (bool, *utils.GenericError) {
 	apiKey := req.Header.Get(auth.APIKeyHeader)
 	IOSBundleID := req.Header.Get(auth.IOSBundleHeader)
 
 	credentialService := service.Credential{
-		Pool: pool,
+		DBConnection: dbConnection,
 	}
 
 	return credentialService.ValidateIOSAPIKey(apiKey, IOSBundleID)

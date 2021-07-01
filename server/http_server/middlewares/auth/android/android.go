@@ -1,6 +1,7 @@
 package android
 
 import (
+	"github.com/go-pg/pg"
 	"net/http"
 	"scheduler0/server/http_server/middlewares/auth"
 	"scheduler0/server/service"
@@ -15,12 +16,12 @@ func IsAndroidClient(req *http.Request) bool {
 }
 
 // IsAuthorizedAndroidClient returns true if the credential is authorized android app
-func IsAuthorizedAndroidClient(req *http.Request, pool *utils.Pool) (bool, *utils.GenericError) {
+func IsAuthorizedAndroidClient(req *http.Request, dbConnection *pg.DB) (bool, *utils.GenericError) {
 	apiKey := req.Header.Get(auth.APIKeyHeader)
 	androidPackageName := req.Header.Get(auth.AndroidPackageIDHeader)
 
 	credentialService := service.Credential{
-		Pool: pool,
+		DBConnection: dbConnection,
 	}
 
 	return credentialService.ValidateAndroidAPIKey(apiKey, androidPackageName)

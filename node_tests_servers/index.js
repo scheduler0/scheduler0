@@ -35,17 +35,15 @@ async function createProject() {
     return data
 }
 
-async function createJob(projectUUID) {
+async function createJob(projectUUID, name) {
     try {
         const { data: { data } } = await axiosInstance
             .post('/jobs', {
-                name: "sample project",
+                name: name,
                 spec: "@every 1m",
                 project_uuid: projectUUID,
-                callback_url: "http://localhost:3000/callback"
+                callback_url: `http://localhost:3000/callback?job_id=job_id_${name}`
             });
-
-        console.log(data)
 
         return data
     } catch (err) {
@@ -54,13 +52,14 @@ async function createJob(projectUUID) {
 }
 
 app.post('/callback', (req, res) => {
-    console.log(`Callback executed at :${(new Date()).toUTCString()}`)
+    console.log(`Callback executed at :${(new Date()).toUTCString()} For Job ${req.query.job_id}`)
     res.send(`Callback executed at :${(new Date()).toUTCString()}`)
-})
+});
 
 app.listen(port, async () => {
-    // const project = await createProject()
-    // const job  = await createJob("930f7772-b3a2-4da2-a775-4a0b9126712c")
-    // console.log({ job })
+    const project = await createProject()
+    for (let i = 0; i < 999; i++) {
+        await createJob(project.uuid, `job_id_${i}`);
+    }
     console.log(`app listening at http://localhost:${port}`)
 })

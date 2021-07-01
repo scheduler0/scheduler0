@@ -2,9 +2,9 @@ package process
 
 import (
 	"fmt"
+	"github.com/go-pg/pg"
 	"github.com/robfig/cron"
 	"net/http"
-	"scheduler0/server/db"
 	"scheduler0/server/managers/execution"
 	"scheduler0/server/managers/job"
 	"scheduler0/server/managers/project"
@@ -23,7 +23,7 @@ type JobProcessor struct {
 	RecoveredJobs []RecoveredJob
 	MaxMemory     int64
 	MaxCPU        int64
-	Pool          *utils.Pool
+	DBConnection  *pg.DB
 }
 
 // RecoverJobExecutions find jobs that could've not been executed due to timeout
@@ -34,7 +34,7 @@ func (jobProcessor *JobProcessor) RecoverJobExecutions(jobTransformers []transfo
 			continue
 		}
 
-		count, err, executionManagers := manager.FindJobExecutionPlaceholderByUUID(jobProcessor.Pool, jobTransformer.UUID)
+		count, err, executionManagers := manager.FindJobExecutionPlaceholderByUUID(jobProcessor.DBConnection, jobTransformer.UUID)
 		if err != nil {
 			utils.Error(fmt.Sprintf("Error occurred while fetching execution mangers for jobs to be recovered %s", err.Message))
 			continue
@@ -104,8 +104,6 @@ func (jobProcessor *JobProcessor) RemoveJobRecovery(jobUUID string) {
 
 // ExecuteHTTPJob executes and http job
 func (jobProcessor *JobProcessor) ExecuteHTTPJob(jobTransformer *transformers.Job, executionManager *execution.Manager) {
-	pool, err := utils.NewPool(db.OpenConnection, 1)
-
 	utils.Info(fmt.Sprintf("Running Job Execution for Job ID = %s with execution = %s",
 		jobTransformer.UUID, executionManager.UUID))
 
@@ -114,7 +112,7 @@ func (jobProcessor *JobProcessor) ExecuteHTTPJob(jobTransformer *transformers.Jo
 		utils.Error("Job Transform Error:", transformError.Error())
 		return
 	}
-	getOneError := jobManager.GetOne(pool, jobManager.UUID)
+	getOneError := jobManager.GetOne(jobProcessor.DBConnection, jobManager.UUID)
 	if getOneError != nil {
 		utils.Error("Get One Job Error:", getOneError.Message)
 		return
@@ -138,7 +136,7 @@ func (jobProcessor *JobProcessor) ExecuteHTTPJob(jobTransformer *transformers.Jo
 	executionManager.ExecutionTime = timeout
 	executionManager.StatusCode = strconv.Itoa(statusCode)
 
-	updatedRows, updateError := executionManager.UpdateOne(pool)
+	updatedRows, updateError := executionManager.UpdateOne(jobProcessor.DBConnection)
 	if updateError != nil {
 		utils.Error("Cannot Update Execution Error:", updateError.Message)
 		return
@@ -158,7 +156,7 @@ func (jobProcessor *JobProcessor) ExecuteHTTPJob(jobTransformer *transformers.Jo
 			TimeAdded:   time.Now().UTC(),
 			DateCreated: time.Now().UTC(),
 		}
-		_, createErr := newExecutionManager.CreateOne(jobProcessor.Pool)
+		_, createErr := newExecutionManager.CreateOne(jobProcessor.DBConnection)
 		if createErr != nil {
 			utils.Error("Error Creating New Placeholder Execution :", createErr.Message)
 			return
@@ -178,7 +176,7 @@ func (jobProcessor *JobProcessor) HTTPJobExecutor(jobTransformer *transformers.J
 func (jobProcessor *JobProcessor) StartJobs() {
 	projectManager := project.ProjectManager{}
 
-	totalProjectCount, err := projectManager.Count(jobProcessor.Pool)
+	totalProjectCount, err := projectManager.Count(jobProcessor.DBConnection)
 	if err != nil {
 		panic(err)
 	}
@@ -186,7 +184,7 @@ func (jobProcessor *JobProcessor) StartJobs() {
 	utils.Info("Total number of projects: ", totalProjectCount)
 
 	projectService := service.ProjectService{
-		Pool: jobProcessor.Pool,
+		DBConnection: jobProcessor.DBConnection,
 	}
 
 	projectTransformers, err := projectService.List(0, totalProjectCount)
@@ -195,7 +193,7 @@ func (jobProcessor *JobProcessor) StartJobs() {
 	}
 
 	jobService := service.JobService{
-		Pool: jobProcessor.Pool,
+		DBConnection: jobProcessor.DBConnection,
 	}
 
 	var wg sync.WaitGroup
@@ -203,7 +201,7 @@ func (jobProcessor *JobProcessor) StartJobs() {
 	for _, projectTransformer := range projectTransformers.Data {
 		jobManager := job.Manager{}
 
-		jobsTotalCount, err := jobManager.GetJobsTotalCountByProjectUUID(jobProcessor.Pool, projectTransformer.UUID)
+		jobsTotalCount, err := jobManager.GetJobsTotalCountByProjectUUID(jobProcessor.DBConnection, projectTransformer.UUID)
 		if err != nil {
 			panic(err)
 		}
@@ -254,7 +252,7 @@ func (jobProcessor *JobProcessor) AddJob(jobTransformer transformers.Job, wg *sy
 		TimeAdded:   time.Now().UTC(),
 		DateCreated: time.Now().UTC(),
 	}
-	_, createErr := executionManager.CreateOne(jobProcessor.Pool)
+	_, createErr := executionManager.CreateOne(jobProcessor.DBConnection)
 	if createErr != nil {
 		fmt.Println("Error Getting Execution", utils.Error(createErr.Message))
 		return

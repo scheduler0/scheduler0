@@ -12,15 +12,7 @@ import (
 type Manager models.JobModel
 
 // CreateOne create a new job
-func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (jobManager *Manager) CreateOne(dbConnection *pg.DB) (string, *utils.GenericError) {
 	if len(jobManager.ProjectUUID) < 1 {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "project uuid is not defined")
 	}
@@ -34,7 +26,7 @@ func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericEr
 	}
 
 	projectWithUUID := project.ProjectManager{UUID: jobManager.ProjectUUID}
-	e := projectWithUUID.GetOneByUUID(pool)
+	e := projectWithUUID.GetOneByUUID(dbConnection)
 	if e != nil {
 		return "", e
 	}
@@ -42,7 +34,7 @@ func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericEr
 	jobManager.ProjectID = projectWithUUID.ID
 	jobManager.ProjectUUID = projectWithUUID.UUID
 
-	if _, err := db.Model(jobManager).Insert(); err != nil {
+	if _, err := dbConnection.Model(jobManager).Insert(); err != nil {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, err.Error())
 	}
 
@@ -50,16 +42,8 @@ func (jobManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericEr
 }
 
 // GetOne returns a single job that matches uuid
-func (jobManager *Manager) GetOne(pool *utils.Pool, jobUUID string) *utils.GenericError {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return utils.HTTPGenericError(http.StatusBadRequest, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	err = db.Model(jobManager).
+func (jobManager *Manager) GetOne(dbConnection *pg.DB, jobUUID string) *utils.GenericError {
+	err := dbConnection.Model(jobManager).
 		Where("uuid = ?", jobUUID).
 		Select()
 
@@ -71,41 +55,31 @@ func (jobManager *Manager) GetOne(pool *utils.Pool, jobUUID string) *utils.Gener
 }
 
 // GetAll returns paginated set of jobs that are not archived
-func (jobManager *Manager) GetAll(pool *utils.Pool, projectUUID string, offset int, limit int, orderBy string) ([]Manager, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (jobManager *Manager) GetAll(dbConnection *pg.DB, projectUUID string, offset int, limit int, orderBy string) ([]Manager, *utils.GenericError) {
 	jobs := make([]Manager, 0, limit)
 
-	err = db.Model(&jobs).
+	err := dbConnection.Model(&jobs).
 		Where("project_uuid = ?", projectUUID).
 		Order(orderBy).
 		Offset(offset).
 		Limit(limit).
 		Select()
 
+
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
 	return jobs, nil
 }
 
 // UpdateOne updates a job and returns number of affected rows
-func (jobManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return 0, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
-	}
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (jobManager *Manager) UpdateOne(dbConnection *pg.DB) (int, *utils.GenericError) {
 	jobPlaceholder := Manager{
 		UUID: jobManager.UUID,
 	}
 
-	if jobPlaceholderError := jobPlaceholder.GetOne(pool, jobPlaceholder.UUID); jobPlaceholderError != nil {
+	if jobPlaceholderError := jobPlaceholder.GetOne(dbConnection, jobPlaceholder.UUID); jobPlaceholderError != nil {
 		return 0, jobPlaceholderError
 	}
 
@@ -114,7 +88,7 @@ func (jobManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError
 	}
 
 	jobManager.ProjectID = jobPlaceholder.ProjectID
-	res, err := db.Model(jobManager).Where("uuid = ? ", jobManager.UUID).Update(jobManager)
+	res, err := dbConnection.Model(jobManager).Where("uuid = ? ", jobManager.UUID).Update(jobManager)
 
 	if err != nil {
 		return 0, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
@@ -124,15 +98,8 @@ func (jobManager *Manager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError
 }
 
 // DeleteOne deletes a job with uuid and returns number of affected row
-func (jobManager *Manager) DeleteOne(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	if r, err := db.Model(jobManager).Where("uuid = ?", jobManager.UUID).Delete(); err != nil {
+func (jobManager *Manager) DeleteOne(dbConnection *pg.DB) (int, *utils.GenericError) {
+	if r, err := dbConnection.Model(jobManager).Where("uuid = ?", jobManager.UUID).Delete(); err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	} else {
 		return r.RowsAffected(), nil
@@ -140,15 +107,8 @@ func (jobManager *Manager) DeleteOne(pool *utils.Pool) (int, *utils.GenericError
 }
 
 // GetJobsTotalCount returns total number of jobs
-func (jobManager *Manager) GetJobsTotalCount(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	if count, err := db.Model(jobManager).Count(); err != nil {
+func (jobManager *Manager) GetJobsTotalCount(dbConnection *pg.DB) (int, *utils.GenericError) {
+	if count, err := dbConnection.Model(jobManager).Count(); err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	} else {
 		return count, nil
@@ -156,15 +116,8 @@ func (jobManager *Manager) GetJobsTotalCount(pool *utils.Pool) (int, *utils.Gene
 }
 
 // GetJobsTotalCountByProjectUUID returns the number of jobs for project with uuid
-func (jobManager *Manager) GetJobsTotalCountByProjectUUID(pool *utils.Pool, projectUUID string) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	if count, err := db.Model(jobManager).Where("project_uuid = ?", projectUUID).Count(); err != nil {
+func (jobManager *Manager) GetJobsTotalCountByProjectUUID(dbConnection *pg.DB, projectUUID string) (int, *utils.GenericError) {
+	if count, err := dbConnection.Model(jobManager).Where("project_uuid = ?", projectUUID).Count(); err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	} else {
 		return count, nil
@@ -172,14 +125,14 @@ func (jobManager *Manager) GetJobsTotalCountByProjectUUID(pool *utils.Pool, proj
 }
 
 // GetJobsPaginated returns a set of jobs starting at offset with the limit
-func (jobManager *Manager) GetJobsPaginated(pool *utils.Pool, projectUUID string, offset int, limit int) ([]Manager, int, *utils.GenericError) {
-	total, err := jobManager.GetJobsTotalCountByProjectUUID(pool, projectUUID)
+func (jobManager *Manager) GetJobsPaginated(dbConnection *pg.DB, projectUUID string, offset int, limit int) ([]Manager, int, *utils.GenericError) {
+	total, err := jobManager.GetJobsTotalCountByProjectUUID(dbConnection, projectUUID)
 
 	if err != nil {
 		return nil, 0, err
 	}
 
-	jobManagers, err := jobManager.GetAll(pool, projectUUID, offset, limit, "date_created")
+	jobManagers, err := jobManager.GetAll(dbConnection, projectUUID, offset, limit, "date_created")
 	if err != nil {
 		return nil, total, err
 	}

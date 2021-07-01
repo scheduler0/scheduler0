@@ -1,12 +1,12 @@
 package controllers
 
 import (
+	"github.com/go-pg/pg"
 	"scheduler0/server/process"
-	"scheduler0/utils"
 )
 
 // Controller http request handlers
 type Controller struct {
-	Pool *utils.Pool
+	DBConnection *pg.DB
 	JobProcessor *process.JobProcessor
 }

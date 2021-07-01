@@ -31,7 +31,7 @@ func (controller *Controller) CreateOne(w http.ResponseWriter, r *http.Request) 
 	}
 
 	projectService := service.ProjectService{
-		Pool: controller.Pool,
+		DBConnection: controller.DBConnection,
 	}
 
 	projectTransformer, createOneError := projectService.CreateOne(project)
@@ -60,7 +60,7 @@ func (controller *Controller) GetOne(w http.ResponseWriter, r *http.Request) {
 	}
 
 	projectService := service.ProjectService{
-		Pool: controller.Pool,
+		DBConnection: controller.DBConnection,
 	}
 
 	projectData, err := projectService.GetOneByUUID(project)
@@ -74,7 +74,7 @@ func (controller *Controller) GetOne(w http.ResponseWriter, r *http.Request) {
 
 func (controller *Controller) List(w http.ResponseWriter, r *http.Request) {
 	projectService := service.ProjectService{
-		Pool: controller.Pool,
+		DBConnection: controller.DBConnection,
 	}
 
 	limitParam, err := utils.ValidateQueryString("limit", r)
@@ -121,7 +121,7 @@ func (controller *Controller) DeleteOne(w http.ResponseWriter, r *http.Request) 
 	}
 
 	projectService := service.ProjectService{
-		Pool: controller.Pool,
+		DBConnection: controller.DBConnection,
 	}
 
 	project := transformers.Project{
@@ -161,7 +161,7 @@ func (controller *Controller) UpdateOne(w http.ResponseWriter, r *http.Request) 
 	project.UUID = projectUUID
 
 	projectService := &service.ProjectService{
-		Pool: controller.Pool,
+		DBConnection: controller.DBConnection,
 	}
 
 	projectWithSimilarName := transformers.Project{

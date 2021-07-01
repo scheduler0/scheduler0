@@ -15,7 +15,7 @@ import (
 )
 
 var _ = Describe("Project Manager", func() {
-	pool := db.GetTestPool()
+	pool := db.GetTestDBConnection()
 
 	BeforeEach(func() {
 		db.Teardown()

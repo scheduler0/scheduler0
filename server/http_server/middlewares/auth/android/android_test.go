@@ -26,10 +26,10 @@ var _ = Describe("Android Auth Test", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
-		pool := db.GetTestPool()
+		dbConnection := db.GetTestDBConnection()
 
 		credentialService := service.Credential{
-			Pool: pool,
+			DBConnection: dbConnection,
 		}
 
 		credentialFixture := fixtures.CredentialFixture{}
@@ -53,10 +53,10 @@ var _ = Describe("Android Auth Test", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
-		pool := db.GetTestPool()
+		dbConnection := db.GetTestDBConnection()
 
 		credentialService := service.Credential{
-			Pool: pool,
+			DBConnection: dbConnection,
 		}
 
 		credentialFixture := fixtures.CredentialFixture{}
@@ -85,10 +85,10 @@ var _ = Describe("Android Auth Test", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
-		pool := db.GetTestPool()
+		dbConnection := db.GetTestDBConnection()
 
 		credentialService := service.Credential{
-			Pool: pool,
+			DBConnection: dbConnection,
 		}
 
 		credentialFixture := fixtures.CredentialFixture{}
@@ -115,7 +115,7 @@ var _ = Describe("Android Auth Test", func() {
 		req.Header.Set(auth.APIKeyHeader, updatedCredentialTransformer.ApiKey)
 		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
 
-		Expect(android.IsAuthorizedAndroidClient(req, pool)).To(BeTrue())
+		Expect(android.IsAuthorizedAndroidClient(req, dbConnection)).To(BeTrue())
 	})
 })
 

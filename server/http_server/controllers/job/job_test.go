@@ -24,9 +24,9 @@ import (
 
 var _ = Describe("Job Controller", func() {
 
-	pool := db.GetTestPool()
+	DBConnection := db.GetTestDBConnection()
 	jobProcessor := process.JobProcessor{
-		Pool: pool,
+		DBConnection: DBConnection,
 		Cron: cron.New(),
 		RecoveredJobs: []process.RecoveredJob{},
 	}
@@ -40,7 +40,7 @@ var _ = Describe("Job Controller", func() {
 
 		It("Respond with status 400 if request body does not contain required values", func() {
 			jobController := job.Controller{
-				Pool: pool,
+				DBConnection: DBConnection,
 				JobProcessor: &jobProcessor,
 			}
 			jobFixture := jobManagerTestFixtures.JobFixture{}
@@ -62,7 +62,7 @@ var _ = Describe("Job Controller", func() {
 
 		It("Respond with status 201 if request body is valid", func() {
 			projectManager := projectTestFixtures.CreateProjectManagerFixture()
-			projectManager.CreateOne(pool)
+			projectManager.CreateOne(DBConnection)
 
 			jobFixture := jobManagerTestFixtures.JobFixture{}
 			jobTransformers := jobFixture.CreateNJobTransformers(1)
@@ -82,7 +82,7 @@ var _ = Describe("Job Controller", func() {
 			w := httptest.NewRecorder()
 
 			controller := job.Controller{
-				Pool: pool,
+				DBConnection: DBConnection,
 				JobProcessor: &jobProcessor,
 			}
 			controller.CreateOne(w, req)
@@ -113,7 +113,7 @@ var _ = Describe("Job Controller", func() {
 		It("Respond with status 200 and return all created jobs", func() {
 			projectTransformers := projectTestFixtures.CreateProjectTransformerFixture()
 			projectManager := projectTransformers.ToManager()
-			projectManager.CreateOne(pool)
+			projectManager.CreateOne(DBConnection)
 			n := 5
 
 			jobFixture := jobManagerTestFixtures.JobFixture{}
@@ -125,7 +125,7 @@ var _ = Describe("Job Controller", func() {
 					utils.CheckErr(err)
 				}
 				jobManager.ProjectUUID = projectManager.UUID
-				jobManager.CreateOne(pool)
+				jobManager.CreateOne(DBConnection)
 			}
 
 			req, err := http.NewRequest("GET", "/jobs?offset=0&limit=10&projectUUID="+projectManager.UUID, nil)
@@ -134,7 +134,7 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			controller := job.Controller{Pool: pool}
+			controller := job.Controller{DBConnection: DBConnection}
 			controller.List(w, req)
 
 			Expect(w.Code).To(Equal(http.StatusOK))
@@ -144,7 +144,7 @@ var _ = Describe("Job Controller", func() {
 	Context("TestJobController_UpdateOne", func() {
 
 		It("Respond with status 400 if update attempts to change cron spec", func() {
-			_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
+			_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(DBConnection)
 			jobTransformer := transformers.Job{}
 			jobTransformer.FromManager(jobManager)
 			jobTransformer.Spec = "* * 3 * *"
@@ -157,14 +157,14 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			controller := job.Controller{Pool: pool}
+			controller := job.Controller{DBConnection: DBConnection}
 
 			controller.UpdateOne(w, req)
 			Expect(w.Code).To(Equal(http.StatusBadRequest))
 		})
 
 		It("Respond with status 200 if update body is valid", func() {
-			_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
+			_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(DBConnection)
 			jobTransformer := transformers.Job{}
 			jobTransformer.FromManager(jobManager)
 			jobByte, err := jobTransformer.ToJSON()
@@ -177,7 +177,7 @@ var _ = Describe("Job Controller", func() {
 			}
 
 			w := httptest.NewRecorder()
-			controller := job.Controller{Pool: pool}
+			controller := job.Controller{DBConnection: DBConnection}
 			router := mux.NewRouter()
 			router.HandleFunc("/jobs/{uuid}", controller.UpdateOne)
 			router.ServeHTTP(w, req)
@@ -193,7 +193,7 @@ var _ = Describe("Job Controller", func() {
 	})
 
 	It("TestJobController_DeleteOne", func() {
-		_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(pool)
+		_, jobManager := jobTestFixtures.CreateJobAndProjectManagerFixture(DBConnection)
 
 		req, err := http.NewRequest("DELETE", "/jobs/"+jobManager.UUID, nil)
 		if err != nil {
@@ -202,7 +202,7 @@ var _ = Describe("Job Controller", func() {
 
 		w := httptest.NewRecorder()
 		controller := job.Controller{
-			Pool: pool,
+			DBConnection: DBConnection,
 			JobProcessor: &jobProcessor,
 		}
 

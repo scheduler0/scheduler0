@@ -14,7 +14,7 @@ type ProjectService Service
 func (projectService *ProjectService) CreateOne(project transformers.Project) (*transformers.Project, *utils.GenericError) {
 	projectManager := project.ToManager()
 
-	_, err := projectManager.CreateOne(projectService.Pool)
+	_, err := projectManager.CreateOne(projectService.DBConnection)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func (projectService *ProjectService) CreateOne(project transformers.Project) (*
 func (projectService *ProjectService) UpdateOne(project transformers.Project) *utils.GenericError {
 	projectManager := project.ToManager()
 
-	count, err := projectManager.UpdateOne(projectService.Pool)
+	count, err := projectManager.UpdateOne(projectService.DBConnection)
 	if err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (projectService *ProjectService) UpdateOne(project transformers.Project) *u
 // GetOneByUUID returns project with matching uuid
 func (projectService *ProjectService) GetOneByUUID(project transformers.Project) (*transformers.Project, *utils.GenericError) {
 	projectManager := project.ToManager()
-	err := projectManager.GetOneByUUID(projectService.Pool)
+	err := projectManager.GetOneByUUID(projectService.DBConnection)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (projectService *ProjectService) GetOneByUUID(project transformers.Project)
 // GetOneByName returns a project that matches the name
 func (projectService *ProjectService) GetOneByName(project transformers.Project) (*transformers.Project, *utils.GenericError) {
 	projectManager := project.ToManager()
-	err := projectManager.GetOneByName(projectService.Pool)
+	err := projectManager.GetOneByName(projectService.DBConnection)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (projectService *ProjectService) GetOneByName(project transformers.Project)
 // DeleteOne deletes a single project
 func (projectService *ProjectService) DeleteOne(project transformers.Project) *utils.GenericError {
 	projectManager := project.ToManager()
-	count, err := projectManager.DeleteOne(projectService.Pool)
+	count, err := projectManager.DeleteOne(projectService.DBConnection)
 	if err != nil {
 		return err
 	}
@@ -87,12 +87,12 @@ func (projectService *ProjectService) DeleteOne(project transformers.Project) *u
 func (projectService *ProjectService) List(offset int, limit int) (*transformers.PaginatedProject, *utils.GenericError) {
 	project := transformers.Project{}
 	projectManager := project.ToManager()
-	projects, err := projectManager.GetAll(projectService.Pool, offset, limit)
+	projects, err := projectManager.GetAll(projectService.DBConnection, offset, limit)
 	if err != nil {
 		return nil, err
 	}
 
-	count, err := projectManager.Count(projectService.Pool)
+	count, err := projectManager.Count(projectService.DBConnection)
 	if err != nil {
 		return nil, err
 	}

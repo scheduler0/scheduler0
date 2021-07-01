@@ -30,7 +30,7 @@ func getRandomSha256() string {
 }
 
 // CreateOne creates a single credential and returns the uuid
-func (credentialManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
+func (credentialManager *Manager) CreateOne(dbConnection *pg.DB) (string, *utils.GenericError) {
 	if len(credentialManager.Platform) < 1 {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "credential should have a platform")
 	}
@@ -65,14 +65,8 @@ func (credentialManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.Ge
 		credentialManager.ApiSecret = utils.Encrypt(getRandomSha256(), configs.SecretKey)
 	}
 
-	conn, err := pool.Acquire()
-	defer pool.Release(conn)
-	if err != nil {
-		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-	db := conn.(*pg.DB)
 
-	if _, err := db.Model(credentialManager).Insert(); err != nil {
+	if _, err := dbConnection.Model(credentialManager).Insert(); err != nil {
 		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	} else {
 		return credentialManager.UUID, nil
@@ -80,17 +74,8 @@ func (credentialManager *Manager) CreateOne(pool *utils.Pool) (string, *utils.Ge
 }
 
 // GetOne returns a single credential
-func (credentialManager *Manager) GetOne(pool *utils.Pool) error {
-	conn, err := pool.Acquire()
-	defer pool.Release(conn)
-
-	if err != nil {
-		return err
-	}
-
-	db := conn.(*pg.DB)
-
-	err = db.Model(credentialManager).Where("uuid = ?", credentialManager.UUID).Select()
+func (credentialManager *Manager) GetOne(dbConnection *pg.DB) error {
+	err := dbConnection.Model(credentialManager).Where("uuid = ?", credentialManager.UUID).Select()
 	if err != nil {
 		return err
 	}
@@ -99,22 +84,17 @@ func (credentialManager *Manager) GetOne(pool *utils.Pool) error {
 }
 
 // GetByAPIKey returns a credential with the matching api key
-func (credentialManager *Manager) GetByAPIKey(pool *utils.Pool) *utils.GenericError {
-	conn, err := pool.Acquire()
-	defer pool.Release(conn)
+func (credentialManager *Manager) GetByAPIKey(dbConnection *pg.DB) *utils.GenericError {
 
-	if err != nil {
-		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
 
-	db := conn.(*pg.DB)
+	
 
-	count, err := db.Model(credentialManager).Where("api_key = ?", credentialManager.ApiKey).Count()
+	count, err := dbConnection.Model(credentialManager).Where("api_key = ?", credentialManager.ApiKey).Count()
 	if count < 1 {
 		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("cannot find api_key=%v", credentialManager.ApiKey))
 	}
 
-	err = db.Model(credentialManager).Where("api_key = ?", credentialManager.ApiKey).Select()
+	err = dbConnection.Model(credentialManager).Where("api_key = ?", credentialManager.ApiKey).Select()
 	if err != nil {
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -123,17 +103,8 @@ func (credentialManager *Manager) GetByAPIKey(pool *utils.Pool) *utils.GenericEr
 }
 
 // Count returns total number of credential
-func (credentialManager *Manager) Count(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	defer pool.Release(conn)
-
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-
-	count, err := db.Model(credentialManager).Count()
+func (credentialManager *Manager) Count(dbConnection *pg.DB) (int, *utils.GenericError) {
+	count, err := dbConnection.Model(credentialManager).Count()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -142,19 +113,10 @@ func (credentialManager *Manager) Count(pool *utils.Pool) (int, *utils.GenericEr
 }
 
 // GetAll returns a paginated set of credentials
-func (credentialManager *Manager) GetAll(pool *utils.Pool, offset int, limit int, orderBy string) ([]Manager, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	defer pool.Release(conn)
-
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
+func (credentialManager *Manager) GetAll(dbConnection *pg.DB, offset int, limit int, orderBy string) ([]Manager, *utils.GenericError) {
 	credentialManagers := []Manager{}
 
-	db := conn.(*pg.DB)
-
-	err = db.Model(&credentialManagers).
+	err := dbConnection.Model(&credentialManagers).
 		Order(orderBy).
 		Offset(offset).
 		Limit(limit).
@@ -168,19 +130,11 @@ func (credentialManager *Manager) GetAll(pool *utils.Pool, offset int, limit int
 }
 
 // UpdateOne updates a single credential
-func (credentialManager *Manager) UpdateOne(pool *utils.Pool) (int, error) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return 0, err
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (credentialManager *Manager) UpdateOne(dbConnection *pg.DB) (int, error) {
 	credentialPlaceholder := Manager{
 		UUID: credentialManager.UUID,
 	}
-	err = credentialPlaceholder.GetOne(pool)
+	err := credentialPlaceholder.GetOne(dbConnection)
 	if err != nil {
 		return 0, err
 	}
@@ -197,7 +151,7 @@ func (credentialManager *Manager) UpdateOne(pool *utils.Pool) (int, error) {
 	credentialManager.ApiSecret = credentialPlaceholder.ApiSecret
 	credentialManager.DateCreated = credentialPlaceholder.DateCreated
 
-	res, err := db.Model(credentialManager).Where("uuid = ?", credentialManager.UUID).Update(credentialManager)
+	res, err := dbConnection.Model(credentialManager).Where("uuid = ?", credentialManager.UUID).Update(credentialManager)
 
 	if err != nil {
 		return 0, err
@@ -207,17 +161,10 @@ func (credentialManager *Manager) UpdateOne(pool *utils.Pool) (int, error) {
 }
 
 // DeleteOne deletes a single credential
-func (credentialManager *Manager) DeleteOne(pool *utils.Pool) (int, error) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return -1, err
-	}
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (credentialManager *Manager) DeleteOne(dbConnection *pg.DB) (int, error) {
 	credentials := []Manager{}
 
-	count, err := db.Model(&credentials).Count()
+	count, err := dbConnection.Model(&credentials).Count()
 	if err != nil {
 		return -1, err
 	}
@@ -227,7 +174,7 @@ func (credentialManager *Manager) DeleteOne(pool *utils.Pool) (int, error) {
 		return -1, err
 	}
 
-	r, err := db.Model(credentialManager).Where("uuid = ?", credentialManager.UUID).Delete()
+	r, err := dbConnection.Model(credentialManager).Where("uuid = ?", credentialManager.UUID).Delete()
 	if err != nil {
 		return -1, err
 	}

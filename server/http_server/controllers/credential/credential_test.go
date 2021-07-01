@@ -22,8 +22,8 @@ var _ = Describe("Credential Controller", func() {
 		db.Prepare()
 	})
 
-	pool := db.GetTestPool()
-	credentialController := credential.Controller{Pool: pool}
+	DBConnection := db.GetTestDBConnection()
+	credentialController := credential.Controller{DBConnection: DBConnection}
 
 	It("Creating A New Credential", func() {
 		testCredential := transformers.Credential{
@@ -54,7 +54,7 @@ var _ = Describe("Credential Controller", func() {
 			Platform:                "web",
 		}
 		manager := testCredential.ToManager()
-		manager.CreateOne(pool)
+		manager.CreateOne(DBConnection)
 		req, err := http.NewRequest("GET", "/?limit=50&offset=0", nil)
 		if err != nil {
 			utils.Error(fmt.Sprintf("cannot create http request %v", err))
@@ -72,7 +72,7 @@ var _ = Describe("Credential Controller", func() {
 			Platform:                "web",
 		}
 		credentialManager := testCredential.ToManager()
-		_, createOneErr := credentialManager.CreateOne(pool)
+		_, createOneErr := credentialManager.CreateOne(DBConnection)
 		if createOneErr != nil {
 			utils.Error(createOneErr.Message)
 		}
@@ -98,7 +98,7 @@ var _ = Describe("Credential Controller", func() {
 			Platform:                "web",
 		}
 		credentialManager := testCredential.ToManager()
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(DBConnection)
 		if err != nil {
 			utils.Error(err.Message)
 		}
@@ -134,7 +134,7 @@ var _ = Describe("Credential Controller", func() {
 			Platform:                "web",
 		}
 		credentialManager := testCredential.ToManager()
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(DBConnection)
 		if err != nil {
 			utils.Error(err.Message)
 		}
@@ -145,7 +145,7 @@ var _ = Describe("Credential Controller", func() {
 			Platform:                "web",
 		}
 		credential2Manager := test2Credential.ToManager()
-		_, err = credential2Manager.CreateOne(pool)
+		_, err = credential2Manager.CreateOne(DBConnection)
 		if err != nil {
 			utils.Error(err.Message)
 		}

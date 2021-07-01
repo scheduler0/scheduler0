@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"scheduler0/utils"
+	"github.com/go-pg/pg"
 )
 
 // Service service level abstraction
 type Service struct {
-	Pool *utils.Pool
+	DBConnection *pg.DB
 	Ctx  context.Context
 }

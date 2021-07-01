@@ -22,20 +22,20 @@ var _ = Describe("Execution Controller", func() {
 	})
 
 	executionsController := execution.Controller{}
-	pool := db.GetTestPool()
+	DBConnection := db.GetTestDBConnection()
 
 	It("Get All Returns 0 Count and Empty Set", func() {
-		Job := fixtures.CreateJobFixture(pool)
+		Job := fixtures.CreateJobFixture(DBConnection)
 		executionManager := managers.Manager{
 			JobUUID: Job.UUID,
 		}
 
-		_, createOneError := executionManager.CreateOne(pool)
+		_, createOneError := executionManager.CreateOne(DBConnection)
 		if createOneError != nil {
 			utils.Error(fmt.Sprintf("Cannot create execution %v", createOneError.Message))
 		}
 
-		executionsController.Pool = pool
+		executionsController.DBConnection = DBConnection
 		req, err := http.NewRequest("GET", "/?jobUUID="+Job.UUID+"&offset=0&limit=10", nil)
 
 		if err != nil {

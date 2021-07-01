@@ -2,6 +2,7 @@ package http_server
 
 import (
 	"github.com/go-http-utils/logger"
+	"github.com/go-pg/pg"
 	"github.com/gorilla/mux"
 	"github.com/robfig/cron"
 	"github.com/unrolled/secure"
@@ -20,22 +21,24 @@ import (
 
 // Start this will start the http server
 func Start() {
-	pool, err := utils.NewPool(db.OpenConnection, db.MaxConnections)
+	conn, err := db.OpenConnection()
 	if err != nil {
 		panic(err)
 	}
+
+	dbConnection := conn.(*pg.DB)
 
 	// SetupDB logging
 	log.SetFlags(0)
 	log.SetOutput(new(utils.LogWriter))
 	jobProcessor := process.JobProcessor{
-		Pool: pool,
+		DBConnection: dbConnection,
 		Cron: cron.New(),
 		RecoveredJobs: []process.RecoveredJob{},
 	}
 
 	// Set time zone, create database and run db
-	db.CreateModelTables(pool)
+	db.CreateModelTables(dbConnection)
 
 	// StartJobs process to execute cron-server jobs
 	go jobProcessor.StartJobs()
@@ -47,13 +50,13 @@ func Start() {
 	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
-	executionController := execution.Controller{Pool: pool}
+	executionController := execution.Controller{DBConnection: dbConnection}
 	jobController := job.Controller{
-		Pool: pool,
+		DBConnection: dbConnection,
 		JobProcessor: &jobProcessor,
 	}
-	projectController := project.Controller{Pool: pool}
-	credentialController := credential.Controller{Pool: pool}
+	projectController := project.Controller{DBConnection: dbConnection}
+	credentialController := credential.Controller{DBConnection: dbConnection}
 
 	// Mount middleware
 	middleware := middlewares.MiddlewareType{}
@@ -61,7 +64,7 @@ func Start() {
 	router.Use(secureMiddleware.Handler)
 	router.Use(mux.CORSMethodMiddleware(router))
 	router.Use(middleware.ContextMiddleware)
-	router.Use(middleware.AuthMiddleware(pool))
+	router.Use(middleware.AuthMiddleware(dbConnection))
 
 	// Executions Endpoint
 	router.HandleFunc("/executions", executionController.List).Methods(http.MethodGet)

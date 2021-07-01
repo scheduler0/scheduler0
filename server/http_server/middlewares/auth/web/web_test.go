@@ -26,10 +26,10 @@ var _ = Describe("Web Auth Test", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
-		pool := db.GetTestPool()
+		dbConnection := db.GetTestDBConnection()
 
 		credentialService := service.Credential{
-			Pool: pool,
+			DBConnection: dbConnection,
 		}
 
 		credentialFixture := fixtures.CredentialFixture{}

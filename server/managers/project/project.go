@@ -11,15 +11,7 @@ import (
 type ProjectManager models.ProjectModel
 
 // CreateOne creates a single project
-func (projectManager *ProjectManager) CreateOne(pool *utils.Pool) (string, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (projectManager *ProjectManager) CreateOne(dbConnection *pg.DB) (string, *utils.GenericError) {
 	if len(projectManager.Name) < 1 {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "name field is required")
 	}
@@ -32,12 +24,12 @@ func (projectManager *ProjectManager) CreateOne(pool *utils.Pool) (string, *util
 		Name: projectManager.Name,
 	}
 
-	_ = projectWithName.GetOneByName(pool)
+	_ = projectWithName.GetOneByName(dbConnection)
 	if len(projectWithName.UUID) > 5 {
 		return "", utils.HTTPGenericError(http.StatusBadRequest, "Another project exist with the same name")
 	}
 
-	_, err = db.Model(projectManager).Insert()
+	_, err := dbConnection.Model(projectManager).Insert()
 	if err != nil {
 		return "", utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -46,18 +38,10 @@ func (projectManager *ProjectManager) CreateOne(pool *utils.Pool) (string, *util
 }
 
 // GetOneByName returns a project with a matching name
-func (projectManager *ProjectManager) GetOneByName(pool *utils.Pool) *utils.GenericError {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (projectManager *ProjectManager) GetOneByName(dbConnection *pg.DB) *utils.GenericError {
 	projectManagers := []ProjectManager{}
 
-	err = db.
+	err := dbConnection.
 		Model(&projectManagers).
 		Where("name = ?", projectManager.Name).
 		Select()
@@ -80,16 +64,8 @@ func (projectManager *ProjectManager) GetOneByName(pool *utils.Pool) *utils.Gene
 }
 
 // GetOneByUUID returns a project that matches the uuid
-func (projectManager *ProjectManager) GetOneByUUID(pool *utils.Pool) *utils.GenericError {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	err = db.
+func (projectManager *ProjectManager) GetOneByUUID(dbConnection *pg.DB) *utils.GenericError {
+	err := dbConnection.
 		Model(projectManager).
 		Where("uuid = ?", projectManager.UUID).
 		Select()
@@ -102,18 +78,10 @@ func (projectManager *ProjectManager) GetOneByUUID(pool *utils.Pool) *utils.Gene
 }
 
 // GetAll returns a paginated set of results
-func (projectManager *ProjectManager) GetAll(pool *utils.Pool, offset int, limit int) ([]ProjectManager, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (projectManager *ProjectManager) GetAll(dbConnection *pg.DB, offset int, limit int) ([]ProjectManager, *utils.GenericError) {
 	projects := make([]ProjectManager, 0, limit)
 
-	err = db.Model(&projects).
+	err := dbConnection.Model(&projects).
 		Order("date_created").
 		Offset(offset).
 		Limit(limit).
@@ -127,16 +95,8 @@ func (projectManager *ProjectManager) GetAll(pool *utils.Pool, offset int, limit
 }
 
 // Count return the number of projects
-func (projectManager *ProjectManager) Count(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
-	count, err := db.Model(projectManager).
+func (projectManager *ProjectManager) Count(dbConnection *pg.DB) (int, *utils.GenericError) {
+	count, err := dbConnection.Model(projectManager).
 		Order("date_created").
 		Count()
 
@@ -148,18 +108,10 @@ func (projectManager *ProjectManager) Count(pool *utils.Pool) (int, *utils.Gener
 }
 
 // UpdateOne updates a single project
-func (projectManager *ProjectManager) UpdateOne(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (projectManager *ProjectManager) UpdateOne(dbConnection *pg.DB) (int, *utils.GenericError) {
 	savedProject := ProjectManager{UUID: projectManager.UUID}
 
-	if e := savedProject.GetOneByUUID(pool); e != nil {
+	if e := savedProject.GetOneByUUID(dbConnection); e != nil {
 		return 0, e
 	}
 
@@ -172,13 +124,13 @@ func (projectManager *ProjectManager) UpdateOne(pool *utils.Pool) (int, *utils.G
 			Name: projectManager.Name,
 		}
 
-		e := projectWithSimilarName.GetOneByName(pool)
+		e := projectWithSimilarName.GetOneByName(dbConnection)
 		if e != nil && e.Type != http.StatusNotFound {
 			return 0, e
 		}
 	}
 
-	res, err := db.Model(projectManager).Where("UUID = ?", projectManager.UUID).Update(projectManager)
+	res, err := dbConnection.Model(projectManager).Where("UUID = ?", projectManager.UUID).Update(projectManager)
 	if err != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -187,17 +139,10 @@ func (projectManager *ProjectManager) UpdateOne(pool *utils.Pool) (int, *utils.G
 }
 
 // DeleteOne deletes a single project
-func (projectManager *ProjectManager) DeleteOne(pool *utils.Pool) (int, *utils.GenericError) {
-	conn, err := pool.Acquire()
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-	db := conn.(*pg.DB)
-	defer pool.Release(conn)
-
+func (projectManager *ProjectManager) DeleteOne(dbConnection *pg.DB) (int, *utils.GenericError) {
 	jobs := []models.JobModel{}
 
-	err = db.Model(&jobs).Where("project_uuid = ?", projectManager.UUID).Select()
+	err := dbConnection.Model(&jobs).Where("project_uuid = ?", projectManager.UUID).Select()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -207,7 +152,7 @@ func (projectManager *ProjectManager) DeleteOne(pool *utils.Pool) (int, *utils.G
 		return -1, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
 	}
 
-	r, err := db.Model(projectManager).Where("uuid = ?", projectManager.UUID).Delete()
+	r, err := dbConnection.Model(projectManager).Where("uuid = ?", projectManager.UUID).Delete()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}

@@ -2,7 +2,6 @@ package credential_test
 
 import (
 	"fmt"
-	"github.com/go-pg/pg"
 	"github.com/stretchr/testify/assert"
 	"scheduler0/server/db"
 	"scheduler0/server/managers/credential"
@@ -12,19 +11,15 @@ import (
 
 func Test_CredentialManager(t *testing.T) {
 	utils.SetTestScheduler0Configurations()
-	pool := db.GetTestPool()
+	dbConnection := db.GetTestDBConnection()
 	forceDelete := func(credentialManager *credential.Manager) {
-		conn, acquireErr := pool.Acquire()
-		defer pool.Release(conn)
-		utils.CheckErr(acquireErr)
-		db := conn.(*pg.DB)
-		_, deleteErr := db.Model(credentialManager).Where("uuid = ?", credentialManager.UUID).Delete()
+		_, deleteErr := dbConnection.Model(credentialManager).Where("uuid = ?", credentialManager.UUID).Delete()
 		utils.CheckErr(deleteErr)
 	}
 
 	t.Run("Should not create a credential without a platform", func(t *testing.T) {
 		credentialManager := credential.Manager{}
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err == nil {
 			utils.Error("[ERROR] Created a new credential without platform")
 		}
@@ -34,7 +29,7 @@ func Test_CredentialManager(t *testing.T) {
 	t.Run("Should not create web platform credential without HTTPReferrerRestriction or IPRestriction", func(t *testing.T) {
 		credentialManager := credential.Manager{}
 		credentialManager.Platform = "web"
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err == nil {
 			utils.Error("[ERROR] Created a new credential without HTTPReferrerRestriction")
 		}
@@ -45,7 +40,7 @@ func Test_CredentialManager(t *testing.T) {
 		credentialManager := credential.Manager{}
 		credentialManager.Platform = "web"
 		credentialManager.HTTPReferrerRestriction = "*"
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err != nil {
 			utils.Error(fmt.Sprintf("[ERROR] failed to create web credential with http restriction: - %v", err.Message))
 		}
@@ -57,19 +52,19 @@ func Test_CredentialManager(t *testing.T) {
 		credentialManager := credential.Manager{}
 		credentialManager.Platform = "web"
 		credentialManager.IPRestriction = "*"
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err != nil {
 			utils.Error(fmt.Sprintf("[ERROR] failed to create web credential with ip restriction %v", err.Message))
 		}
 		assert.Nil(t, err)
-		credentialManager.DeleteOne(pool)
+		credentialManager.DeleteOne(dbConnection)
 		forceDelete(&credentialManager)
 	})
 
 	t.Run("Should not create android platform credential without android package name restriction", func(t *testing.T) {
 		credentialManager := credential.Manager{}
 		credentialManager.Platform = "android"
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err == nil {
 			utils.Error("[ERROR] Created an android credential without package name restriction")
 		}
@@ -80,7 +75,7 @@ func Test_CredentialManager(t *testing.T) {
 		credentialManager := credential.Manager{}
 		credentialManager.Platform = "android"
 		credentialManager.AndroidPackageNameRestriction = "com.android.org"
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err != nil {
 			utils.Error(fmt.Sprintf("[ERROR] failed to create an android credential with package name restriction %v", err.Message))
 		}
@@ -91,7 +86,7 @@ func Test_CredentialManager(t *testing.T) {
 	t.Run("Should not create ios platform credential without bundle id restriction", func(t *testing.T) {
 		credentialManager := credential.Manager{}
 		credentialManager.Platform = "ios"
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err == nil {
 			utils.Error("[ERROR] Created an ios credential bundle id restriction")
 		}
@@ -102,7 +97,7 @@ func Test_CredentialManager(t *testing.T) {
 		credentialManager := credential.Manager{}
 		credentialManager.Platform = "ios"
 		credentialManager.IOSBundleIDRestriction = "com.ios.org"
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err != nil {
 			utils.Error(fmt.Sprintf("[ERROR] failed to create an ios credential with package name restriction %v", err.Message))
 		}
@@ -113,7 +108,7 @@ func Test_CredentialManager(t *testing.T) {
 	t.Run("Should create server credential", func(t *testing.T) {
 		credentialManager := credential.Manager{}
 		credentialManager.Platform = "server"
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err != nil {
 			utils.Error("[ERROR] Failed to create a server credential" + err.Message)
 		}
@@ -127,7 +122,7 @@ func Test_CredentialManager(t *testing.T) {
 	t.Run("Should not update credential api key and secret", func(t *testing.T) {
 		credentialManager := credential.Manager{}
 		credentialManager.Platform = "server"
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err != nil {
 			utils.Error("[ERROR] Failed to create a new credential" + err.Message)
 		}
@@ -135,7 +130,7 @@ func Test_CredentialManager(t *testing.T) {
 		assert.Nil(t, err)
 
 		credentialManager.ApiKey = "13455"
-		_, updateErr := credentialManager.UpdateOne(pool)
+		_, updateErr := credentialManager.UpdateOne(dbConnection)
 		if updateErr == nil {
 			utils.Error("[ERROR] should not update credential key")
 		}
@@ -148,7 +143,7 @@ func Test_CredentialManager(t *testing.T) {
 			Platform:                "web",
 			HTTPReferrerRestriction: "*",
 		}
-		_, err := credentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
 		if err != nil {
 			utils.Error("[ERROR] Failed to create a new credential" + err.Message)
 		}
@@ -156,7 +151,7 @@ func Test_CredentialManager(t *testing.T) {
 		assert.Nil(t, err)
 
 		credentialManager.HTTPReferrerRestriction = "http://google.com"
-		_, updateError := credentialManager.UpdateOne(pool)
+		_, updateError := credentialManager.UpdateOne(dbConnection)
 		if updateError != nil {
 			utils.Error(updateError.Error())
 		}
@@ -166,7 +161,7 @@ func Test_CredentialManager(t *testing.T) {
 			UUID: credentialManager.UUID,
 		}
 
-		updatedCredential.GetOne(pool)
+		updatedCredential.GetOne(dbConnection)
 
 		assert.Equal(t, updatedCredential.HTTPReferrerRestriction, credentialManager.HTTPReferrerRestriction)
 		forceDelete(&credentialManager)
@@ -180,8 +175,8 @@ func Test_CredentialManager(t *testing.T) {
 			Platform:      credential.WebPlatform,
 			IPRestriction: "0.0.0.0",
 		}
-		_, err := credentialManager.CreateOne(pool)
-		_, otherCreateErr := otherCredentialManager.CreateOne(pool)
+		_, err := credentialManager.CreateOne(dbConnection)
+		_, otherCreateErr := otherCredentialManager.CreateOne(dbConnection)
 		if err != nil {
 			utils.Error("[ERROR] Failed to create a new credential" + err.Message)
 		}
@@ -190,7 +185,7 @@ func Test_CredentialManager(t *testing.T) {
 		}
 		assert.Nil(t, err)
 		assert.Nil(t, otherCreateErr)
-		rowAffected, deleteErr := credentialManager.DeleteOne(pool)
+		rowAffected, deleteErr := credentialManager.DeleteOne(dbConnection)
 		assert.Nil(t, deleteErr)
 		if deleteErr != nil {
 			utils.Error(deleteErr.Error())
@@ -207,11 +202,11 @@ func Test_CredentialManager(t *testing.T) {
 			Platform:      credential.WebPlatform,
 			IPRestriction: "0.0.0.0",
 		}
-		credentialManager1.CreateOne(pool)
-		credentialManager2.CreateOne(pool)
+		credentialManager1.CreateOne(dbConnection)
+		credentialManager2.CreateOne(dbConnection)
 
 		credentialManager := credential.Manager{}
-		credentials, err := credentialManager.GetAll(pool, 0, 100, "date_created")
+		credentials, err := credentialManager.GetAll(dbConnection, 0, 100, "date_created")
 		assert.Nil(t, err)
 		if err != nil {
 			utils.Error(fmt.Sprintf("CredentialManager.List::Error::%v", err.Message))
@@ -230,22 +225,22 @@ func Test_CredentialManager(t *testing.T) {
 			Platform:      credential.WebPlatform,
 			IPRestriction: "0.0.0.0",
 		}
-		credentialManager1.CreateOne(pool)
-		credentialManager2.CreateOne(pool)
+		credentialManager1.CreateOne(dbConnection)
+		credentialManager2.CreateOne(dbConnection)
 
 		credentialManager := credential.Manager{}
-		credentials, err := credentialManager.GetAll(pool, 0, 100, "date_created")
+		credentials, err := credentialManager.GetAll(dbConnection, 0, 100, "date_created")
 		assert.Nil(t, err)
 		if err != nil {
 			utils.Error(err.Message)
 		}
 
 		for i := 0; i < len(credentials)-1; i++ {
-			_, err := credentials[i].DeleteOne(pool)
+			_, err := credentials[i].DeleteOne(dbConnection)
 			assert.Equal(t, nil, err)
 		}
 
-		_, deleteCredentialError := credentials[len(credentials)-1].DeleteOne(pool)
+		_, deleteCredentialError := credentials[len(credentials)-1].DeleteOne(dbConnection)
 		assert.NotEqual(t, deleteCredentialError, nil)
 		forceDelete(&credentialManager1)
 		forceDelete(&credentialManager2)

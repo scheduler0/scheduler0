@@ -12,11 +12,11 @@ import (
 var _ = Describe("Job Processor", func() {
 
 	It("Should return true if job is in recovered list", func () {
-		pool := db.GetTestPool()
+		pool := db.GetTestDBConnection()
 
 		processor := JobProcessor{
 			RecoveredJobs: []RecoveredJob{},
-			Pool: pool,
+			DBConnection: pool,
 			Cron: cron.New(),
 		}
 
@@ -32,11 +32,11 @@ var _ = Describe("Job Processor", func() {
 	})
 
 	It("Should return false if job is not in recovered list", func () {
-		pool := db.GetTestPool()
+		pool := db.GetTestDBConnection()
 
 		processor := JobProcessor{
 			RecoveredJobs: []RecoveredJob{},
-			Pool: pool,
+			DBConnection: pool,
 			Cron: cron.New(),
 		}
 
