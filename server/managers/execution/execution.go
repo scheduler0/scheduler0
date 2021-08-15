@@ -199,7 +199,7 @@ func (jobManager *Manager) BatchInsertExecutions(dbConnection *pg.DB, managers [
 	return uuids, nil
 }
 
-// BatchUpdateExecutions update executions in batch
+// BatchUpdateExecutions update execution placeholder for jobs in batch
 func (jobManager *Manager) BatchUpdateExecutions(dbConnection *pg.DB, managers []Manager) *utils.GenericError {
 	query := "UPDATE executions SET time_executed = data.time_executed::TIMESTAMP WITH TIME ZONE, execution_time = data.execution_time, status_code = data.status_code FROM (VALUES "
 	params := []interface{}{}
@@ -207,7 +207,7 @@ func (jobManager *Manager) BatchUpdateExecutions(dbConnection *pg.DB, managers [
 	for i, manager := range managers {
 		query += fmt.Sprint("(?, ?, ?, ?)")
 		params = append(params,
-			manager.UUID,
+			manager.JobUUID,
 			manager.TimeExecuted,
 			manager.ExecutionTime,
 			manager.StatusCode,
@@ -218,7 +218,7 @@ func (jobManager *Manager) BatchUpdateExecutions(dbConnection *pg.DB, managers [
 		}
 	}
 
-	query += ") as data (uuid, time_executed, execution_time, status_code) WHERE executions.uuid = cast(data.uuid as uuid);"
+	query += ") as data (job_uuid, time_executed, execution_time, status_code) WHERE executions.job_uuid = cast(data.job_uuid as uuid) AND executions.time_executed is NULL;"
 	_, err := dbConnection.Exec(query, params...)
 	if err != nil {
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
