@@ -35,7 +35,7 @@ func (jobController *Controller) List(w http.ResponseWriter, r *http.Request) {
 
 	jobService := service.JobService{
 		DBConnection: jobController.DBConnection,
-		Ctx:  r.Context(),
+		Ctx:          r.Context(),
 	}
 
 	offset, err := strconv.Atoi(offsetParam)
@@ -72,7 +72,7 @@ func (jobController *Controller) CreateOne(w http.ResponseWriter, r *http.Reques
 
 	jobService := service.JobService{
 		DBConnection: jobController.DBConnection,
-		Ctx:  r.Context(),
+		Ctx:          r.Context(),
 	}
 
 	job, createJobError := jobService.CreateJob(jobBody)
@@ -81,7 +81,7 @@ func (jobController *Controller) CreateOne(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	go jobController.JobProcessor.AddJob(*job, nil)
+	go jobController.JobProcessor.AddJobs([]transformers.Job{*job}, nil)
 	utils.SendJSON(w, job, true, http.StatusCreated, nil)
 }
 
@@ -91,7 +91,7 @@ func (jobController *Controller) GetOne(w http.ResponseWriter, r *http.Request) 
 
 	jobService := service.JobService{
 		DBConnection: jobController.DBConnection,
-		Ctx:  r.Context(),
+		Ctx:          r.Context(),
 	}
 
 	job := transformers.Job{
@@ -124,7 +124,7 @@ func (jobController *Controller) UpdateOne(w http.ResponseWriter, r *http.Reques
 
 	jobService := service.JobService{
 		DBConnection: jobController.DBConnection,
-		Ctx:  r.Context(),
+		Ctx:          r.Context(),
 	}
 
 	jobT, updateOneJobError := jobService.UpdateJob(jobBody)
@@ -142,7 +142,7 @@ func (jobController *Controller) DeleteOne(w http.ResponseWriter, r *http.Reques
 
 	jobService := service.JobService{
 		DBConnection: jobController.DBConnection,
-		Ctx:  r.Context(),
+		Ctx:          r.Context(),
 	}
 
 	job := transformers.Job{
