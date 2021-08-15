@@ -1,11 +1,14 @@
 package execution
 
 import (
+	"fmt"
 	"github.com/go-pg/pg"
+	"github.com/google/uuid"
 	"net/http"
 	"scheduler0/server/managers/job"
 	"scheduler0/server/models"
 	"scheduler0/utils"
+	"time"
 )
 
 // Manager this manager handles interacting with the database for all execution entity type
@@ -91,7 +94,7 @@ func (executionManager *Manager) Count(dbConnection *pg.DB, jobID string) (int, 
 // UpdateOne updates a single execution entity
 func (executionManager *Manager) UpdateOne(dbConnection *pg.DB) (int, *utils.GenericError) {
 	executionManagerPlaceholder := Manager{
-		ID: executionManager.ID,
+		ID:   executionManager.ID,
 		UUID: executionManager.UUID,
 	}
 
@@ -147,4 +150,79 @@ func (executionManager *Manager) FindJobExecutionPlaceholderByUUID(dbConnection 
 	}
 
 	return count, nil, executionManagers
+}
+
+// BatchGetExecutions returns executions where uuid in jobUUIDs
+func (jobManager *Manager) BatchGetExecutions(dbConnection *pg.DB, executionUUIDs []string) ([]Manager, *utils.GenericError) {
+	executions := make([]Manager, 0, len(executionUUIDs))
+
+	err := dbConnection.Model(&executions).
+		Where("uuid in (?)", pg.In(executionUUIDs)).
+		Select()
+
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	return executions, nil
+}
+
+// BatchInsertExecutions inserts executions in batch
+func (jobManager *Manager) BatchInsertExecutions(dbConnection *pg.DB, managers []Manager) ([]string, *utils.GenericError) {
+	query := "INSERT INTO executions (uuid, job_id, job_uuid, time_added, date_created) VALUES "
+	params := []interface{}{}
+	uuids := []string{}
+
+	for i, manager := range managers {
+		query += fmt.Sprint("(?, ?, ?, ?, ?)")
+		uuid := uuid.New()
+		uuids = append(uuids, uuid.String())
+		params = append(params,
+			uuid.String(),
+			manager.JobID,
+			manager.JobUUID,
+			manager.TimeAdded.Format(time.RFC3339),
+			manager.DateCreated.Format(time.RFC3339),
+		)
+
+		if i < len(managers)-1 {
+			query += ","
+		}
+	}
+
+	query += ";"
+	_, err := dbConnection.Exec(query, params...)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	return uuids, nil
+}
+
+// BatchUpdateExecutions update executions in batch
+func (jobManager *Manager) BatchUpdateExecutions(dbConnection *pg.DB, managers []Manager) *utils.GenericError {
+	query := "UPDATE executions SET time_executed = data.time_executed::TIMESTAMP WITH TIME ZONE, execution_time = data.execution_time, status_code = data.status_code FROM (VALUES "
+	params := []interface{}{}
+
+	for i, manager := range managers {
+		query += fmt.Sprint("(?, ?, ?, ?)")
+		params = append(params,
+			manager.UUID,
+			manager.TimeExecuted,
+			manager.ExecutionTime,
+			manager.StatusCode,
+		)
+
+		if i < len(managers)-1 {
+			query += ","
+		}
+	}
+
+	query += ") as data (uuid, time_executed, execution_time, status_code) WHERE executions.uuid = cast(data.uuid as uuid);"
+	_, err := dbConnection.Exec(query, params...)
+	if err != nil {
+		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	return nil
 }
