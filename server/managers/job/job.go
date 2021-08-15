@@ -54,6 +54,21 @@ func (jobManager *Manager) GetOne(dbConnection *pg.DB, jobUUID string) *utils.Ge
 	return nil
 }
 
+// BatchGetJobs returns jobs where uuid in jobUUIDs
+func (jobManager *Manager) BatchGetJobs(dbConnection *pg.DB, jobUUIDs []string) ([]Manager, *utils.GenericError) {
+	jobs := make([]Manager, 0, len(jobUUIDs))
+
+	err := dbConnection.Model(&jobs).
+		Where("uuid in (?)", pg.In(jobUUIDs)).
+		Select()
+
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	return jobs, nil
+}
+
 // GetAll returns paginated set of jobs that are not archived
 func (jobManager *Manager) GetAll(dbConnection *pg.DB, projectUUID string, offset int, limit int, orderBy string) ([]Manager, *utils.GenericError) {
 	jobs := make([]Manager, 0, limit)
@@ -64,7 +79,6 @@ func (jobManager *Manager) GetAll(dbConnection *pg.DB, projectUUID string, offse
 		Offset(offset).
 		Limit(limit).
 		Select()
-
 
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
