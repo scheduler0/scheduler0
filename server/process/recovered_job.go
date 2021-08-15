@@ -10,7 +10,7 @@ import (
 
 // RecoveredJob job
 type RecoveredJob struct {
-	Job *transformers.Job
+	Job       *transformers.Job
 	Execution *transformers.Execution
 }
 
@@ -37,5 +37,8 @@ func (recoveredJob *RecoveredJob) Run(processor *JobProcessor) {
 		utils.Error(fmt.Sprintf("Failed to create execution manager %s", err.Error()))
 	}
 
-	processor.ExecuteHTTPJob(recoveredJob.Job, &executionManger)
+	processor.ExecuteHTTPJobs([]PendingJob{{
+		Job:       recoveredJob.Job,
+		Execution: &executionManger,
+	}})
 }
