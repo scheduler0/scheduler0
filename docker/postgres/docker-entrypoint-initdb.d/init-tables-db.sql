@@ -4,25 +4,12 @@
 
 -- Dumped from database version 13.2
 -- Dumped by pg_dump version 13.2
-
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
 DROP DATABASE IF EXISTS scheduler0_test;
 --
 -- Name: scheduler0_test; Type: DATABASE; Schema: -; Owner: core
 --
 
-CREATE DATABASE scheduler0_test WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'en_US.utf8';
-
+CREATE DATABASE scheduler0_test;
 
 ALTER DATABASE scheduler0_test OWNER TO core;
 
@@ -95,7 +82,7 @@ CREATE TABLE public.executions (
                                    job_id bigint NOT NULL,
                                    job_uuid uuid NOT NULL,
                                    time_added timestamp with time zone NOT NULL,
-                                   time_executed timestamp with time zone,
+                                   time_executed timestamp with time zone ,
                                    execution_time bigint,
                                    status_code text,
                                    date_created timestamp with time zone DEFAULT now() NOT NULL
