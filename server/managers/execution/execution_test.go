@@ -2,59 +2,114 @@ package execution_test
 
 import (
 	"fmt"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	"scheduler0/server/db"
 	"scheduler0/server/managers/execution"
 	fixtures "scheduler0/server/managers/execution/fixtures"
 	"scheduler0/utils"
+	"strconv"
 	"testing"
+	"time"
 )
 
-var _ = Describe("Execution Manager", func() {
-	pool := db.GetTestDBConnection()
+func TestManager_Executions(t *testing.T) {
+	utils.SetTestScheduler0Configurations()
+	dbConnection := db.GetTestDBConnection()
 
-	It("Do not create execution without job id", func() {
+	t.Run("Batch Insertion", func(t *testing.T) {
+		jobManager := fixtures.CreateJobFixture(dbConnection)
+		executionManagers := []execution.Manager{}
 		executionManager := execution.Manager{}
-		_, err := executionManager.CreateOne(pool)
-		Expect(err).ToNot(BeNil())
+
+		for i := 0; i < 3; i++ {
+			executionManagers = append(executionManagers, execution.Manager{
+				JobID:       jobManager.ID,
+				JobUUID:     jobManager.UUID,
+				TimeAdded:   time.Now().UTC(),
+				DateCreated: time.Now().UTC(),
+			})
+		}
+
+		uuids, err := executionManager.BatchInsertExecutions(dbConnection, executionManagers)
+		if err != nil {
+			t.Error(err)
+		}
+
+		fmt.Println(uuids)
+		assert.Equal(t, len(uuids), 3)
 	})
 
-	It("Create execution with valid job id", func() {
-		jobManager := fixtures.CreateJobFixture(pool)
+	t.Run("Batch Update", func(t *testing.T) {
+		jobManager := fixtures.CreateJobFixture(dbConnection)
+		executionManagers := []execution.Manager{}
+		executionManager := execution.Manager{}
+
+		for i := 0; i < 3; i++ {
+			executionManagers = append(executionManagers, execution.Manager{
+				JobID:       jobManager.ID,
+				JobUUID:     jobManager.UUID,
+				TimeAdded:   time.Now().UTC(),
+				DateCreated: time.Now().UTC(),
+			})
+		}
+
+		uuids, err := executionManager.BatchInsertExecutions(dbConnection, executionManagers)
+		if err != nil {
+			t.Error(err)
+		}
+
+		for i, _ := range executionManagers {
+			executionManagers[i].UUID = uuids[i]
+			executionManagers[i].ExecutionTime = 100 + int64(i)
+			executionManagers[i].TimeExecuted = time.Now().UTC()
+			executionManagers[i].StatusCode = strconv.Itoa(200 + int(i))
+		}
+
+		err = executionManager.BatchUpdateExecutions(dbConnection, executionManagers)
+		assert.Nil(t, err)
+	})
+
+	t.Run("Do not create execution without job id", func(t *testing.T) {
+		executionManager := execution.Manager{}
+		_, err := executionManager.CreateOne(dbConnection)
+		assert.NotEqual(t, err, nil)
+	})
+
+	t.Run("Create execution with valid job id", func(t *testing.T) {
+		jobManager := fixtures.CreateJobFixture(dbConnection)
 		executionManager := execution.Manager{
 			JobID:   jobManager.ID,
 			JobUUID: jobManager.UUID,
 		}
-		_, err := executionManager.CreateOne(pool)
-		Expect(err).To(BeNil())
+		_, err := executionManager.CreateOne(dbConnection)
+		assert.Nil(t, err)
 	})
 
-	It("Returns 0 if execution does not exist", func() {
+	t.Run("Returns 0 if execution does not exist", func(t *testing.T) {
 		executionManager := execution.Manager{UUID: "some-random-id"}
-		count, err := executionManager.GetOne(pool)
-		Expect(err).To(BeNil())
-		Expect(count == 0).To(BeTrue())
+		count, err := executionManager.GetOne(dbConnection)
+		assert.Nil(t, err)
+		assert.Equal(t, count == 0, true)
 	})
 
-	It("Returns count 1 if execution exist", func() {
-		jobManager := fixtures.CreateJobFixture(pool)
+	t.Run("Returns count 1 if execution exist", func(t *testing.T) {
+		jobManager := fixtures.CreateJobFixture(dbConnection)
 		executionManager := execution.Manager{
 			JobID:   jobManager.ID,
 			JobUUID: jobManager.UUID,
 		}
-		executionManagerUUID, err := executionManager.CreateOne(pool)
-		Expect(err).To(BeNil())
+		executionManagerUUID, err := executionManager.CreateOne(dbConnection)
+		assert.Nil(t, err)
 
 		executionManager = execution.Manager{UUID: executionManagerUUID}
-		count, err := executionManager.GetOne(pool)
-		Expect(err).To(BeNil())
+		count, err := executionManager.GetOne(dbConnection)
+		assert.Nil(t, err)
 
-		Expect(count > 0).To(BeTrue())
+		assert.Equal(t, count > 0, true)
 	})
 
-	It("Paginated results from manager", func() {
-		jobManager := fixtures.CreateJobFixture(pool)
+	t.Run("Paginated results from manager", func(t *testing.T) {
+		jobManager := fixtures.CreateJobFixture(dbConnection)
 
 		for i := 0; i < 1000; i++ {
 			executionManager := execution.Manager{
@@ -62,9 +117,9 @@ var _ = Describe("Execution Manager", func() {
 				JobUUID: jobManager.UUID,
 			}
 
-			_, err := executionManager.CreateOne(pool)
+			_, err := executionManager.CreateOne(dbConnection)
 
-			Expect(err).To(BeNil())
+			assert.Nil(t, err)
 			if err != nil {
 				utils.Error(err.Message)
 			}
@@ -72,25 +127,18 @@ var _ = Describe("Execution Manager", func() {
 
 		manager := execution.Manager{}
 
-		executions, err := manager.List(pool, jobManager.UUID, 0, 100, "date_created")
+		executions, err := manager.List(dbConnection, jobManager.UUID, 0, 100, "date_created")
 		if err != nil {
 			utils.Error(fmt.Sprintf("[ERROR] fetching executions %v", err.Message))
 		}
 
-		Expect(len(executions)).To(Equal(100))
+		assert.Equal(t, len(executions), 100)
 
-		executions, err = manager.List(pool, jobManager.UUID, 1000, 100, "date_created")
+		executions, err = manager.List(dbConnection, jobManager.UUID, 1000, 100, "date_created")
 		if err != nil {
 			utils.Error(fmt.Sprintf("[ERROR] fetching executions %v", err.Message))
 		}
 
-		Expect(len(executions)).To(Equal(0))
+		assert.Equal(t, len(executions), 0)
 	})
-
-})
-
-func TestExecution_Manager(t *testing.T) {
-	utils.SetTestScheduler0Configurations()
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Execution Manager Suite")
 }
