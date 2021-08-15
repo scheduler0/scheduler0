@@ -36,11 +36,9 @@ build_server_test_dockerfile:
 		.
 
 start_test_db:
-	docker run --rm -d --name postgres -p 5432:5432 \
-		-e POSTGRES_USER=core \
-		-e POSTGRES_DB=scheduler0_test \
-		-e POSTGRES_PASSWORD=localdev \
-		postgres:13-alpine -c log_min_messages=DEBUG5
+	cd docker/postgres
+	docker build -t scheduler_0_postgres .
+	docker run -dp 5432:5432 scheduler_0_postgres
 
 stop_test_db:
 	docker container stop postgres
