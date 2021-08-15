@@ -13,9 +13,9 @@ type Execution struct {
 	JobID         int64     `json:"job_id"`
 	JobUUID       string    `json:"job_uuid"`
 	StatusCode    string    `json:"status_code"`
-	Timeout       uint64    `json:"timeout"`
+	Timeout       int64     `json:"timeout"`
 	Response      string    `json:"response"`
-	ExecutionTime uint64    `json:"execution_time"`
+	ExecutionTime int64     `json:"execution_time"`
 	TimeAdded     time.Time `json:"time_added"`
 	TimeExecuted  time.Time `json:"time_executed"`
 	DateCreated   time.Time `json:"date_created"`

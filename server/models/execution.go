@@ -12,7 +12,7 @@ type ExecutionModel struct {
 	JobUUID       string    `json:"job_uuid" sql:",notnull,type:uuid"`
 	TimeAdded     time.Time `json:"time_added" sql:",notnull"`
 	TimeExecuted  time.Time `json:"time_executed"`
-	ExecutionTime uint64    `json:"execution_time"`
+	ExecutionTime int64     `json:"execution_time"`
 	StatusCode    string    `json:"status_code"`
 	DateCreated   time.Time `json:"date_created" sql:",notnull,default:now()"`
 
