@@ -13,6 +13,7 @@ require (
 	github.com/go-http-utils/logger v0.0.0-20161128092850-f3a42dcdeae6
 	github.com/go-openapi/strfmt v0.20.0 // indirect
 	github.com/go-pg/pg v8.0.7+incompatible
+	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.8.0
 	github.com/jedib0t/go-pretty/v6 v6.1.0
 	github.com/magiconair/properties v1.8.4
