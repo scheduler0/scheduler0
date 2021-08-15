@@ -32,14 +32,13 @@ func Start() {
 	log.SetFlags(0)
 	log.SetOutput(new(utils.LogWriter))
 	jobProcessor := process.JobProcessor{
-		DBConnection: dbConnection,
-		Cron: cron.New(),
-		RecoveredJobs: []process.RecoveredJob{},
-		PendingJobs: make(chan *process.PendingJob, 100),
+		DBConnection:      dbConnection,
+		Cron:              cron.New(),
+		RecoveredJobs:     []process.RecoveredJob{},
+		PendingJobs:       make(chan *process.PendingJob, 100),
+		PendingJobUpdates: make(chan *process.PendingJob, 100),
+		PendingJobCreates: make(chan *process.PendingJob, 100),
 	}
-
-	// Set time zone, create database and run db
-	db.CreateModelTables(dbConnection)
 
 	// StartJobs process to execute cron-server jobs
 	go jobProcessor.StartJobs()
