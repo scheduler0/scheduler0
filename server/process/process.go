@@ -19,12 +19,14 @@ import (
 
 // JobProcessor handles executions of jobs
 type JobProcessor struct {
-	Cron          *cron.Cron
-	RecoveredJobs []RecoveredJob
-	PendingJobs   chan *PendingJob
-	MaxMemory     int64
-	MaxCPU        int64
-	DBConnection  *pg.DB
+	Cron              *cron.Cron
+	RecoveredJobs     []RecoveredJob
+	PendingJobs       chan *PendingJob
+	MaxMemory         int64
+	MaxCPU            int64
+	DBConnection      *pg.DB
+	PendingJobUpdates chan *PendingJob
+	PendingJobCreates chan *PendingJob
 }
 
 // RecoverJobExecutions find jobs that could've not been executed due to timeout
@@ -103,65 +105,69 @@ func (jobProcessor *JobProcessor) RemoveJobRecovery(jobUUID string) {
 	jobProcessor.RecoveredJobs = append(jobProcessor.RecoveredJobs[:jobIndex], jobProcessor.RecoveredJobs[jobIndex+1:]...)
 }
 
-// ExecuteHTTPJob executes and http job
-func (jobProcessor *JobProcessor) ExecuteHTTPJob(jobTransformer *transformers.Job, executionManager *execution.Manager) {
-	utils.Info(fmt.Sprintf("Running Job Execution for Job ID = %s with execution = %s",
-		jobTransformer.UUID, executionManager.UUID))
+// ExecuteHTTPJobs executes and http job
+func (jobProcessor *JobProcessor) ExecuteHTTPJobs(pendingJobs []PendingJob) {
+	jobUUIDs := []string{}
+	for _, pendingJob := range pendingJobs {
+		jobUUIDs = append(jobUUIDs, pendingJob.Job.UUID)
+	}
 
-	jobManager, transformError := jobTransformer.ToManager()
-	if transformError != nil {
-		utils.Error("Job Transform Error:", transformError.Error())
-		return
+	jobManager := job.Manager{}
+	jobs, batchGetError := jobManager.BatchGetJobs(jobProcessor.DBConnection, jobUUIDs)
+	if batchGetError != nil {
+		utils.Error(fmt.Sprintf("Batch Query Error:: %s", batchGetError.Message))
 	}
-	getOneError := jobManager.GetOne(jobProcessor.DBConnection, jobManager.UUID)
-	if getOneError != nil {
-		utils.Error("Get One Job Error:", getOneError.Message)
-		return
+
+	getPendingJob := func(jobUUID string) *PendingJob {
+		for _, pendingJob := range pendingJobs {
+			if pendingJob.Job.UUID == jobUUID {
+				return &pendingJob
+			}
+		}
+		return nil
 	}
+
+	utils.Info(fmt.Sprintf("Batched Queried %v", len(jobs)))
+
+	for _, job := range jobs {
+		pendingJob := getPendingJob(job.UUID)
+		go jobProcessor.PerformHTTPRequest(pendingJob)
+	}
+}
+
+// PerformHTTPRequest sends http request for a job
+func (jobProcessor *JobProcessor) PerformHTTPRequest(jobExec *PendingJob) {
+	utils.Info(fmt.Sprintf("Running Job Execution for Job ID = %s with execution = %s",
+		jobExec.Job.UUID, jobExec.Execution.UUID))
 
 	var statusCode int
 	startSecs := time.Now()
 
-	r, err := http.Post(jobTransformer.CallbackUrl, "application/json", strings.NewReader(jobTransformer.Data))
+	r, err := http.Post(jobExec.Job.CallbackUrl, "application/json", strings.NewReader(jobExec.Job.Data))
 	if err != nil {
+		utils.Error("HTTP REQUEST ERROR", err.Error())
 		statusCode = -1
 	} else {
 		statusCode = r.StatusCode
 	}
 
-	utils.Info(fmt.Sprintf("Executed job %v", jobTransformer.UUID))
-
-	timeout := uint64(time.Now().Sub(startSecs).Milliseconds())
-
-	executionManager.TimeExecuted = time.Now().UTC()
-	executionManager.ExecutionTime = timeout
-	executionManager.StatusCode = strconv.Itoa(statusCode)
-
-	updatedRows, updateError := executionManager.UpdateOne(jobProcessor.DBConnection)
-	if updateError != nil {
-		utils.Error("Cannot Update Execution Error:", updateError.Message)
-		return
+	if r != nil {
+		r.Body.Close()
 	}
 
-	if updatedRows < 1 {
-		utils.Info("Failed to update execution without any error")
-	}
+	utils.Info(fmt.Sprintf("Executed job %v", jobExec.Job.UUID))
+	timeout := time.Now().Sub(startSecs).Nanoseconds()
+	jobExec.Execution.TimeExecuted = time.Now().UTC()
+	jobExec.Execution.ExecutionTime = timeout
+	jobExec.Execution.StatusCode = strconv.Itoa(statusCode)
 
-	if jobProcessor.IsRecovered(jobTransformer.UUID) {
-		jobProcessor.RemoveJobRecovery(jobTransformer.UUID)
-		jobProcessor.AddJob(*jobTransformer, nil)
+	jobProcessor.PendingJobUpdates <- jobExec
+
+	if jobProcessor.IsRecovered(jobExec.Job.UUID) {
+		jobProcessor.RemoveJobRecovery(jobExec.Job.UUID)
+		jobProcessor.AddJobs([]transformers.Job{*jobExec.Job}, nil)
 	} else {
-		newExecutionManager := execution.Manager{
-			JobID:       jobTransformer.ID,
-			JobUUID:     jobTransformer.UUID,
-			TimeAdded:   time.Now().UTC(),
-			DateCreated: time.Now().UTC(),
-		}
-		_, createErr := newExecutionManager.CreateOne(jobProcessor.DBConnection)
-		if createErr != nil {
-			utils.Error("Error Creating New Placeholder Execution :", createErr.Message)
-			return
-		}
+		jobProcessor.PendingJobCreates <- jobExec
 	}
 }
 
@@ -169,7 +175,7 @@ func (jobProcessor *JobProcessor) ExecuteHTTPJob(jobTransformer *transformers.Jo
 func (jobProcessor *JobProcessor) HTTPJobExecutor(jobTransformer *transformers.Job, executionManger *execution.Manager) func() {
 	return func() {
 		jobProcessor.PendingJobs <- &PendingJob{
-			Job: jobTransformer,
+			Job:       jobTransformer,
 			Execution: executionManger,
 		}
 	}
@@ -202,6 +208,8 @@ func (jobProcessor *JobProcessor) StartJobs() {
 	var wg sync.WaitGroup
 
 	for _, projectTransformer := range projectTransformers.Data {
+		wg.Add(1)
+
 		jobManager := job.Manager{}
 
 		jobsTotalCount, err := jobManager.GetJobsTotalCountByProjectUUID(jobProcessor.DBConnection, projectTransformer.UUID)
@@ -210,7 +218,8 @@ func (jobProcessor *JobProcessor) StartJobs() {
 		}
 
 		utils.Info(fmt.Sprintf("Total number of jobs for project %v is %v : ", projectTransformer.ID, jobsTotalCount))
-		paginatedJobTransformers, err := jobService.GetJobsByProjectUUID(projectTransformer.UUID, 0, jobsTotalCount, "date_created")
+		paginatedJobTransformers, err := jobService.GetJobsByProjectUUID(
+			projectTransformer.UUID, 0, jobsTotalCount, "date_created")
 
 		jobTransformers := []transformers.Job{}
 
@@ -224,55 +233,116 @@ func (jobProcessor *JobProcessor) StartJobs() {
 			len(jobProcessor.RecoveredJobs),
 			projectTransformer.ID))
 
-		for _, jobTransformer := range paginatedJobTransformers.Data {
-			wg.Add(1)
-			utils.Info(fmt.Sprintf("Adding job %v of project %v : ", jobTransformer.ID, projectTransformer.ID))
-			go jobProcessor.AddJob(jobTransformer, &wg)
-		}
+		go jobProcessor.AddJobs(paginatedJobTransformers.Data, &wg)
 		wg.Wait()
 	}
 
 	jobProcessor.Cron.Start()
 
-	go func() {
-		for {
-			select {
-			case pendingJob := <- jobProcessor.PendingJobs:
-				jobProcessor.ExecuteHTTPJob(pendingJob.Job, pendingJob.Execution)
-			}
-		}
-	}()
+	go jobProcessor.ListenToChannelsUpdates()
 }
 
-// AddJob adds a single job to the queue
-func (jobProcessor *JobProcessor) AddJob(jobTransformer transformers.Job, wg *sync.WaitGroup) {
-	// TODO: Check if we're within resource usage before adding another job
+// ListenToChannelsUpdates periodically checks channels for updates
+func (jobProcessor *JobProcessor) ListenToChannelsUpdates() {
+	pendingJobs := []PendingJob{}
+	executionManager := execution.Manager{}
+	executionManagerUpdates := []execution.Manager{}
+	executionManagerCreates := []execution.Manager{}
+
+	ticker := time.NewTicker(time.Millisecond * 100)
+
+	for {
+		select {
+		case insertExecution := <-jobProcessor.PendingJobCreates:
+			executionManagerCreates = append(executionManagerCreates, execution.Manager{
+				JobID:       insertExecution.Job.ID,
+				JobUUID:     insertExecution.Job.UUID,
+				TimeAdded:   time.Now().UTC(),
+				DateCreated: time.Now().UTC(),
+			})
+		case updateExecution := <-jobProcessor.PendingJobUpdates:
+			executionManagerUpdates = append(executionManagerUpdates, *updateExecution.Execution)
+		case pendingJob := <-jobProcessor.PendingJobs:
+			pendingJobs = append(pendingJobs, *pendingJob)
+		case <-ticker.C:
+			if len(pendingJobs) > 0 {
+				jobProcessor.ExecuteHTTPJobs(pendingJobs[0:len(pendingJobs)])
+				utils.Info(fmt.Sprintf("%v Pending Jobs To Execute", len(pendingJobs[0:len(pendingJobs)])))
+				pendingJobs = pendingJobs[len(pendingJobs):]
+			}
+
+			if len(executionManagerUpdates) > 0 {
+				batchUpdateErr := executionManager.BatchUpdateExecutions(
+					jobProcessor.DBConnection,
+					executionManagerUpdates[0:],
+				)
+				if batchUpdateErr != nil {
+					utils.Error(fmt.Sprintf("Batch Update Error:: %s", batchUpdateErr.Message))
+				} else {
+					utils.Green(fmt.Sprintf("Successfully Updated %v Executions",
+						len(executionManagerUpdates[0:])))
+				}
+				executionManagerUpdates = executionManagerUpdates[len(executionManagerUpdates):]
+			}
+
+			if len(executionManagerCreates) > 0 {
+				_, batchInsertErr := executionManager.
+					BatchInsertExecutions(jobProcessor.DBConnection, executionManagerCreates[0:])
+				if batchInsertErr != nil {
+					utils.Error(fmt.Sprintf("Batch Insert Error:: %s", batchInsertErr.Message))
+				} else {
+					utils.Green(fmt.Sprintf("Successfully Inserted %v New Executions",
+						len(executionManagerCreates[0:])))
+				}
+				executionManagerCreates = executionManagerCreates[len(executionManagerCreates):]
+			}
+		}
+	}
+}
+
+// AddJobs adds a single job to the queue
+func (jobProcessor *JobProcessor) AddJobs(jobTransformers []transformers.Job, wg *sync.WaitGroup) {
 	defer func() {
 		if wg != nil {
 			wg.Done()
 		}
 	}()
+	executionManagers := []execution.Manager{}
 
-	if recovery := jobProcessor.GetRecovery(jobTransformer.UUID); recovery != nil {
-		go recovery.Run(jobProcessor)
-		return
+	for _, jobTransformer := range jobTransformers {
+		if recovery := jobProcessor.GetRecovery(jobTransformer.UUID); recovery != nil {
+			go recovery.Run(jobProcessor)
+			return
+		}
+
+		executionManager := execution.Manager{
+			JobID:       jobTransformer.ID,
+			JobUUID:     jobTransformer.UUID,
+			TimeAdded:   time.Now().UTC(),
+			DateCreated: time.Now().UTC(),
+		}
+
+		executionManagers = append(executionManagers, executionManager)
 	}
 
-	executionManager := execution.Manager{
-		JobID:       jobTransformer.ID,
-		JobUUID:     jobTransformer.UUID,
-		TimeAdded:   time.Now().UTC(),
-		DateCreated: time.Now().UTC(),
+	executionManager := execution.Manager{}
+
+	uuids, createErr := executionManager.BatchInsertExecutions(jobProcessor.DBConnection, executionManagers)
+	for i, _ := range executionManagers {
+		executionManagers[i].UUID = uuids[i]
 	}
-	_, createErr := executionManager.CreateOne(jobProcessor.DBConnection)
 	if createErr != nil {
 		fmt.Println("Error Getting Execution", utils.Error(createErr.Message))
 		return
 	}
 
-	cronAddJobErr := jobProcessor.Cron.AddFunc(jobTransformer.Spec, jobProcessor.HTTPJobExecutor(&jobTransformer, &executionManager))
-	if cronAddJobErr != nil {
-		fmt.Println("Error Add Cron JOb", cronAddJobErr.Error())
-		return
+	for i, jobTransformer := range jobTransformers {
+		cronAddJobErr := jobProcessor.Cron.AddFunc(jobTransformer.Spec, jobProcessor.HTTPJobExecutor(&jobTransformer, &executionManagers[i]))
+		if cronAddJobErr != nil {
+			fmt.Println("Error Add Cron JOb", cronAddJobErr.Error())
+			return
+		}
 	}
+
+	utils.Info(fmt.Sprintf("Queued %v Jobs", len(jobTransformers)))
 }
