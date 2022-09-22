@@ -8,3 +8,9 @@ client/node_modules
 client/src/public/dist/
 client/build
 .env
+db.db
+.scheduler0
+execs.log
+raft_data/
+e2e/
+server/db/db.db
