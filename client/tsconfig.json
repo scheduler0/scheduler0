@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+      "baseUrl": ".",
+      "target": "es2015",
+      "moduleResolution": "node",
+      "module": "commonjs",
+      "sourceMap": true,
+      "allowJs": true,
+      "noImplicitAny": false,
+      "esModuleInterop": true,
+      "allowSyntheticDefaultImports": true,
+      "experimentalDecorators": true,
+      "jsx": "react",
+      "noEmit": true,
+      "pretty": true,
+      "skipLibCheck": true,
+      "paths": {
+        "*": ["*"]
+      },
+      "lib": [
+        "dom",
+        "es7"
+      ]
+    }
+  }
