@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"scheduler0/server/http_server"
+	"scheduler0/http_server"
 	"scheduler0/utils"
 )
 

@@ -13,4 +13,4 @@ db.db
 execs.log
 raft_data/
 e2e/
-server/db/db.db
+db/db.db

@@ -12,9 +12,9 @@ import (
 	"log"
 	"os"
 	"scheduler0/constants"
-	"scheduler0/server/db"
-	"scheduler0/server/models"
-	"scheduler0/server/repository"
+	"scheduler0/db"
+	"scheduler0/models"
+	repository2 "scheduler0/repository"
 	"scheduler0/utils"
 	"time"
 )
@@ -85,17 +85,17 @@ func createServerCredential(secretKey string, dbConnection *sql.DB) (string, str
 
 	apiKey, apiSecret := utils.GenerateApiAndSecretKey(secretKey)
 
-	insertBuilder := sq.Insert(repository.CredentialTableName).
+	insertBuilder := sq.Insert(repository2.CredentialTableName).
 		Columns(
-			repository.PlatformColumn,
-			repository.ArchivedColumn,
-			repository.ApiKeyColumn,
-			repository.ApiSecretColumn,
-			repository.IPRestrictionColumn,
-			repository.HTTPReferrerRestrictionColumn,
-			repository.IOSBundleIdReferrerRestrictionColumn,
-			repository.AndroidPackageIDReferrerRestrictionColumn,
-			repository.JobsDateCreatedColumn,
+			repository2.PlatformColumn,
+			repository2.ArchivedColumn,
+			repository2.ApiKeyColumn,
+			repository2.ApiSecretColumn,
+			repository2.IPRestrictionColumn,
+			repository2.HTTPReferrerRestrictionColumn,
+			repository2.IOSBundleIdReferrerRestrictionColumn,
+			repository2.AndroidPackageIDReferrerRestrictionColumn,
+			repository2.JobsDateCreatedColumn,
 		).
 		Values(
 			credential.Platform,

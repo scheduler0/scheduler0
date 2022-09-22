@@ -1,12 +1,12 @@
 Secret: AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94
 Protocol: http
-Host: localhost
+Host: 127.0.0.1
 Port: 9090
 MaxMemory: 500mb
 MaxCPU: 50
 Bootstrap: true
 NodeId: 1
-RaftAddress: localhost:9091
+RaftAddress: 127.0.0.1:9091
 RaftTransportMaxPool: 100
 RaftTransportTimeout: 1
 RaftApplyTimeout: 2
@@ -15,7 +15,7 @@ RaftSnapshotThreshold: 1
 Replicas:
   - ApiSecret: api-secret
     ApiKey: api-key
-    Address: localhost:9092
+    Address: 127.0.0.1:9092
   - ApiSecret: api-secret
     ApiKey: api-key
-    Address: localhost:9093
+    Address: 127.0.0.1:9093
