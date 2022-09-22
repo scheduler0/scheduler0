@@ -22,11 +22,11 @@ var _ = Describe("Job Processor", func() {
 
 		processor.RecoveredJobs = append(processor.RecoveredJobs, RecoveredJob{
 			Job: &transformers.Job{
-				UUID: "some-random-uuid",
+				ID: 1,
 			},
 		})
 
-		isRecoveredJob := processor.IsRecovered("some-random-uuid")
+		isRecoveredJob := processor.IsRecovered(1)
 
 		Expect(isRecoveredJob).To(Equal(true))
 	})
@@ -42,11 +42,11 @@ var _ = Describe("Job Processor", func() {
 
 		processor.RecoveredJobs = append(processor.RecoveredJobs, RecoveredJob{
 			Job: &transformers.Job{
-				UUID: "some-random-uuid",
+				ID: 2,
 			},
 		})
 
-		isRecoveredJob := processor.IsRecovered("not-so-some-random-uuid")
+		isRecoveredJob := processor.IsRecovered(1)
 
 		Expect(isRecoveredJob).To(Equal(false))
 	})

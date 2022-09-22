@@ -1,11 +1,13 @@
 package main
 
 import (
+	_ "github.com/mattn/go-sqlite3"
 	"scheduler0/server/http_server"
-	"scheduler0/utils"
 )
 
 func main() {
-	utils.SetScheduler0Configurations()
+	//migrator := migrate.NewMigrator("/db.db", filepath.Join(os.Getenv("GOPATH"), "/src/scheduler0/server/db"))
+	//migrator.OpenConnection()
+	//migrator.RunMigrations()
 	http_server.Start()
 }

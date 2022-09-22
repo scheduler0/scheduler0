@@ -1,19 +1,42 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // JobModel job model
 type JobModel struct {
-	TableName struct{} `sql:"jobs"`
+	ID            int64     `json:"id,omitempty"`
+	ProjectID     int64     `json:"project_id"`
+	Spec          string    `json:"spec,omitempty"`
+	CallbackUrl   string    `json:"callback_url"`
+	Data          string    `json:"data"`
+	ExecutionType string    `json:"execution_type"`
+	DateCreated   time.Time `json:"date_created"`
+}
 
-	ID            int64     `json:"id,omitempty" sql:",pk:notnull"`
-	UUID          string    `json:"uuid" sql:",pk:notnull,unique,type:uuid,default:gen_random_uuid()"`
-	ProjectID     int64     `json:"project_id" sql:",notnull"`
-	ProjectUUID   string    `json:"project_uuid" sql:",notnull,type:uuid"`
-	Spec          string    `json:"spec,omitempty" sql:",notnull"`
-	CallbackUrl   string    `json:"callback_url" sql:",notnull"`
-	ExecutionType string    `json:"execution_type" sql:",notnull"`
-	DateCreated   time.Time `json:"date_created" sql:",notnull,default:now()"`
+// PaginatedJob paginated container of job transformer
+type PaginatedJob struct {
+	Total  int64      `json:"total"`
+	Offset int64      `json:"offset"`
+	Limit  int64      `json:"limit"`
+	Data   []JobModel `json:"jobs"`
+}
 
-	Project ProjectModel `sql:",fk:project_id"`
+// ToJSON returns content of transformer as JSON
+func (jobModel *JobModel) ToJSON() ([]byte, error) {
+	if data, err := json.Marshal(jobModel); err != nil {
+		return data, err
+	} else {
+		return data, nil
+	}
+}
+
+// FromJSON extracts content of JSON object into transformer
+func (jobModel *JobModel) FromJSON(body []byte) error {
+	if err := json.Unmarshal(body, &jobModel); err != nil {
+		return err
+	}
+	return nil
 }

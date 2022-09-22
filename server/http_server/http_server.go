@@ -1,47 +1,203 @@
 package http_server
 
 import (
+	"database/sql"
+	"fmt"
 	"github.com/go-http-utils/logger"
-	"github.com/go-pg/pg"
 	"github.com/gorilla/mux"
-	"github.com/robfig/cron"
+	"github.com/hashicorp/raft"
 	"github.com/unrolled/secure"
+	"golang.org/x/net/context"
 	"log"
 	"net/http"
 	"os"
+	"scheduler0/constants"
+	"scheduler0/server/cluster"
 	"scheduler0/server/db"
-	"scheduler0/server/http_server/controllers/credential"
-	"scheduler0/server/http_server/controllers/execution"
-	"scheduler0/server/http_server/controllers/job"
-	"scheduler0/server/http_server/controllers/project"
+	"scheduler0/server/fsm"
+	"scheduler0/server/http_server/controllers"
 	"scheduler0/server/http_server/middlewares"
+	"scheduler0/server/peers"
 	"scheduler0/server/process"
+	"scheduler0/server/repository"
+	"scheduler0/server/service"
 	"scheduler0/utils"
+	"time"
 )
 
 // Start this will start the http server
 func Start() {
-	conn, err := db.OpenConnection()
+	ctx := context.Background()
+
+	dir, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
+	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+
+	sqliteDb := db.NewSqliteDbConnection(dbFilePath)
+	conn, err := sqliteDb.OpenConnection()
+	if err != nil {
+		log.Fatal("Failed to open connection", err)
 	}
 
-	dbConnection := conn.(*pg.DB)
+	dbConnection := conn.(*sql.DB)
+	configs := utils.GetScheduler0Configurations()
+
+	err = dbConnection.Ping()
+	if err != nil {
+		log.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
+	}
+
+	utils.MakeDirIfNotExist(constants.RaftDir)
+
+	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
+	dirPath, exists := utils.MakeDirIfNotExist(dirPath)
+
+	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection)
+	rft, _, _, _, _, rfErr := cluster.NewRaft(
+		dirPath,
+		fsmStr,
+	)
+	fsmStr.Raft = rft
+	if rfErr != nil {
+		log.Fatal("failed to create raft store", rfErr)
+	}
+
+	if configs.Bootstrap == "true" && !exists {
+		err := cluster.BootstrapNode(rft)
+		if err != nil {
+			log.Fatal("failed to bootstrap node:", err)
+		}
+	}
+	peersManager := peers.NewPeersManager()
+
+	for _, replica := range configs.Replicas {
+		peersManager.AddPeer(&peers.Peer{
+			Address:     replica.Address,
+			ApiSecret:   replica.ApiSecret,
+			ApiKey:      replica.ApiKey,
+			RaftAddress: replica.RaftAddress,
+			Connected:   false,
+		})
+	}
+
+	go peersManager.ConnectPeers()
+
+	//repository
+	credentialRepo := repository.NewCredentialRepo(fsmStr)
+	jobRepo := repository.NewJobRepo(fsmStr)
+	executionRepo := repository.NewExecutionRepo(fsmStr)
+	projectRepo := repository.NewProjectRepo(fsmStr, jobRepo)
+
+	//services
+	credentialService := service.NewCredentialService(credentialRepo, ctx)
+	jobService := service.NewJobService(jobRepo, ctx)
+	executionService := service.NewExecutionService(executionRepo)
+	projectService := service.NewProjectService(projectRepo)
 
 	// SetupDB logging
 	log.SetFlags(0)
 	log.SetOutput(new(utils.LogWriter))
-	jobProcessor := process.JobProcessor{
-		DBConnection:      dbConnection,
-		Cron:              cron.New(),
-		RecoveredJobs:     []process.RecoveredJob{},
-		PendingJobs:       make(chan *process.PendingJob, 100),
-		PendingJobUpdates: make(chan *process.PendingJob, 100),
-		PendingJobCreates: make(chan *process.PendingJob, 100),
-	}
+	jobProcessor := process.NewJobProcessor(dbConnection, jobRepo, projectRepo)
 
 	// StartJobs process to execute cron-server jobs
 	go jobProcessor.StartJobs()
+
+	go func() {
+		refreshConfiguration := func() {
+			currentConfiguration := rft.GetConfiguration().Configuration()
+			servers := currentConfiguration.Servers
+			countServers := len(servers)
+
+			utils.Info(countServers, " servers in current raft configuration")
+
+			for _, server := range servers {
+				isConnected := peersManager.IsConnected(string(server.Address), true)
+				if !isConnected && string(server.Address) != configs.RaftAddress {
+					rft.RemovePeer(server.Address)
+					utils.Info("removed peer from configuration ", server.Address)
+					countServers -= 1
+				}
+			}
+
+			notInRaftCluster := []string{}
+
+			for _, replica := range configs.Replicas {
+				found := false
+				for _, server := range servers {
+					fmt.Println("replica.RaftAddress", replica.RaftAddress, "server.Address", server.Address)
+					if replica.RaftAddress == string(server.Address) {
+						found = true
+					}
+				}
+				if !found {
+					notInRaftCluster = append(notInRaftCluster, replica.RaftAddress)
+				}
+			}
+
+			fmt.Println("notInRaftCluster", notInRaftCluster)
+
+			for _, server := range notInRaftCluster {
+				isConnected := peersManager.IsConnected(string(server), true)
+				fmt.Println("server", server, "isConnected", isConnected)
+				if isConnected {
+					countServers += 1
+					rft.AddVoter(raft.ServerID(rune(countServers)), raft.ServerAddress(server), 0, time.Second*time.Duration(2))
+					utils.Info("added peer from configuration ", server)
+				}
+			}
+		}
+
+		//recoverCluster := func() {
+		//	servers := []raft.Server{
+		//		raft.Server{
+		//			ID:       raft.ServerID(fmt.Sprintf("%v", configs.NodeId)),
+		//			Suffrage: raft.Voter,
+		//			Address:  raft.ServerAddress(configs.RaftAddress),
+		//		},
+		//	}
+		//	cfg := raft.Configuration{
+		//		Servers: servers,
+		//	}
+		//	cluster.RecoverCluster(fsmStr, tm, cfg)
+		//}
+
+		for {
+			select {
+			case isLeader := <-rft.LeaderCh():
+				leaderAddress := rft.Leader()
+				if isLeader {
+					fmt.Println("--------------------------------------------------------------->")
+					fmt.Println("I AM THE LEADER", "Leader is:", leaderAddress, "I am :", configs.RaftAddress)
+					fmt.Println("--------------------------------------------------------------->")
+					refreshConfiguration()
+				} else {
+					fmt.Println("--------------------------------------------------------------->")
+					fmt.Println("I AM NOT THE LEADER", "Leader is:", leaderAddress)
+					fmt.Println("--------------------------------------------------------------->")
+					//if len(leaderAddress) < 1 {
+					//	recoverCluster()
+					//}
+				}
+			case peerUpdate := <-peersManager.UpdatesCh():
+				utils.Info("peer update", peerUpdate)
+				leaderAddress := rft.Leader()
+				if string(leaderAddress) == configs.RaftAddress {
+					refreshConfiguration()
+				} else {
+					fmt.Println("--------------------------------------------------------------->")
+					fmt.Println("11111I AM NOT THE LEADER", "Leader is:", leaderAddress)
+					fmt.Println("--------------------------------------------------------------->")
+					//if len(leaderAddress) < 1 {
+					//	recoverCluster()
+					//}
+				}
+			}
+		}
+	}()
+
+	go peersManager.MonitorPeers()
 
 	// HTTP router setup
 	router := mux.NewRouter()
@@ -50,13 +206,12 @@ func Start() {
 	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
-	executionController := execution.Controller{DBConnection: dbConnection}
-	jobController := job.Controller{
-		DBConnection: dbConnection,
-		JobProcessor: &jobProcessor,
-	}
-	projectController := project.Controller{DBConnection: dbConnection}
-	credentialController := credential.Controller{DBConnection: dbConnection}
+	executionController := controllers.NewExecutionsController(executionService)
+	jobController := controllers.NewJoBHTTPController(jobService, *jobProcessor)
+	projectController := controllers.NewProjectController(projectService)
+	credentialController := controllers.NewCredentialController(credentialService)
+	healthCheckController := controllers.NewHealthCheckController()
+	peersController := controllers.NewPeerControllerController(peersManager)
 
 	// Mount middleware
 	middleware := middlewares.MiddlewareType{}
@@ -64,35 +219,40 @@ func Start() {
 	router.Use(secureMiddleware.Handler)
 	router.Use(mux.CORSMethodMiddleware(router))
 	router.Use(middleware.ContextMiddleware)
-	router.Use(middleware.AuthMiddleware(dbConnection))
+	router.Use(middleware.AuthMiddleware(credentialService))
 
 	// Executions Endpoint
-	router.HandleFunc("/executions", executionController.List).Methods(http.MethodGet)
+	router.HandleFunc("/executions", executionController.ListExecutions).Methods(http.MethodGet)
 
 	// Credentials Endpoint
-	router.HandleFunc("/credentials", credentialController.CreateOne).Methods(http.MethodPost)
-	router.HandleFunc("/credentials", credentialController.List).Methods(http.MethodGet)
-	router.HandleFunc("/credentials/{uuid}", credentialController.GetOne).Methods(http.MethodGet)
-	router.HandleFunc("/credentials/{uuid}", credentialController.UpdateOne).Methods(http.MethodPut)
-	router.HandleFunc("/credentials/{uuid}", credentialController.DeleteOne).Methods(http.MethodDelete)
+	router.HandleFunc("/credentials", credentialController.CreateOneCredential).Methods(http.MethodPost)
+	router.HandleFunc("/credentials", credentialController.ListCredentials).Methods(http.MethodGet)
+	router.HandleFunc("/credentials/{uuid}", credentialController.GetOneCredential).Methods(http.MethodGet)
+	router.HandleFunc("/credentials/{uuid}", credentialController.UpdateOneCredential).Methods(http.MethodPut)
+	router.HandleFunc("/credentials/{uuid}", credentialController.DeleteOneCredential).Methods(http.MethodDelete)
 
 	// Job Endpoint
-	router.HandleFunc("/jobs", jobController.CreateOne).Methods(http.MethodPost)
-	router.HandleFunc("/jobs", jobController.List).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{uuid}", jobController.GetOne).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{uuid}", jobController.UpdateOne).Methods(http.MethodPut)
-	router.HandleFunc("/jobs/{uuid}", jobController.DeleteOne).Methods(http.MethodDelete)
+	router.HandleFunc("/job", jobController.CreateOneJob).Methods(http.MethodPost)
+	router.HandleFunc("/jobs", jobController.BatchCreateJobs).Methods(http.MethodPost)
+	router.HandleFunc("/jobs", jobController.ListJobs).Methods(http.MethodGet)
+	router.HandleFunc("/jobs/{uuid}", jobController.GetOneJob).Methods(http.MethodGet)
+	router.HandleFunc("/jobs/{uuid}", jobController.UpdateOneJob).Methods(http.MethodPut)
+	router.HandleFunc("/jobs/{uuid}", jobController.DeleteOneJob).Methods(http.MethodDelete)
 
 	// Projects Endpoint
-	router.HandleFunc("/projects", projectController.CreateOne).Methods(http.MethodPost)
-	router.HandleFunc("/projects", projectController.List).Methods(http.MethodGet)
-	router.HandleFunc("/projects/{uuid}", projectController.GetOne).Methods(http.MethodGet)
-	router.HandleFunc("/projects/{uuid}", projectController.UpdateOne).Methods(http.MethodPut)
-	router.HandleFunc("/projects/{uuid}", projectController.DeleteOne).Methods(http.MethodDelete)
+	router.HandleFunc("/projects", projectController.CreateOneProject).Methods(http.MethodPost)
+	router.HandleFunc("/projects", projectController.ListProjects).Methods(http.MethodGet)
+	router.HandleFunc("/projects/{uuid}", projectController.GetOneProject).Methods(http.MethodGet)
+	router.HandleFunc("/projects/{uuid}", projectController.UpdateOneProject).Methods(http.MethodPut)
+	router.HandleFunc("/projects/{uuid}", projectController.DeleteOneProject).Methods(http.MethodDelete)
+
+	// Healthcheck Endpoint
+	router.HandleFunc("/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
+	router.HandleFunc("/peer", peersController.PeerConnect).Methods(http.MethodPost)
 
 	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 
-	log.Println("Server is running on port", os.Getenv(utils.PortEnv))
-	err = http.ListenAndServe(utils.GetPort(), logger.Handler(router, os.Stdout, logger.CombineLoggerType))
+	log.Println("Server is running on port", configs.Port)
+	err = http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), logger.Handler(router, os.Stdout, logger.CombineLoggerType))
 	utils.CheckErr(err)
 }

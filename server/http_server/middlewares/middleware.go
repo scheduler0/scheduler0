@@ -2,13 +2,13 @@ package middlewares
 
 import (
 	"context"
-	"github.com/go-pg/pg"
 	"github.com/segmentio/ksuid"
 	"net/http"
 	"scheduler0/server/http_server/middlewares/auth/android"
 	"scheduler0/server/http_server/middlewares/auth/ios"
 	"scheduler0/server/http_server/middlewares/auth/server"
 	"scheduler0/server/http_server/middlewares/auth/web"
+	"scheduler0/server/service"
 	"scheduler0/utils"
 	"strings"
 	"sync"
@@ -35,7 +35,7 @@ func (m *MiddlewareType) ContextMiddleware(next http.Handler) http.Handler {
 }
 
 // AuthMiddleware authentication middleware
-func (_ *MiddlewareType) AuthMiddleware(dbConnection *pg.DB) func(next http.Handler) http.Handler {
+func (_ *MiddlewareType) AuthMiddleware(credentialService service.Credential) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			paths := strings.Split(r.URL.Path, "/")
@@ -44,7 +44,7 @@ func (_ *MiddlewareType) AuthMiddleware(dbConnection *pg.DB) func(next http.Hand
 				return
 			}
 
-			restrictedPaths := []string{"credentials", "projects", "executions"}
+			restrictedPaths := []string{"credentials", "projects", "executions", "jobs", "peer"}
 
 			matchRestrictedPaths := func(path string) bool {
 				for _, restrictedPath := range restrictedPaths {
@@ -58,40 +58,40 @@ func (_ *MiddlewareType) AuthMiddleware(dbConnection *pg.DB) func(next http.Hand
 			isVisitingRestrictedPaths := matchRestrictedPaths(strings.ToLower(paths[1]))
 
 			if isVisitingRestrictedPaths && server.IsServerClient(r) {
-				if validity, _ := server.IsAuthorizedServerClient(r, dbConnection); validity {
+				if validity, _ := server.IsAuthorizedServerClient(r, credentialService); validity {
 					next.ServeHTTP(w, r)
 					return
 				}
 			} else {
 				if server.IsServerClient(r) {
-					if validity, _ := ios.IsAuthorizedIOSClient(r, dbConnection); validity {
+					if validity, _ := server.IsAuthorizedServerClient(r, credentialService); validity {
 						next.ServeHTTP(w, r)
 						return
 					}
 				}
 
 				if ios.IsIOSClient(r) {
-					if validity, _ := ios.IsAuthorizedIOSClient(r, dbConnection); validity {
+					if validity, _ := ios.IsAuthorizedIOSClient(r, credentialService); validity {
 						next.ServeHTTP(w, r)
 						return
 					}
 				}
 
 				if android.IsAndroidClient(r) {
-					if validity, _ := android.IsAuthorizedAndroidClient(r, dbConnection); validity {
+					if validity, _ := android.IsAuthorizedAndroidClient(r, credentialService); validity {
 						next.ServeHTTP(w, r)
 						return
 					}
 				}
 
 				if web.IsWebClient(r) {
-					if validity, _ := web.IsAuthorizedWebClient(r, dbConnection); validity {
+					if validity, _ := web.IsAuthorizedWebClient(r, credentialService); validity {
 						next.ServeHTTP(w, r)
 						return
 					}
 				}
 
-				if paths[1] == "api-docs" {
+				if paths[1] == "api-docs" || paths[1] == "healthcheck" {
 					next.ServeHTTP(w, r)
 					return
 				}

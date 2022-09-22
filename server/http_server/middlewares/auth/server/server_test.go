@@ -4,12 +4,14 @@ import (
 	"fmt"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"golang.org/x/net/context"
 	"net/http"
+	store2 "scheduler0/server/cluster"
 	"scheduler0/server/db"
 	"scheduler0/server/http_server/middlewares/auth"
 	"scheduler0/server/http_server/middlewares/auth/server"
-	"scheduler0/server/managers/credential"
-	"scheduler0/server/managers/credential/fixtures"
+	"scheduler0/server/repository"
+	"scheduler0/server/repository/fixtures"
 	"scheduler0/server/service"
 	"scheduler0/utils"
 	"testing"
@@ -17,26 +19,26 @@ import (
 
 var _ = Describe("Server Side Auth Test", func() {
 
+	dbConnection := db.GetTestDBConnection()
+	store := store2.NewStore(dbConnection, nil)
+	credentialRepo := repository.NewCredentialRepo(&store)
+	ctx := context.Background()
+	credentialService := service.NewCredentialService(credentialRepo, ctx)
+
 	BeforeEach(func() {
-		db.Teardown()
-		db.Prepare()
+		db.TeardownTestDB()
+		db.PrepareTestDB()
 	})
 
 	It("Should identify request from server side", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
-		dbConnection := db.GetTestDBConnection()
-
-		credentialService := service.Credential{
-			DBConnection: dbConnection,
-		}
-
 		credentialFixture := fixtures.CredentialFixture{}
 		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 		credentialTransformer := credentialTransformers[0]
 
-		credentialTransformer.Platform = credential.ServerPlatform
+		credentialTransformer.Platform = repository.ServerPlatform
 
 		_, createError := credentialService.CreateNewCredential(credentialTransformer)
 		if createError != nil {
@@ -52,12 +54,6 @@ var _ = Describe("Server Side Auth Test", func() {
 	It("Should not identify request from non server side", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
-
-		dbConnection := db.GetTestDBConnection()
-
-		credentialService := service.Credential{
-			DBConnection: dbConnection,
-		}
 
 		credentialFixture := fixtures.CredentialFixture{}
 		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
@@ -85,24 +81,18 @@ var _ = Describe("Server Side Auth Test", func() {
 		req, err := http.NewRequest("POST", "/", nil)
 		Expect(err).To(BeNil())
 
-		dbConnection := db.GetTestDBConnection()
-
-		credentialService := service.Credential{
-			DBConnection: dbConnection,
-		}
-
 		credentialFixture := fixtures.CredentialFixture{}
 		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 		credentialTransformer := credentialTransformers[0]
 
-		credentialTransformer.Platform = credential.ServerPlatform
+		credentialTransformer.Platform = repository.ServerPlatform
 
 		credentialManagerUUID, createError := credentialService.CreateNewCredential(credentialTransformer)
 		if createError != nil {
 			utils.Error(fmt.Sprintf("Error: %v", createError.Message))
 		}
 
-		updatedCredentialTransformer, getError := credentialService.FindOneCredentialByUUID(credentialManagerUUID)
+		updatedCredentialTransformer, getError := credentialService.FindOneCredentialByID(credentialManagerUUID)
 		if getError != nil {
 			utils.Error(fmt.Sprintf("Error: %v", getError.Error()))
 		}
@@ -115,7 +105,7 @@ var _ = Describe("Server Side Auth Test", func() {
 		req.Header.Set(auth.APIKeyHeader, updatedCredentialTransformer.ApiKey)
 		req.Header.Set(auth.SecretKeyHeader, updatedCredentialTransformer.ApiSecret)
 
-		Expect(server.IsAuthorizedServerClient(req, dbConnection)).To(BeTrue())
+		Expect(server.IsAuthorizedServerClient(req, credentialService)).To(BeTrue())
 	})
 })
 

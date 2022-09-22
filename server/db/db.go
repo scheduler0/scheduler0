@@ -1,95 +1,63 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
-	"github.com/go-pg/pg"
-	"github.com/go-pg/pg/orm"
+	_ "github.com/mattn/go-sqlite3"
 	"io"
-	"scheduler0/server/models"
-	"scheduler0/utils"
+	"log"
+	"os"
+	"scheduler0/constants"
+	"sync"
 )
 
-const MaxConnections = 100
+type sqlLiteDb struct {
+	dbFilePath string
+	rwMux      sync.RWMutex
+}
+
+type DataStore interface {
+	OpenConnection() (io.Closer, error)
+	Serialize() []byte
+}
+
+func NewSqliteDbConnection(dbFilePath string) DataStore {
+	return &sqlLiteDb{
+		dbFilePath: dbFilePath,
+	}
+}
 
 // OpenConnection opens a database connection with one pool
-func OpenConnection() (io.Closer, error) {
-	postgresCredentials := *utils.GetScheduler0Configurations()
-	return pg.Connect(&pg.Options{
-		Addr:     postgresCredentials.PostgresAddress,
-		User:     postgresCredentials.PostgresUser,
-		Password: postgresCredentials.PostgresPassword,
-		Database: postgresCredentials.PostgresDatabase,
-		PoolSize: MaxConnections,
-	}), nil
-}
+func (db *sqlLiteDb) OpenConnection() (io.Closer, error) {
+	db.rwMux.Lock()
+	defer db.rwMux.Unlock()
 
-// CreateModelTables this will create the tables needed
-func CreateModelTables(dbConnection *pg.DB) {
-	// Create tables
-	for _, model := range []interface{}{
-		(*models.CredentialModel)(nil),
-		(*models.ProjectModel)(nil),
-		(*models.JobModel)(nil),
-		(*models.ExecutionModel)(nil),
-	} {
-		err := dbConnection.CreateTable(model, &orm.CreateTableOptions{
-			IfNotExists:   true,
-			FKConstraints: true,
-		})
-		if err != nil {
-			utils.Error(err.Error())
-		}
-	}
-}
-
-// GetTestDBConnection returns a pool of connection to the database for tests
-func GetTestDBConnection() *pg.DB {
-	conn, err := OpenConnection()
-
+	dir, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
+	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
 
-	return conn.(*pg.DB)
+	return sql.Open("sqlite3", dbFilePath)
 }
 
-// Teardown is executed in tests to clear the database for stateless tests
-func Teardown() {
-	postgresCredentials := *utils.GetScheduler0Configurations()
+func (db *sqlLiteDb) Serialize() []byte {
+	db.rwMux.Lock()
+	defer db.rwMux.Unlock()
 
-	db := pg.Connect(&pg.Options{
-		Addr:     postgresCredentials.PostgresAddress,
-		User:     postgresCredentials.PostgresUser,
-		Password: postgresCredentials.PostgresPassword,
-		Database: postgresCredentials.PostgresDatabase,
-	})
-	defer db.Close()
-
-	truncateQuery := "" +
-		"TRUNCATE TABLE credentials;" +
-		"TRUNCATE TABLE executions CASCADE;" +
-		"TRUNCATE TABLE jobs CASCADE;" +
-		"TRUNCATE TABLE projects CASCADE;"
-
-	_, err := db.Exec(truncateQuery)
-
+	dir, err := os.Getwd()
 	if err != nil {
-		fmt.Println("[ERROR]: Could not truncate tables: ", err.Error())
+		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
+	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+	data, err := os.ReadFile(dbFilePath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
+
+	return data
 }
 
-// Prepare creates the tables, runs migrations and seeds
-func Prepare() {
-	postgresCredentials := *utils.GetScheduler0Configurations()
-
-	// Connect to database
-	db := pg.Connect(&pg.Options{
-		Addr:     postgresCredentials.PostgresAddress,
-		User:     postgresCredentials.PostgresUser,
-		Password: postgresCredentials.PostgresPassword,
-		Database: postgresCredentials.PostgresDatabase,
-	})
-	defer db.Close()
-
-	CreateModelTables(db)
+func NewMemSqliteDd() (io.Closer, error) {
+	return sql.Open("sqlite3", ":memory:")
 }

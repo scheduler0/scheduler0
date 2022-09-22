@@ -1,64 +1,134 @@
 package service
 
 import (
+	"errors"
+	"golang.org/x/net/context"
 	"net/http"
-	"scheduler0/server/managers/credential"
-	"scheduler0/server/transformers"
+	"scheduler0/server/models"
+	"scheduler0/server/repository"
 	"scheduler0/utils"
 )
 
 // Credential service layer for credentials
-type Credential Service
-
-// CreateNewCredential creates a new credentials
-func (credentialService *Credential) CreateNewCredential(credentialTransformer transformers.Credential) (string, *utils.GenericError) {
-	credentialManager := credentialTransformer.ToManager()
-	return credentialManager.CreateOne(credentialService.DBConnection)
+type Credential interface {
+	CreateNewCredential(credentialTransformer models.CredentialModel) (int64, *utils.GenericError)
+	FindOneCredentialByID(id int64) (*models.CredentialModel, error)
+	UpdateOneCredential(credentialTransformer models.CredentialModel) (*models.CredentialModel, error)
+	DeleteOneCredential(id int64) (*models.CredentialModel, error)
+	ListCredentials(offset int64, limit int64, orderBy string) (*models.PaginatedCredential, *utils.GenericError)
+	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
+	ValidateIOSAPIKey(apiKey string, IOSBundle string) (bool, *utils.GenericError)
+	ValidateAndroidAPIKey(apiKey string, androidPackageName string) (bool, *utils.GenericError)
+	ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string) (bool, *utils.GenericError)
 }
 
-// FindOneCredentialByUUID searches for credential by uuid
-func (credentialService *Credential) FindOneCredentialByUUID(UUID string) (*transformers.Credential, error) {
-	credentialDto := transformers.Credential{UUID: UUID}
-	credentialManager := credentialDto.ToManager()
-	if err := credentialManager.GetOne(credentialService.DBConnection); err != nil {
+func NewCredentialService(repo repository.Credential, Ctx context.Context) Credential {
+	return &credentialService{
+		CredentialRepo: repo,
+		Ctx:            Ctx,
+	}
+}
+
+type credentialService struct {
+	CredentialRepo repository.Credential
+	Ctx            context.Context
+}
+
+// CreateNewCredential creates a new credentials
+func (credentialService *credentialService) CreateNewCredential(credentialTransformer models.CredentialModel) (int64, *utils.GenericError) {
+	if len(credentialTransformer.Platform) < 1 {
+		return -1, utils.HTTPGenericError(http.StatusBadRequest, "credential should have a platform")
+	}
+
+	if credentialTransformer.Platform != repository.AndroidPlatform &&
+		credentialTransformer.Platform != repository.WebPlatform &&
+		credentialTransformer.Platform != repository.IOSPlatform &&
+		credentialTransformer.Platform != repository.ServerPlatform {
+		return -1, utils.HTTPGenericError(http.StatusBadRequest, "credential platform should be one of server, web, android, or ios")
+	}
+
+	switch credentialTransformer.Platform {
+	case repository.AndroidPlatform:
+		if len(credentialTransformer.AndroidPackageNameRestriction) < 1 {
+			return -1, utils.HTTPGenericError(http.StatusBadRequest, "android credentials should have a package name restriction")
+		}
+	case repository.IOSPlatform:
+		if len(credentialTransformer.IOSBundleIDRestriction) < 1 {
+			return -1, utils.HTTPGenericError(http.StatusBadRequest, "ios credentials should have a bundle restriction")
+		}
+	case repository.WebPlatform:
+		if len(credentialTransformer.HTTPReferrerRestriction) < 1 && len(credentialTransformer.IPRestriction) < 1 {
+			return -1, utils.HTTPGenericError(http.StatusBadRequest, "web credentials should either an ip restriction or a url restriction")
+		}
+	}
+
+	configs := utils.GetScheduler0Configurations()
+
+	if credentialTransformer.Platform == repository.ServerPlatform {
+		apiKey, apiSecret := utils.GenerateApiAndSecretKey(configs.SecretKey)
+		credentialTransformer.ApiKey = apiKey
+		credentialTransformer.ApiSecret = apiSecret
+	}
+
+	newCredentialId, err := credentialService.CredentialRepo.CreateOne(credentialTransformer)
+	if err != nil {
+		return -1, err
+	}
+
+	return newCredentialId, nil
+}
+
+// FindOneCredentialByID searches for credential by uuid
+func (credentialService *credentialService) FindOneCredentialByID(id int64) (*models.CredentialModel, error) {
+	credentialDto := models.CredentialModel{ID: id}
+	if err := credentialService.CredentialRepo.GetOneID(&credentialDto); err != nil {
 		return nil, err
 	} else {
-		outboundDto := transformers.Credential{}
-		outboundDto.FromManager(credentialManager)
-		return &outboundDto, nil
+		return &credentialDto, nil
 	}
 }
 
 // UpdateOneCredential updates a single credential
-func (credentialService *Credential) UpdateOneCredential(credentialTransformer transformers.Credential) (*transformers.Credential, error) {
-	credentialManager := credentialTransformer.ToManager()
-	if _, err := credentialManager.UpdateOne(credentialService.DBConnection); err != nil {
+func (credentialService *credentialService) UpdateOneCredential(credential models.CredentialModel) (*models.CredentialModel, error) {
+	credentialPlaceholder := models.CredentialModel{
+		ID: credential.ID,
+	}
+	err := credentialService.CredentialRepo.GetOneID(&credentialPlaceholder)
+	if err != nil {
+		return nil, err
+	}
+	if credentialPlaceholder.ApiKey != credential.ApiKey && len(credential.ApiKey) > 1 {
+		return nil, errors.New("cannot update api key")
+	}
+
+	if credentialPlaceholder.ApiSecret != credential.ApiSecret && len(credential.ApiSecret) > 1 {
+		return nil, errors.New("cannot update api secret")
+	}
+
+	credential.ApiKey = credentialPlaceholder.ApiKey
+	credential.ApiSecret = credentialPlaceholder.ApiSecret
+	credential.DateCreated = credentialPlaceholder.DateCreated
+
+	if _, err := credentialService.CredentialRepo.UpdateOneByID(credential); err != nil {
 		return nil, err
 	} else {
-		outboundDto := transformers.Credential{}
-		outboundDto.FromManager(credentialManager)
-		return &outboundDto, nil
+		return &credential, nil
 	}
 }
 
 // DeleteOneCredential deletes a single credential
-func (credentialService *Credential) DeleteOneCredential(UUID string) (*transformers.Credential, error) {
-	credentialDto := transformers.Credential{UUID: UUID}
-	credentialManager := credentialDto.ToManager()
-	if _, err := credentialManager.DeleteOne(credentialService.DBConnection); err != nil {
+func (credentialService *credentialService) DeleteOneCredential(id int64) (*models.CredentialModel, error) {
+	credentialDto := models.CredentialModel{ID: id}
+	if _, err := credentialService.CredentialRepo.DeleteOneByID(credentialDto); err != nil {
 		return nil, err
 	} else {
-		outboundDto := transformers.Credential{}
-		outboundDto.FromManager(credentialManager)
-		return &outboundDto, nil
+		return &credentialDto, nil
 	}
 }
 
 // ListCredentials returns paginated list of credentials
-func (credentialService *Credential) ListCredentials(offset int, limit int, orderBy string) (*transformers.PaginatedCredential, *utils.GenericError) {
-	credentialManager := credential.Manager{}
-
-	total, err := credentialManager.Count(credentialService.DBConnection)
+func (credentialService *credentialService) ListCredentials(offset int64, limit int64, orderBy string) (*models.PaginatedCredential, *utils.GenericError) {
+	total, err := credentialService.CredentialRepo.Count()
 	if err != nil {
 		return nil, err
 	}
@@ -67,18 +137,12 @@ func (credentialService *Credential) ListCredentials(offset int, limit int, orde
 		return nil, utils.HTTPGenericError(http.StatusNotFound, "there no credentials")
 	}
 
-	if credentialManagers, err := credentialManager.GetAll(credentialService.DBConnection, offset, limit, orderBy); err != nil {
+	if credentialManagers, err := credentialService.CredentialRepo.List(offset, limit, orderBy); err != nil {
 		return nil, err
 	} else {
-		credentialTransformers := make([]transformers.Credential, len(credentialManagers))
-
-		for i, credentialManager := range credentialManagers {
-			credentialTransformers[i].FromManager(credentialManager)
-		}
-
-		return &transformers.PaginatedCredential{
-			Data:   credentialTransformers,
-			Total:  total,
+		return &models.PaginatedCredential{
+			Data:   credentialManagers,
+			Total:  int64(total),
 			Offset: offset,
 			Limit:  limit,
 		}, nil
@@ -86,12 +150,12 @@ func (credentialService *Credential) ListCredentials(offset int, limit int, orde
 }
 
 // ValidateServerAPIKey authenticates incoming request from servers
-func (credentialService *Credential) ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError) {
-	credentialManager := credential.Manager{
+func (credentialService *credentialService) ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError) {
+	credentialManager := models.CredentialModel{
 		ApiKey: apiKey,
 	}
 
-	getApIError := credentialManager.GetByAPIKey(credentialService.DBConnection)
+	getApIError := credentialService.CredentialRepo.GetByAPIKey(&credentialManager)
 	if getApIError != nil {
 		return false, getApIError
 	}
@@ -100,12 +164,12 @@ func (credentialService *Credential) ValidateServerAPIKey(apiKey string, apiSecr
 }
 
 // ValidateIOSAPIKey authenticates incoming request from iOS app s
-func (credentialService *Credential) ValidateIOSAPIKey(apiKey string, IOSBundle string) (bool, *utils.GenericError) {
-	credentialManager := credential.Manager{
+func (credentialService *credentialService) ValidateIOSAPIKey(apiKey string, IOSBundle string) (bool, *utils.GenericError) {
+	credentialManager := models.CredentialModel{
 		ApiKey: apiKey,
 	}
 
-	getApIError := credentialManager.GetByAPIKey(credentialService.DBConnection)
+	getApIError := credentialService.CredentialRepo.GetByAPIKey(&credentialManager)
 	if getApIError != nil {
 		return false, getApIError
 	}
@@ -114,12 +178,12 @@ func (credentialService *Credential) ValidateIOSAPIKey(apiKey string, IOSBundle 
 }
 
 // ValidateAndroidAPIKey authenticates incoming request from android app
-func (credentialService *Credential) ValidateAndroidAPIKey(apiKey string, androidPackageName string) (bool, *utils.GenericError) {
-	credentialManager := credential.Manager{
+func (credentialService *credentialService) ValidateAndroidAPIKey(apiKey string, androidPackageName string) (bool, *utils.GenericError) {
+	credentialManager := models.CredentialModel{
 		ApiKey: apiKey,
 	}
 
-	getApIError := credentialManager.GetByAPIKey(credentialService.DBConnection)
+	getApIError := credentialService.CredentialRepo.GetByAPIKey(&credentialManager)
 	if getApIError != nil {
 		return false, getApIError
 	}
@@ -128,12 +192,12 @@ func (credentialService *Credential) ValidateAndroidAPIKey(apiKey string, androi
 }
 
 // ValidateWebAPIKeyHTTPReferrerRestriction authenticates incoming request from web clients
-func (credentialService *Credential) ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string) (bool, *utils.GenericError) {
-	credentialManager := credential.Manager{
+func (credentialService *credentialService) ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string) (bool, *utils.GenericError) {
+	credentialManager := models.CredentialModel{
 		ApiKey: apiKey,
 	}
 
-	getApIError := credentialManager.GetByAPIKey(credentialService.DBConnection)
+	getApIError := credentialService.CredentialRepo.GetByAPIKey(&credentialManager)
 	if getApIError != nil {
 		return false, getApIError
 	}

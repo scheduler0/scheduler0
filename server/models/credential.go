@@ -1,13 +1,13 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // CredentialModel credential model
 type CredentialModel struct {
-	TableName struct{} `sql:"credentials"`
-
 	ID                            int64     `json:"id" sql:",pk:notnull"`
-	UUID                          string    `json:"uuid" sql:",unique,type:uuid,default:gen_random_uuid()"`
 	Archived                      bool      `json:"archived" sql:",notnull"`
 	Platform                      string    `json:"platform" sql:",notnull"`
 	ApiKey                        string    `json:"api_key" sql:",null"`
@@ -17,4 +17,29 @@ type CredentialModel struct {
 	IOSBundleIDRestriction        string    `json:"ios_bundle_id_restriction" sql:",null"`
 	AndroidPackageNameRestriction string    `json:"android_package_name_restriction" sql:",null"`
 	DateCreated                   time.Time `json:"date_created" sql:",notnull,default:now()"`
+}
+
+// PaginatedCredential paginated container of credential transformer
+type PaginatedCredential struct {
+	Total  int64             `json:"total"`
+	Offset int64             `json:"offset"`
+	Limit  int64             `json:"limit"`
+	Data   []CredentialModel `json:"credentials"`
+}
+
+// ToJSON returns content of transformer as JSON
+func (credentialModel *CredentialModel) ToJSON() ([]byte, error) {
+	if data, err := json.Marshal(credentialModel); err != nil {
+		return data, err
+	} else {
+		return data, nil
+	}
+}
+
+// FromJSON extracts content of JSON into transformer
+func (credentialModel *CredentialModel) FromJSON(body []byte) error {
+	if err := json.Unmarshal(body, &credentialModel); err != nil {
+		return err
+	}
+	return nil
 }

@@ -1,21 +1,38 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"scheduler0/server/managers/job"
-	"scheduler0/server/transformers"
+	"scheduler0/server/models"
+	"scheduler0/server/repository"
 	"scheduler0/utils"
 )
 
-// JobService handles the business logic for jobs
-type JobService Service
+type jobService struct {
+	jobRepo repository.Job
+	Ctx     context.Context
+}
 
-// GetJobsByProjectUUID returns a paginated set of jobs for a project
-func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset int, limit int, orderBy string) (*transformers.PaginatedJob, *utils.GenericError) {
-	jobManager := job.Manager{}
+type Job interface {
+	GetJobsByProjectID(projectID int64, offset int64, limit int64, orderBy string) (*models.PaginatedJob, *utils.GenericError)
+	GetJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
+	CreateJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
+	BatchInsertJobs(jobTransformers []models.JobModel) ([]models.JobModel, *utils.GenericError)
+	UpdateJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
+	DeleteJob(jobTransformer models.JobModel) *utils.GenericError
+}
 
-	count, getCountError := jobManager.GetJobsTotalCountByProjectUUID(jobService.DBConnection, projectUUID)
+func NewJobService(jobRepo repository.Job, context context.Context) Job {
+	return &jobService{
+		jobRepo: jobRepo,
+		Ctx:     context,
+	}
+}
+
+// GetJobsByProjectID returns a paginated set of jobs for a project
+func (jobService *jobService) GetJobsByProjectID(projectID int64, offset int64, limit int64, orderBy string) (*models.PaginatedJob, *utils.GenericError) {
+	count, getCountError := jobService.jobRepo.GetJobsTotalCountByProjectID(projectID)
 	if getCountError != nil {
 		return nil, getCountError
 	}
@@ -24,21 +41,13 @@ func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset in
 		return nil, utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("there are %v jobs which is less than %v", count, offset))
 	}
 
-	jobManagers, err := jobManager.GetAll(jobService.DBConnection, projectUUID, offset, limit, orderBy)
+	jobManagers, err := jobService.jobRepo.GetAllByProjectID(projectID, offset, limit, orderBy)
 	if err != nil {
 		return nil, err
 	}
 
-	jobs := make([]transformers.Job, 0, len(jobManagers))
-
-	for _, jobManager := range jobManagers {
-		jobsTransformer := transformers.Job{}
-		jobsTransformer.FromManager(jobManager)
-		jobs = append(jobs, jobsTransformer)
-	}
-
-	paginatedJobs := transformers.PaginatedJob{}
-	paginatedJobs.Data = jobs
+	paginatedJobs := models.PaginatedJob{}
+	paginatedJobs.Data = jobManagers
 	paginatedJobs.Limit = limit
 	paginatedJobs.Total = count
 	paginatedJobs.Offset = offset
@@ -46,69 +55,58 @@ func (jobService *JobService) GetJobsByProjectUUID(projectUUID string, offset in
 	return &paginatedJobs, nil
 }
 
-// GetJob returns a job with UUID that matched UUID of transformer
-func (jobService *JobService) GetJob(jobTransformer transformers.Job) (*transformers.Job, *utils.GenericError) {
-	jobManager, err := jobTransformer.ToManager()
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	jobMangerGetOneError := jobManager.GetOne(jobService.DBConnection, jobTransformer.UUID)
+// GetJob returns a job with ID that matched ID of transformer
+func (jobService *jobService) GetJob(job models.JobModel) (*models.JobModel, *utils.GenericError) {
+	jobMangerGetOneError := jobService.jobRepo.GetOneByID(&job)
 	if jobMangerGetOneError != nil {
 		return nil, jobMangerGetOneError
 	}
 
-	jobTransformer.FromManager(jobManager)
-
-	return &jobTransformer, nil
+	return &job, nil
 }
 
 // CreateJob creates a new job based on values in transformer object
-func (jobService *JobService) CreateJob(jobTransformer transformers.Job) (*transformers.Job, *utils.GenericError) {
-	jobManager, err := jobTransformer.ToManager()
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusBadRequest, err.Error())
-	}
-
-	_, jobMangerCreateOneError := jobManager.CreateOne(jobService.DBConnection)
+func (jobService *jobService) CreateJob(job models.JobModel) (*models.JobModel, *utils.GenericError) {
+	_, jobMangerCreateOneError := jobService.jobRepo.CreateOne(job)
 	if jobMangerCreateOneError != nil {
 		return nil, jobMangerCreateOneError
 	}
 
-	jobTransformer.FromManager(jobManager)
-
-	return &jobTransformer, nil
+	return &job, nil
 }
 
-// UpdateJob updates job with UUID in transformer. Note that cron expression of job cannot be updated.
-func (jobService *JobService) UpdateJob(jobTransformer transformers.Job) (*transformers.Job, *utils.GenericError) {
-	jobManager, err := jobTransformer.ToManager()
+// BatchInsertJobs creates jobs in batches
+func (jobService *jobService) BatchInsertJobs(jobTransformers []models.JobModel) ([]models.JobModel, *utils.GenericError) {
+	insertedIds, err := jobService.jobRepo.BatchInsertJobs(jobTransformers)
 	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message))
 	}
 
-	_, jobMangerUpdateOneError := jobManager.UpdateOne(jobService.DBConnection)
+	for i, insertedId := range insertedIds {
+		jobTransformers[i].ID = insertedId
+	}
+
+	return jobTransformers, nil
+}
+
+// UpdateJob updates job with ID in transformer. Note that cron expression of job cannot be updated.
+func (jobService *jobService) UpdateJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError) {
+	_, jobMangerUpdateOneError := jobService.jobRepo.UpdateOneByID(jobTransformer)
 	if jobMangerUpdateOneError != nil {
 		return nil, jobMangerUpdateOneError
 	}
 
-	jobTransformer.FromManager(jobManager)
-
 	return &jobTransformer, nil
 }
 
-// DeleteJob deletes a job with UUID in transformer
-func (jobService *JobService) DeleteJob(jobTransformer transformers.Job) *utils.GenericError {
-	jobManager := job.Manager{
-		UUID: jobTransformer.UUID,
-	}
-
-	err := jobManager.GetOne(jobService.DBConnection, jobManager.UUID)
+// DeleteJob deletes a job with ID in transformer
+func (jobService *jobService) DeleteJob(jobTransformer models.JobModel) *utils.GenericError {
+	err := jobService.jobRepo.GetOneByID(&jobTransformer)
 	if err != nil {
 		return err
 	}
 
-	count, delError := jobManager.DeleteOne(jobService.DBConnection)
+	count, delError := jobService.jobRepo.DeleteOneByID(jobTransformer)
 	if delError != nil {
 		return utils.HTTPGenericError(http.StatusInternalServerError, delError.Message)
 	}

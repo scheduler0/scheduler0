@@ -3,15 +3,15 @@ package process
 import (
 	"fmt"
 	"github.com/robfig/cron"
-	"scheduler0/server/transformers"
+	"scheduler0/server/models"
 	"scheduler0/utils"
 	"time"
 )
 
 // RecoveredJob job
 type RecoveredJob struct {
-	Job       *transformers.Job
-	Execution *transformers.Execution
+	Job       *models.JobModel
+	Execution *models.ExecutionModel
 }
 
 func (recoveredJob *RecoveredJob) Run(processor *JobProcessor) {
@@ -23,22 +23,14 @@ func (recoveredJob *RecoveredJob) Run(processor *JobProcessor) {
 	now := time.Now().UTC()
 	executionTime := schedule.Next(recoveredJob.Execution.TimeAdded).UTC()
 
-	utils.Info(fmt.Sprintf("Recovered Job--ExecutionAdded %s jobID = %s should execute on %s which is %s from now",
+	utils.Info(fmt.Sprintf("Recovered Job--ExecutionAdded %s jobID = %v should execute on %v which is %s from now",
 		recoveredJob.Execution.TimeAdded,
-		recoveredJob.Job.UUID,
+		recoveredJob.Job.ID,
 		executionTime.String(),
 		executionTime.Sub(now),
 	))
 
 	time.Sleep(executionTime.Sub(now))
 
-	executionManger, err := recoveredJob.Execution.ToManager()
-	if err != nil {
-		utils.Error(fmt.Sprintf("Failed to create execution manager %s", err.Error()))
-	}
-
-	processor.ExecuteHTTPJobs([]PendingJob{{
-		Job:       recoveredJob.Job,
-		Execution: &executionManger,
-	}})
+	processor.ExecutePendingJobs([]models.JobModel{*recoveredJob.Job})
 }

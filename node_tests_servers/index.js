@@ -35,31 +35,53 @@ async function createProject() {
     return data
 }
 
-async function createJob(projectUUID, name) {
+async function createJobs(projectID, name) {
+    const payload = [];
+
+    for (let i = 0; i < 9999; i++) {
+        payload.push({
+            name: name,
+            spec: "@every 1m",
+            project_id: projectID,
+            data: JSON.stringify({ jobId: i }),
+            callback_url: `http://localhost:3000/callback`
+        })
+    }
+
+
     try {
         const { data: { data } } = await axiosInstance
-            .post('/jobs', {
-                name: name,
-                spec: "@every 1m",
-                project_uuid: projectUUID,
-                callback_url: `http://localhost:3000/callback?job_id=job_id_${name}`
-            });
+            .post('/jobs', payload );
 
         return data
     } catch (err) {
-        console.log({ error: err.response.data })
+        console.log({ error: err.response.data})
     }
 }
 
+const hits = new Map();
+
+app.use(express.json());
+
 app.post('/callback', (req, res) => {
-    console.log(`Callback executed at :${(new Date()).toUTCString()} For Job ${req.query.job_id}`)
-    res.status(200).send(`Callback executed at :${(new Date()).toUTCString()}`);
+    req.body.forEach((body) => {
+        const payload = JSON.parse(body);
+        if (!hits.has(payload.jobId)) {
+            hits.set(payload.jobId, 1);
+        } else {
+            hits.set(payload.jobId, hits.get(payload.jobId) + 1);
+        }
+    })
+
+    console.log(hits)
+
+    res.send(null);
 });
 
 app.listen(port, async () => {
-    const project = await createProject()
-    for (let i = 0; i < 999; i++) {
-        await createJob(project.uuid, `job_id_${i}`);
-    }
-    console.log(`app listening at http://localhost:${port}`)
-})
+    const project = await createProject();
+    await createJobs(project.id, `job_id_`);
+    console.log(`app listening at http://localhost:${port}`);
+});
+
+// app.listen(port);

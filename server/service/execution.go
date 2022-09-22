@@ -2,19 +2,29 @@ package service
 
 import (
 	"net/http"
-	execution "scheduler0/server/managers/execution"
-	"scheduler0/server/transformers"
+	"scheduler0/server/models"
+	repos "scheduler0/server/repository"
 	"scheduler0/utils"
 )
 
 // ExecutionService performs main business logic for executions
-type ExecutionService Service
+type ExecutionService interface {
+	GetAllExecutionsByJobUUID(jobID int64, offset int64, limit int64) (*models.PaginatedExecution, *utils.GenericError)
+}
+
+type executionService struct {
+	executionRepo repos.Execution
+}
+
+func NewExecutionService(executionRepo repos.Execution) ExecutionService {
+	return &executionService{
+		executionRepo: executionRepo,
+	}
+}
 
 // GetAllExecutionsByJobUUID returns a paginated executions result set
-func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID string, offset int, limit int) (*transformers.PaginatedExecution, *utils.GenericError) {
-	manager := execution.Manager{}
-
-	count, getCountError := manager.Count(executionService.DBConnection, jobUUID)
+func (executionService *executionService) GetAllExecutionsByJobUUID(jobID int64, offset int64, limit int64) (*models.PaginatedExecution, *utils.GenericError) {
+	count, getCountError := executionService.executionRepo.CountByJobID(jobID)
 	if getCountError != nil {
 		return nil, getCountError
 	}
@@ -23,22 +33,14 @@ func (executionService *ExecutionService) GetAllExecutionsByJobUUID(jobUUID stri
 		return nil, utils.HTTPGenericError(http.StatusNotFound, "cannot find executions for file")
 	}
 
-	executionManagers, err := manager.List(executionService.DBConnection, jobUUID, offset, limit, "date_created")
+	executionManagers, err := executionService.executionRepo.ListByJobID(jobID, offset, limit, "date_created")
 	if err != nil {
 		return nil, err
 	}
 
-	executions := make([]transformers.Execution, 0, len(executionManagers))
-
-	for _, executionManager := range executionManagers {
-		executionTransformer := transformers.Execution{}
-		executionTransformer.FromManager(executionManager)
-		executions = append(executions, executionTransformer)
-	}
-
-	paginatedExecutions := transformers.PaginatedExecution{}
-	paginatedExecutions.Data = executions
-	paginatedExecutions.Total = count
+	paginatedExecutions := models.PaginatedExecution{}
+	paginatedExecutions.Data = executionManagers
+	paginatedExecutions.Total = int64(count)
 	paginatedExecutions.Offset = offset
 	paginatedExecutions.Limit = limit
 

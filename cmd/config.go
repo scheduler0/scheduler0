@@ -1,17 +1,28 @@
 package cmd
 
 import (
+	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	"log"
 	"os"
+	"scheduler0/constants"
 	"scheduler0/server/db"
+	"scheduler0/server/models"
+	"scheduler0/server/repository"
 	"scheduler0/utils"
+	"time"
 )
 
-// ConfigCmd configuration command
+//go:embed db.init.sql
+var migrations string
+
+// ConfigCmd configuration protobuffs
 var ConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "create, view or modify scheduler0 configurations",
@@ -28,6 +39,113 @@ Note that starting the server without going through the init flow will not work.
 `,
 }
 
+func runMigration(fs afero.Fs, dir string) *sql.DB {
+	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+	_, err := fs.Create(dbFilePath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
+	}
+
+	datastore := db.NewSqliteDbConnection(dbFilePath)
+
+	conn, openDBConnErr := datastore.OpenConnection()
+	if openDBConnErr != nil {
+		log.Fatalln(fmt.Errorf("Fatal open db connection: %s \n", openDBConnErr))
+	}
+
+	dbConnection := conn.(*sql.DB)
+
+	trx, dbConnErr := dbConnection.Begin()
+	if dbConnErr != nil {
+		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", dbConnErr))
+	}
+
+	_, execErr := trx.Exec(migrations)
+	if execErr != nil {
+		errRollback := trx.Rollback()
+		if errRollback != nil {
+			log.Fatalln(fmt.Errorf("Fatal rollback error: %s \n", execErr))
+		}
+		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", execErr))
+	}
+
+	errCommit := trx.Commit()
+	if errCommit != nil {
+		log.Fatalln(fmt.Errorf("Fatal commit error: %s \n", errCommit))
+	}
+
+	return dbConnection
+}
+
+func createServerCredential(secretKey string, dbConnection *sql.DB) (string, string) {
+	utils.GenerateApiAndSecretKey(secretKey)
+	credential := models.CredentialModel{
+		Platform: "server",
+	}
+
+	apiKey, apiSecret := utils.GenerateApiAndSecretKey(secretKey)
+
+	insertBuilder := sq.Insert(repository.CredentialTableName).
+		Columns(
+			repository.PlatformColumn,
+			repository.ArchivedColumn,
+			repository.ApiKeyColumn,
+			repository.ApiSecretColumn,
+			repository.IPRestrictionColumn,
+			repository.HTTPReferrerRestrictionColumn,
+			repository.IOSBundleIdReferrerRestrictionColumn,
+			repository.AndroidPackageIDReferrerRestrictionColumn,
+			repository.JobsDateCreatedColumn,
+		).
+		Values(
+			credential.Platform,
+			credential.Archived,
+			apiKey,
+			apiSecret,
+			credential.IPRestriction,
+			credential.HTTPReferrerRestriction,
+			credential.IOSBundleIDRestriction,
+			credential.AndroidPackageNameRestriction,
+			time.Now().String(),
+		).
+		RunWith(dbConnection)
+
+	_, err := insertBuilder.Exec()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	return apiKey, apiSecret
+}
+
+func recreateDb(fs afero.Fs, dir string) {
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+	exists, err := afero.DirExists(fs, dirPath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
+	}
+	if exists {
+		err := fs.RemoveAll(dirPath)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
+		}
+	}
+}
+
+func recreateRaftDir(fs afero.Fs, dir string) {
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.RaftDir)
+	exists, err := afero.DirExists(fs, dirPath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
+	}
+	if exists {
+		err := fs.RemoveAll(dirPath)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
+		}
+	}
+}
+
 // InitCmd initializes scheduler0 configuration
 var InitCmd = &cobra.Command{
 	Use:   "init",
@@ -40,111 +158,80 @@ Usage:
 
 	scheduler0 init
 
-Note that the PORT is optional. By default the server will use :9090
+Note that the Port is optional. By default the server will use :9090
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Initialize Scheduler0")
+		fmt.Println("Initializing Scheduler0")
 
-		postgresAddrPrompt := promptui.Prompt{
-			Label:       "Postgres Address",
-			AllowEdit:   true,
-			HideEntered: true,
+		config := utils.GetScheduler0Configurations()
+
+		if config.Port == "" {
+			portPrompt := promptui.Prompt{
+				Label:       "Port",
+				HideEntered: true,
+				Default:     "9090",
+			}
+			Port, _ := portPrompt.Run()
+			config.Port = Port
 		}
-		Addr, _ := postgresAddrPrompt.Run()
+		setEnvErr := os.Setenv(utils.PortEnv, config.Port)
+		utils.CheckErr(setEnvErr)
 
-		postgresUserPrompt := promptui.Prompt{
-			Label:       "Postgres PostgresUser",
-			AllowEdit:   true,
-			HideEntered: true,
+		if config.SecretKey == "" {
+			secretKeyPrompt := promptui.Prompt{
+				Label:       "Secret Key",
+				HideEntered: true,
+				Default:     "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94",
+			}
+			SecretKey, _ := secretKeyPrompt.Run()
+			config.SecretKey = SecretKey
 		}
-		User, _ := postgresUserPrompt.Run()
+		err := os.Setenv(utils.SecretKeyEnv, config.SecretKey)
+		utils.CheckErr(setEnvErr)
 
-		postgresDBPrompt := promptui.Prompt{
-			Label:       "Postgres PostgresDatabase",
-			AllowEdit:   true,
-			HideEntered: true,
-		}
-		DB, _ := postgresDBPrompt.Run()
-
-		postgresPassPrompt := promptui.Prompt{
-			Label:       "Postgres PostgresPassword",
-			HideEntered: true,
-			Mask:        '*',
-		}
-		Pass, _ := postgresPassPrompt.Run()
-
-		portPrompt := promptui.Prompt{
-			Label:       "Port",
-			HideEntered: true,
-			Default:     "9090",
-		}
-		Port, _ := portPrompt.Run()
-
-		secretKeyPrompt := promptui.Prompt{
-			Label:       "Secret Key",
-			HideEntered: true,
-			Default:     "9090",
-		}
-		SecretKey, _ := secretKeyPrompt.Run()
-
-		err := os.Setenv(utils.PostgresAddressEnv, Addr)
-		utils.CheckErr(err)
-
-		err = os.Setenv(utils.PostgresUserEnv, User)
-		utils.CheckErr(err)
-
-		err = os.Setenv(utils.PostgresPasswordEnv, Pass)
-		utils.CheckErr(err)
-
-		err = os.Setenv(utils.PostgresDatabaseEnv, DB)
-		utils.CheckErr(err)
-
-		err = os.Setenv(utils.PortEnv, Port)
-		utils.CheckErr(err)
-
-		_, err = db.OpenConnection()
+		dir, err := os.Getwd()
 		if err != nil {
-			utils.Error("Cannot connect to the database")
-			utils.Error(err.Error())
-			return
-		} else {
-			config := utils.Scheduler0Configurations{
-				PostgresAddress:  Addr,
-				PostgresUser:     User,
-				PostgresDatabase: DB,
-				PostgresPassword: Pass,
-				PORT:             Port,
-				SecretKey:        SecretKey,
-			}
-
-			configByte, err := json.Marshal(config)
-			if err != nil {
-				panic(fmt.Errorf("Fatal error config file: %s \n", err))
-			}
-			configFilePath := fmt.Sprintf("%v/.scheduler0", os.Getenv("HOME"))
-
-			fs := afero.NewOsFs()
-			file, err := fs.Create(configFilePath)
-			if err != nil {
-				panic(fmt.Errorf("Fatal unable to save scheduler 0: %s \n", err))
-			}
-
-			_, err = file.Write(configByte)
-			if err != nil {
-				panic(fmt.Errorf("Fatal unable to save scheduler 0: %s \n", err))
-			}
+			log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 		}
+		fs := afero.NewOsFs()
+
+		recreateDb(fs, dir)
+		recreateRaftDir(fs, dir)
+
+		db := runMigration(fs, dir)
+		apiKey, apiSecret := createServerCredential(config.SecretKey, db)
+
+		credentials := utils.Scheduler0Credentials{
+			ApiKey:    apiKey,
+			ApiSecret: apiSecret,
+		}
+
+		configFilePath := fmt.Sprintf("%v/%v", dir, constants.CredentialsFileName)
+
+		configByte, err := json.Marshal(credentials)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal error config file: %s \n", err))
+		}
+
+		file, err := fs.Create(configFilePath)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal cannot create file: %s \n", err))
+		}
+		_, err = file.Write(configByte)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal cannot write to file: %s \n", err))
+		}
+
+		fmt.Println("Scheduler0 Initialized")
 	},
 }
-
-var showPassword = false
 
 // ShowCmd show scheduler0 password configuration
 var ShowCmd = &cobra.Command{
 	Use:   "show",
 	Short: "This will show the configurations that have been set.",
 	Long: `
-Using this command you can tell what configurations have been  excluding the database password.
+Using this protobuffs you can tell what configurations have been set.
 
 Usage:
 
@@ -153,39 +240,27 @@ Usage:
 Use the --show-password flag if you want the password to be visible.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		utils.SetScheduler0Configurations()
 		configs := utils.GetScheduler0Configurations()
-
-		if showPassword {
-			utils.Info(fmt.Sprintf(
-				"PORT = %v "+
-					"POSTGRES_ADDRESS = %v "+
-					"POSTGRES_USER = %v "+
-					"POSTGRES_PASSWORD = %v "+
-					"POSTGRES_DATABASE = %v ",
-				configs.PORT,
-				configs.PostgresAddress,
-				configs.PostgresUser,
-				configs.PostgresPassword,
-				configs.PostgresDatabase))
-		} else {
-			utils.Info(fmt.Sprintf(
-				"PORT = %v "+
-					"POSTGRES_ADDRESS = %v "+
-					"POSTGRES_USER = %v "+
-					"POSTGRES_DATABASE = %v ",
-				configs.PORT,
-				configs.PostgresAddress,
-				configs.PostgresUser,
-				configs.PostgresDatabase))
-		}
-
+		fmt.Println("Configurations:")
+		fmt.Println("NodeId:", configs.NodeId)
+		fmt.Println("Bootstrap:", configs.Bootstrap)
+		fmt.Println("RaftAddress:", configs.RaftAddress)
+		fmt.Println("Replicas:", configs.Replicas)
+		fmt.Println("Port:", configs.Port)
+		fmt.Println("RaftTransportMaxPool:", configs.RaftTransportMaxPool)
+		fmt.Println("RaftTransportTimeout:", configs.RaftTransportTimeout)
+		fmt.Println("RaftApplyTimeout:", configs.RaftApplyTimeout)
+		fmt.Println("RaftSnapshotInterval:", configs.RaftSnapshotInterval)
+		fmt.Println("RaftSnapshotThreshold:", configs.RaftSnapshotThreshold)
+		fmt.Println("--------------------------")
+		fmt.Println("Credentials:")
+		credentials := utils.ReadCredentialsFile()
+		fmt.Println("ApiSecret:", credentials.ApiSecret)
+		fmt.Println("ApiKey:", credentials.ApiKey)
 	},
 }
 
 func init() {
-	ShowCmd.Flags().BoolVarP(&showPassword, "show-password", "s", false, "scheduler0 config show --show-password")
-
 	ConfigCmd.AddCommand(InitCmd)
 	ConfigCmd.AddCommand(ShowCmd)
 }

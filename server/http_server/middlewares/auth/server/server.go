@@ -1,7 +1,6 @@
 package server
 
 import (
-	"github.com/go-pg/pg"
 	"net/http"
 	"scheduler0/server/http_server/middlewares/auth"
 	"scheduler0/server/service"
@@ -16,13 +15,9 @@ func IsServerClient(req *http.Request) bool {
 }
 
 // IsAuthorizedServerClient returns true if the credential is authorized server side
-func IsAuthorizedServerClient(req *http.Request, dbConnection *pg.DB) (bool, *utils.GenericError) {
+func IsAuthorizedServerClient(req *http.Request, credentialService service.Credential) (bool, *utils.GenericError) {
 	apiKey := req.Header.Get(auth.APIKeyHeader)
 	apiSecret := req.Header.Get(auth.SecretKeyHeader)
-
-	credentialService := service.Credential{
-		DBConnection: dbConnection,
-	}
 
 	return credentialService.ValidateServerAPIKey(apiKey, apiSecret)
 }

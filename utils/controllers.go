@@ -3,10 +3,10 @@ package utils
 import (
 	"encoding/json"
 	"errors"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"io/ioutil"
+	"log"
 	"net/http"
-	"net/http/httptest"
+	"time"
 )
 
 // Response response returned by http server
@@ -19,7 +19,7 @@ type Response struct {
 func (r *Response) ToJSON() []byte {
 	data, err := json.Marshal(r)
 	if err != nil {
-		panic(err)
+		log.Fatalln(err)
 	}
 	return data
 }
@@ -61,29 +61,32 @@ func ExtractBody(w http.ResponseWriter, r *http.Request) []byte {
 
 	if err != nil {
 		SendJSON(w, "request body required", false, http.StatusUnprocessableEntity, nil)
+		return nil
 	}
 
 	if len(body) < 1 {
 		SendJSON(w, "request body required", false, http.StatusBadRequest, nil)
+		return nil
 	}
 
 	return body
 }
 
-// ExtractResponse extract response from response writer as string
-func ExtractResponse(w *httptest.ResponseRecorder) (*utils.Response, string, error) {
-	body, err := ioutil.ReadAll(w.Body)
-
-	if err != nil {
-		return nil, "", err
+// RetryOnError retries callback function
+func RetryOnError(callback func() error, maxRetry int, delay int) error {
+	lastKnowError := callback()
+	numberOfRetriesLeft := maxRetry
+	if lastKnowError != nil {
+		for numberOfRetriesLeft > 0 {
+			time.Sleep(time.Second * time.Duration(delay))
+			lastKnowError = callback()
+			if lastKnowError != nil {
+				numberOfRetriesLeft--
+			} else {
+				break
+			}
+		}
 	}
 
-	res := &utils.Response{}
-
-	err = json.Unmarshal(body, res)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return res, string(body), nil
+	return lastKnowError
 }

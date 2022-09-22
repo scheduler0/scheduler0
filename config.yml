@@ -1,11 +1,21 @@
 Secret: AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94
-PostgresDatabase: scheduler0_test
-PostgresPassword: localdev
-PostgresUser: core
-PostgresHost: localhost:5432
+Protocol: http
+Host: localhost
 Port: 9090
 MaxMemory: 500mb
 MaxCPU: 50
+Bootstrap: true
+NodeId: 1
+RaftAddress: localhost:9091
+RaftTransportMaxPool: 100
+RaftTransportTimeout: 1
+RaftApplyTimeout: 2
+RaftSnapshotInterval: 1
+RaftSnapshotThreshold: 1
 Replicas:
-  - localhost:9091
-  - localhost:9092
+  - ApiSecret: api-secret
+    ApiKey: api-key
+    Address: localhost:9092
+  - ApiSecret: api-secret
+    ApiKey: api-key
+    Address: localhost:9093
