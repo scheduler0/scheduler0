@@ -67,8 +67,8 @@ func (pM *peerManager) ConnectPeers() {
 			}
 
 			req.Header.Add("peer-address", fmt.Sprintf("%v://%v:%v", configs.Protocol, configs.Host, configs.Port))
-			req.Header.Add("api-key", p.ApiKey)
-			req.Header.Add("api-secret", p.ApiSecret)
+			req.Header.Add(auth.APIKeyHeader, p.ApiKey)
+			req.Header.Add(auth.SecretKeyHeader, p.ApiSecret)
 
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
@@ -176,8 +176,10 @@ func (pM *peerManager) IsConnected(nodeAddress string, isRaftAddr bool) bool {
 	pM.mtx.Lock()
 	defer pM.mtx.Unlock()
 
+	//fmt.Println("Number of peers", len(pM.peers))
+
 	for _, peer := range pM.peers {
-		fmt.Println("isRaftAddr", isRaftAddr, "peer.RaftAddress", peer.RaftAddress, "nodeAddress", nodeAddress, "peer.Connected", peer.Connected)
+		//fmt.Println("isRaftAddr", isRaftAddr, "peer.RaftAddress", peer.RaftAddress, "nodeAddress", nodeAddress, "peer.Connected", peer.Connected)
 		if isRaftAddr && peer.RaftAddress == nodeAddress && peer.Connected ||
 			!isRaftAddr && peer.Address == nodeAddress && peer.Connected {
 			return true
