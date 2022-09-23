@@ -16,6 +16,8 @@ Replicas:
   - ApiSecret: api-secret
     ApiKey: api-key
     Address: 127.0.0.1:9092
+    RaftAddress: 127.0.0.1:9093
   - ApiSecret: api-secret
     ApiKey: api-key
     Address: 127.0.0.1:9093
+    RaftAddress: 127.0.0.1:9093
