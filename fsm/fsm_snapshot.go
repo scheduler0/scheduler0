@@ -23,8 +23,6 @@ func NewFSMSnapshot(db db.DataStore) *fsmSnapshot {
 func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	dbSerialized := s.db.Serialize()
 
-	fmt.Println("dbSerialized::len", len(dbSerialized))
-
 	err := func() error {
 		b := new(bytes.Buffer)
 

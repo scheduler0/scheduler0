@@ -1,14 +1,20 @@
 package cluster
 
 import (
+	"database/sql"
+	_ "embed"
 	"fmt"
 	raft "github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
+	"github.com/spf13/afero"
+	"io"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
 	"scheduler0/constants"
+	"scheduler0/db"
 	"scheduler0/fsm"
 	tcp2 "scheduler0/tcp"
 	"scheduler0/utils"
@@ -16,10 +22,31 @@ import (
 	"time"
 )
 
-func NewRaft(raftDir string, fsm raft.FSM) (*raft.Raft, *raft.NetworkTransport, *boltdb.BoltStore, *boltdb.BoltStore, *raft.FileSnapshotStore, error) {
+type clusterData struct {
+	Tm  *raft.NetworkTransport
+	Ldb *boltdb.BoltStore
+	Sdb *boltdb.BoltStore
+	Fss *raft.FileSnapshotStore
+}
+
+func NewCluster() *clusterData {
+	tm, ldb, sdb, fss, err := GetLogsAndTransport()
+	if err != nil {
+		log.Fatal("failed to create new cluster", err)
+	}
+	return &clusterData{
+		Tm:  tm,
+		Ldb: ldb,
+		Sdb: sdb,
+		Fss: fss,
+	}
+}
+
+func GetLogsAndTransport() (tm *raft.NetworkTransport, ldb *boltdb.BoltStore, sdb *boltdb.BoltStore, fss *raft.FileSnapshotStore, err error) {
 	configs := utils.GetScheduler0Configurations()
 
-	_, err := strconv.Atoi(configs.RaftSnapshotInterval)
+	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
+	_, err = strconv.Atoi(configs.RaftSnapshotInterval)
 	if err != nil {
 		log.Fatal("Failed to convert raft snapshot interval to int", err)
 	}
@@ -29,30 +56,11 @@ func NewRaft(raftDir string, fsm raft.FSM) (*raft.Raft, *raft.NetworkTransport, 
 		log.Fatal("Failed to convert raft snapshot threshold to int", err)
 	}
 
-	c := raft.DefaultConfig()
-	c.LocalID = raft.ServerID(configs.NodeId)
-	//c.SnapshotThreshold = uint64(threshold)
-	//c.SnapshotInterval = time.Duration(120) * time.Second
-	//c.ElectionTimeout = time.Duration(rand.Intn(8-5)+8) * time.Second
-	//c.HeartbeatTimeout = c.ElectionTimeout
-	//c.LeaderLeaseTimeout = time.Second * 5
+	ldb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
 
-	baseDir := raftDir
+	sdb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
 
-	ldb, err := boltdb.NewBoltStore(filepath.Join(baseDir, constants.RaftLog))
-	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf(`boltdb.NewBoltStore(%q): %v`, filepath.Join(baseDir, constants.RaftLog), err)
-	}
-
-	sdb, err := boltdb.NewBoltStore(filepath.Join(baseDir, constants.RaftStableLog))
-	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf(`boltdb.NewBoltStore(%q): %v`, filepath.Join(baseDir, constants.RaftStableLog), err)
-	}
-
-	fss, err := raft.NewFileSnapshotStore(baseDir, 3, os.Stderr)
-	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf(`raft.NewFileSnapshotStore(%q, ...): %v`, baseDir, err)
-	}
+	fss, err = raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
 
 	ln, err := net.Listen("tcp", configs.RaftAddress)
 
@@ -76,40 +84,50 @@ func NewRaft(raftDir string, fsm raft.FSM) (*raft.Raft, *raft.NetworkTransport, 
 		log.Fatal("Failed to convert raft transport timeout to int", err)
 	}
 
-	tm := raft.NewNetworkTransport(tcp2.NewTransport(muxLn), maxPool, time.Second*time.Duration(timeout), nil)
-
-	r, err := raft.NewRaft(c, fsm, ldb, sdb, fss, tm)
-	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("raft.NewRaft: %v", err)
-	}
-
-	return r, tm, ldb, sdb, fss, nil
+	tm = raft.NewNetworkTransport(tcp2.NewTransport(muxLn), maxPool, time.Second*time.Duration(timeout), nil)
+	return
 }
 
-func BootstrapNode(r *raft.Raft) error {
+func GetRaftConfigurationFromConfig() raft.Configuration {
 	configs := utils.GetScheduler0Configurations()
-	servers := []raft.Server{
-		raft.Server{
-			ID:       raft.ServerID(fmt.Sprintf("%v", configs.NodeId)),
-			Suffrage: raft.Voter,
-			Address:  raft.ServerAddress(configs.RaftAddress),
-		},
-	}
 
-	//if len(configs.Replicas) > 0 {
-	//	for i, replica := range configs.Replicas {
-	//		servers = append(servers, raft.Server{
-	//			ID:       raft.ServerID(fmt.Sprintf("%v", i+3)),
-	//			Suffrage: raft.Voter,
-	//			Address:  raft.ServerAddress(replica),
-	//		})
-	//	}
-	//}
+	servers := []raft.Server{}
+
+	if len(configs.Replicas) > 0 {
+		for i, replica := range configs.Replicas {
+			servers = append(servers, raft.Server{
+				ID:       raft.ServerID(fmt.Sprintf("%v", i)),
+				Suffrage: raft.Voter,
+				Address:  raft.ServerAddress(replica.RaftAddress),
+			})
+		}
+	}
 
 	cfg := raft.Configuration{
 		Servers: servers,
 	}
 
+	return cfg
+}
+
+func NewRaft(fsm raft.FSM, cls *clusterData) (*raft.Raft, error) {
+	configs := utils.GetScheduler0Configurations()
+
+	c := raft.DefaultConfig()
+	c.LocalID = raft.ServerID(configs.NodeId)
+	c.ElectionTimeout = time.Duration(rand.Intn(300-150)+300) * time.Millisecond
+	c.HeartbeatTimeout = time.Duration(rand.Intn(200-100)+200) * time.Millisecond
+	c.LeaderLeaseTimeout = time.Duration(rand.Intn(100-50)+100) * time.Millisecond
+
+	r, err := raft.NewRaft(c, fsm, cls.Ldb, cls.Sdb, cls.Fss, cls.Tm)
+	if err != nil {
+		return nil, fmt.Errorf("raft.NewRaft: %v", err)
+	}
+	return r, nil
+}
+
+func BootstrapNode(r *raft.Raft) error {
+	cfg := GetRaftConfigurationFromConfig()
 	f := r.BootstrapCluster(cfg)
 	if err := f.Error(); err != nil {
 		return fmt.Errorf("raft.Raft.BootstrapCluster: %v", err)
@@ -147,103 +165,142 @@ func RecoverCluster(fsm raft.FSM, tm *raft.NetworkTransport, configuration raft.
 	}
 }
 
-func RecoverRaftStore(fsmStr *fsm.Store, logs *boltdb.BoltStore, tn *raft.NetworkTransport, snaps *raft.FileSnapshotStore) {
+func RecoverRaftStore(cls *clusterData) {
 	// Attempt to restore any snapshots we find, newest to oldest.
-
 	log.Println("Recovering node")
 
-	lastIndex, err := logs.LastIndex()
+	var (
+		snapshotIndex  uint64
+		snapshotTerm   uint64
+		snapshots, err = cls.Fss.List()
+	)
 	if err != nil {
+		utils.CheckErr(err)
+	}
+
+	for _, snapshot := range snapshots {
+		var source io.ReadCloser
+		_, source, err = cls.Fss.Open(snapshot.ID)
+		if err != nil {
+			// Skip this one and try the next. We will detect if we
+			// couldn't open any snapshots.
+			continue
+		}
+
+		_, err = utils.BytesFromSnapshot(source)
+		// Close the source after the restore has completed
+		source.Close()
+		if err != nil {
+			// Same here, skip and try the next one.
+			continue
+		}
+
+		snapshotIndex = snapshot.Index
+		snapshotTerm = snapshot.Term
+		break
+	}
+	if len(snapshots) > 0 && (snapshotIndex == 0 || snapshotTerm == 0) {
+		log.Println("failed to restore any of the available snapshots")
 		return
 	}
 
-	fmt.Println("lastIndex", lastIndex)
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Println(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+		return
+	}
 
-	//var (
-	//	snapshotIndex  uint64
-	//	snapshotTerm   uint64
-	//	snapshots, err = snaps.List()
-	//)
-	//if err != nil {
-	//	utils.CheckErr(err)
-	//}
-	//
-	//for _, snapshot := range snapshots {
-	//	var source io.ReadCloser
-	//	_, source, err = snaps.Open(snapshot.ID)
-	//	if err != nil {
-	//		// Skip this one and try the next. We will detect if we
-	//		// couldn't open any snapshots.
-	//		continue
-	//	}
-	//
-	//	_, err = utils.BytesFromSnapshot(source)
-	//	// Close the source after the restore has completed
-	//	source.Close()
-	//	if err != nil {
-	//		// Same here, skip and try the next one.
-	//		continue
-	//	}
-	//
-	//	snapshotIndex = snapshot.Index
-	//	snapshotTerm = snapshot.Term
-	//	break
-	//}
-	//if len(snapshots) > 0 && (snapshotIndex == 0 || snapshotTerm == 0) {
-	//	log.Fatalln("failed to restore any of the available snapshots")
-	//}
-	//
-	//inMemDb, err := db.NewMemSqliteDd()
-	//defer inMemDb.Close()
-	//
-	//// The snapshot information is the best known end point for the data
-	//// until we play back the Raft log entries.
-	//lastIndex := snapshotIndex
-	//lastTerm := snapshotTerm
-	//
-	//// Apply any Raft log entries past the snapshot.
-	//lastLogIndex, err := logs.LastIndex()
-	//if err != nil {
-	//	log.Fatalf("failed to find last log: %v", err)
-	//}
-	//
-	//for index := snapshotIndex + 1; index <= lastLogIndex; index++ {
-	//	var entry raft.Log
-	//	if err = logs.GetLog(index, &entry); err != nil {
-	//		log.Fatalf("failed to get log at index %d: %v\n", index, err)
-	//	}
-	//	if entry.Type == raft.LogCommand {
-	//		dbConnection := inMemDb.(*sql.DB)
-	//		fsmStore := fsm.NewFSMStore(fsmStr.SqliteDB, dbConnection)
-	//		fsmStore.Apply(&entry)
-	//	}
-	//	lastIndex = entry.Index
-	//	lastTerm = entry.Term
-	//}
-	//
-	////configs := utils.GetScheduler0Configurations()
-	//
-	//conf := fsmStr.Raft.GetConfiguration().Configuration()
-	//
-	//fmt.Println("conf", conf)
-	//
-	//snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
-	//sink, err := snaps.Create(1, lastIndex, lastTerm, conf, 1, tn)
-	//if err != nil {
-	//	log.Fatalf("failed to create snapshot: %v", err)
-	//}
-	//if err = snapshot.Persist(sink); err != nil {
-	//	log.Fatalf("failed to persist snapshot: %v", err)
-	//}
-	//if err = sink.Close(); err != nil {
-	//	log.Fatalf("failed to finalize snapshot: %v", err)
-	//}
-	//
-	//firstLogIndex, err := logs.FirstIndex()
-	//if err != nil {
-	//	log.Fatalf("failed to get first log index: %v", err)
-	//}
-	//if err := logs.DeleteRange(firstLogIndex, lastLogIndex); err != nil {
-	//	log.Fatalf("log compaction failed: %v", err)
-	//}
+	recoverDbPath := fmt.Sprintf("%s/%s", dir, "recover.db")
+
+	fs := afero.NewOsFs()
+
+	_, err = fs.Create(recoverDbPath)
+	if err != nil {
+		log.Println(fmt.Errorf("Fatal db file creation error: %s \n", err))
+		return
+	}
+
+	dataStore := db.NewSqliteDbConnection(recoverDbPath)
+	conn, err := dataStore.OpenConnection()
+	dbConnection := conn.(*sql.DB)
+	defer dbConnection.Close()
+
+	migrations := db.GetSetupSQL()
+	_, err = dbConnection.Exec(migrations)
+	if err != nil {
+		log.Println(fmt.Errorf("Fatal db file migrations error: %s \n", err))
+		return
+	}
+
+	fsmStr := fsm.NewFSMStore(dataStore, dbConnection)
+
+	// The snapshot information is the best known end point for the data
+	// until we play back the Raft log entries.
+	lastIndex := snapshotIndex
+	lastTerm := snapshotTerm
+
+	// Apply any Raft log entries past the snapshot.
+	lastLogIndex, err := cls.Ldb.LastIndex()
+	if err != nil {
+		log.Fatalf("failed to find last log: %v", err)
+	}
+
+	for index := snapshotIndex + 1; index <= lastLogIndex; index++ {
+		var entry raft.Log
+		if err = cls.Ldb.GetLog(index, &entry); err != nil {
+			log.Fatalf("failed to get log at index %d: %v\n", index, err)
+		}
+		if entry.Type == raft.LogCommand {
+			fsm.ApplyCommand(&entry, dbConnection)
+		}
+		lastIndex = entry.Index
+		lastTerm = entry.Term
+	}
+
+	rows, err := dbConnection.Query("select count() from jobs")
+	defer rows.Close()
+	if err != nil {
+		log.Fatalf("failed to read recovery:db: %v", err)
+	}
+	var count int
+	for rows.Next() {
+		err := rows.Scan(&count)
+		if err != nil {
+			log.Fatalf("failed to read recovery:db: %v", err)
+		}
+	}
+	if rows.Err() != nil {
+		if err != nil {
+			log.Fatalf("failed to read recovery:db: %v", err)
+		}
+	}
+
+	log.Println("Wrote number of jobs to recovery db ::", count)
+
+	cfg := GetRaftConfigurationFromConfig()
+
+	snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
+	sink, err := cls.Fss.Create(1, lastIndex, lastTerm, cfg, 1, cls.Tm)
+	if err != nil {
+		log.Fatalf("failed to create snapshot: %v", err)
+	}
+	if err = snapshot.Persist(sink); err != nil {
+		log.Fatalf("failed to persist snapshot: %v", err)
+	}
+	if err = sink.Close(); err != nil {
+		log.Fatalf("failed to finalize snapshot: %v", err)
+	}
+
+	firstLogIndex, err := cls.Ldb.FirstIndex()
+	if err != nil {
+		log.Fatalf("failed to get first log index: %v", err)
+	}
+	if err := cls.Ldb.DeleteRange(firstLogIndex, lastLogIndex); err != nil {
+		log.Fatalf("log compaction failed: %v", err)
+	}
+
+	err = os.Remove(recoverDbPath)
+	if err != nil {
+		log.Fatalf("failed to delete recovery db: %v", err)
+	}
 }

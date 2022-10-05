@@ -3,13 +3,12 @@ module scheduler0
 go 1.18
 
 require (
-	github.com/Jille/raft-grpc-transport v1.2.0
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/bxcodec/faker v2.0.1+incompatible
 	github.com/bxcodec/faker/v3 v3.5.0
 	github.com/go-http-utils/logger v0.0.0-20161128092850-f3a42dcdeae6
 	github.com/gorilla/mux v1.8.0
-	github.com/hashicorp/raft v1.3.1
+	github.com/hashicorp/raft v1.3.10
 	github.com/hashicorp/raft-boltdb/v2 v2.2.2
 	github.com/manifoldco/promptui v0.8.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
@@ -25,7 +24,7 @@ require (
 	github.com/victorlenerd/scheduler0/server v0.0.0-20210208050834-cb7d550eb16e
 	golang.org/x/exp v0.0.0-20220602145555-4a0574d9293f
 	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f
-	google.golang.org/grpc v1.40.0
+	google.golang.org/protobuf v1.27.1
 	gopkg.in/yaml.v2 v2.3.0
 )
 
@@ -64,8 +63,6 @@ require (
 	golang.org/x/sys v0.0.0-20211019181941-9d821ace8654 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	google.golang.org/genproto v0.0.0-20210903162649-d08c68adba83 // indirect
-	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/ini.v1 v1.51.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect

@@ -414,7 +414,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 
 	returningIds := []int64{}
 
-	for _, jobRepos := range batches {
+	for _, batchRepo := range batches {
 
 		query := fmt.Sprintf("INSERT INTO jobs (%s, %s, %s, %s, %s, %s) VALUES ",
 			ProjectIdColumn,
@@ -427,15 +427,15 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 		params := []interface{}{}
 		ids := []int64{}
 
-		for i, jobRepo := range jobRepos {
+		for i, job := range batchRepo {
 			query += fmt.Sprint("(?, ?, ?, ?, ?, ?)")
 			params = append(params,
-				jobRepo.ProjectID,
-				jobRepo.Spec,
-				jobRepo.CallbackUrl,
-				jobRepo.ExecutionType,
-				jobRepo.DateCreated,
-				jobRepo.Data,
+				job.ProjectID,
+				job.Spec,
+				job.CallbackUrl,
+				job.ExecutionType,
+				job.DateCreated,
+				job.Data,
 			)
 
 			if i < len(jobRepos)-1 {

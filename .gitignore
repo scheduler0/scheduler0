@@ -10,6 +10,7 @@ client/build
 .env
 db.db
 .scheduler0
+scheduler0
 execs.log
 raft_data/
 e2e/

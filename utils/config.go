@@ -70,8 +70,14 @@ var requiredEnvs = []string{
 	RaftSnapshotIntervalEnv,
 }
 
+var cachedConfig *Scheduler0Configurations
+
 // GetScheduler0Configurations this will retrieve scheduler0 configurations stored on disk and set it as an os env
 func GetScheduler0Configurations() *Scheduler0Configurations {
+	if cachedConfig != nil {
+		return cachedConfig
+	}
+
 	binPath := getBinPath()
 
 	fs := afero.NewOsFs()
@@ -83,7 +89,9 @@ func GetScheduler0Configurations() *Scheduler0Configurations {
 	err = yaml.Unmarshal(data, &config)
 	utils.CheckErr(err)
 
-	return &config
+	cachedConfig = &config
+
+	return cachedConfig
 }
 
 // CheckRequiredEnvs returns true if all the envs requires are set otherwise returns a list of missing required env

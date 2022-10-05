@@ -49,10 +49,10 @@ clean_test_cache:
 test:
 	go clean -testcache
 
-	go test ./server/managers/execution
+	go test ./managers/execution
 
-	go test ./server/managers/job
-	go test ./server/managers/project
+	go test ./managers/job
+	go test ./managers/project
 
 	go test ./server/http_server/controllers/execution
 	go test ./server/http_server/controllers/credential
@@ -72,8 +72,8 @@ copy_build_into_e2e:
 	cp scheduler0 ./e2e/node3/
 	cp scheduler0 ./e2e/node4/
 	cp scheduler0 ./e2e/node5/
-	cp scheduler0 ./e2e/node6/
-	cp scheduler0 ./e2e/node7/
+#	cp scheduler0 ./e2e/node6/
+#	cp scheduler0 ./e2e/node7/
 
 start_e2e_server1:
 	./e2e/node1/scheduler0 config init
@@ -109,3 +109,6 @@ local_raft_test_build:
 
 local_raft_test_up:
 	docker-compose -f ./docker/docker-compose.yml up server
+
+increase_ulimit:
+	ulimit -n 1280

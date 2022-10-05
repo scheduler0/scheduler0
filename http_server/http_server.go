@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/go-http-utils/logger"
 	"github.com/gorilla/mux"
-	"github.com/hashicorp/raft"
 	"github.com/unrolled/secure"
 	"golang.org/x/net/context"
 	"log"
@@ -17,12 +16,10 @@ import (
 	"scheduler0/fsm"
 	controllers2 "scheduler0/http_server/controllers"
 	"scheduler0/http_server/middlewares"
-	"scheduler0/peers"
 	"scheduler0/process"
 	repository2 "scheduler0/repository"
 	service2 "scheduler0/service"
 	"scheduler0/utils"
-	"time"
 )
 
 // Start this will start the http server
@@ -54,35 +51,25 @@ func Start() {
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	dirPath, exists := utils.MakeDirIfNotExist(dirPath)
 
+	cls := cluster.NewCluster()
 	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection)
-	rft, _, _, _, _, rfErr := cluster.NewRaft(
-		dirPath,
-		fsmStr,
-	)
+
+	if exists {
+		cluster.RecoverRaftStore(cls)
+	}
+
+	rft, rfErr := cluster.NewRaft(fsmStr, cls)
 	fsmStr.Raft = rft
 	if rfErr != nil {
 		log.Fatal("failed to create raft store", rfErr)
 	}
 
 	if configs.Bootstrap == "true" && !exists {
-		err := cluster.BootstrapNode(rft)
+		err = cluster.BootstrapNode(rft)
 		if err != nil {
 			log.Fatal("failed to bootstrap node:", err)
 		}
 	}
-	peersManager := peers.NewPeersManager()
-
-	for _, replica := range configs.Replicas {
-		peersManager.AddPeer(&peers.Peer{
-			Address:     replica.Address,
-			ApiSecret:   replica.ApiSecret,
-			ApiKey:      replica.ApiKey,
-			RaftAddress: replica.RaftAddress,
-			Connected:   false,
-		})
-	}
-
-	go peersManager.ConnectPeers()
 
 	//repository
 	credentialRepo := repository2.NewCredentialRepo(fsmStr)
@@ -104,101 +91,6 @@ func Start() {
 	// StartJobs process to execute cron-server jobs
 	go jobProcessor.StartJobs()
 
-	go func() {
-		refreshConfiguration := func() {
-			currentConfiguration := rft.GetConfiguration().Configuration()
-			servers := currentConfiguration.Servers
-			countServers := len(servers)
-
-			utils.Info(countServers, " servers in current raft configuration")
-
-			for _, server := range servers {
-				isConnected := peersManager.IsConnected(string(server.Address), true)
-				if !isConnected && string(server.Address) != configs.RaftAddress {
-					rft.RemovePeer(server.Address)
-					utils.Info("removed peer from configuration ", server.Address)
-					countServers -= 1
-				}
-			}
-
-			notInRaftCluster := []string{}
-
-			for _, replica := range configs.Replicas {
-				found := false
-				for _, server := range servers {
-					fmt.Println("replica.RaftAddress", replica.RaftAddress, "server.Address", server.Address)
-					if replica.RaftAddress == string(server.Address) {
-						found = true
-					}
-				}
-				if !found {
-					notInRaftCluster = append(notInRaftCluster, replica.RaftAddress)
-				}
-			}
-
-			fmt.Println("notInRaftCluster", notInRaftCluster)
-
-			for _, server := range notInRaftCluster {
-				isConnected := peersManager.IsConnected(string(server), true)
-				fmt.Println("server", server, "isConnected", isConnected)
-				if isConnected {
-					countServers += 1
-					rft.AddVoter(raft.ServerID(rune(countServers)), raft.ServerAddress(server), 0, time.Second*time.Duration(2))
-					utils.Info("added peer from configuration ", server)
-				}
-			}
-		}
-
-		//recoverCluster := func() {
-		//	servers := []raft.Server{
-		//		raft.Server{
-		//			ID:       raft.ServerID(fmt.Sprintf("%v", configs.NodeId)),
-		//			Suffrage: raft.Voter,
-		//			Address:  raft.ServerAddress(configs.RaftAddress),
-		//		},
-		//	}
-		//	cfg := raft.Configuration{
-		//		Servers: servers,
-		//	}
-		//	cluster.RecoverCluster(fsmStr, tm, cfg)
-		//}
-
-		for {
-			select {
-			case isLeader := <-rft.LeaderCh():
-				leaderAddress := rft.Leader()
-				if isLeader {
-					fmt.Println("--------------------------------------------------------------->")
-					fmt.Println("I AM THE LEADER", "Leader is:", leaderAddress, "I am :", configs.RaftAddress)
-					fmt.Println("--------------------------------------------------------------->")
-					refreshConfiguration()
-				} else {
-					fmt.Println("--------------------------------------------------------------->")
-					fmt.Println("I AM NOT THE LEADER", "Leader is:", leaderAddress)
-					fmt.Println("--------------------------------------------------------------->")
-					//if len(leaderAddress) < 1 {
-					//	recoverCluster()
-					//}
-				}
-			case peerUpdate := <-peersManager.UpdatesCh():
-				utils.Info("peer update", peerUpdate)
-				leaderAddress := rft.Leader()
-				if string(leaderAddress) == configs.RaftAddress {
-					refreshConfiguration()
-				} else {
-					fmt.Println("--------------------------------------------------------------->")
-					fmt.Println("11111I AM NOT THE LEADER", "Leader is:", leaderAddress)
-					fmt.Println("--------------------------------------------------------------->")
-					//if len(leaderAddress) < 1 {
-					//	recoverCluster()
-					//}
-				}
-			}
-		}
-	}()
-
-	go peersManager.MonitorPeers()
-
 	// HTTP router setup
 	router := mux.NewRouter()
 
@@ -211,7 +103,6 @@ func Start() {
 	projectController := controllers2.NewProjectController(projectService)
 	credentialController := controllers2.NewCredentialController(credentialService)
 	healthCheckController := controllers2.NewHealthCheckController()
-	peersController := controllers2.NewPeerControllerController(peersManager)
 
 	// Mount middleware
 	middleware := middlewares.MiddlewareType{}
@@ -248,7 +139,6 @@ func Start() {
 
 	// Healthcheck Endpoint
 	router.HandleFunc("/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
-	router.HandleFunc("/peer", peersController.PeerConnect).Methods(http.MethodPost)
 
 	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 

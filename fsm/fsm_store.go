@@ -18,7 +18,7 @@ import (
 )
 
 type Store struct {
-	sMtx     sync.RWMutex
+	Mtx      sync.RWMutex
 	SqliteDB db.DataStore
 
 	SQLDbConnection *sql.DB
@@ -43,20 +43,18 @@ func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB) *Store {
 }
 
 func (s *Store) Apply(l *raft.Log) interface{} {
-	s.sMtx.Lock()
-	defer s.sMtx.Unlock()
+	s.Mtx.Lock()
+	defer s.Mtx.Unlock()
 
+	return ApplyCommand(l, s.SQLDbConnection)
+}
+
+func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB) interface{} {
 	command := &protobuffs.Command{}
 
 	err := marsher.UnmarshalCommand(l.Data, command)
 	if err != nil {
 		log.Fatal("failed to unmarshal command", err.Error())
-	}
-
-	lastIndex := s.Raft.LastIndex()
-
-	if l.Index < lastIndex {
-		return nil
 	}
 
 	switch command.Type {
@@ -69,9 +67,7 @@ func (s *Store) Apply(l *raft.Log) interface{} {
 				Error: err.Error(),
 			}
 		}
-		s.dbConnMtx.Lock()
-		defer s.dbConnMtx.Unlock()
-		exec, err := s.SQLDbConnection.Exec(command.Sql, params...)
+		exec, err := SQLDbConnection.Exec(command.Sql, params...)
 		if err != nil {
 			fmt.Println(err.Error())
 			return Response{

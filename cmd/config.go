@@ -41,7 +41,13 @@ Note that starting the server without going through the init flow will not work.
 
 func runMigration(fs afero.Fs, dir string) *sql.DB {
 	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
-	_, err := fs.Create(dbFilePath)
+
+	err := fs.Remove(dbFilePath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal db delete error: %s \n", err))
+	}
+
+	_, err = fs.Create(dbFilePath)
 	if err != nil {
 		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
 	}
