@@ -96,13 +96,12 @@ func GetRaftConfigurationFromConfig() raft.Configuration {
 	if len(configs.Replicas) > 0 {
 		for i, replica := range configs.Replicas {
 			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(fmt.Sprintf("%v", i)),
+				ID:       raft.ServerID(fmt.Sprintf("%v", i+1)),
 				Suffrage: raft.Voter,
 				Address:  raft.ServerAddress(replica.RaftAddress),
 			})
 		}
 	}
-
 	cfg := raft.Configuration{
 		Servers: servers,
 	}

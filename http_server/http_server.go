@@ -102,7 +102,7 @@ func Start() {
 	jobController := controllers2.NewJoBHTTPController(jobService, *jobProcessor)
 	projectController := controllers2.NewProjectController(projectService)
 	credentialController := controllers2.NewCredentialController(credentialService)
-	healthCheckController := controllers2.NewHealthCheckController()
+	healthCheckController := controllers2.NewHealthCheckController(rft)
 
 	// Mount middleware
 	middleware := middlewares.MiddlewareType{}
