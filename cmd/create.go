@@ -59,8 +59,8 @@ For android, ios, web credential at least one restriction will be required.
 		//datastore := db.NewSqliteDbConnection(dbFilePath)
 		//conn, openDBConnErr := datastore.OpenConnection()
 		//utils.CheckErr(openDBConnErr)
-		//cluster := store2.NewStore(conn, nil)
-		//credentialRepo := repository.NewCredentialRepo(&cluster)
+		//peer := store2.NewStore(conn, nil)
+		//credentialRepo := repository.NewCredentialRepo(&peer)
 		//ctx := context.Background()
 		//credentialService := service.NewCredentialService(credentialRepo, ctx)
 		//credentialTransformer := models.CredentialModel{

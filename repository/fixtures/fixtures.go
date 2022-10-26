@@ -5,9 +5,9 @@ import (
 	"errors"
 	"github.com/bxcodec/faker/v3"
 	"log"
+	store "scheduler0/fsm"
 	models2 "scheduler0/models"
 	repository2 "scheduler0/repository"
-	store "scheduler0/server/cluster"
 	"scheduler0/utils"
 )
 
@@ -23,7 +23,7 @@ func CreateJobFixture(dbConnection *sql.DB) *models2.JobModel {
 	}
 
 	store := store.Store{
-		SqliteDB: dbConnection,
+		SQLDbConnection: dbConnection,
 	}
 	jobRepo := repository2.NewJobRepo(&store)
 	projectRepo := repository2.NewProjectRepo(&store, jobRepo)
