@@ -415,7 +415,6 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 	returningIds := []int64{}
 
 	for _, batchRepo := range batches {
-
 		query := fmt.Sprintf("INSERT INTO jobs (%s, %s, %s, %s, %s, %s) VALUES ",
 			ProjectIdColumn,
 			SpecColumn,
@@ -438,7 +437,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 				job.Data,
 			)
 
-			if i < len(jobRepos)-1 {
+			if i < len(batchRepo)-1 {
 				query += ","
 			}
 		}
@@ -451,7 +450,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 		}
 
 		createCommand := &protobuffs.Command{
-			Type: protobuffs.Command_Type(constants.COMMAND_TYPE_DB_EXECUTE),
+			Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
 			Sql:  query,
 			Data: data,
 		}
@@ -484,7 +483,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 
 		lastInsertedId := r.Data[0].(int64)
 
-		for i := lastInsertedId - int64(len(jobRepos)) + 1; i <= lastInsertedId; i++ {
+		for i := lastInsertedId - int64(len(batchRepo)) + 1; i <= lastInsertedId; i++ {
 			ids = append(ids, i)
 		}
 
