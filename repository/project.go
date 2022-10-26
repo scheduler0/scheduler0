@@ -89,7 +89,7 @@ func (projectRepo *projectRepo) CreateOne(project models.ProjectModel) (int64, *
 	}
 
 	createCommand := &protobuffs.Command{
-		Type: protobuffs.Command_Type(constants.COMMAND_TYPE_DB_EXECUTE),
+		Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
 		Sql:  sqlString,
 		Data: data,
 	}
