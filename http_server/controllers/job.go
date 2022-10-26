@@ -5,7 +5,6 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	"scheduler0/models"
-	"scheduler0/process"
 	"scheduler0/service"
 	"scheduler0/utils"
 	"strconv"
@@ -13,8 +12,7 @@ import (
 
 // HTTPController http request handler for /job requests
 type jobHTTPController struct {
-	jobProcessor process.JobProcessor
-	jobService   service.Job
+	jobService service.Job
 }
 
 type JobHTTPController interface {
@@ -26,10 +24,9 @@ type JobHTTPController interface {
 	DeleteOneJob(w http.ResponseWriter, r *http.Request)
 }
 
-func NewJoBHTTPController(jobService service.Job, jobProcessor process.JobProcessor) JobHTTPController {
+func NewJoBHTTPController(jobService service.Job) JobHTTPController {
 	return &jobHTTPController{
-		jobProcessor: jobProcessor,
-		jobService:   jobService,
+		jobService: jobService,
 	}
 }
 
@@ -96,7 +93,7 @@ func (jobController *jobHTTPController) CreateOneJob(w http.ResponseWriter, r *h
 		return
 	}
 
-	go jobController.jobProcessor.AddJobs([]models.JobModel{*job}, nil)
+	//go jobController.jobQueue.Queue([]models.JobModel{*job})
 	utils.SendJSON(w, job, true, http.StatusCreated, nil)
 }
 
@@ -120,6 +117,8 @@ func (jobController *jobHTTPController) BatchCreateJobs(w http.ResponseWriter, r
 		utils.SendJSON(w, batchCreateError.Message, false, batchCreateError.Type, nil)
 		return
 	}
+
+	go jobController.jobService.QueueJobs(createJobTransformers)
 
 	utils.SendJSON(w, createJobTransformers, true, http.StatusCreated, nil)
 }
