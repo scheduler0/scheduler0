@@ -112,3 +112,6 @@ local_raft_test_up:
 
 increase_ulimit:
 	ulimit -n 1280
+
+generate_protobuffs:
+ 	protoc --proto_path=. --go_out=. --go_opt="Mcommand.proto=.;protobuffs" command.proto
