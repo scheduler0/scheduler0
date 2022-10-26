@@ -16,8 +16,6 @@ import (
 
 type Peer struct {
 	Address     string `json:"address" yaml:"Address"`
-	ApiKey      string `json:"api_key" yaml:"ApiKey"`
-	ApiSecret   string `json:"api_secret" yaml:"ApiSecret"`
 	RaftAddress string `json:"raft_address" yaml:"RaftAddress"`
 }
 
@@ -45,7 +43,6 @@ type Scheduler0Credentials struct {
 
 const (
 	SecretKeyEnv             = "SCHEDULER0_SECRET_KEY"
-	ReplicasEnv              = "SCHEDULER0_REPLICAS"
 	PortEnv                  = "SCHEDULER0_PORT"
 	BootstrapEnv             = "SCHEDULER0_RAFT_BOOTSTRAP"
 	NodeIdEnv                = "SCHEDULER0_NODE_ID_ENV"
