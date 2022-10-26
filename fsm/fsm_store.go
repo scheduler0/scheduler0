@@ -12,20 +12,21 @@ import (
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/marsher"
+	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
 	"sync"
 )
 
 type Store struct {
-	Mtx      sync.RWMutex
-	SqliteDB db.DataStore
-
+	rwMtx           sync.RWMutex
+	SqliteDB        db.DataStore
+	logger          *log.Logger
 	SQLDbConnection *sql.DB
-	dbConnMtx       sync.RWMutex
+	Raft            *raft.Raft
+	PendingJobs     chan models.JobModel
 
-	rMtx sync.RWMutex
-	Raft *raft.Raft
+	raft.BatchingFSM
 }
 
 type Response struct {
@@ -35,30 +36,51 @@ type Response struct {
 
 var _ raft.FSM = &Store{}
 
-func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB) *Store {
+func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB, logger *log.Logger) *Store {
 	return &Store{
 		SqliteDB:        db,
 		SQLDbConnection: sqlDbConnection,
+		PendingJobs:     make(chan models.JobModel, 100),
+		logger:          logger,
 	}
 }
 
 func (s *Store) Apply(l *raft.Log) interface{} {
-	s.Mtx.Lock()
-	defer s.Mtx.Unlock()
+	s.rwMtx.Lock()
+	defer s.rwMtx.Unlock()
 
-	return ApplyCommand(l, s.SQLDbConnection)
+	return ApplyCommand(l, s.SQLDbConnection, true, s.PendingJobs)
 }
 
-func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB) interface{} {
+func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
+	s.rwMtx.Lock()
+	defer s.rwMtx.Unlock()
+
+	results := []interface{}{}
+
+	for _, l := range logs {
+		result := ApplyCommand(l, s.SQLDbConnection, true, s.PendingJobs)
+		results = append(results, result)
+	}
+
+	return results
+}
+
+func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue chan models.JobModel) interface{} {
+	if l.Type == raft.LogConfiguration {
+		return nil
+	}
+
 	command := &protobuffs.Command{}
 
 	err := marsher.UnmarshalCommand(l.Data, command)
 	if err != nil {
 		log.Fatal("failed to unmarshal command", err.Error())
 	}
+	configs := utils.GetScheduler0Configurations()
 
 	switch command.Type {
-	case protobuffs.Command_Type(constants.COMMAND_TYPE_DB_EXECUTE):
+	case protobuffs.Command_Type(constants.CommandTypeDbExecute):
 		params := []interface{}{}
 		err := json.Unmarshal(command.Data, &params)
 		if err != nil {
@@ -98,6 +120,21 @@ func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB) interface{} {
 			Data:  data,
 			Error: "",
 		}
+	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
+		utils.Info("command.Sql ", command.Sql, " configs.RaftAddress", configs.RaftAddress, queueJobs)
+		if command.Sql == configs.RaftAddress && queueJobs {
+			job := models.JobModel{}
+			err := json.Unmarshal(command.Data, &job)
+			if err != nil {
+				return Response{
+					Data:  nil,
+					Error: err.Error(),
+				}
+			}
+
+			utils.Info("received job ", command.Data)
+			queue <- job
+		}
 	}
 
 	return nil
@@ -107,7 +144,6 @@ func (s *Store) Snapshot() (raft.FSMSnapshot, error) {
 	fmt.Println("Snapshot::")
 	fmsSnapshot := NewFSMSnapshot(s.SqliteDB)
 	return fmsSnapshot, nil
-
 }
 
 func (s *Store) Restore(r io.ReadCloser) error {
@@ -132,12 +168,13 @@ func (s *Store) Restore(r io.ReadCloser) error {
 
 	db, err := sql.Open("sqlite3", dbFilePath)
 	if err != nil {
-		log.Fatalln(fmt.Errorf("restore failed to create db: %v", err))
+		return fmt.Errorf("restore failed to create db: %v", err)
 	}
 
 	err = db.Ping()
 	if err != nil {
-		log.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
+		s.logger.Println()
+		return fmt.Errorf("ping error: restore failed to create db: %v", err)
 	}
 
 	return nil

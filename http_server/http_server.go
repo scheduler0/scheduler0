@@ -3,39 +3,43 @@ package http_server
 import (
 	"database/sql"
 	"fmt"
-	"github.com/go-http-utils/logger"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
 	"golang.org/x/net/context"
 	"log"
 	"net/http"
 	"os"
-	"scheduler0/cluster"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/fsm"
 	controllers2 "scheduler0/http_server/controllers"
 	"scheduler0/http_server/middlewares"
+	"scheduler0/job_executor"
+	"scheduler0/job_queue"
+	"scheduler0/models"
+	"scheduler0/peer"
 	"scheduler0/process"
 	repository2 "scheduler0/repository"
 	service2 "scheduler0/service"
 	"scheduler0/utils"
+	"time"
 )
 
 // Start this will start the http server
 func Start() {
 	ctx := context.Background()
+	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
 
 	dir, err := os.Getwd()
 	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
 	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
 
 	sqliteDb := db.NewSqliteDbConnection(dbFilePath)
 	conn, err := sqliteDb.OpenConnection()
 	if err != nil {
-		log.Fatal("Failed to open connection", err)
+		logger.Fatal("Failed to open connection", err)
 	}
 
 	dbConnection := conn.(*sql.DB)
@@ -43,7 +47,7 @@ func Start() {
 
 	err = dbConnection.Ping()
 	if err != nil {
-		log.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
+		logger.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
 	}
 
 	utils.MakeDirIfNotExist(constants.RaftDir)
@@ -51,24 +55,18 @@ func Start() {
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	dirPath, exists := utils.MakeDirIfNotExist(dirPath)
 
-	cls := cluster.NewCluster()
-	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection)
+	p := peer.NewPeer(logger)
+	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
 
 	if exists {
-		cluster.RecoverRaftStore(cls)
+		p.RecoverPeer()
 	}
 
-	rft, rfErr := cluster.NewRaft(fsmStr, cls)
+	rft := p.NewRaft(fsmStr)
 	fsmStr.Raft = rft
-	if rfErr != nil {
-		log.Fatal("failed to create raft store", rfErr)
-	}
 
 	if configs.Bootstrap == "true" && !exists {
-		err = cluster.BootstrapNode(rft)
-		if err != nil {
-			log.Fatal("failed to bootstrap node:", err)
-		}
+		p.BootstrapNode(rft)
 	}
 
 	//repository
@@ -77,19 +75,44 @@ func Start() {
 	executionRepo := repository2.NewExecutionRepo(fsmStr)
 	projectRepo := repository2.NewProjectRepo(fsmStr, jobRepo)
 
+	jobExecutor := job_executor.NewJobExecutor(jobRepo)
+	jobQueue := job_queue.NewJobQueue(rft, jobExecutor)
+
 	//services
 	credentialService := service2.NewCredentialService(credentialRepo, ctx)
-	jobService := service2.NewJobService(jobRepo, ctx)
+	jobService := service2.NewJobService(jobRepo, jobQueue, ctx)
 	executionService := service2.NewExecutionService(executionRepo)
 	projectService := service2.NewProjectService(projectRepo)
 
-	// SetupDB logging
-	log.SetFlags(0)
-	log.SetOutput(new(utils.LogWriter))
-	jobProcessor := process.NewJobProcessor(dbConnection, jobRepo, projectRepo)
+	go func() {
+		ticker := time.NewTicker(time.Millisecond * 100)
+		startedJobs := false
+		for !startedJobs {
+			select {
+			case <-ticker.C:
+				vErr := rft.VerifyLeader()
+				if vErr.Error() == nil {
+					jobProcessor := process.NewJobProcessor(jobRepo, projectRepo, jobQueue)
+					// StartJobs process to execute cron-server jobs
+					logger.Println("starting Jobs")
+					go jobProcessor.StartJobs()
+					startedJobs = true
+				}
+			}
+		}
+	}()
 
-	// StartJobs process to execute cron-server jobs
-	go jobProcessor.StartJobs()
+	go func() {
+		for {
+			select {
+			case pendingJob := <-fsmStr.PendingJobs:
+				logger.Println("running job:", pendingJob.ID)
+				jobExecutor.Run([]models.JobModel{pendingJob})
+			}
+		}
+	}()
+
+	go jobExecutor.ListenToChannelsUpdates()
 
 	// HTTP router setup
 	router := mux.NewRouter()
@@ -99,7 +122,7 @@ func Start() {
 
 	// Initialize controllers
 	executionController := controllers2.NewExecutionsController(executionService)
-	jobController := controllers2.NewJoBHTTPController(jobService, *jobProcessor)
+	jobController := controllers2.NewJoBHTTPController(jobService)
 	projectController := controllers2.NewProjectController(projectService)
 	credentialController := controllers2.NewCredentialController(credentialService)
 	healthCheckController := controllers2.NewHealthCheckController(rft)
@@ -143,6 +166,8 @@ func Start() {
 	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 
 	log.Println("Server is running on port", configs.Port)
-	err = http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), logger.Handler(router, os.Stdout, logger.CombineLoggerType))
-	utils.CheckErr(err)
+	err = http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), router)
+	if err != nil {
+		logger.Fatal("failed to start http-server", err)
+	}
 }
