@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"scheduler0/job_queue"
 	"scheduler0/models"
 	"scheduler0/repository"
 	"scheduler0/utils"
@@ -11,6 +12,7 @@ import (
 
 type jobService struct {
 	jobRepo repository.Job
+	Queue   job_queue.JobQueue
 	Ctx     context.Context
 }
 
@@ -21,11 +23,13 @@ type Job interface {
 	BatchInsertJobs(jobTransformers []models.JobModel) ([]models.JobModel, *utils.GenericError)
 	UpdateJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
 	DeleteJob(jobTransformer models.JobModel) *utils.GenericError
+	QueueJobs(jobTransformer []models.JobModel)
 }
 
-func NewJobService(jobRepo repository.Job, context context.Context) Job {
+func NewJobService(jobRepo repository.Job, queue job_queue.JobQueue, context context.Context) Job {
 	return &jobService{
 		jobRepo: jobRepo,
+		Queue:   queue,
 		Ctx:     context,
 	}
 }
@@ -116,4 +120,8 @@ func (jobService *jobService) DeleteJob(jobTransformer models.JobModel) *utils.G
 	}
 
 	return nil
+}
+
+func (jobService *jobService) QueueJobs(jobTransformer []models.JobModel) {
+	jobService.Queue.Queue(jobTransformer)
 }
