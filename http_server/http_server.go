@@ -17,7 +17,7 @@ import (
 	"scheduler0/job_executor"
 	"scheduler0/job_queue"
 	"scheduler0/models"
-	"scheduler0/peer"
+	"scheduler0/peers"
 	"scheduler0/process"
 	repository2 "scheduler0/repository"
 	service2 "scheduler0/service"
@@ -55,7 +55,7 @@ func Start() {
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	dirPath, exists := utils.MakeDirIfNotExist(dirPath)
 
-	p := peer.NewPeer(logger)
+	p := peers.NewPeer(logger)
 	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
 
 	if exists {
