@@ -49,7 +49,7 @@ func (s *Store) Apply(l *raft.Log) interface{} {
 	s.rwMtx.Lock()
 	defer s.rwMtx.Unlock()
 
-	return ApplyCommand(l, s.SQLDbConnection, true, s.PendingJobs)
+	return ApplyCommand(s.logger, l, s.SQLDbConnection, true, s.PendingJobs)
 }
 
 func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
@@ -59,14 +59,18 @@ func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
 	results := []interface{}{}
 
 	for _, l := range logs {
-		result := ApplyCommand(l, s.SQLDbConnection, true, s.PendingJobs)
+		result := ApplyCommand(s.logger, l, s.SQLDbConnection, true, s.PendingJobs)
 		results = append(results, result)
 	}
 
 	return results
 }
 
-func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue chan models.JobModel) interface{} {
+func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue chan models.JobModel) interface{} {
+	logPrefix := logger.Prefix()
+	logger.SetPrefix(fmt.Sprintf("%s[apply-raft-command] ", logPrefix))
+	defer logger.SetPrefix(logPrefix)
+
 	if l.Type == raft.LogConfiguration {
 		return nil
 	}
@@ -75,7 +79,7 @@ func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue ch
 
 	err := marsher.UnmarshalCommand(l.Data, command)
 	if err != nil {
-		log.Fatal("failed to unmarshal command", err.Error())
+		logger.Fatal("failed to unmarshal command", err.Error())
 	}
 	configs := utils.GetScheduler0Configurations()
 
@@ -91,7 +95,7 @@ func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue ch
 		}
 		exec, err := SQLDbConnection.Exec(command.Sql, params...)
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Println(err.Error())
 			return Response{
 				Data:  nil,
 				Error: err.Error(),
@@ -100,7 +104,7 @@ func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue ch
 
 		lastInsertedId, err := exec.LastInsertId()
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Println(err.Error())
 			return Response{
 				Data:  nil,
 				Error: err.Error(),
@@ -108,7 +112,7 @@ func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue ch
 		}
 		rowsAffected, err := exec.RowsAffected()
 		if err != nil {
-			fmt.Println(err.Error())
+			logger.Println(err.Error())
 			return Response{
 				Data:  nil,
 				Error: err.Error(),
@@ -121,7 +125,6 @@ func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue ch
 			Error: "",
 		}
 	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
-		utils.Info("command.Sql ", command.Sql, " configs.RaftAddress", configs.RaftAddress, queueJobs)
 		if command.Sql == configs.RaftAddress && queueJobs {
 			job := models.JobModel{}
 			err := json.Unmarshal(command.Data, &job)
@@ -132,7 +135,7 @@ func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue ch
 				}
 			}
 
-			utils.Info("received job ", command.Data)
+			logger.Println("received job with id ", job.ID)
 			queue <- job
 		}
 	}
@@ -141,20 +144,25 @@ func ApplyCommand(l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue ch
 }
 
 func (s *Store) Snapshot() (raft.FSMSnapshot, error) {
-	fmt.Println("Snapshot::")
+	logPrefix := s.logger.Prefix()
+	s.logger.SetPrefix(fmt.Sprintf("%s[snapshot-fsm] ", logPrefix))
+	defer s.logger.SetPrefix(logPrefix)
 	fmsSnapshot := NewFSMSnapshot(s.SqliteDB)
 	return fmsSnapshot, nil
 }
 
 func (s *Store) Restore(r io.ReadCloser) error {
-	fmt.Println("Restore::")
+	logPrefix := s.logger.Prefix()
+	s.logger.SetPrefix(fmt.Sprintf("%s[restoring-snapshot] ", logPrefix))
+	defer s.logger.SetPrefix(logPrefix)
+
 	b, err := utils.BytesFromSnapshot(r)
 	if err != nil {
 		return fmt.Errorf("restore failed: %s", err.Error())
 	}
 	dir, err := os.Getwd()
 	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+		return fmt.Errorf("Fatal error getting working dir: %s \n", err)
 	}
 	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
 	if err := os.Remove(dbFilePath); err != nil && !os.IsNotExist(err) {
@@ -173,7 +181,6 @@ func (s *Store) Restore(r io.ReadCloser) error {
 
 	err = db.Ping()
 	if err != nil {
-		s.logger.Println()
 		return fmt.Errorf("ping error: restore failed to create db: %v", err)
 	}
 

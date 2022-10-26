@@ -15,10 +15,10 @@ import (
 	controllers2 "scheduler0/http_server/controllers"
 	"scheduler0/http_server/middlewares"
 	"scheduler0/job_executor"
+	"scheduler0/job_process"
 	"scheduler0/job_queue"
 	"scheduler0/models"
 	"scheduler0/peers"
-	"scheduler0/process"
 	repository2 "scheduler0/repository"
 	service2 "scheduler0/service"
 	"scheduler0/utils"
@@ -92,8 +92,8 @@ func Start() {
 			case <-ticker.C:
 				vErr := rft.VerifyLeader()
 				if vErr.Error() == nil {
-					jobProcessor := process.NewJobProcessor(jobRepo, projectRepo, jobQueue)
-					// StartJobs process to execute cron-server jobs
+					jobProcessor := job_process.NewJobProcessor(jobRepo, projectRepo, jobQueue, logger)
+					// StartJobs job_process to execute cron-server jobs
 					logger.Println("starting Jobs")
 					go jobProcessor.StartJobs()
 					startedJobs = true

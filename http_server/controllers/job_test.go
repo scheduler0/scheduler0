@@ -17,7 +17,7 @@ package controllers_test
 //	jobController "scheduler0/http_server/controllers"
 //	jobTestFixtures "scheduler0/http_server/controllers/fixtures"
 //	"scheduler0/models"
-//	process2 "scheduler0/process"
+//	process2 "scheduler0/job_process"
 //	repository2 "scheduler0/repository"
 //	fixtures2 "scheduler0/repository/fixtures"
 //	"scheduler0/service"

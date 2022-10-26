@@ -167,7 +167,7 @@ func (p *peer) RecoverPeer() {
 			p.logger.Fatalf("failed to get log at index %d: %v\n", index, err)
 		}
 		if entry.Type == raft.LogCommand {
-			fsm.ApplyCommand(&entry, dbConnection, false, nil)
+			fsm.ApplyCommand(p.logger, &entry, dbConnection, false, nil)
 		}
 		lastIndex = entry.Index
 		lastTerm = entry.Term
