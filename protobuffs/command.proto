@@ -4,9 +4,8 @@ package command;
 
 message Command {
   enum Type {
-    COMMAND_TYPE_DB_QUERY = 0;
-    COMMAND_TYPE_DB_EXECUTE = 1;
-    COMMAND_TYPE_JOB_EXECUTE = 2;
+    COMMAND_TYPE_DB_EXECUTE = 0;
+    COMMAND_TYPE_JOB_QUEUE = 1;
   }
   Type type = 1;
   string sql = 2;
