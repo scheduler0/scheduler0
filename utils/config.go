@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
@@ -70,12 +68,12 @@ var requiredEnvs = []string{
 var cachedConfig *Scheduler0Configurations
 
 // GetScheduler0Configurations this will retrieve scheduler0 configurations stored on disk and set it as an os env
-func GetScheduler0Configurations() *Scheduler0Configurations {
+func GetScheduler0Configurations(logger *log.Logger) *Scheduler0Configurations {
 	if cachedConfig != nil {
 		return cachedConfig
 	}
 
-	binPath := getBinPath()
+	binPath := getBinPath(logger)
 
 	fs := afero.NewOsFs()
 	data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
@@ -108,19 +106,19 @@ func CheckRequiredEnvs() (bool, []string) {
 	return true, nil
 }
 
-func getBinPath() string {
+func getBinPath(logger *log.Logger) string {
 	e, err := os.Executable()
 	if err != nil {
-		log.Fatalln(err)
+		logger.Fatalln(err)
 	}
 	return path.Dir(e)
 }
 
 // ReadCredentialsFile reads the content of the config file created by the init protobuffs
-func ReadCredentialsFile() Scheduler0Credentials {
+func ReadCredentialsFile(logger *log.Logger) Scheduler0Credentials {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
+			logger.Println("Recovered in f", r)
 		}
 	}()
 	viper.SetConfigName("scheduler0")
@@ -128,13 +126,13 @@ func ReadCredentialsFile() Scheduler0Credentials {
 
 	dir, err := os.Getwd()
 	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
 	configFilePath := fmt.Sprintf("%v/%v", dir, constants.CredentialsFileName)
 
 	viper.SetConfigFile(configFilePath)
 	if viperErr := viper.ReadInConfig(); viperErr != nil {
-		log.Fatalln(fmt.Errorf("Fatal error read credentials file: %s \n", err))
+		logger.Fatalln(fmt.Errorf("Fatal error read credentials file: %s \n", err))
 	}
 
 	credentials := Scheduler0Credentials{
@@ -143,19 +141,4 @@ func ReadCredentialsFile() Scheduler0Credentials {
 	}
 
 	return credentials
-}
-
-// SetTestScheduler0Configurations this will set the server environment variables to initialized values
-func SetTestScheduler0Configurations() {
-	bytes := make([]byte, 32) //generate a random 32 byte key for AES-256
-	if _, err := rand.Read(bytes); err != nil {
-		log.Fatalln(err.Error())
-	}
-	key := hex.EncodeToString(bytes) //encode key in bytes to string for saving
-
-	err := os.Setenv(SecretKeyEnv, key)
-	utils.CheckErr(err)
-
-	err = os.Setenv(PortEnv, "9090")
-	utils.CheckErr(err)
 }

@@ -15,9 +15,3 @@ func HTTPGenericError(httpStatus int, errorMessage string) *GenericError {
 		Message: errorMessage,
 	}
 }
-
-func CheckErr(e error) {
-	if e != nil {
-		panic(e)
-	}
-}

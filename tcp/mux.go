@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
-	"scheduler0/utils"
 	"sync"
 	"time"
 )
@@ -19,7 +19,8 @@ type Mux struct {
 	ln net.Listener
 	m  map[byte]*listener
 
-	wg sync.WaitGroup
+	logger *log.Logger
+	wg     sync.WaitGroup
 }
 
 func NewMux(ln net.Listener) *Mux {
@@ -36,7 +37,7 @@ func (mux *Mux) Serve() error {
 		// If it returns a temporary error then simply retry.
 		// If it returns any other error then exit immediately.
 		conn, err := mux.ln.Accept()
-		utils.Info("Accepted Connection")
+		mux.logger.Println("Accepted Connection")
 		if err, ok := err.(interface {
 			Temporary() bool
 		}); ok && err.Temporary() {
@@ -45,7 +46,7 @@ func (mux *Mux) Serve() error {
 		if err != nil {
 			// Wait for all connections to be demuxed
 			mux.wg.Wait()
-			utils.Error("Closing connection due to error", err.Error())
+			mux.logger.Println("Closing connection due to error", err.Error())
 
 			for _, ln := range mux.m {
 				close(ln.c)
@@ -95,7 +96,8 @@ func (mux *Mux) Listen(header byte) *Layer {
 
 	// Create a new listener and assign it.
 	ln := &listener{
-		c: make(chan net.Conn),
+		c:      make(chan net.Conn),
+		logger: mux.logger,
 	}
 	mux.m[header] = ln
 
@@ -113,7 +115,7 @@ func (mux *Mux) handleConn(conn net.Conn) {
 	defer mux.wg.Done()
 	// Set a read deadline so connections with no data don't timeout.
 	if err := conn.SetReadDeadline(time.Now().Add(DefaultTimeout)); err != nil {
-		utils.Error("Closing connection due to error", err.Error())
+		mux.logger.Println("Closing connection due to error", err.Error())
 		conn.Close()
 		return
 	}
@@ -121,14 +123,14 @@ func (mux *Mux) handleConn(conn net.Conn) {
 	// Read first byte from connection to determine handler.
 	var typ [1]byte
 	if _, err := io.ReadFull(conn, typ[:]); err != nil {
-		utils.Error("Closing connection due to error", err.Error())
+		mux.logger.Println("Closing connection due to error", err.Error())
 		conn.Close()
 		return
 	}
 
 	// Reset read deadline and let the listener handle that.
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
-		utils.Error("Closing connection due to error", err.Error())
+		mux.logger.Println("Closing connection due to error", err.Error())
 		conn.Close()
 		return
 	}
@@ -136,19 +138,20 @@ func (mux *Mux) handleConn(conn net.Conn) {
 	// Retrieve handler based on first byte.
 	handler := mux.m[typ[0]]
 	if handler == nil {
-		utils.Error("Closing connection due to error because no handler for ", conn.RemoteAddr().String())
+		mux.logger.Println("Closing connection due to error because no handler for ", conn.RemoteAddr().String())
 		conn.Close()
 		return
 	}
 
-	utils.Info("Sending connection to handler")
+	mux.logger.Println("Sending connection to handler")
 	// Send connection to handler.  The handler is responsible for closing the connection.
 	handler.c <- conn
 }
 
 // listener is a receiver for connections received by Mux.
 type listener struct {
-	c chan net.Conn
+	c      chan net.Conn
+	logger *log.Logger
 }
 
 // Accept waits for and returns the next connection to the listener.
@@ -157,7 +160,7 @@ func (ln *listener) Accept() (c net.Conn, err error) {
 	if !ok {
 		return nil, errors.New("network connection closed")
 	}
-	utils.Info("Accepted Connection")
+	ln.logger.Println("Accepted Connection")
 	return conn, nil
 }
 

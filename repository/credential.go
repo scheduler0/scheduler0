@@ -6,6 +6,7 @@ import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/hashicorp/raft"
+	"log"
 	"net/http"
 	"scheduler0/constants"
 	"scheduler0/fsm"
@@ -29,7 +30,8 @@ type Credential interface {
 
 // CredentialRepo Credential
 type credentialRepo struct {
-	store *fsm.Store
+	store  *fsm.Store
+	logger *log.Logger
 }
 
 const (
@@ -51,9 +53,10 @@ const (
 	AndroidPackageIDReferrerRestrictionColumn = "android_package_name_restriction"
 )
 
-func NewCredentialRepo(store *fsm.Store) Credential {
+func NewCredentialRepo(logger *log.Logger, store *fsm.Store) Credential {
 	return &credentialRepo{
-		store: store,
+		store:  store,
+		logger: logger,
 	}
 }
 
@@ -106,7 +109,7 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := utils.GetScheduler0Configurations()
+	configs := utils.GetScheduler0Configurations(credentialRepo.logger)
 
 	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
 	if err != nil {

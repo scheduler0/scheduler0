@@ -5,7 +5,6 @@ import (
 	"log"
 	"scheduler0/job_queue"
 	"scheduler0/repository"
-	"scheduler0/utils"
 )
 
 // JobProcessor handles executions of jobs
@@ -37,7 +36,7 @@ func (jobProcessor *JobProcessor) StartJobs() {
 		jobProcessor.logger.Fatalln(countErr.Message)
 	}
 
-	utils.Info("Total number of projects: ", totalProjectCount)
+	jobProcessor.logger.Println("Total number of projects: ", totalProjectCount)
 
 	projectTransformers, listErr := jobProcessor.projectRepo.List(0, totalProjectCount)
 	if listErr != nil {
@@ -50,7 +49,7 @@ func (jobProcessor *JobProcessor) StartJobs() {
 			jobProcessor.logger.Fatalln(err.Message)
 		}
 
-		utils.Info(fmt.Sprintf("Total number of jobs for project %v is %v : ", projectTransformer.ID, jobsTotalCount))
+		jobProcessor.logger.Println(fmt.Sprintf("Total number of jobs for project %v is %v : ", projectTransformer.ID, jobsTotalCount))
 		jobs, _, loadErr := jobProcessor.jobRepo.GetJobsPaginated(projectTransformer.ID, 0, jobsTotalCount)
 		if loadErr != nil {
 			jobProcessor.logger.Fatalln(loadErr.Message)

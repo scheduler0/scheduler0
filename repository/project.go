@@ -6,6 +6,7 @@ import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/hashicorp/raft"
+	"log"
 	"net/http"
 	"scheduler0/constants"
 	"scheduler0/fsm"
@@ -30,6 +31,7 @@ type Project interface {
 type projectRepo struct {
 	store   *fsm.Store
 	jobRepo Job
+	logger  *log.Logger
 }
 
 const (
@@ -40,10 +42,11 @@ const (
 	ProjectsDateCreatedColumn = "date_created"
 )
 
-func NewProjectRepo(store *fsm.Store, jobRepo Job) Project {
+func NewProjectRepo(logger *log.Logger, store *fsm.Store, jobRepo Job) Project {
 	return &projectRepo{
 		store:   store,
 		jobRepo: jobRepo,
+		logger:  logger,
 	}
 }
 
@@ -99,7 +102,7 @@ func (projectRepo *projectRepo) CreateOne(project models.ProjectModel) (int64, *
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := utils.GetScheduler0Configurations()
+	configs := utils.GetScheduler0Configurations(projectRepo.logger)
 
 	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
 	if err != nil {

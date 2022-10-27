@@ -2,12 +2,15 @@ package main
 
 import (
 	_ "github.com/mattn/go-sqlite3"
+	"log"
+	"os"
 	"scheduler0/cmd"
-	"scheduler0/utils"
 )
 
 func main() {
+	logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
+
 	if err := cmd.Execute(); err != nil {
-		utils.Error(err.Error())
+		logger.Fatalln(err.Error())
 	}
 }

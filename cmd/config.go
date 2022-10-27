@@ -167,9 +167,10 @@ Usage:
 Note that the Port is optional. By default the server will use :9090
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Initializing Scheduler0")
+		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
+		logger.Println("Initializing Scheduler0")
 
-		config := utils.GetScheduler0Configurations()
+		config := utils.GetScheduler0Configurations(logger)
 
 		if config.Port == "" {
 			portPrompt := promptui.Prompt{
@@ -181,7 +182,9 @@ Note that the Port is optional. By default the server will use :9090
 			config.Port = Port
 		}
 		setEnvErr := os.Setenv(utils.PortEnv, config.Port)
-		utils.CheckErr(setEnvErr)
+		if setEnvErr != nil {
+			logger.Fatalln(setEnvErr)
+		}
 
 		if config.SecretKey == "" {
 			secretKeyPrompt := promptui.Prompt{
@@ -193,8 +196,9 @@ Note that the Port is optional. By default the server will use :9090
 			config.SecretKey = SecretKey
 		}
 		err := os.Setenv(utils.SecretKeyEnv, config.SecretKey)
-		utils.CheckErr(setEnvErr)
-
+		if setEnvErr != nil {
+			logger.Fatalln(setEnvErr)
+		}
 		dir, err := os.Getwd()
 		if err != nil {
 			log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
@@ -228,7 +232,7 @@ Note that the Port is optional. By default the server will use :9090
 			log.Fatalln(fmt.Errorf("Fatal cannot write to file: %s \n", err))
 		}
 
-		fmt.Println("Scheduler0 Initialized")
+		logger.Println("Scheduler0 Initialized")
 	},
 }
 
@@ -246,23 +250,24 @@ Usage:
 Use the --show-password flag if you want the password to be visible.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		configs := utils.GetScheduler0Configurations()
-		fmt.Println("Configurations:")
-		fmt.Println("NodeId:", configs.NodeId)
-		fmt.Println("Bootstrap:", configs.Bootstrap)
-		fmt.Println("RaftAddress:", configs.RaftAddress)
-		fmt.Println("Replicas:", configs.Replicas)
-		fmt.Println("Port:", configs.Port)
-		fmt.Println("RaftTransportMaxPool:", configs.RaftTransportMaxPool)
-		fmt.Println("RaftTransportTimeout:", configs.RaftTransportTimeout)
-		fmt.Println("RaftApplyTimeout:", configs.RaftApplyTimeout)
-		fmt.Println("RaftSnapshotInterval:", configs.RaftSnapshotInterval)
-		fmt.Println("RaftSnapshotThreshold:", configs.RaftSnapshotThreshold)
-		fmt.Println("--------------------------")
-		fmt.Println("Credentials:")
-		credentials := utils.ReadCredentialsFile()
-		fmt.Println("ApiSecret:", credentials.ApiSecret)
-		fmt.Println("ApiKey:", credentials.ApiKey)
+		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
+		configs := utils.GetScheduler0Configurations(logger)
+		logger.Println("Configurations:")
+		logger.Println("NodeId:", configs.NodeId)
+		logger.Println("Bootstrap:", configs.Bootstrap)
+		logger.Println("RaftAddress:", configs.RaftAddress)
+		logger.Println("Replicas:", configs.Replicas)
+		logger.Println("Port:", configs.Port)
+		logger.Println("RaftTransportMaxPool:", configs.RaftTransportMaxPool)
+		logger.Println("RaftTransportTimeout:", configs.RaftTransportTimeout)
+		logger.Println("RaftApplyTimeout:", configs.RaftApplyTimeout)
+		logger.Println("RaftSnapshotInterval:", configs.RaftSnapshotInterval)
+		logger.Println("RaftSnapshotThreshold:", configs.RaftSnapshotThreshold)
+		logger.Println("--------------------------")
+		logger.Println("Credentials:")
+		credentials := utils.ReadCredentialsFile(logger)
+		logger.Println("ApiSecret:", credentials.ApiSecret)
+		logger.Println("ApiKey:", credentials.ApiKey)
 	},
 }
 

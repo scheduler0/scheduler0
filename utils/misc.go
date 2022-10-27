@@ -47,10 +47,10 @@ func GetAuthentication() (string, string) {
 	return username, password
 }
 
-func MakeDirIfNotExist(path string) (string, bool) {
+func MakeDirIfNotExist(logger *log.Logger, path string) (string, bool) {
 	dir, err := os.Getwd()
 	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
 
 	dirPath := fmt.Sprintf("%v/%v", dir, path)
@@ -64,7 +64,7 @@ func MakeDirIfNotExist(path string) (string, bool) {
 	if !exists {
 		err := fs.Mkdir(dirPath, os.ModePerm)
 		if err != nil {
-			fmt.Println("err", err)
+			logger.Println("err", err)
 			return dirPath, exists
 		}
 	}

@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"log"
+	"os"
 	"scheduler0/http_server"
-	"scheduler0/utils"
 )
 
 // StartCmd http server command
@@ -21,7 +22,8 @@ Usage:
 The server needs to be running in order to execute jobs.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		utils.Info("Starting Server.")
+		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
+		logger.Println("Starting Server.")
 		http_server.Start()
 	},
 }

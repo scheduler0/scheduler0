@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/gorilla/mux"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/service"
@@ -13,6 +14,7 @@ import (
 
 type projectController struct {
 	projectService service.Project
+	logger         *log.Logger
 }
 
 type ProjectHTTPController interface {
@@ -23,13 +25,18 @@ type ProjectHTTPController interface {
 	UpdateOneProject(w http.ResponseWriter, r *http.Request)
 }
 
-func NewProjectController(projectService service.Project) ProjectHTTPController {
-	return &projectController{projectService: projectService}
+func NewProjectController(logger *log.Logger, projectService service.Project) ProjectHTTPController {
+	return &projectController{
+		projectService: projectService,
+		logger:         logger,
+	}
 }
 
 func (controller *projectController) CreateOneProject(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
-	utils.CheckErr(err)
+	if err != nil {
+		controller.logger.Fatalln(err)
+	}
 
 	project := models.ProjectModel{}
 	err = project.FromJSON(body)
@@ -139,8 +146,9 @@ func (controller *projectController) UpdateOneProject(w http.ResponseWriter, r *
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
-	utils.CheckErr(err)
-
+	if err != nil {
+		controller.logger.Fatalln(err)
+	}
 	project := models.ProjectModel{}
 
 	err = project.FromJSON(body)

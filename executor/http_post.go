@@ -3,20 +3,25 @@ package executor
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/utils"
 	"strings"
 )
 
-type HTTPExecutionHandler struct{}
+type HTTPExecutionHandler struct {
+	logger *log.Logger
+}
 
 type HTTPExecutor interface {
 	ExecuteHTTPJob(pendingJobs []*models.JobModel) error
 }
 
-func NewHTTTPExecutor() *HTTPExecutionHandler {
-	return &HTTPExecutionHandler{}
+func NewHTTTPExecutor(logger *log.Logger) *HTTPExecutionHandler {
+	return &HTTPExecutionHandler{
+		logger: logger,
+	}
 }
 
 func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(pendingJobs []*models.JobModel) error {
@@ -74,7 +79,7 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(pendingJobs []*models.J
 				}
 				toString := strBuilder.String()
 
-				utils.Info(fmt.Sprintf("Running Job Execution for Job CallbackURL = %v with payload len = %v",
+				httpExecutor.logger.Println(fmt.Sprintf("Running Job Execution for Job CallbackURL = %v with payload len = %v",
 					rurl, len(payload)))
 
 				_, err = http.Post(rurl, "application/json", strings.NewReader(toString))

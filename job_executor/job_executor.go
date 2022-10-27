@@ -3,22 +3,24 @@ package job_executor
 import (
 	"fmt"
 	"github.com/robfig/cron"
+	"log"
 	"scheduler0/executor"
 	"scheduler0/models"
 	"scheduler0/repository"
-	"scheduler0/utils"
 	"time"
 )
 
 type JobExecutor struct {
 	PendingJobs chan *models.JobProcess
 	jobRepo     repository.Job
+	logger      *log.Logger
 }
 
-func NewJobExecutor(jobRepository repository.Job) *JobExecutor {
+func NewJobExecutor(logger *log.Logger, jobRepository repository.Job) *JobExecutor {
 	return &JobExecutor{
 		PendingJobs: make(chan *models.JobProcess, 100),
 		jobRepo:     jobRepository,
+		logger:      logger,
 	}
 }
 
@@ -38,7 +40,8 @@ func (jobExecutor *JobExecutor) ExecutePendingJobs(pendingJobs []models.JobProce
 
 	jobs, batchGetError := jobExecutor.jobRepo.BatchGetJobsByID(jobIDs)
 	if batchGetError != nil {
-		utils.Error(fmt.Sprintf("Batch Query Error:: %s", batchGetError.Message))
+		jobExecutor.logger.Println(fmt.Sprintf("Batch Query Error:: %s", batchGetError.Message))
+		return
 	}
 
 	getPendingJob := func(jobID int64) *models.JobProcess {
@@ -50,7 +53,7 @@ func (jobExecutor *JobExecutor) ExecutePendingJobs(pendingJobs []models.JobProce
 		return nil
 	}
 
-	utils.Info(fmt.Sprintf("Batched Queried %v", len(jobs)))
+	jobExecutor.logger.Println(fmt.Sprintf("Batched Queried %v", len(jobs)))
 
 	jobsToExecute := make([]*models.JobModel, 0)
 
@@ -68,12 +71,12 @@ func (jobExecutor *JobExecutor) ExecutePendingJobs(pendingJobs []models.JobProce
 			//	jobProcessor.AddJobs([]models.JobModel{*pendingJob}, nil)
 			//}
 
-			utils.Info(fmt.Sprintf("Executed job %v", pendingJob.ID))
+			jobExecutor.logger.Println(fmt.Sprintf("Executed job %v", pendingJob.ID))
 		}
 	}
 
 	onFail := func(pj []*models.JobModel, err error) {
-		utils.Error("HTTP REQUEST ERROR:: ", err.Error())
+		jobExecutor.logger.Println("HTTP REQUEST ERROR:: ", err.Error())
 	}
 
 	executorService := executor.NewService(jobsToExecute, onSuccess, onFail)
@@ -92,7 +95,7 @@ func (jobExecutor *JobExecutor) ListenToChannelsUpdates() {
 		case <-ticker.C:
 			if len(pendingJobs) > 0 {
 				jobExecutor.ExecutePendingJobs(pendingJobs[0:])
-				utils.Info(fmt.Sprintf("%v Pending Jobs To Execute", len(pendingJobs[0:])))
+				jobExecutor.logger.Println(fmt.Sprintf("%v Pending Jobs To Execute", len(pendingJobs[0:])))
 				pendingJobs = pendingJobs[len(pendingJobs):]
 			}
 		}
@@ -111,7 +114,7 @@ func (jobExecutor *JobExecutor) Run(jobs []models.JobModel) {
 		jobProcess.Cron.Start()
 
 		if cronAddJobErr != nil {
-			utils.Error("Error Add Cron JOb", cronAddJobErr.Error())
+			jobExecutor.logger.Println("Error Add Cron JOb", cronAddJobErr.Error())
 			return
 		}
 	}

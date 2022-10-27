@@ -12,15 +12,15 @@ import (
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/fsm"
-	controllers2 "scheduler0/http_server/controllers"
+	"scheduler0/http_server/controllers"
 	"scheduler0/http_server/middlewares"
 	"scheduler0/job_executor"
 	"scheduler0/job_process"
 	"scheduler0/job_queue"
 	"scheduler0/models"
 	"scheduler0/peers"
-	repository2 "scheduler0/repository"
-	service2 "scheduler0/service"
+	"scheduler0/repository"
+	"scheduler0/service"
 	"scheduler0/utils"
 	"time"
 )
@@ -43,17 +43,17 @@ func Start() {
 	}
 
 	dbConnection := conn.(*sql.DB)
-	configs := utils.GetScheduler0Configurations()
+	configs := utils.GetScheduler0Configurations(logger)
 
 	err = dbConnection.Ping()
 	if err != nil {
 		logger.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
 	}
 
-	utils.MakeDirIfNotExist(constants.RaftDir)
+	utils.MakeDirIfNotExist(logger, constants.RaftDir)
 
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
-	dirPath, exists := utils.MakeDirIfNotExist(dirPath)
+	dirPath, exists := utils.MakeDirIfNotExist(logger, dirPath)
 
 	p := peers.NewPeer(logger)
 	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
@@ -70,19 +70,19 @@ func Start() {
 	}
 
 	//repository
-	credentialRepo := repository2.NewCredentialRepo(fsmStr)
-	jobRepo := repository2.NewJobRepo(fsmStr)
-	executionRepo := repository2.NewExecutionRepo(fsmStr)
-	projectRepo := repository2.NewProjectRepo(fsmStr, jobRepo)
+	credentialRepo := repository.NewCredentialRepo(logger, fsmStr)
+	jobRepo := repository.NewJobRepo(logger, fsmStr)
+	executionRepo := repository.NewExecutionRepo(logger, fsmStr)
+	projectRepo := repository.NewProjectRepo(logger, fsmStr, jobRepo)
 
-	jobExecutor := job_executor.NewJobExecutor(jobRepo)
-	jobQueue := job_queue.NewJobQueue(rft, jobExecutor)
+	jobExecutor := job_executor.NewJobExecutor(logger, jobRepo)
+	jobQueue := job_queue.NewJobQueue(logger, rft, jobExecutor)
 
 	//services
-	credentialService := service2.NewCredentialService(credentialRepo, ctx)
-	jobService := service2.NewJobService(jobRepo, jobQueue, ctx)
-	executionService := service2.NewExecutionService(executionRepo)
-	projectService := service2.NewProjectService(projectRepo)
+	credentialService := service.NewCredentialService(logger, credentialRepo, ctx)
+	jobService := service.NewJobService(logger, jobRepo, jobQueue, ctx)
+	executionService := service.NewExecutionService(logger, executionRepo)
+	projectService := service.NewProjectService(logger, projectRepo)
 
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 100)
@@ -121,11 +121,11 @@ func Start() {
 	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
-	executionController := controllers2.NewExecutionsController(executionService)
-	jobController := controllers2.NewJoBHTTPController(jobService)
-	projectController := controllers2.NewProjectController(projectService)
-	credentialController := controllers2.NewCredentialController(credentialService)
-	healthCheckController := controllers2.NewHealthCheckController(rft)
+	executionController := controllers.NewExecutionsController(logger, executionService)
+	jobController := controllers.NewJoBHTTPController(logger, jobService)
+	projectController := controllers.NewProjectController(logger, projectService)
+	credentialController := controllers.NewCredentialController(logger, credentialService)
+	healthCheckController := controllers.NewHealthCheckController(logger, rft)
 
 	// Mount middleware
 	middleware := middlewares.MiddlewareType{}

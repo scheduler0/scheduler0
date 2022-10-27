@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
 	"scheduler0/service"
 	"scheduler0/utils"
@@ -14,11 +15,13 @@ type Execution interface {
 // ExecutionsHTTPController handlers all incoming http requests for /executions
 type executionsHTTPController struct {
 	executionsService service.ExecutionService
+	logger            *log.Logger
 }
 
-func NewExecutionsController(executionsService service.ExecutionService) Execution {
+func NewExecutionsController(logger *log.Logger, executionsService service.ExecutionService) Execution {
 	return &executionsHTTPController{
 		executionsService: executionsService,
+		logger:            logger,
 	}
 }
 

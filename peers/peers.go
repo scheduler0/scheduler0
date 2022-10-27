@@ -53,7 +53,7 @@ func (p *peer) NewRaft(fsm raft.FSM) *raft.Raft {
 	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-peer-raft] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
 
-	configs := utils.GetScheduler0Configurations()
+	configs := utils.GetScheduler0Configurations(p.logger)
 
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(configs.NodeId)
@@ -73,7 +73,7 @@ func (p *peer) BootstrapNode(r *raft.Raft) {
 	p.logger.SetPrefix(fmt.Sprintf("%s[boostraping-raft-cluster] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
 
-	cfg := getRaftConfigurationFromConfig()
+	cfg := getRaftConfigurationFromConfig(p.logger)
 	f := r.BootstrapCluster(cfg)
 	if err := f.Error(); err != nil {
 		p.logger.Fatalln("failed to bootstrap raft peer", err)
@@ -91,7 +91,7 @@ func (p *peer) RecoverPeer() {
 		snapshots, err = p.Fss.List()
 	)
 	if err != nil {
-		utils.CheckErr(err)
+		p.logger.Fatalln(err)
 	}
 
 	for _, snapshot := range snapshots {
@@ -193,7 +193,7 @@ func (p *peer) RecoverPeer() {
 
 	p.logger.Println("Wrote number of jobs to recovery db ::", count)
 
-	cfg := getRaftConfigurationFromConfig()
+	cfg := getRaftConfigurationFromConfig(p.logger)
 
 	snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
 	sink, err := p.Fss.Create(1, lastIndex, lastTerm, cfg, 1, p.Tm)
@@ -226,7 +226,7 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 	logger.SetPrefix(fmt.Sprintf("%s[creating-new-peer-essentials] ", logPrefix))
 	defer logger.SetPrefix(logPrefix)
 
-	configs := utils.GetScheduler0Configurations()
+	configs := utils.GetScheduler0Configurations(logger)
 
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	_, err = strconv.Atoi(configs.RaftSnapshotInterval)
@@ -270,8 +270,8 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 	return
 }
 
-func getRaftConfigurationFromConfig() raft.Configuration /**/ {
-	configs := utils.GetScheduler0Configurations()
+func getRaftConfigurationFromConfig(logger *log.Logger) raft.Configuration /**/ {
+	configs := utils.GetScheduler0Configurations(logger)
 
 	servers := []raft.Server{}
 

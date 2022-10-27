@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"golang.org/x/net/context"
+	"log"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
@@ -22,16 +23,18 @@ type Credential interface {
 	ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string) (bool, *utils.GenericError)
 }
 
-func NewCredentialService(repo repository.Credential, Ctx context.Context) Credential {
+func NewCredentialService(logger *log.Logger, repo repository.Credential, Ctx context.Context) Credential {
 	return &credentialService{
 		CredentialRepo: repo,
 		Ctx:            Ctx,
+		logger:         logger,
 	}
 }
 
 type credentialService struct {
 	CredentialRepo repository.Credential
 	Ctx            context.Context
+	logger         *log.Logger
 }
 
 // CreateNewCredential creates a new credentials
@@ -62,7 +65,7 @@ func (credentialService *credentialService) CreateNewCredential(credentialTransf
 		}
 	}
 
-	configs := utils.GetScheduler0Configurations()
+	configs := utils.GetScheduler0Configurations(credentialService.logger)
 
 	if credentialTransformer.Platform == repository.ServerPlatform {
 		apiKey, apiSecret := utils.GenerateApiAndSecretKey(configs.SecretKey)

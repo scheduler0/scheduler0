@@ -40,7 +40,9 @@ func SendJSON(w http.ResponseWriter, data interface{}, success bool, status int,
 	w.WriteHeader(status)
 	if status != http.StatusNoContent {
 		_, err := w.Write(resObj.ToJSON())
-		CheckErr(err)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 

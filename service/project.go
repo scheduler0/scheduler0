@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
@@ -11,6 +12,7 @@ import (
 // ProjectService project server the layer on top db repos
 type projectService struct {
 	projectRepo repository.Project
+	logger      *log.Logger
 }
 
 type Project interface {
@@ -22,9 +24,10 @@ type Project interface {
 	List(offset int64, limit int64) (*models.PaginatedProject, *utils.GenericError)
 }
 
-func NewProjectService(projectRepo repository.Project) Project {
+func NewProjectService(logger *log.Logger, projectRepo repository.Project) Project {
 	return &projectService{
 		projectRepo: projectRepo,
+		logger:      logger,
 	}
 }
 

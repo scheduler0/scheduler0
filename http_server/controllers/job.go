@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"github.com/gorilla/mux"
+	"log"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/service"
@@ -13,6 +14,7 @@ import (
 // HTTPController http request handler for /job requests
 type jobHTTPController struct {
 	jobService service.Job
+	logger     *log.Logger
 }
 
 type JobHTTPController interface {
@@ -24,9 +26,10 @@ type JobHTTPController interface {
 	DeleteOneJob(w http.ResponseWriter, r *http.Request)
 }
 
-func NewJoBHTTPController(jobService service.Job) JobHTTPController {
+func NewJoBHTTPController(logger *log.Logger, jobService service.Job) JobHTTPController {
 	return &jobHTTPController{
 		jobService: jobService,
+		logger:     logger,
 	}
 }
 
@@ -113,7 +116,7 @@ func (jobController *jobHTTPController) BatchCreateJobs(w http.ResponseWriter, r
 
 	createJobTransformers, batchCreateError := jobController.jobService.BatchInsertJobs(*jobTransformers)
 	if batchCreateError != nil {
-		utils.Error("batchCreateError", batchCreateError.Message)
+		jobController.logger.Println("batchCreateError", batchCreateError.Message)
 		utils.SendJSON(w, batchCreateError.Message, false, batchCreateError.Type, nil)
 		return
 	}

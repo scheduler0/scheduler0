@@ -5,6 +5,7 @@ import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/hashicorp/raft"
+	"log"
 	"net/http"
 	"scheduler0/constants"
 	"scheduler0/fsm"
@@ -18,7 +19,8 @@ import (
 
 // JobRepo job table manager
 type jobRepo struct {
-	store *fsm.Store
+	store  *fsm.Store
+	logger *log.Logger
 }
 
 type Job interface {
@@ -48,9 +50,10 @@ const (
 	JobsDateCreatedColumn = "date_created"
 )
 
-func NewJobRepo(store *fsm.Store) Job {
+func NewJobRepo(logger *log.Logger, store *fsm.Store) Job {
 	return &jobRepo{
-		store: store,
+		store:  store,
+		logger: logger,
 	}
 }
 
@@ -460,7 +463,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
 
-		configs := utils.GetScheduler0Configurations()
+		configs := utils.GetScheduler0Configurations(jobRepo.logger)
 
 		timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
 		if err != nil {

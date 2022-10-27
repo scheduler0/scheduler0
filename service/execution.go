@@ -1,6 +1,7 @@
 package service
 
 import (
+	"log"
 	"net/http"
 	"scheduler0/models"
 	repos "scheduler0/repository"
@@ -14,11 +15,13 @@ type ExecutionService interface {
 
 type executionService struct {
 	executionRepo repos.Execution
+	logger        *log.Logger
 }
 
-func NewExecutionService(executionRepo repos.Execution) ExecutionService {
+func NewExecutionService(logger *log.Logger, executionRepo repos.Execution) ExecutionService {
 	return &executionService{
 		executionRepo: executionRepo,
+		logger:        logger,
 	}
 }
 

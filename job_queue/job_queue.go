@@ -22,23 +22,26 @@ type JobQueueCommand struct {
 type jobQueue struct {
 	Executor *job_executor.JobExecutor
 	raft     *raft.Raft
+	logger   *log.Logger
 }
 
 type JobQueue interface {
 	Queue(jobs []models.JobModel)
 }
 
-func NewJobQueue(raft *raft.Raft, Executor *job_executor.JobExecutor) *jobQueue {
+func NewJobQueue(logger *log.Logger, raft *raft.Raft, Executor *job_executor.JobExecutor) *jobQueue {
 	return &jobQueue{
 		Executor: Executor,
 		raft:     raft,
+		logger:   logger,
 	}
 }
 
 func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 	f := jobQ.raft.VerifyLeader()
 	if f.Error() != nil {
-		utils.Info("skipping job queueing as node is not the leader")
+		jobQ.logger.Println("skipping job queueing as node is not the leader")
+		return
 	}
 
 	conf := jobQ.raft.GetConfiguration().Configuration()
@@ -49,7 +52,7 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 		return
 	}
 
-	configs := utils.GetScheduler0Configurations()
+	configs := utils.GetScheduler0Configurations(jobQ.logger)
 
 	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
 	if err != nil {
@@ -82,7 +85,7 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 				log.Fatalln(err.Error())
 			}
 
-			utils.Info("Queueing job ", job.ID, " on server ", createCommand.Sql, " s: ", s, " j: ", j)
+			jobQ.logger.Println("Queueing job ", job.ID, " on server ", createCommand.Sql, " s: ", s, " j: ", j)
 			af := jobQ.raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
 			if af.Error() != nil {
 				if af.Error() == raft.ErrNotLeader {

@@ -3,7 +3,8 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/cobra"
-	"scheduler0/utils"
+	"log"
+	"os"
 )
 
 var entityType = ""
@@ -61,11 +62,13 @@ Usage:
 This will list all the credentials that you can use in the client sdks
 `,
 	Run: func(cmd *cobra.Command, args []string) {
+		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
+
 		switch entityType {
 		case "credentials":
 			listCredentials()
 		default:
-			utils.Error(fmt.Sprintf("%v is not a valid table", entityType))
+			logger.Fatalln(fmt.Sprintf("%v is not a valid table", entityType))
 		}
 	},
 }

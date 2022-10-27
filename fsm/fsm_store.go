@@ -81,7 +81,7 @@ func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queu
 	if err != nil {
 		logger.Fatal("failed to unmarshal command", err.Error())
 	}
-	configs := utils.GetScheduler0Configurations()
+	configs := utils.GetScheduler0Configurations(logger)
 
 	switch command.Type {
 	case protobuffs.Command_Type(constants.CommandTypeDbExecute):

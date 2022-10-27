@@ -26,7 +26,8 @@ type Execution interface {
 
 // ExecutionRepo this repo handles interacting with the database for all execution entity type
 type executionRepo struct {
-	store *fsm.Store
+	store  *fsm.Store
+	logger *log.Logger
 }
 
 const (
@@ -43,9 +44,10 @@ const (
 	ExecutionsDateCreatedColumn = "date_created"
 )
 
-func NewExecutionRepo(store *fsm.Store) Execution {
+func NewExecutionRepo(logger *log.Logger, store *fsm.Store) Execution {
 	return &executionRepo{
-		store: store,
+		store:  store,
+		logger: logger,
 	}
 }
 

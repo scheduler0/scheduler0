@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"fmt"
 	"github.com/gorilla/mux"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/service"
@@ -21,11 +21,13 @@ type CredentialHTTPController interface {
 
 type credentialController struct {
 	credentialService service.Credential
+	logger            *log.Logger
 }
 
-func NewCredentialController(credentialService service.Credential) CredentialHTTPController {
+func NewCredentialController(logger *log.Logger, credentialService service.Credential) CredentialHTTPController {
 	return &credentialController{
 		credentialService: credentialService,
+		logger:            logger,
 	}
 }
 
@@ -54,7 +56,7 @@ func (credentialController *credentialController) CreateOneCredential(w http.Res
 		utils.SendJSON(w, err.Message, false, err.Type, nil)
 	} else {
 		if credential, err := credentialController.credentialService.FindOneCredentialByID(newCredentialUUID); err != nil {
-			fmt.Println(err, newCredentialUUID)
+			credentialController.logger.Println(err, newCredentialUUID)
 			utils.SendJSON(w, err.Error(), false, http.StatusInternalServerError, nil)
 		} else {
 			utils.SendJSON(w, credential, true, http.StatusCreated, nil)
@@ -85,8 +87,9 @@ func (credentialController *credentialController) UpdateOneCredential(w http.Res
 	params := mux.Vars(r)
 
 	body, err := ioutil.ReadAll(r.Body)
-	utils.CheckErr(err)
-
+	if err != nil {
+		credentialController.logger.Fatalln(err)
+	}
 	if len(body) < 1 {
 		utils.SendJSON(w, "request body required", false, http.StatusBadRequest, nil)
 		return

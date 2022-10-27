@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"scheduler0/job_queue"
 	"scheduler0/models"
@@ -14,6 +15,7 @@ type jobService struct {
 	jobRepo repository.Job
 	Queue   job_queue.JobQueue
 	Ctx     context.Context
+	logger  *log.Logger
 }
 
 type Job interface {
@@ -26,11 +28,12 @@ type Job interface {
 	QueueJobs(jobTransformer []models.JobModel)
 }
 
-func NewJobService(jobRepo repository.Job, queue job_queue.JobQueue, context context.Context) Job {
+func NewJobService(logger *log.Logger, jobRepo repository.Job, queue job_queue.JobQueue, context context.Context) Job {
 	return &jobService{
 		jobRepo: jobRepo,
 		Queue:   queue,
 		Ctx:     context,
+		logger:  logger,
 	}
 }
 
