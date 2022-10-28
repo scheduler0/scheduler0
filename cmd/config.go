@@ -34,7 +34,7 @@ Note that starting the server without going through the init flow will not work.
 `,
 }
 
-func runMigration(fs afero.Fs, dir string) *sql.DB {
+func runMigration(fs afero.Fs, dir string) {
 	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
 
 	err := fs.Remove(dbFilePath)
@@ -74,8 +74,6 @@ func runMigration(fs afero.Fs, dir string) *sql.DB {
 	if errCommit != nil {
 		log.Fatalln(fmt.Errorf("Fatal commit error: %s \n", errCommit))
 	}
-
-	return dbConnection
 }
 
 func recreateDb(fs afero.Fs, dir string) {
@@ -160,6 +158,7 @@ Note that the Port is optional. By default the server will use :9090
 
 		recreateDb(fs, dir)
 		recreateRaftDir(fs, dir)
+		runMigration(fs, dir)
 
 		logger.Println("Scheduler0 Initialized")
 	},
