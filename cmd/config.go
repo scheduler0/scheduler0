@@ -3,7 +3,6 @@ package cmd
 import (
 	"database/sql"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/manifoldco/promptui"
@@ -181,7 +180,7 @@ Note that the Port is optional. By default the server will use :9090
 			Port, _ := portPrompt.Run()
 			config.Port = Port
 		}
-		setEnvErr := os.Setenv(utils.PortEnv, config.Port)
+		setEnvErr := os.Setenv(config.Port, config.Port)
 		if setEnvErr != nil {
 			logger.Fatalln(setEnvErr)
 		}
@@ -195,7 +194,7 @@ Note that the Port is optional. By default the server will use :9090
 			SecretKey, _ := secretKeyPrompt.Run()
 			config.SecretKey = SecretKey
 		}
-		err := os.Setenv(utils.SecretKeyEnv, config.SecretKey)
+		err := os.Setenv(config.SecretKey, config.SecretKey)
 		if setEnvErr != nil {
 			logger.Fatalln(setEnvErr)
 		}
@@ -207,30 +206,6 @@ Note that the Port is optional. By default the server will use :9090
 
 		recreateDb(fs, dir)
 		recreateRaftDir(fs, dir)
-
-		db := runMigration(fs, dir)
-		apiKey, apiSecret := createServerCredential(config.SecretKey, db)
-
-		credentials := utils.Scheduler0Credentials{
-			ApiKey:    apiKey,
-			ApiSecret: apiSecret,
-		}
-
-		configFilePath := fmt.Sprintf("%v/%v", dir, constants.CredentialsFileName)
-
-		configByte, err := json.Marshal(credentials)
-		if err != nil {
-			log.Fatalln(fmt.Errorf("Fatal error config file: %s \n", err))
-		}
-
-		file, err := fs.Create(configFilePath)
-		if err != nil {
-			log.Fatalln(fmt.Errorf("Fatal cannot create file: %s \n", err))
-		}
-		_, err = file.Write(configByte)
-		if err != nil {
-			log.Fatalln(fmt.Errorf("Fatal cannot write to file: %s \n", err))
-		}
 
 		logger.Println("Scheduler0 Initialized")
 	},
@@ -263,11 +238,6 @@ Use the --show-password flag if you want the password to be visible.
 		logger.Println("RaftApplyTimeout:", configs.RaftApplyTimeout)
 		logger.Println("RaftSnapshotInterval:", configs.RaftSnapshotInterval)
 		logger.Println("RaftSnapshotThreshold:", configs.RaftSnapshotThreshold)
-		logger.Println("--------------------------")
-		logger.Println("Credentials:")
-		credentials := utils.ReadCredentialsFile(logger)
-		logger.Println("ApiSecret:", credentials.ApiSecret)
-		logger.Println("ApiKey:", credentials.ApiKey)
 	},
 }
 
