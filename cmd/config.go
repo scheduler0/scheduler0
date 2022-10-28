@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	sq "github.com/Masterminds/squirrel"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -12,10 +11,7 @@ import (
 	"os"
 	"scheduler0/constants"
 	"scheduler0/db"
-	"scheduler0/models"
-	repository2 "scheduler0/repository"
 	"scheduler0/utils"
-	"time"
 )
 
 //go:embed db.init.sql
@@ -80,47 +76,6 @@ func runMigration(fs afero.Fs, dir string) *sql.DB {
 	}
 
 	return dbConnection
-}
-
-func createServerCredential(secretKey string, dbConnection *sql.DB) (string, string) {
-	utils.GenerateApiAndSecretKey(secretKey)
-	credential := models.CredentialModel{
-		Platform: "server",
-	}
-
-	apiKey, apiSecret := utils.GenerateApiAndSecretKey(secretKey)
-
-	insertBuilder := sq.Insert(repository2.CredentialTableName).
-		Columns(
-			repository2.PlatformColumn,
-			repository2.ArchivedColumn,
-			repository2.ApiKeyColumn,
-			repository2.ApiSecretColumn,
-			repository2.IPRestrictionColumn,
-			repository2.HTTPReferrerRestrictionColumn,
-			repository2.IOSBundleIdReferrerRestrictionColumn,
-			repository2.AndroidPackageIDReferrerRestrictionColumn,
-			repository2.JobsDateCreatedColumn,
-		).
-		Values(
-			credential.Platform,
-			credential.Archived,
-			apiKey,
-			apiSecret,
-			credential.IPRestriction,
-			credential.HTTPReferrerRestriction,
-			credential.IOSBundleIDRestriction,
-			credential.AndroidPackageNameRestriction,
-			time.Now().String(),
-		).
-		RunWith(dbConnection)
-
-	_, err := insertBuilder.Exec()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return apiKey, apiSecret
 }
 
 func recreateDb(fs afero.Fs, dir string) {
@@ -189,7 +144,6 @@ Note that the Port is optional. By default the server will use :9090
 			secretKeyPrompt := promptui.Prompt{
 				Label:       "Secret Key",
 				HideEntered: true,
-				Default:     "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94",
 			}
 			SecretKey, _ := secretKeyPrompt.Run()
 			config.SecretKey = SecretKey
