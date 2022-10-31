@@ -9,7 +9,6 @@ import (
 	"scheduler0/utils"
 )
 
-// CredentialCmd configuration protobuffs
 var CredentialCmd = &cobra.Command{
 	Use:   "credential",
 	Short: "create, view or modify scheduler0 credentials",

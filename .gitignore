@@ -15,3 +15,5 @@ execs.log
 raft_data/
 e2e/
 db/db.db
+/localhost.key
+/localhost.csr
