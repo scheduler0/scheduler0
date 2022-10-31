@@ -14,9 +14,6 @@ import (
 	"scheduler0/utils"
 )
 
-//go:embed db.init.sql
-var migrations string
-
 // ConfigCmd configuration protobuffs
 var ConfigCmd = &cobra.Command{
 	Use:   "config",
@@ -61,7 +58,7 @@ func runMigration(fs afero.Fs, dir string) {
 		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", dbConnErr))
 	}
 
-	_, execErr := trx.Exec(migrations)
+	_, execErr := trx.Exec(db.GetSetupSQL())
 	if execErr != nil {
 		errRollback := trx.Rollback()
 		if errRollback != nil {
@@ -105,7 +102,7 @@ func recreateRaftDir(fs afero.Fs, dir string) {
 }
 
 // InitCmd initializes scheduler0 configuration
-var InitCmd = &cobra.Command{
+var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize database configurations and port for the scheduler0 server",
 	Long: `
@@ -120,7 +117,7 @@ Note that the Port is optional. By default the server will use :9090
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
-		logger.Println("Initializing Scheduler0")
+		logger.Println("Initializing Scheduler0 Configuration")
 
 		config := utils.GetScheduler0Configurations(logger)
 
@@ -138,18 +135,6 @@ Note that the Port is optional. By default the server will use :9090
 			logger.Fatalln(setEnvErr)
 		}
 
-		if config.SecretKey == "" {
-			secretKeyPrompt := promptui.Prompt{
-				Label:       "Secret Key",
-				HideEntered: true,
-			}
-			SecretKey, _ := secretKeyPrompt.Run()
-			config.SecretKey = SecretKey
-		}
-		err := os.Setenv(config.SecretKey, config.SecretKey)
-		if setEnvErr != nil {
-			logger.Fatalln(setEnvErr)
-		}
 		dir, err := os.Getwd()
 		if err != nil {
 			log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
@@ -165,7 +150,7 @@ Note that the Port is optional. By default the server will use :9090
 }
 
 // ShowCmd show scheduler0 password configuration
-var ShowCmd = &cobra.Command{
+var showCmd = &cobra.Command{
 	Use:   "show",
 	Short: "This will show the configurations that have been set.",
 	Long: `
@@ -195,6 +180,6 @@ Use the --show-password flag if you want the password to be visible.
 }
 
 func init() {
-	ConfigCmd.AddCommand(InitCmd)
-	ConfigCmd.AddCommand(ShowCmd)
+	ConfigCmd.AddCommand(initCmd)
+	ConfigCmd.AddCommand(showCmd)
 }

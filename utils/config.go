@@ -20,7 +20,6 @@ type Scheduler0Configurations struct {
 	Protocol              string `json:"protocol" yaml:"Protocol"`
 	Host                  string `json:"host" yaml:"Host"`
 	Port                  string `json:"port" yaml:"Port"`
-	SecretKey             string `json:"secret_key" yaml:"Secret"`
 	Replicas              []Peer `json:"replicas" yaml:"Replicas"`
 	Bootstrap             string `json:"bootstrap" yaml:"Bootstrap"`
 	NodeId                string `json:"nodeId" yaml:"NodeId"`
@@ -34,7 +33,7 @@ type Scheduler0Configurations struct {
 
 var cachedConfig *Scheduler0Configurations
 
-// GetScheduler0Configurations this will retrieve scheduler0 configurations stored on disk and set it as an os env
+// GetScheduler0Configurations this will retrieve scheduler0 configurations stored on disk
 func GetScheduler0Configurations(logger *log.Logger) *Scheduler0Configurations {
 	if cachedConfig != nil {
 		return cachedConfig

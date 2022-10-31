@@ -65,10 +65,10 @@ func (credentialService *credentialService) CreateNewCredential(credentialTransf
 		}
 	}
 
-	configs := utils.GetScheduler0Configurations(credentialService.logger)
+	credentials := utils.GetScheduler0Credentials(credentialService.logger)
 
 	if credentialTransformer.Platform == repository.ServerPlatform {
-		apiKey, apiSecret := utils.GenerateApiAndSecretKey(configs.SecretKey)
+		apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
 		credentialTransformer.ApiKey = apiKey
 		credentialTransformer.ApiSecret = apiSecret
 	}
