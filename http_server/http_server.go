@@ -141,6 +141,7 @@ func Start() {
 	router.Use(mux.CORSMethodMiddleware(router))
 	router.Use(middleware.ContextMiddleware)
 	router.Use(middleware.AuthMiddleware(credentialService))
+	router.Use(middleware.EnsureRaftLeaderMiddleware(rft))
 
 	// Executions Endpoint
 	router.HandleFunc("/executions", executionController.ListExecutions).Methods(http.MethodGet)
@@ -153,7 +154,6 @@ func Start() {
 	router.HandleFunc("/credentials/{uuid}", credentialController.DeleteOneCredential).Methods(http.MethodDelete)
 
 	// Job Endpoint
-	router.HandleFunc("/job", jobController.CreateOneJob).Methods(http.MethodPost)
 	router.HandleFunc("/jobs", jobController.BatchCreateJobs).Methods(http.MethodPost)
 	router.HandleFunc("/jobs", jobController.ListJobs).Methods(http.MethodGet)
 	router.HandleFunc("/jobs/{uuid}", jobController.GetOneJob).Methods(http.MethodGet)

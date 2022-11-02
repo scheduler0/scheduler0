@@ -21,7 +21,6 @@ type jobService struct {
 type Job interface {
 	GetJobsByProjectID(projectID int64, offset int64, limit int64, orderBy string) (*models.PaginatedJob, *utils.GenericError)
 	GetJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
-	CreateJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
 	BatchInsertJobs(jobTransformers []models.JobModel) ([]models.JobModel, *utils.GenericError)
 	UpdateJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
 	DeleteJob(jobTransformer models.JobModel) *utils.GenericError
@@ -67,16 +66,6 @@ func (jobService *jobService) GetJob(job models.JobModel) (*models.JobModel, *ut
 	jobMangerGetOneError := jobService.jobRepo.GetOneByID(&job)
 	if jobMangerGetOneError != nil {
 		return nil, jobMangerGetOneError
-	}
-
-	return &job, nil
-}
-
-// CreateJob creates a new job based on values in transformer object
-func (jobService *jobService) CreateJob(job models.JobModel) (*models.JobModel, *utils.GenericError) {
-	_, jobMangerCreateOneError := jobService.jobRepo.CreateOne(job)
-	if jobMangerCreateOneError != nil {
-		return nil, jobMangerCreateOneError
 	}
 
 	return &job, nil

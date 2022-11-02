@@ -11,4 +11,5 @@ const ExecutionLogsDir = "logs"
 const (
 	CommandTypeDbExecute int32 = 0
 	CommandTypeJobQueue  int32 = 1
+	CommandTypeDbQuery   int32 = 2
 )

@@ -2,7 +2,6 @@ package repository
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/hashicorp/raft"
@@ -24,8 +23,8 @@ type Credential interface {
 	GetByAPIKey(credential *models.CredentialModel) *utils.GenericError
 	Count() (int, *utils.GenericError)
 	List(offset int64, limit int64, orderBy string) ([]models.CredentialModel, *utils.GenericError)
-	UpdateOneByID(credential models.CredentialModel) (int64, error)
-	DeleteOneByID(credential models.CredentialModel) (int64, error)
+	UpdateOneByID(credential models.CredentialModel) (int64, *utils.GenericError)
+	DeleteOneByID(credential models.CredentialModel) (int64, *utils.GenericError)
 }
 
 // CredentialRepo Credential
@@ -87,53 +86,19 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 			credential.DateCreated.String(),
 		)
 
-	sqlString, params, err := insertBuilder.ToSql()
-
-	data, err := json.Marshal(params)
+	query, params, err := insertBuilder.ToSql()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	createCommand := &protobuffs.Command{
-		Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
-		Sql:  sqlString,
-		Data: data,
-	}
-
+	res, applyErr := credentialRepo.applyToFSM(query, params)
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return -1, applyErr
 	}
 
-	createCommandData, err := marsher.MarshalCommand(createCommand)
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
+	credential.ID = res.Data[0].(int64)
 
-	configs := utils.GetScheduler0Configurations(credentialRepo.logger)
-
-	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	af := credentialRepo.store.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
-	if af.Error() != nil {
-		if af.Error() == raft.ErrNotLeader {
-			return -1, utils.HTTPGenericError(http.StatusInternalServerError, "raft leader not found")
-		}
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
-	}
-
-	r := af.Response().(fsm.Response)
-
-	if r.Error != "" {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
-	}
-
-	insertedId := r.Data[0].(int64)
-	credential.ID = insertedId
-
-	return insertedId, nil
+	return credential.ID, nil
 }
 
 // GetOneID returns a single credential
@@ -304,7 +269,7 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 }
 
 // UpdateOneByID updates a single credential
-func (credentialRepo *credentialRepo) UpdateOneByID(credential models.CredentialModel) (int64, error) {
+func (credentialRepo *credentialRepo) UpdateOneByID(credential models.CredentialModel) (int64, *utils.GenericError) {
 	updateQuery := sq.Update(CredentialTableName).
 		Set(ArchivedColumn, credential.Archived).
 		Set(PlatformColumn, credential.Platform).
@@ -317,54 +282,80 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 		Where(fmt.Sprintf("%s = ?", JobsIdColumn), credential.ID).
 		RunWith(credentialRepo.store.SQLDbConnection)
 
-	rows, err := updateQuery.Exec()
+	query, params, err := updateQuery.ToSql()
 	if err != nil {
-		return -1, err
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	count, err := rows.RowsAffected()
+	res, applyErr := credentialRepo.applyToFSM(query, params)
 	if err != nil {
-		return -1, err
+		return -1, applyErr
 	}
 
+	count := res.Data[1].(int64)
 	return count, nil
 }
 
 // DeleteOneByID deletes a single credential
-func (credentialRepo *credentialRepo) DeleteOneByID(credential models.CredentialModel) (int64, error) {
-	countQuery := sq.Select(fmt.Sprintf("count(\"%s\")", JobsIdColumn)).From(CredentialTableName).RunWith(credentialRepo.store.SQLDbConnection)
-	var count int64
+func (credentialRepo *credentialRepo) DeleteOneByID(credential models.CredentialModel) (int64, *utils.GenericError) {
+	deleteQuery := sq.Delete(CredentialTableName).Where(fmt.Sprintf("%s = ?", JobsIdColumn), credential.ID)
 
-	rows, err := countQuery.Query()
+	query, params, err := deleteQuery.ToSql()
 	if err != nil {
-		return -1, err
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
-	defer rows.Close()
-	for rows.Next() {
-		scanErr := rows.Scan(&count)
-		if scanErr != nil {
-			return -1, scanErr
+
+	res, applyErr := credentialRepo.applyToFSM(query, params)
+	if err != nil {
+		return -1, applyErr
+	}
+
+	count := res.Data[1].(int64)
+
+	return count, nil
+}
+
+func (credentialRepo *credentialRepo) applyToFSM(sqlString string, params []interface{}) (*fsm.Response, *utils.GenericError) {
+	data, err := json.Marshal(params)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	createCommand := &protobuffs.Command{
+		Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
+		Sql:  sqlString,
+		Data: data,
+	}
+
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	createCommandData, err := marsher.MarshalCommand(createCommand)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	configs := utils.GetScheduler0Configurations(credentialRepo.logger)
+
+	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	af := credentialRepo.store.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
+	if af.Error() != nil {
+		if af.Error() == raft.ErrNotLeader {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "raft leader not found")
 		}
-	}
-	if rows.Err() != nil {
-		return -1, rows.Err()
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
 	}
 
-	if count == 1 {
-		return -1, errors.New("cannot delete all the credentials")
+	r := af.Response().(fsm.Response)
+
+	if r.Error != "" {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
 	}
 
-	deleteQuery := sq.Delete(CredentialTableName).Where(fmt.Sprintf("%s = ?", JobsIdColumn), credential.ID).RunWith(credentialRepo.store.SQLDbConnection)
-
-	deletedRows, deleteErr := deleteQuery.Exec()
-	if deleteErr != nil {
-		return -1, err
-	}
-
-	deletedRowsCount, err := deletedRows.RowsAffected()
-	if err != nil {
-		return -1, err
-	}
-
-	return deletedRowsCount, nil
+	return &r, nil
 }

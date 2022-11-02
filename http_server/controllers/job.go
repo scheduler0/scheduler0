@@ -19,7 +19,6 @@ type jobHTTPController struct {
 
 type JobHTTPController interface {
 	ListJobs(w http.ResponseWriter, r *http.Request)
-	CreateOneJob(w http.ResponseWriter, r *http.Request)
 	BatchCreateJobs(w http.ResponseWriter, r *http.Request)
 	GetOneJob(w http.ResponseWriter, r *http.Request)
 	UpdateOneJob(w http.ResponseWriter, r *http.Request)
@@ -77,27 +76,6 @@ func (jobController *jobHTTPController) ListJobs(w http.ResponseWriter, r *http.
 	}
 
 	utils.SendJSON(w, jobs, true, http.StatusOK, nil)
-}
-
-// CreateOneJob handles request to create a new job
-func (jobController *jobHTTPController) CreateOneJob(w http.ResponseWriter, r *http.Request) {
-	body := utils.ExtractBody(w, r)
-	jobBody := models.JobModel{}
-	err := jobBody.FromJSON(body)
-
-	if err != nil {
-		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
-		return
-	}
-
-	job, createJobError := jobController.jobService.CreateJob(jobBody)
-	if createJobError != nil {
-		utils.SendJSON(w, createJobError.Message, false, createJobError.Type, nil)
-		return
-	}
-
-	//go jobController.jobQueue.Queue([]models.JobModel{*job})
-	utils.SendJSON(w, job, true, http.StatusCreated, nil)
 }
 
 // BatchCreateJobs handles request to job in batches

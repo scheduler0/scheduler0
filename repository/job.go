@@ -24,7 +24,6 @@ type jobRepo struct {
 }
 
 type Job interface {
-	CreateOne(jobModel models.JobModel) (int64, *utils.GenericError)
 	GetOneByID(jobModel *models.JobModel) *utils.GenericError
 	BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *utils.GenericError)
 	GetJobsPaginated(projectID int64, offset int64, limit int64) ([]models.JobModel, int64, *utils.GenericError)
@@ -54,51 +53,6 @@ func NewJobRepo(logger *log.Logger, store *fsm.Store) Job {
 	return &jobRepo{
 		store:  store,
 		logger: logger,
-	}
-}
-
-// CreateOne create a new job
-func (jobRepo *jobRepo) CreateOne(jobModel models.JobModel) (int64, *utils.GenericError) {
-	if jobModel.ProjectID == 0 {
-		return -1, utils.HTTPGenericError(http.StatusBadRequest, "project id is not defined")
-	}
-
-	if len(jobModel.CallbackUrl) < 1 {
-		return -1, utils.HTTPGenericError(http.StatusBadRequest, "callback url is required")
-	}
-
-	if len(jobModel.Spec) < 1 {
-		return -1, utils.HTTPGenericError(http.StatusBadRequest, "spec is required")
-	}
-
-	insertBuilder := sq.Insert(JobsTableName).
-		Columns(
-			ProjectIdColumn,
-			SpecColumn,
-			CallbackURLColumn,
-			ExecutionTypeColumn,
-			JobsDateCreatedColumn,
-			DataColumn,
-		).
-		Values(
-			jobModel.ProjectID,
-			jobModel.Spec,
-			jobModel.CallbackUrl,
-			jobModel.ExecutionType,
-			time.Now().String(),
-			jobModel.Data,
-		).
-		RunWith(jobRepo.store.SQLDbConnection)
-
-	if res, insertErr := insertBuilder.Exec(); insertErr != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, insertErr.Error())
-	} else {
-		insertedId, lastInsertIdErr := res.LastInsertId()
-		if lastInsertIdErr != nil {
-			return -1, utils.HTTPGenericError(http.StatusInternalServerError, lastInsertIdErr.Error())
-		}
-		jobModel.ID = insertedId
-		return jobModel.ID, nil
 	}
 }
 
@@ -293,36 +247,40 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (int64, *utils.G
 		Set(CallbackURLColumn, jobModel.CallbackUrl).
 		Set(ExecutionTypeColumn, jobModel.ExecutionType).
 		Set(DataColumn, jobModel.Data).
-		Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID).
-		RunWith(jobRepo.store.SQLDbConnection)
+		Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID)
 
-	rows, err := updateQuery.Exec()
+	query, params, err := updateQuery.ToSql()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
-	count, err := rows.RowsAffected()
+
+	res, applyErr := jobRepo.applyToFSM(query, params)
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return -1, applyErr
 	}
+
+	count := res.Data[1].(int64)
 
 	return count, nil
 }
 
 // DeleteOneByID deletes a job with uuid and returns number of affected row
 func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (int64, *utils.GenericError) {
-	deleteQuery := sq.Delete(JobsTableName).Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID).RunWith(jobRepo.store.SQLDbConnection)
+	deleteQuery := sq.Delete(JobsTableName).Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID)
 
-	deletedRows, deleteErr := deleteQuery.Exec()
-	if deleteErr != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, deleteErr.Error())
-	}
-
-	deletedRowsCount, err := deletedRows.RowsAffected()
+	query, params, err := deleteQuery.ToSql()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	return deletedRowsCount, nil
+	res, applyErr := jobRepo.applyToFSM(query, params)
+	if err != nil {
+		return -1, applyErr
+	}
+
+	count := res.Data[1].(int64)
+
+	return count, nil
 }
 
 // GetJobsTotalCount returns total number of jobs
@@ -447,44 +405,12 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 
 		query += ";"
 
-		data, err := json.Marshal(params)
-		if err != nil {
-			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		res, applyErr := jobRepo.applyToFSM(query, params)
+		if applyErr != nil {
+			return nil, applyErr
 		}
 
-		createCommand := &protobuffs.Command{
-			Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
-			Sql:  query,
-			Data: data,
-		}
-
-		createCommandData, err := marsher.MarshalCommand(createCommand)
-		if err != nil {
-			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-		}
-
-		configs := utils.GetScheduler0Configurations(jobRepo.logger)
-
-		timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
-		if err != nil {
-			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-		}
-
-		af := jobRepo.store.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
-		if af.Error() != nil {
-			if af.Error() == raft.ErrNotLeader {
-				return nil, utils.HTTPGenericError(http.StatusInternalServerError, "raft leader not found")
-			}
-			return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
-		}
-
-		r := af.Response().(fsm.Response)
-
-		if r.Error != "" {
-			return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
-		}
-
-		lastInsertedId := r.Data[0].(int64)
+		lastInsertedId := res.Data[0].(int64)
 
 		for i := lastInsertedId - int64(len(batchRepo)) + 1; i <= lastInsertedId; i++ {
 			ids = append(ids, i)
@@ -494,4 +420,49 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 	}
 
 	return returningIds, nil
+}
+
+func (jobRepo *jobRepo) applyToFSM(sqlString string, params []interface{}) (*fsm.Response, *utils.GenericError) {
+	data, err := json.Marshal(params)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	createCommand := &protobuffs.Command{
+		Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
+		Sql:  sqlString,
+		Data: data,
+	}
+
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	createCommandData, err := marsher.MarshalCommand(createCommand)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	configs := utils.GetScheduler0Configurations(jobRepo.logger)
+
+	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	af := jobRepo.store.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
+	if af.Error() != nil {
+		if af.Error() == raft.ErrNotLeader {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "raft leader not found")
+		}
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
+	}
+
+	r := af.Response().(fsm.Response)
+
+	if r.Error != "" {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
+	}
+
+	return &r, nil
 }

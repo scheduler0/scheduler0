@@ -70,7 +70,7 @@ func (projectRepo *projectRepo) CreateOne(project models.ProjectModel) (int64, *
 		return -1, utils.HTTPGenericError(http.StatusBadRequest, "Another project exist with the same name")
 	}
 
-	sqlString, params, err := sq.Insert(ProjectsTableName).
+	query, params, err := sq.Insert(ProjectsTableName).
 		Columns(
 			NameColumn,
 			DescriptionColumn,
@@ -81,52 +81,20 @@ func (projectRepo *projectRepo) CreateOne(project models.ProjectModel) (int64, *
 			project.Description,
 			time.Now().String(),
 		).ToSql()
-
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	data, err := json.Marshal(params)
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	res, applyErr := projectRepo.applyToFSM(query, params)
+	if applyErr != nil {
+		return -1, applyErr
 	}
 
-	createCommand := &protobuffs.Command{
-		Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
-		Sql:  sqlString,
-		Data: data,
-	}
-
-	createCommandData, err := marsher.MarshalCommand(createCommand)
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	configs := utils.GetScheduler0Configurations(projectRepo.logger)
-
-	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	af := projectRepo.store.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
-	if af.Error() != nil {
-		if af.Error() == raft.ErrNotLeader {
-			return -1, utils.HTTPGenericError(http.StatusInternalServerError, "raft leader not found")
-		}
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
-	}
-
-	r := af.Response().(fsm.Response)
-
-	if r.Error != "" {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
-	}
-
-	insertedId := r.Data[0].(int64)
+	insertedId := res.Data[0].(int64)
 	project.ID = insertedId
 
 	return insertedId, nil
+
 }
 
 // GetOneByName returns a project with a matching name
@@ -274,18 +242,19 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (int6
 	updateQuery := sq.Update(ProjectsTableName).
 		Set(NameColumn, project.Name).
 		Set(DescriptionColumn, project.Description).
-		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID).
-		RunWith(projectRepo.store.SQLDbConnection)
+		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID)
 
-	rows, err := updateQuery.Exec()
+	query, params, err := updateQuery.ToSql()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	count, err := rows.RowsAffected()
+	res, applyErr := projectRepo.applyToFSM(query, params)
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return -1, applyErr
 	}
+
+	count := res.Data[1].(int64)
 
 	return count, nil
 }
@@ -303,18 +272,64 @@ func (projectRepo *projectRepo) DeleteOneByID(project models.ProjectModel) (int6
 
 	deleteQuery := sq.
 		Delete(ProjectsTableName).
-		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID).
-		RunWith(projectRepo.store.SQLDbConnection)
+		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID)
 
-	deletedRows, deleteErr := deleteQuery.Exec()
+	query, params, deleteErr := deleteQuery.ToSql()
 	if deleteErr != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, deleteErr.Error())
 	}
 
-	deletedRowsCount, err := deletedRows.RowsAffected()
-	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	res, applyErr := projectRepo.applyToFSM(query, params)
+	if applyErr != nil {
+		return -1, applyErr
 	}
 
-	return deletedRowsCount, nil
+	count := res.Data[1].(int64)
+
+	return count, nil
+}
+
+func (projectRepo *projectRepo) applyToFSM(sqlString string, params []interface{}) (*fsm.Response, *utils.GenericError) {
+	data, err := json.Marshal(params)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	createCommand := &protobuffs.Command{
+		Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
+		Sql:  sqlString,
+		Data: data,
+	}
+
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	createCommandData, err := marsher.MarshalCommand(createCommand)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	configs := utils.GetScheduler0Configurations(projectRepo.logger)
+
+	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	af := projectRepo.store.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
+	if af.Error() != nil {
+		if af.Error() == raft.ErrNotLeader {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "raft leader not found")
+		}
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
+	}
+
+	r := af.Response().(fsm.Response)
+
+	if r.Error != "" {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
+	}
+
+	return &r, nil
 }
