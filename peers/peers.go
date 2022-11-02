@@ -250,7 +250,7 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 		logger.Fatal("failed to listen to tcp net", err)
 	}
 
-	mux := tcp2.NewMux(ln)
+	mux := tcp2.NewMux(logger, ln)
 
 	go mux.Serve()
 

@@ -64,7 +64,6 @@ func Start() {
 
 	if exists {
 		p.RecoverPeer()
-		dbConnection, sqliteDb = getDBConnection(logger)
 	}
 
 	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)

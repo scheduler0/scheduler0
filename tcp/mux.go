@@ -23,10 +23,11 @@ type Mux struct {
 	wg     sync.WaitGroup
 }
 
-func NewMux(ln net.Listener) *Mux {
+func NewMux(logger *log.Logger, ln net.Listener) *Mux {
 	return &Mux{
-		ln: ln,
-		m:  make(map[byte]*listener),
+		ln:     ln,
+		m:      make(map[byte]*listener),
+		logger: logger,
 	}
 }
 
