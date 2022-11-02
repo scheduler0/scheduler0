@@ -148,6 +148,7 @@ func (s *Store) Snapshot() (raft.FSMSnapshot, error) {
 	s.logger.SetPrefix(fmt.Sprintf("%s[snapshot-fsm] ", logPrefix))
 	defer s.logger.SetPrefix(logPrefix)
 	fmsSnapshot := NewFSMSnapshot(s.SqliteDB)
+	s.logger.Println("took snapshot")
 	return fmsSnapshot, nil
 }
 
@@ -155,6 +156,7 @@ func (s *Store) Restore(r io.ReadCloser) error {
 	logPrefix := s.logger.Prefix()
 	s.logger.SetPrefix(fmt.Sprintf("%s[restoring-snapshot] ", logPrefix))
 	defer s.logger.SetPrefix(logPrefix)
+	s.logger.Println("restoring snapshot")
 
 	b, err := utils.BytesFromSnapshot(r)
 	if err != nil {
@@ -183,6 +185,8 @@ func (s *Store) Restore(r io.ReadCloser) error {
 	if err != nil {
 		return fmt.Errorf("ping error: restore failed to create db: %v", err)
 	}
+
+	s.SQLDbConnection = db
 
 	return nil
 }
