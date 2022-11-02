@@ -20,6 +20,7 @@ func init() {
 	rootCmd.AddCommand(StartCmd)
 	rootCmd.AddCommand(ConfigCmd)
 	rootCmd.AddCommand(CredentialCmd)
+	rootCmd.AddCommand(CreateCmd)
 }
 
 // Execute executes root command

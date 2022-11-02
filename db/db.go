@@ -46,10 +46,6 @@ func (db *sqlLiteDb) Serialize() []byte {
 	return data
 }
 
-func NewMemSqliteDd() (io.Closer, error) {
-	return sql.Open("sqlite3", ":memory:")
-}
-
 func GetSetupSQL() string {
 	return `
 CREATE TABLE IF NOT EXISTS credentials

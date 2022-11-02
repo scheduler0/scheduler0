@@ -1,4 +1,4 @@
-package web_test
+package auth_test
 
 //var _ = Describe("Web Auth Test", func() {
 //

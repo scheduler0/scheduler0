@@ -1,6 +1,6 @@
-package server_test
+package auth_test
 
-//var _ = Describe("Server Side Auth Test", func() {
+//var _ = Describe("IOS Auth Test", func() {
 //
 //	dbConnection := db.GetTestDBConnection()
 //	store := store2.NewStore(dbConnection, nil)
@@ -13,7 +13,7 @@ package server_test
 //		db.PrepareTestDB()
 //	})
 //
-//	It("Should identify request from server side", func() {
+//	It("Should identify request from IOS apps", func() {
 //		req, err := http.NewRequest("POST", "/", nil)
 //		Expect(err).To(BeNil())
 //
@@ -21,7 +21,7 @@ package server_test
 //		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 //		credentialTransformer := credentialTransformers[0]
 //
-//		credentialTransformer.Platform = repository.ServerPlatform
+//		credentialTransformer.Platform = repository.IOSPlatform
 //
 //		_, createError := credentialService.CreateNewCredential(credentialTransformer)
 //		if createError != nil {
@@ -29,12 +29,12 @@ package server_test
 //		}
 //
 //		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-//		req.Header.Set(auth.SecretKeyHeader, credentialTransformer.ApiSecret)
+//		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
 //
-//		Expect(server.IsServerClient(req)).To(BeTrue())
+//		Expect(ios.IsIOSClient(req)).To(BeTrue())
 //	})
 //
-//	It("Should not identify request from non server side", func() {
+//	It("Should not identify request from non IOS apps", func() {
 //		req, err := http.NewRequest("POST", "/", nil)
 //		Expect(err).To(BeNil())
 //
@@ -50,17 +50,17 @@ package server_test
 //
 //		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
 //		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
-//		Expect(server.IsServerClient(req)).ToNot(BeTrue())
+//		Expect(ios.IsIOSClient(req)).ToNot(BeTrue())
 //
 //		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-//		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
-//		Expect(server.IsServerClient(req)).ToNot(BeTrue())
+//		req.Header.Set(auth.SecretKeyHeader, credentialTransformer.ApiSecret)
+//		Expect(ios.IsIOSClient(req)).ToNot(BeTrue())
 //
 //		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-//		Expect(server.IsServerClient(req)).ToNot(BeTrue())
+//		Expect(ios.IsIOSClient(req)).ToNot(BeTrue())
 //	})
 //
-//	It("Should identify authorized request from server clients", func() {
+//	It("Should identify authorized request from ios apps", func() {
 //		req, err := http.NewRequest("POST", "/", nil)
 //		Expect(err).To(BeNil())
 //
@@ -68,7 +68,7 @@ package server_test
 //		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 //		credentialTransformer := credentialTransformers[0]
 //
-//		credentialTransformer.Platform = repository.ServerPlatform
+//		credentialTransformer.Platform = repository.IOSPlatform
 //
 //		credentialManagerUUID, createError := credentialService.CreateNewCredential(credentialTransformer)
 //		if createError != nil {
@@ -86,14 +86,14 @@ package server_test
 //		}
 //
 //		req.Header.Set(auth.APIKeyHeader, updatedCredentialTransformer.ApiKey)
-//		req.Header.Set(auth.SecretKeyHeader, updatedCredentialTransformer.ApiSecret)
+//		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
 //
-//		Expect(server.IsAuthorizedServerClient(req, credentialService)).To(BeTrue())
+//		Expect(ios.IsAuthorizedIOSClient(req, credentialService)).To(BeTrue())
 //	})
 //})
 //
-//func TestServerSideAuth_Middleware(t *testing.T) {
+//func TestIOSAuth_Middleware(t *testing.T) {
 //	utils.SetTestScheduler0Configurations()
 //	RegisterFailHandler(Fail)
-//	RunSpecs(t, "Server Side Auth Test")
+//	RunSpecs(t, "IOS Auth Test")
 //}

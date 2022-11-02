@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"scheduler0/utils"
+	"strings"
 )
 
 var CredentialCmd = &cobra.Command{
@@ -37,32 +38,40 @@ var initCCmd = &cobra.Command{
 
 		credentials := utils.GetScheduler0Credentials(logger)
 
-		if credentials.SecretKey == "" {
-			secretKeyPrompt := promptui.Prompt{
-				Label:       "Secret Key",
-				HideEntered: true,
+		if credentials.SecretKey != "" && credentials.AuthUsername != "" && credentials.AuthPassword != "" {
+			recreateKey := promptui.Prompt{
+				Label:       "Credentials already exist are you sure you want to re-create it[Y/n]:",
+				HideEntered: false,
 			}
-			SecretKey, _ := secretKeyPrompt.Run()
-			credentials.SecretKey = SecretKey
+			recreate, _ := recreateKey.Run()
+
+			if strings.ToLower(recreate) == "n" || strings.ToLower(recreate) == "no" {
+				return
+			}
 		}
 
-		if credentials.AuthUsername == "" {
-			authUserNamePrompt := promptui.Prompt{
-				Label:       "Auth Username",
-				HideEntered: true,
-			}
-			usernameKey, _ := authUserNamePrompt.Run()
-			credentials.AuthUsername = usernameKey
+		secretKeyPrompt := promptui.Prompt{
+			Label:       "Secret Key",
+			Mask:        '*',
+			HideEntered: true,
 		}
+		SecretKey, _ := secretKeyPrompt.Run()
+		credentials.SecretKey = SecretKey
 
-		if credentials.AuthPassword == "" {
-			passwordKeyPrompt := promptui.Prompt{
-				Label:       "Auth Password",
-				HideEntered: true,
-			}
-			passwordKey, _ := passwordKeyPrompt.Run()
-			credentials.AuthPassword = passwordKey
+		authUserNamePrompt := promptui.Prompt{
+			Label:       "Auth Username",
+			HideEntered: true,
 		}
+		usernameKey, _ := authUserNamePrompt.Run()
+		credentials.AuthUsername = usernameKey
+
+		passwordKeyPrompt := promptui.Prompt{
+			Label:       "Auth Password",
+			Mask:        '*',
+			HideEntered: true,
+		}
+		passwordKey, _ := passwordKeyPrompt.Run()
+		credentials.AuthPassword = passwordKey
 
 		utils.SaveCredentials(logger, credentials)
 		logger.Println("Scheduler0 Initialized")

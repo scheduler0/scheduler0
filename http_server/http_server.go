@@ -25,11 +25,7 @@ import (
 	"time"
 )
 
-// Start this will start the http server
-func Start() {
-	ctx := context.Background()
-	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
-
+func getDBConnection(logger *log.Logger) (*sql.DB, db.DataStore) {
 	dir, err := os.Getwd()
 	if err != nil {
 		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
@@ -43,24 +39,35 @@ func Start() {
 	}
 
 	dbConnection := conn.(*sql.DB)
-	configs := utils.GetScheduler0Configurations(logger)
-
 	err = dbConnection.Ping()
 	if err != nil {
 		logger.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
 	}
+
+	return dbConnection, sqliteDb
+}
+
+// Start this will start the http server
+func Start() {
+	ctx := context.Background()
+	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
+
+	configs := utils.GetScheduler0Configurations(logger)
 
 	utils.MakeDirIfNotExist(logger, constants.RaftDir)
 
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	dirPath, exists := utils.MakeDirIfNotExist(logger, dirPath)
 
+	dbConnection, sqliteDb := getDBConnection(logger)
 	p := peers.NewPeer(logger)
-	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
 
 	if exists {
 		p.RecoverPeer()
+		dbConnection, sqliteDb = getDBConnection(logger)
 	}
+
+	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
 
 	rft := p.NewRaft(fsmStr)
 	fsmStr.Raft = rft
@@ -128,7 +135,7 @@ func Start() {
 	healthCheckController := controllers.NewHealthCheckController(logger, rft)
 
 	// Mount middleware
-	middleware := middlewares.MiddlewareType{}
+	middleware := middlewares.NewMiddlewareHandler(logger)
 
 	router.Use(secureMiddleware.Handler)
 	router.Use(mux.CORSMethodMiddleware(router))
@@ -165,8 +172,8 @@ func Start() {
 
 	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 
-	log.Println("Server is running on port", configs.Port)
-	err = http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), router)
+	logger.Println("Server is running on port", configs.Port)
+	err := http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), router)
 	if err != nil {
 		logger.Fatal("failed to start http-server", err)
 	}

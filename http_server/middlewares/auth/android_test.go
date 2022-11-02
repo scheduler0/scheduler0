@@ -1,6 +1,6 @@
-package ios_test
+package auth_test
 
-//var _ = Describe("IOS Auth Test", func() {
+//var _ = Describe("Android Auth Test", func() {
 //
 //	dbConnection := db.GetTestDBConnection()
 //	store := store2.NewStore(dbConnection, nil)
@@ -13,7 +13,7 @@ package ios_test
 //		db.PrepareTestDB()
 //	})
 //
-//	It("Should identify request from IOS apps", func() {
+//	It("Should identify request from android apps", func() {
 //		req, err := http.NewRequest("POST", "/", nil)
 //		Expect(err).To(BeNil())
 //
@@ -21,7 +21,7 @@ package ios_test
 //		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 //		credentialTransformer := credentialTransformers[0]
 //
-//		credentialTransformer.Platform = repository.IOSPlatform
+//		credentialTransformer.Platform = repository.AndroidPlatform
 //
 //		_, createError := credentialService.CreateNewCredential(credentialTransformer)
 //		if createError != nil {
@@ -29,12 +29,12 @@ package ios_test
 //		}
 //
 //		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-//		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
+//		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
 //
-//		Expect(ios.IsIOSClient(req)).To(BeTrue())
+//		Expect(android.IsAndroidClient(req)).To(BeTrue())
 //	})
 //
-//	It("Should not identify request from non IOS apps", func() {
+//	It("Should not identify request from non android apps", func() {
 //		req, err := http.NewRequest("POST", "/", nil)
 //		Expect(err).To(BeNil())
 //
@@ -49,18 +49,18 @@ package ios_test
 //		credentialTransformer := credentialTransformers[0]
 //
 //		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-//		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
-//		Expect(ios.IsIOSClient(req)).ToNot(BeTrue())
+//		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
+//		Expect(android.IsAndroidClient(req)).ToNot(BeTrue())
 //
 //		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
 //		req.Header.Set(auth.SecretKeyHeader, credentialTransformer.ApiSecret)
-//		Expect(ios.IsIOSClient(req)).ToNot(BeTrue())
+//		Expect(android.IsAndroidClient(req)).ToNot(BeTrue())
 //
 //		req.Header.Set(auth.APIKeyHeader, credentialTransformer.ApiKey)
-//		Expect(ios.IsIOSClient(req)).ToNot(BeTrue())
+//		Expect(android.IsAndroidClient(req)).ToNot(BeTrue())
 //	})
 //
-//	It("Should identify authorized request from ios apps", func() {
+//	It("Should identify authorized request from android apps", func() {
 //		req, err := http.NewRequest("POST", "/", nil)
 //		Expect(err).To(BeNil())
 //
@@ -68,7 +68,7 @@ package ios_test
 //		credentialTransformers := credentialFixture.CreateNCredentialTransformer(1)
 //		credentialTransformer := credentialTransformers[0]
 //
-//		credentialTransformer.Platform = repository.IOSPlatform
+//		credentialTransformer.Platform = repository.AndroidPlatform
 //
 //		credentialManagerUUID, createError := credentialService.CreateNewCredential(credentialTransformer)
 //		if createError != nil {
@@ -86,14 +86,14 @@ package ios_test
 //		}
 //
 //		req.Header.Set(auth.APIKeyHeader, updatedCredentialTransformer.ApiKey)
-//		req.Header.Set(auth.IOSBundleHeader, credentialTransformer.IOSBundleIDRestriction)
+//		req.Header.Set(auth.AndroidPackageIDHeader, credentialTransformer.AndroidPackageNameRestriction)
 //
-//		Expect(ios.IsAuthorizedIOSClient(req, credentialService)).To(BeTrue())
+//		Expect(android.IsAuthorizedAndroidClient(req, credentialService)).To(BeTrue())
 //	})
 //})
 //
-//func TestIOSAuth_Middleware(t *testing.T) {
+//func TestAndroidAuth_Middleware(t *testing.T) {
 //	utils.SetTestScheduler0Configurations()
 //	RegisterFailHandler(Fail)
-//	RunSpecs(t, "IOS Auth Test")
+//	RunSpecs(t, "Android Auth Test")
 //}
