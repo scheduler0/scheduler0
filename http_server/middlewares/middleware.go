@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"github.com/hashicorp/raft"
 	"github.com/segmentio/ksuid"
 	"log"
 	"net/http"
@@ -95,6 +96,37 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 			}
 
 			utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
+			return
+		})
+	}
+}
+
+func (m *middlewareHandler) EnsureRaftLeaderMiddleware(raft *raft.Raft) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			af := raft.VerifyLeader()
+			if af.Error() != nil && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
+				configs := utils.GetScheduler0Configurations(m.logger)
+				_, serverAddr := raft.LeaderWithID()
+
+				redirectUrl := ""
+
+				for _, leaderPeer := range configs.Replicas {
+					if leaderPeer.RaftAddress == string(serverAddr) {
+						redirectUrl = leaderPeer.Address
+						break
+					}
+				}
+
+				if redirectUrl == "" {
+					m.logger.Fatalln("failed to get redirect url from replicas")
+				}
+
+				http.Redirect(w, r, redirectUrl, 301)
+				return
+			}
+
+			next.ServeHTTP(w, r)
 			return
 		})
 	}
