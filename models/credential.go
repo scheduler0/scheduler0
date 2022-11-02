@@ -7,16 +7,16 @@ import (
 
 // CredentialModel credential model
 type CredentialModel struct {
-	ID                            int64     `json:"id" sql:",pk:notnull"`
-	Archived                      bool      `json:"archived" sql:",notnull"`
-	Platform                      string    `json:"platform" sql:",notnull"`
-	ApiKey                        string    `json:"api_key" sql:",null"`
-	ApiSecret                     string    `json:"api_secret" sql:",null"`
-	IPRestriction                 string    `json:"ip_restriction" sql:",null"`
-	HTTPReferrerRestriction       string    `json:"http_referrer_restriction" sql:",null"`
-	IOSBundleIDRestriction        string    `json:"ios_bundle_id_restriction" sql:",null"`
-	AndroidPackageNameRestriction string    `json:"android_package_name_restriction" sql:",null"`
-	DateCreated                   time.Time `json:"date_created" sql:",notnull,default:now()"`
+	ID                            int64     `json:"id"`
+	Archived                      bool      `json:"archived"`
+	Platform                      string    `json:"platform"`
+	ApiKey                        string    `json:"api_key"`
+	ApiSecret                     string    `json:"api_secret"`
+	IPRestriction                 string    `json:"ip_restriction"`
+	HTTPReferrerRestriction       string    `json:"http_referrer_restriction"`
+	IOSBundleIDRestriction        string    `json:"ios_bundle_id_restriction"`
+	AndroidPackageNameRestriction string    `json:"android_package_name_restriction"`
+	DateCreated                   time.Time `json:"date_created"`
 }
 
 // PaginatedCredential paginated container of credential transformer
@@ -38,7 +38,7 @@ func (credentialModel *CredentialModel) ToJSON() ([]byte, error) {
 
 // FromJSON extracts content of JSON into transformer
 func (credentialModel *CredentialModel) FromJSON(body []byte) error {
-	if err := json.Unmarshal(body, &credentialModel); err != nil {
+	if err := json.Unmarshal(body, credentialModel); err != nil {
 		return err
 	}
 	return nil

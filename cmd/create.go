@@ -48,10 +48,6 @@ var credentialCmd = &cobra.Command{
 
 		if credentialType != "server" {
 			// TODO:  handle none server credentials
-		} else {
-			apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
-			credentialModel.ApiKey = apiKey
-			credentialModel.ApiSecret = apiSecret
 		}
 
 		data, err := credentialModel.ToJSON()
@@ -83,12 +79,7 @@ var credentialCmd = &cobra.Command{
 		if res.StatusCode != http.StatusCreated {
 			logger.Fatalln("failed to create new credential:error:", string(body))
 		} else {
-			logger.Println("successfully created a credential")
-			err := credentialModel.FromJSON(body)
-			if err != nil {
-				logger.Fatalln(err)
-			}
-			logger.Println(credentialModel)
+			logger.Println("successfully created a credential ", string(body))
 		}
 	},
 }
