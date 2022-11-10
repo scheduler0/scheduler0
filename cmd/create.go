@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -11,7 +12,6 @@ import (
 	"scheduler0/http_server/middlewares/auth"
 	"scheduler0/models"
 	"scheduler0/utils"
-	"strings"
 )
 
 var CreateCmd = &cobra.Command{
@@ -46,8 +46,46 @@ var credentialCmd = &cobra.Command{
 		}
 		credentialModel.Platform = credentialType
 
-		if credentialType != "server" {
-			// TODO:  handle none server credentials
+		if credentialType == models.WebPlatform {
+			httpReferrerPrompt := promptui.Prompt{
+				Label: "HTTP Referrer Restriction",
+			}
+			httpReferrerRestriction, err := httpReferrerPrompt.Run()
+			if err != nil {
+				logger.Fatalln(err)
+			}
+			credentialModel.HTTPReferrerRestriction = httpReferrerRestriction
+			ipRestrictionPrompt := promptui.Prompt{
+				Label: "IP Restriction",
+			}
+			ipRestriction, err := ipRestrictionPrompt.Run()
+			if err != nil {
+				logger.Fatalln(err)
+			}
+			credentialModel.HTTPReferrerRestriction = httpReferrerRestriction
+			credentialModel.IPRestriction = ipRestriction
+		}
+
+		if credentialType == models.IOSPlatform {
+			iOSBundlePrompt := promptui.Prompt{
+				Label: "iOS Bundle Id Restriction",
+			}
+			iOSBundleRestriction, err := iOSBundlePrompt.Run()
+			if err != nil {
+				logger.Fatalln(err)
+			}
+			credentialModel.IOSBundleIDRestriction = iOSBundleRestriction
+		}
+
+		if credentialType == models.AndroidPlatform {
+			androidPackageIdPrompt := promptui.Prompt{
+				Label: "Android Package Restriction",
+			}
+			androidPackageIdRestriction, err := androidPackageIdPrompt.Run()
+			if err != nil {
+				logger.Fatalln(err)
+			}
+			credentialModel.AndroidPackageNameRestriction = androidPackageIdRestriction
 		}
 
 		data, err := credentialModel.ToJSON()
@@ -55,11 +93,27 @@ var credentialCmd = &cobra.Command{
 			logger.Fatalln(err)
 		}
 
-		client := &http.Client{}
+		client := &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				req.Method = http.MethodPost
+				body := bytes.NewReader(data)
+				rc := ioutil.NopCloser(body)
+				req.Body = rc
+				req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+				req.Header.Add(auth.PeerHeader, "cmd")
+				req.Header.Add("Content-Type", "application/json")
+
+				if len(via) > 5 {
+					logger.Fatalln("Too many redirects")
+				}
+
+				return nil
+			},
+		}
 		req, err := http.NewRequest(
 			"POST",
 			fmt.Sprintf("%s://%s:%s/credentials", configs.Protocol, configs.Host, configs.Port),
-			strings.NewReader(string(data)),
+			bytes.NewReader(data),
 		)
 
 		req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
