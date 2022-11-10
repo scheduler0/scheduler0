@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"fmt"
 	"github.com/hashicorp/raft"
 	"github.com/segmentio/ksuid"
 	"log"
@@ -107,7 +108,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(raft *raft.Raft) func(nex
 			af := raft.VerifyLeader()
 			if af.Error() != nil && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
 				configs := utils.GetScheduler0Configurations(m.logger)
-				_, serverAddr := raft.LeaderWithID()
+				serverAddr, _ := raft.LeaderWithID()
 
 				redirectUrl := ""
 
@@ -119,9 +120,14 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(raft *raft.Raft) func(nex
 				}
 
 				if redirectUrl == "" {
-					m.logger.Fatalln("failed to get redirect url from replicas")
+					m.logger.Println("failed to get redirect url from replicas")
+					utils.SendJSON(w, "service is unavailable", false, http.StatusServiceUnavailable, nil)
+					return
 				}
 
+				redirectUrl = fmt.Sprintf("%s%s", redirectUrl, r.URL.Path)
+
+				m.logger.Println("Redirecting request to leader", redirectUrl)
 				http.Redirect(w, r, redirectUrl, 301)
 				return
 			}
