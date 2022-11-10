@@ -43,23 +43,23 @@ func (credentialService *credentialService) CreateNewCredential(credentialTransf
 		return -1, utils.HTTPGenericError(http.StatusBadRequest, "credential should have a platform")
 	}
 
-	if credentialTransformer.Platform != repository.AndroidPlatform &&
-		credentialTransformer.Platform != repository.WebPlatform &&
-		credentialTransformer.Platform != repository.IOSPlatform &&
-		credentialTransformer.Platform != repository.ServerPlatform {
+	if credentialTransformer.Platform != models.AndroidPlatform &&
+		credentialTransformer.Platform != models.WebPlatform &&
+		credentialTransformer.Platform != models.IOSPlatform &&
+		credentialTransformer.Platform != models.ServerPlatform {
 		return -1, utils.HTTPGenericError(http.StatusBadRequest, "credential platform should be one of server, web, android, or ios")
 	}
 
 	switch credentialTransformer.Platform {
-	case repository.AndroidPlatform:
+	case models.AndroidPlatform:
 		if len(credentialTransformer.AndroidPackageNameRestriction) < 1 {
 			return -1, utils.HTTPGenericError(http.StatusBadRequest, "android credentials should have a package name restriction")
 		}
-	case repository.IOSPlatform:
+	case models.IOSPlatform:
 		if len(credentialTransformer.IOSBundleIDRestriction) < 1 {
 			return -1, utils.HTTPGenericError(http.StatusBadRequest, "ios credentials should have a bundle restriction")
 		}
-	case repository.WebPlatform:
+	case models.WebPlatform:
 		if len(credentialTransformer.HTTPReferrerRestriction) < 1 && len(credentialTransformer.IPRestriction) < 1 {
 			return -1, utils.HTTPGenericError(http.StatusBadRequest, "web credentials should either an ip restriction or a url restriction")
 		}
@@ -67,7 +67,7 @@ func (credentialService *credentialService) CreateNewCredential(credentialTransf
 
 	credentials := utils.GetScheduler0Credentials(credentialService.logger)
 
-	if credentialTransformer.Platform == repository.ServerPlatform {
+	if credentialTransformer.Platform == models.ServerPlatform {
 		apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
 		credentialTransformer.ApiKey = apiKey
 		credentialTransformer.ApiSecret = apiSecret

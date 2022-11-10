@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+const (
+	AndroidPlatform = "android"
+	WebPlatform     = "web"
+	IOSPlatform     = "ios"
+	ServerPlatform  = "server"
+)
+
 // CredentialModel credential model
 type CredentialModel struct {
 	ID                            int64     `json:"id"`

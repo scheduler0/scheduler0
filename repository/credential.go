@@ -35,10 +35,6 @@ type credentialRepo struct {
 
 const (
 	CredentialTableName = "credentials"
-	AndroidPlatform     = "android"
-	WebPlatform         = "web"
-	IOSPlatform         = "ios"
-	ServerPlatform      = "server"
 )
 
 const (
