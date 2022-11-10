@@ -3,86 +3,154 @@ package peers
 import (
 	"database/sql"
 	_ "embed"
+	"encoding/json"
 	"fmt"
-	raft "github.com/hashicorp/raft"
+	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
 	"github.com/spf13/afero"
 	"io"
 	"log"
-	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/fsm"
+	"scheduler0/http_server/middlewares/auth"
+	"scheduler0/job_executor"
+	"scheduler0/job_process"
+	"scheduler0/job_queue"
+	"scheduler0/models"
+	"scheduler0/repository"
 	tcp2 "scheduler0/tcp"
 	"scheduler0/utils"
 	"strconv"
+	"sync"
 	"time"
 )
 
-type peer struct {
-	Tm     *raft.NetworkTransport
-	Ldb    *boltdb.BoltStore
-	Sdb    *boltdb.BoltStore
-	Fss    *raft.FileSnapshotStore
-	logger *log.Logger
+type PeerStatus struct {
+	IsLeader           bool
+	IsAuth             bool
+	IsAlive            bool
+	CanSend            bool
+	CanReceive         bool
+	LastConnectionTime time.Duration
 }
 
-func NewPeer(logger *log.Logger) *peer {
-	logPrefix := logger.Prefix()
-	logger.SetPrefix(fmt.Sprintf("%s[creating-new-peer] ", logPrefix))
-	defer logger.SetPrefix(logPrefix)
+type PeerRequest struct{}
 
+type PeerRes struct {
+	IsLeader bool
+}
+
+type PeerResponse struct {
+	Data    PeerRes `json:"data"`
+	Success bool    `json:"success"`
+}
+
+type PeerState int
+
+const PeerAddressHeader = "peer-address"
+
+const (
+	Cold          PeerState = 0
+	Bootstrapping           = 1
+	Ready                   = 2
+	ShuttingDown            = 3
+	Unstable                = 4
+)
+
+type Peer struct {
+	Tm           *raft.NetworkTransport
+	Ldb          *boltdb.BoltStore
+	Sdb          *boltdb.BoltStore
+	Fss          *raft.FileSnapshotStore
+	logger       *log.Logger
+	Neighbors    map[string]PeerStatus
+	mtx          sync.Mutex
+	AcceptWrites bool
+	State        PeerState
+	queue        chan []PeerRequest
+	Rft          *raft.Raft
+	jobProcessor *job_process.JobProcessor
+	jobQueue     *job_queue.JobQueue
+	jobExecutor  *job_executor.JobExecutor
+	jobRepo      repository.Job
+	projectRepo  repository.Project
+	ExistingNode bool
+}
+
+func NewPeer(
+	logger *log.Logger,
+	jobExecutor *job_executor.JobExecutor,
+	jobQueue *job_queue.JobQueue,
+	jobRepo repository.Job,
+	projectRepo repository.Project,
+) *Peer {
+	logPrefix := logger.Prefix()
+	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Peer] ", logPrefix))
+	defer logger.SetPrefix(logPrefix)
+	dirPath := fmt.Sprintf("%v", constants.RaftDir)
+	dirPath, exists := utils.MakeDirIfNotExist(logger, dirPath)
+	dirPath = fmt.Sprintf("%v/%v", constants.RaftDir, 1)
+	utils.MakeDirIfNotExist(logger, dirPath)
 	tm, ldb, sdb, fss, err := getLogsAndTransport(logger)
 	if err != nil {
-		logger.Fatal("failed essentials for peer", err)
+		logger.Fatal("failed essentials for Peer", err)
 	}
-	return &peer{
-		Tm:     tm,
-		Ldb:    ldb,
-		Sdb:    sdb,
-		Fss:    fss,
-		logger: logger,
+
+	return &Peer{
+		Tm:           tm,
+		Ldb:          ldb,
+		Sdb:          sdb,
+		Fss:          fss,
+		logger:       logger,
+		Neighbors:    map[string]PeerStatus{},
+		AcceptWrites: false,
+		State:        Cold,
+		jobProcessor: job_process.NewJobProcessor(jobRepo, projectRepo, *jobQueue, logger),
+		jobQueue:     jobQueue,
+		jobExecutor:  jobExecutor,
+		jobRepo:      jobRepo,
+		projectRepo:  projectRepo,
+		ExistingNode: exists,
 	}
 }
 
-func (p *peer) NewRaft(fsm raft.FSM) *raft.Raft {
+func (p *Peer) NewRaft(fsm raft.FSM) *raft.Raft {
 	logPrefix := p.logger.Prefix()
-	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-peer-raft] ", logPrefix))
+	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-Peer-raft] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
 
 	configs := utils.GetScheduler0Configurations(p.logger)
 
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(configs.NodeId)
-	c.ElectionTimeout = time.Duration(rand.Intn(300-150)+300) * time.Millisecond
-	c.HeartbeatTimeout = time.Duration(rand.Intn(200-100)+200) * time.Millisecond
-	c.LeaderLeaseTimeout = time.Duration(rand.Intn(100-50)+100) * time.Millisecond
 
 	r, err := raft.NewRaft(c, fsm, p.Ldb, p.Sdb, p.Fss, p.Tm)
 	if err != nil {
-		p.logger.Fatalln("failed to create raft object for peer", err)
+		p.logger.Fatalln("failed to create raft object for Peer", err)
 	}
 	return r
 }
 
-func (p *peer) BootstrapNode(r *raft.Raft) {
+func (p *Peer) BootstrapRaftCluster(r *raft.Raft) {
 	logPrefix := p.logger.Prefix()
 	p.logger.SetPrefix(fmt.Sprintf("%s[boostraping-raft-cluster] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
 
-	cfg := getRaftConfigurationFromConfig(p.logger)
+	cfg := p.getRaftConfigurationFromConfig(p.logger)
 	f := r.BootstrapCluster(cfg)
 	if err := f.Error(); err != nil {
-		p.logger.Fatalln("failed to bootstrap raft peer", err)
+		p.logger.Fatalln("failed to bootstrap raft Peer", err)
 	}
 }
 
-func (p *peer) RecoverPeer() {
+func (p *Peer) RecoverRaftState() {
 	logPrefix := p.logger.Prefix()
-	p.logger.SetPrefix(fmt.Sprintf("%s[recovering-peer] ", logPrefix))
+	p.logger.SetPrefix(fmt.Sprintf("%s[recovering-Peer] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
 
 	var (
@@ -193,10 +261,10 @@ func (p *peer) RecoverPeer() {
 
 	p.logger.Println("Wrote number of jobs to recovery db ::", count)
 
-	cfg := getRaftConfigurationFromConfig(p.logger)
+	cfg := p.getRaftConfigurationFromConfig(p.logger)
 
 	snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
-	sink, err := p.Fss.Create(1, lastIndex, lastTerm, cfg, 1, p.Tm)
+	sink, err := p.Fss.Create(1, lastIndex, lastTerm, cfg, 3, p.Tm)
 	if err != nil {
 		p.logger.Fatalf("failed to create snapshot: %v", err)
 	}
@@ -221,9 +289,299 @@ func (p *peer) RecoverPeer() {
 	}
 }
 
+func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
+	p.State = Bootstrapping
+	p.AuthenticateWithPeersInConfig(p.logger)
+	if p.ExistingNode {
+		p.logger.Println("discovered existing raft dir")
+		p.RecoverRaftState()
+	}
+	configs := utils.GetScheduler0Configurations(p.logger)
+	rft := p.NewRaft(fsmStr)
+	if configs.Bootstrap == "true" && !p.ExistingNode {
+		p.BootstrapRaftCluster(rft)
+	}
+	go p.MonitorRaftState()
+	fsmStr.Raft = rft
+	p.Rft = rft
+	p.ShardCronJobs()
+	go p.jobExecutor.ListenToChannelsUpdates()
+	p.RunPendingCronJob(fsmStr)
+}
+
+func (p *Peer) AddNewPeerNeighbor() {}
+
+func (p *Peer) RemovePeerNeighbor(peerAddress string) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	delete(p.Neighbors, peerAddress)
+}
+
+func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) {
+	p.logger.Println("Authenticating with peers...")
+
+	configs := utils.GetScheduler0Configurations(logger)
+	var wg sync.WaitGroup
+
+	results := map[string]PeerStatus{}
+	wrlck := sync.Mutex{}
+
+	for _, replica := range configs.Replicas {
+		if replica.Address != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
+			wg.Add(1)
+
+			go func(rep utils.Peer, res map[string]PeerStatus) {
+				wrlck.Lock()
+				defer wrlck.Unlock()
+				defer wg.Done()
+
+				err := utils.RetryOnError(func() error {
+					if peerStatus, err := connectPeer(logger, rep); peerStatus != nil {
+						p.Neighbors[rep.Address] = *peerStatus
+					} else {
+						return err
+					}
+
+					return nil
+				}, configs.PeerConnectRetryMax, configs.PeerConnectRetryDelay)
+
+				if err != nil {
+					p.logger.Println("failed to authenticate with Peer ", rep.Address)
+				}
+
+				logger.Println("failed to connect with Peer", err)
+			}(replica, results)
+		}
+	}
+	wg.Wait()
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	for addr, result := range results {
+		if peer, ok := p.Neighbors[addr]; ok {
+			peer.CanSend = result.CanSend
+			peer.IsAlive = result.IsAlive
+			peer.IsLeader = result.IsLeader
+			peer.LastConnectionTime = result.LastConnectionTime
+			peer.IsAuth = result.IsAuth
+		} else {
+			p.Neighbors[addr] = result
+		}
+	}
+}
+
+func (p *Peer) EnsureSingleBootstrapConfig() {}
+
+func (p *Peer) ConsolidateLeaderFromPeers() {}
+
+func (p *Peer) StartFailureDetector() {}
+
+func (p *Peer) BroadcastDetectedFailure() {}
+
+func (p *Peer) ShardCronJobs() {
+	p.logger.Println("begin sharing cron jobs")
+	go func() {
+		configs := utils.GetScheduler0Configurations(p.logger)
+		ticker := time.NewTicker(time.Millisecond * time.Duration(configs.PeerCronJobCheckInterval))
+		startedJobs := false
+
+		for !startedJobs {
+			select {
+			case <-ticker.C:
+				if p.Rft.State() == raft.Shutdown {
+					return
+				}
+				vErr := p.Rft.VerifyLeader()
+				if vErr.Error() == nil {
+					p.logger.Println("starting jobs")
+					go p.jobProcessor.StartJobs()
+					startedJobs = true
+				} else {
+					p.logger.Println("---not leader jobs not starting yet", p.Rft.State().String())
+				}
+			}
+		}
+	}()
+}
+
+func (p *Peer) MonitorRaftState() {
+	p.logger.Println("begin monitoring raft state")
+	go func() {
+		configs := utils.GetScheduler0Configurations(p.logger)
+		ticker := time.NewTicker(time.Millisecond * time.Duration(configs.MonitorRaftStateInterval))
+		startCount := false
+		start := time.Now()
+		stopTime := time.Duration(configs.StableRaftStateTimeout) * time.Second
+		for {
+			select {
+			case <-ticker.C:
+				if p.Rft.State() == raft.Shutdown {
+					p.State = ShuttingDown
+					p.AcceptWrites = false
+					return
+				}
+				leaderAddress, _ := p.Rft.LeaderWithID()
+				if leaderAddress == "" {
+					if startCount && time.Since(start).Milliseconds() >= stopTime.Milliseconds() {
+						p.Rft.Shutdown()
+						p.logger.Println("raft state is not stable therefore shutting down")
+						p.AcceptWrites = false
+						p.State = ShuttingDown
+					}
+					if !startCount {
+						start = time.Now()
+						startCount = true
+						p.AcceptWrites = false
+						p.State = Unstable
+					}
+				} else {
+					startCount = false
+					p.AcceptWrites = true
+					p.State = Ready
+				}
+			}
+		}
+	}()
+}
+
+func (p *Peer) RunPendingCronJob(fsmStr *fsm.Store) {
+	p.logger.Println("begin listening for jobs")
+
+	go func() {
+		for {
+			select {
+			case pendingJob := <-fsmStr.PendingJobs:
+				p.logger.Println("running job:", pendingJob.ID)
+				p.jobExecutor.Run([]models.JobModel{pendingJob})
+			}
+		}
+	}()
+}
+
+func (p *Peer) ReceiveHandshakePeer(peerAddress string) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	if peer, ok := p.Neighbors[peerAddress]; ok {
+		peer.CanReceive = true
+	} else {
+		p.logger.Println("could not mark peer <", peerAddress, "> can receive property")
+	}
+}
+
+func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configuration {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	configs := utils.GetScheduler0Configurations(logger)
+	servers := []raft.Server{}
+
+	for i, replica := range configs.Replicas {
+		if repStatus, ok := p.Neighbors[replica.Address]; ok &&
+			repStatus.IsAlive &&
+			repStatus.IsAuth &&
+			repStatus.CanReceive &&
+			repStatus.CanSend {
+			servers = append(servers, raft.Server{
+				ID:       raft.ServerID(fmt.Sprintf("%v", i+1)),
+				Suffrage: raft.Voter,
+				Address:  raft.ServerAddress(replica.RaftAddress),
+			})
+		}
+	}
+
+	cfg := raft.Configuration{
+		Servers: servers,
+	}
+
+	return cfg
+}
+
+func connectPeer(logger *log.Logger, rep utils.Peer) (*PeerStatus, error) {
+	configs := utils.GetScheduler0Configurations(logger)
+	httpClient := http.Client{
+		Timeout: time.Duration(configs.PeerAuthRequestTimeout) * time.Second,
+	}
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/Peer-handshake", rep.Address), nil)
+	if err != nil {
+		logger.Println("failed to create request ", err)
+		return nil, err
+	}
+	req.Header.Set(auth.PeerHeader, "Peer")
+	req.Header.Set(PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
+	credentials := utils.GetScheduler0Credentials(logger)
+	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+
+	start := time.Now()
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		logger.Println("failed to send request ", err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	connectionTime := time.Since(start)
+
+	if resp.StatusCode != http.StatusOK {
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			logger.Fatal("failed to response", err)
+		}
+
+		body := PeerResponse{}
+
+		err = json.Unmarshal(data, body)
+		if err != nil {
+			logger.Println("failed to unmarshal response ", err)
+			return nil, err
+		}
+
+		return &PeerStatus{
+			IsAlive:            true,
+			IsAuth:             true,
+			IsLeader:           body.Data.IsLeader,
+			CanSend:            true,
+			CanReceive:         false,
+			LastConnectionTime: connectionTime,
+		}, nil
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return &PeerStatus{
+			IsAlive:            true,
+			IsAuth:             false,
+			IsLeader:           false,
+			CanSend:            false,
+			CanReceive:         false,
+			LastConnectionTime: connectionTime,
+		}, nil
+	}
+
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		return &PeerStatus{
+			IsAlive:            false,
+			IsAuth:             false,
+			IsLeader:           false,
+			CanReceive:         false,
+			LastConnectionTime: connectionTime,
+		}, nil
+	}
+
+	return &PeerStatus{
+		IsAlive:            false,
+		IsAuth:             false,
+		IsLeader:           false,
+		CanReceive:         false,
+		LastConnectionTime: connectionTime,
+	}, nil
+}
+
 func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *boltdb.BoltStore, sdb *boltdb.BoltStore, fss *raft.FileSnapshotStore, err error) {
 	logPrefix := logger.Prefix()
-	logger.SetPrefix(fmt.Sprintf("%s[creating-new-peer-essentials] ", logPrefix))
+	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Peer-essentials] ", logPrefix))
 	defer logger.SetPrefix(logPrefix)
 
 	configs := utils.GetScheduler0Configurations(logger)
@@ -240,11 +598,17 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 	}
 
 	ldb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
-
+	if err != nil {
+		logger.Fatal("failed to create log store", err)
+	}
 	sdb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
-
+	if err != nil {
+		logger.Fatal("failed to create stable store", err)
+	}
 	fss, err = raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
-
+	if err != nil {
+		logger.Fatal("failed to create snapshot store", err)
+	}
 	ln, err := net.Listen("tcp", configs.RaftAddress)
 	if err != nil {
 		logger.Fatal("failed to listen to tcp net", err)
@@ -268,26 +632,4 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 
 	tm = raft.NewNetworkTransport(tcp2.NewTransport(muxLn), maxPool, time.Second*time.Duration(timeout), nil)
 	return
-}
-
-func getRaftConfigurationFromConfig(logger *log.Logger) raft.Configuration /**/ {
-	configs := utils.GetScheduler0Configurations(logger)
-
-	servers := []raft.Server{}
-
-	if len(configs.Replicas) > 0 {
-		for i, replica := range configs.Replicas {
-			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(fmt.Sprintf("%v", i+1)),
-				Suffrage: raft.Voter,
-				Address:  raft.ServerAddress(replica.RaftAddress),
-			})
-		}
-	}
-
-	cfg := raft.Configuration{
-		Servers: servers,
-	}
-
-	return cfg
 }
