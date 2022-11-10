@@ -29,7 +29,7 @@ type JobQueue interface {
 	Queue(jobs []models.JobModel)
 }
 
-func NewJobQueue(logger *log.Logger, raft *raft.Raft, Executor *job_executor.JobExecutor) *jobQueue {
+func NewJobQueue(logger *log.Logger, raft *raft.Raft, Executor *job_executor.JobExecutor) JobQueue {
 	return &jobQueue{
 		Executor: Executor,
 		raft:     raft,

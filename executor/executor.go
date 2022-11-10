@@ -22,10 +22,10 @@ type Service struct {
 	onFailure            func(pj []*models.JobModel, err error)
 }
 
-func NewService(pj []*models.JobModel, onSuccess func(pj []*models.JobModel), onFailure func(pj []*models.JobModel, err error)) *Service {
+func NewService(logger *log.Logger, pj []*models.JobModel, onSuccess func(pj []*models.JobModel), onFailure func(pj []*models.JobModel, err error)) *Service {
 	return &Service{
 		pendingJob:           pj,
-		httpExecutionHandler: &HTTPExecutionHandler{},
+		httpExecutionHandler: NewHTTTPExecutor(logger),
 		onSuccess:            onSuccess,
 		onFailure:            onFailure,
 	}

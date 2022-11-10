@@ -79,7 +79,7 @@ func (jobExecutor *JobExecutor) ExecutePendingJobs(pendingJobs []models.JobProce
 		jobExecutor.logger.Println("HTTP REQUEST ERROR:: ", err.Error())
 	}
 
-	executorService := executor.NewService(jobsToExecute, onSuccess, onFail)
+	executorService := executor.NewService(jobExecutor.logger, jobsToExecute, onSuccess, onFail)
 	executorService.ExecuteHTTP()
 }
 

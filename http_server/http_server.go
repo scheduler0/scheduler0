@@ -15,14 +15,11 @@ import (
 	"scheduler0/http_server/controllers"
 	"scheduler0/http_server/middlewares"
 	"scheduler0/job_executor"
-	"scheduler0/job_process"
 	"scheduler0/job_queue"
-	"scheduler0/models"
 	"scheduler0/peers"
 	"scheduler0/repository"
 	"scheduler0/service"
 	"scheduler0/utils"
-	"time"
 )
 
 func getDBConnection(logger *log.Logger) (*sql.DB, db.DataStore) {
@@ -54,26 +51,8 @@ func Start() {
 
 	configs := utils.GetScheduler0Configurations(logger)
 
-	utils.MakeDirIfNotExist(logger, constants.RaftDir)
-
-	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
-	dirPath, exists := utils.MakeDirIfNotExist(logger, dirPath)
-
 	dbConnection, sqliteDb := getDBConnection(logger)
-	p := peers.NewPeer(logger)
-
-	if exists {
-		p.RecoverPeer()
-	}
-
 	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
-
-	rft := p.NewRaft(fsmStr)
-	fsmStr.Raft = rft
-
-	if configs.Bootstrap == "true" && !exists {
-		p.BootstrapNode(rft)
-	}
 
 	//repository
 	credentialRepo := repository.NewCredentialRepo(logger, fsmStr)
@@ -82,43 +61,16 @@ func Start() {
 	projectRepo := repository.NewProjectRepo(logger, fsmStr, jobRepo)
 
 	jobExecutor := job_executor.NewJobExecutor(logger, jobRepo)
-	jobQueue := job_queue.NewJobQueue(logger, rft, jobExecutor)
+	jobQueue := job_queue.NewJobQueue(logger, fsmStr.Raft, jobExecutor)
+	p := peers.NewPeer(logger, jobExecutor, &jobQueue, jobRepo, projectRepo)
+
+	go p.BoostrapPeer(fsmStr)
 
 	//services
 	credentialService := service.NewCredentialService(logger, credentialRepo, ctx)
 	jobService := service.NewJobService(logger, jobRepo, jobQueue, ctx)
 	executionService := service.NewExecutionService(logger, executionRepo)
 	projectService := service.NewProjectService(logger, projectRepo)
-
-	go func() {
-		ticker := time.NewTicker(time.Millisecond * 100)
-		startedJobs := false
-		for !startedJobs {
-			select {
-			case <-ticker.C:
-				vErr := rft.VerifyLeader()
-				if vErr.Error() == nil {
-					jobProcessor := job_process.NewJobProcessor(jobRepo, projectRepo, jobQueue, logger)
-					// StartJobs job_process to execute cron-server jobs
-					logger.Println("starting Jobs")
-					go jobProcessor.StartJobs()
-					startedJobs = true
-				}
-			}
-		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case pendingJob := <-fsmStr.PendingJobs:
-				logger.Println("running job:", pendingJob.ID)
-				jobExecutor.Run([]models.JobModel{pendingJob})
-			}
-		}
-	}()
-
-	go jobExecutor.ListenToChannelsUpdates()
 
 	// HTTP router setup
 	router := mux.NewRouter()
@@ -131,7 +83,8 @@ func Start() {
 	jobController := controllers.NewJoBHTTPController(logger, jobService)
 	projectController := controllers.NewProjectController(logger, projectService)
 	credentialController := controllers.NewCredentialController(logger, credentialService)
-	healthCheckController := controllers.NewHealthCheckController(logger, rft)
+	healthCheckController := controllers.NewHealthCheckController(logger, p.Rft)
+	peerController := controllers.NewPeerController(logger, p.Rft, p)
 
 	// Mount middleware
 	middleware := middlewares.NewMiddlewareHandler(logger)
@@ -140,7 +93,7 @@ func Start() {
 	router.Use(mux.CORSMethodMiddleware(router))
 	router.Use(middleware.ContextMiddleware)
 	router.Use(middleware.AuthMiddleware(credentialService))
-	router.Use(middleware.EnsureRaftLeaderMiddleware(rft))
+	router.Use(middleware.EnsureRaftLeaderMiddleware(p.Rft))
 
 	// Executions Endpoint
 	router.HandleFunc("/executions", executionController.ListExecutions).Methods(http.MethodGet)
@@ -168,6 +121,9 @@ func Start() {
 
 	// Healthcheck Endpoint
 	router.HandleFunc("/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
+
+	// Peer Endpoint
+	router.HandleFunc("/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
 
 	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 
