@@ -21,7 +21,6 @@ import (
 	"scheduler0/job_executor"
 	"scheduler0/job_process"
 	"scheduler0/job_queue"
-	"scheduler0/models"
 	"scheduler0/repository"
 	tcp2 "scheduler0/tcp"
 	"scheduler0/utils"
@@ -453,8 +452,7 @@ func (p *Peer) RunPendingCronJob(fsmStr *fsm.Store) {
 		for {
 			select {
 			case pendingJob := <-fsmStr.PendingJobs:
-				p.logger.Println("running job:", pendingJob.ID)
-				p.jobExecutor.Run([]models.JobModel{pendingJob})
+				p.jobExecutor.Run(pendingJob)
 			}
 		}
 	}()

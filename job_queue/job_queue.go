@@ -105,7 +105,7 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 				log.Fatalln(err.Error())
 			}
 
-			jobQ.logger.Println("Queueing jobs ", len(jobs[batchRange[0]:batchRange[1]]), " on server ", createCommand.Sql, " s: ", s, " j: ", j)
+			jobQ.logger.Println("Queueing jobs ", batchRange[0], " - ", batchRange[1], " on server ", createCommand.Sql, " s: ", s, " j: ", j)
 			af := jobQ.raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
 			if af.Error() != nil {
 				if af.Error() == raft.ErrNotLeader {

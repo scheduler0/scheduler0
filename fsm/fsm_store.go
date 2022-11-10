@@ -24,7 +24,7 @@ type Store struct {
 	logger          *log.Logger
 	SQLDbConnection *sql.DB
 	Raft            *raft.Raft
-	PendingJobs     chan models.JobModel
+	PendingJobs     chan []models.JobModel
 
 	raft.BatchingFSM
 }
@@ -40,7 +40,7 @@ func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB, logger *log.Logger) *
 	return &Store{
 		SqliteDB:        db,
 		SQLDbConnection: sqlDbConnection,
-		PendingJobs:     make(chan models.JobModel, 100),
+		PendingJobs:     make(chan []models.JobModel, 100),
 		logger:          logger,
 	}
 }
@@ -66,7 +66,7 @@ func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
 	return results
 }
 
-func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue chan models.JobModel) interface{} {
+func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue chan []models.JobModel) interface{} {
 	logPrefix := logger.Prefix()
 	logger.SetPrefix(fmt.Sprintf("%s[apply-raft-command] ", logPrefix))
 	defer logger.SetPrefix(logPrefix)
@@ -126,8 +126,8 @@ func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queu
 		}
 	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
 		if command.Sql == configs.RaftAddress && queueJobs {
-			job := models.JobModel{}
-			err := json.Unmarshal(command.Data, &job)
+			jobs := []models.JobModel{}
+			err := json.Unmarshal(command.Data, &jobs)
 			if err != nil {
 				return Response{
 					Data:  nil,
@@ -135,8 +135,8 @@ func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queu
 				}
 			}
 
-			logger.Println("received job with id ", job.ID)
-			queue <- job
+			logger.Println("received jobs", len(jobs))
+			queue <- jobs
 		}
 	case protobuffs.Command_Type(constants.CommandTypeDbQuery):
 	}
