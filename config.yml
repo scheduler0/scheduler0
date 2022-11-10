@@ -11,6 +11,12 @@ RaftTransportTimeout: 1
 RaftApplyTimeout: 2
 RaftSnapshotInterval: 1
 RaftSnapshotThreshold: 1
+PeerConnectRetryMax: 2
+PeerConnectRetryDelay: 1
+PeerCronJobCheckInterval: 500
+MonitorRaftStateInterval: 500
+PeerAuthRequestTimeout: 2
+StableRaftStateTimeout: 5
 Replicas:
   - Address: http://127.0.0.1:9090
     RaftAddress: 127.0.0.1:7070
