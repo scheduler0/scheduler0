@@ -33,8 +33,6 @@ type PeerStatus struct {
 	IsLeader           bool
 	IsAuth             bool
 	IsAlive            bool
-	CanSend            bool
-	CanReceive         bool
 	LastConnectionTime time.Duration
 }
 
@@ -263,7 +261,7 @@ func (p *Peer) RecoverRaftState() {
 	cfg := p.getRaftConfigurationFromConfig(p.logger)
 
 	snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
-	sink, err := p.Fss.Create(1, lastIndex, lastTerm, cfg, 3, p.Tm)
+	sink, err := p.Fss.Create(1, lastIndex, lastTerm, cfg, 1, p.Tm)
 	if err != nil {
 		p.logger.Fatalf("failed to create snapshot: %v", err)
 	}
@@ -289,13 +287,15 @@ func (p *Peer) RecoverRaftState() {
 }
 
 func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
+	configs := utils.GetScheduler0Configurations(p.logger)
 	p.State = Bootstrapping
-	p.AuthenticateWithPeersInConfig(p.logger)
+	if configs.Bootstrap == "true" {
+		p.AuthenticateWithPeersInConfig(p.logger)
+	}
 	if p.ExistingNode {
 		p.logger.Println("discovered existing raft dir")
 		p.RecoverRaftState()
 	}
-	configs := utils.GetScheduler0Configurations(p.logger)
 	rft := p.NewRaft(fsmStr)
 	if configs.Bootstrap == "true" && !p.ExistingNode {
 		p.BootstrapRaftCluster(rft)
@@ -303,7 +303,7 @@ func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
 	go p.MonitorRaftState()
 	fsmStr.Raft = rft
 	p.Rft = rft
-	p.ShardCronJobs()
+	go p.ShardCronJobs()
 	go p.jobExecutor.ListenToChannelsUpdates()
 	p.RunPendingCronJob(fsmStr)
 }
@@ -329,27 +329,24 @@ func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) {
 	for _, replica := range configs.Replicas {
 		if replica.Address != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
 			wg.Add(1)
-
 			go func(rep utils.Peer, res map[string]PeerStatus) {
 				wrlck.Lock()
-				defer wrlck.Unlock()
-				defer wg.Done()
-
 				err := utils.RetryOnError(func() error {
-					if peerStatus, err := connectPeer(logger, rep); peerStatus != nil {
-						p.Neighbors[rep.Address] = *peerStatus
+					if peerStatus, err := connectPeer(logger, rep); err == nil {
+						results[rep.Address] = *peerStatus
 					} else {
 						return err
 					}
 
 					return nil
 				}, configs.PeerConnectRetryMax, configs.PeerConnectRetryDelay)
-
+				wg.Done()
+				wrlck.Unlock()
 				if err != nil {
 					p.logger.Println("failed to authenticate with Peer ", rep.Address)
 				}
 
-				logger.Println("failed to connect with Peer", err)
+				logger.Println("failed to connect with Peer error:", err)
 			}(replica, results)
 		}
 	}
@@ -359,12 +356,14 @@ func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) {
 	defer p.mtx.Unlock()
 
 	for addr, result := range results {
-		if peer, ok := p.Neighbors[addr]; ok {
-			peer.CanSend = result.CanSend
-			peer.IsAlive = result.IsAlive
-			peer.IsLeader = result.IsLeader
-			peer.LastConnectionTime = result.LastConnectionTime
-			peer.IsAuth = result.IsAuth
+		_, ok := p.Neighbors[addr]
+		if ok {
+			p.Neighbors[addr] = PeerStatus{
+				IsAlive:            result.IsAlive,
+				IsLeader:           result.IsLeader,
+				LastConnectionTime: result.LastConnectionTime,
+				IsAuth:             result.IsAuth,
+			}
 		} else {
 			p.Neighbors[addr] = result
 		}
@@ -381,68 +380,66 @@ func (p *Peer) BroadcastDetectedFailure() {}
 
 func (p *Peer) ShardCronJobs() {
 	p.logger.Println("begin sharing cron jobs")
-	go func() {
-		configs := utils.GetScheduler0Configurations(p.logger)
-		ticker := time.NewTicker(time.Millisecond * time.Duration(configs.PeerCronJobCheckInterval))
-		startedJobs := false
+	configs := utils.GetScheduler0Configurations(p.logger)
+	ticker := time.NewTicker(time.Duration(configs.PeerCronJobCheckInterval) * time.Millisecond)
+	startedJobs := false
 
-		for !startedJobs {
-			select {
-			case <-ticker.C:
-				if p.Rft.State() == raft.Shutdown {
-					return
-				}
-				vErr := p.Rft.VerifyLeader()
-				if vErr.Error() == nil {
-					p.logger.Println("starting jobs")
-					go p.jobProcessor.StartJobs()
-					startedJobs = true
-				} else {
-					p.logger.Println("---not leader jobs not starting yet", p.Rft.State().String())
-				}
+	for !startedJobs {
+		select {
+		case <-ticker.C:
+			if p.Rft.State() == raft.Shutdown {
+				return
+			}
+			vErr := p.Rft.VerifyLeader()
+			if vErr.Error() == nil {
+				p.logger.Println("starting jobs")
+				go p.jobProcessor.StartJobs()
+				startedJobs = true
 			}
 		}
-	}()
+	}
 }
 
 func (p *Peer) MonitorRaftState() {
 	p.logger.Println("begin monitoring raft state")
-	go func() {
-		configs := utils.GetScheduler0Configurations(p.logger)
-		ticker := time.NewTicker(time.Millisecond * time.Duration(configs.MonitorRaftStateInterval))
-		startCount := false
-		start := time.Now()
-		stopTime := time.Duration(configs.StableRaftStateTimeout) * time.Second
-		for {
-			select {
-			case <-ticker.C:
-				if p.Rft.State() == raft.Shutdown {
-					p.State = ShuttingDown
+	configs := utils.GetScheduler0Configurations(p.logger)
+	ticker := time.NewTicker(time.Duration(configs.MonitorRaftStateInterval) * time.Millisecond)
+	startCount := false
+	start := time.Now()
+	stopTime := time.Duration(configs.StableRaftStateTimeout) * time.Second
+	for {
+		select {
+		case <-ticker.C:
+			if p.Rft.State() == raft.Shutdown {
+				p.State = ShuttingDown
+				p.AcceptWrites = false
+				return
+			}
+			leaderAddress, _ := p.Rft.LeaderWithID()
+			if leaderAddress == "" {
+				if startCount && time.Since(start).Milliseconds() >= stopTime.Milliseconds() {
+					p.Rft.Shutdown()
+					p.logger.Println("raft state is not stable therefore shutting down")
 					p.AcceptWrites = false
-					return
+					p.State = ShuttingDown
 				}
-				leaderAddress, _ := p.Rft.LeaderWithID()
-				if leaderAddress == "" {
-					if startCount && time.Since(start).Milliseconds() >= stopTime.Milliseconds() {
-						p.Rft.Shutdown()
-						p.logger.Println("raft state is not stable therefore shutting down")
-						p.AcceptWrites = false
-						p.State = ShuttingDown
-					}
-					if !startCount {
-						start = time.Now()
-						startCount = true
-						p.AcceptWrites = false
-						p.State = Unstable
-					}
-				} else {
-					startCount = false
-					p.AcceptWrites = true
-					p.State = Ready
+				if !startCount {
+					start = time.Now()
+					startCount = true
+					p.AcceptWrites = false
+					p.State = Unstable
 				}
+			} else if string(leaderAddress) == configs.RaftAddress {
+				startCount = false
+				p.AcceptWrites = true
+				p.State = Ready
+			} else {
+				startCount = false
+				p.AcceptWrites = false
+				p.State = Ready
 			}
 		}
-	}()
+	}
 }
 
 func (p *Peer) RunPendingCronJob(fsmStr *fsm.Store) {
@@ -458,17 +455,6 @@ func (p *Peer) RunPendingCronJob(fsmStr *fsm.Store) {
 	}()
 }
 
-func (p *Peer) ReceiveHandshakePeer(peerAddress string) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	if peer, ok := p.Neighbors[peerAddress]; ok {
-		peer.CanReceive = true
-	} else {
-		p.logger.Println("could not mark peer <", peerAddress, "> can receive property")
-	}
-}
-
 func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configuration {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -476,20 +462,23 @@ func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configura
 	configs := utils.GetScheduler0Configurations(logger)
 	servers := []raft.Server{}
 
+	servers = append(servers, raft.Server{
+		ID:       raft.ServerID("1"),
+		Suffrage: raft.Voter,
+		Address:  raft.ServerAddress(configs.RaftAddress),
+	})
+
 	for i, replica := range configs.Replicas {
 		if repStatus, ok := p.Neighbors[replica.Address]; ok &&
 			repStatus.IsAlive &&
-			repStatus.IsAuth &&
-			repStatus.CanReceive &&
-			repStatus.CanSend {
+			repStatus.IsAuth {
 			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(fmt.Sprintf("%v", i+1)),
+				ID:       raft.ServerID(fmt.Sprintf("%v", i+2)),
 				Suffrage: raft.Voter,
 				Address:  raft.ServerAddress(replica.RaftAddress),
 			})
 		}
 	}
-
 	cfg := raft.Configuration{
 		Servers: servers,
 	}
@@ -502,12 +491,12 @@ func connectPeer(logger *log.Logger, rep utils.Peer) (*PeerStatus, error) {
 	httpClient := http.Client{
 		Timeout: time.Duration(configs.PeerAuthRequestTimeout) * time.Second,
 	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/Peer-handshake", rep.Address), nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/peer-handshake", rep.Address), nil)
 	if err != nil {
 		logger.Println("failed to create request ", err)
 		return nil, err
 	}
-	req.Header.Set(auth.PeerHeader, "Peer")
+	req.Header.Set(auth.PeerHeader, "peer")
 	req.Header.Set(PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
 	credentials := utils.GetScheduler0Credentials(logger)
 	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
@@ -523,37 +512,38 @@ func connectPeer(logger *log.Logger, rep utils.Peer) (*PeerStatus, error) {
 
 	connectionTime := time.Since(start)
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusOK {
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
-			logger.Fatal("failed to response", err)
+			logger.Println("failed to response", err)
+			return nil, err
 		}
 
 		body := PeerResponse{}
 
-		err = json.Unmarshal(data, body)
+		err = json.Unmarshal(data, &body)
 		if err != nil {
 			logger.Println("failed to unmarshal response ", err)
 			return nil, err
 		}
 
+		logger.Println("successfully authenticated ", rep.Address, " body ", body)
+
 		return &PeerStatus{
 			IsAlive:            true,
 			IsAuth:             true,
 			IsLeader:           body.Data.IsLeader,
-			CanSend:            true,
-			CanReceive:         false,
 			LastConnectionTime: connectionTime,
 		}, nil
 	}
+
+	logger.Println("could not authenticate ", rep.Address, " status code:", resp.StatusCode)
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		return &PeerStatus{
 			IsAlive:            true,
 			IsAuth:             false,
 			IsLeader:           false,
-			CanSend:            false,
-			CanReceive:         false,
 			LastConnectionTime: connectionTime,
 		}, nil
 	}
@@ -563,7 +553,6 @@ func connectPeer(logger *log.Logger, rep utils.Peer) (*PeerStatus, error) {
 			IsAlive:            false,
 			IsAuth:             false,
 			IsLeader:           false,
-			CanReceive:         false,
 			LastConnectionTime: connectionTime,
 		}, nil
 	}
@@ -572,7 +561,6 @@ func connectPeer(logger *log.Logger, rep utils.Peer) (*PeerStatus, error) {
 		IsAlive:            false,
 		IsAuth:             false,
 		IsLeader:           false,
-		CanReceive:         false,
 		LastConnectionTime: connectionTime,
 	}, nil
 }

@@ -31,9 +31,5 @@ func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Reque
 	res := peers.PeerRes{
 		IsLeader: configs.Bootstrap == "true",
 	}
-	peerAddress := r.Header.Get(peers.PeerAddressHeader)
-
-	controller.peer.ReceiveHandshakePeer(peerAddress)
-
 	utils.SendJSON(w, res, true, http.StatusOK, nil)
 }

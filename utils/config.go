@@ -21,7 +21,7 @@ type Scheduler0Configurations struct {
 	Host                     string `json:"host" yaml:"Host"`
 	Port                     string `json:"port" yaml:"Port"`
 	Replicas                 []Peer `json:"replicas" yaml:"Replicas"`
-	PeerCronJobCheckInterval int    `json:"PeerCronJobCheckInterval" yaml:"peerCronJobCheckInterval"`
+	PeerCronJobCheckInterval int    `json:"PeerCronJobCheckInterval" yaml:"PeerCronJobCheckInterval"`
 	PeerAuthRequestTimeout   int    `json:"PeerAuthRequestTimeout" yaml:"PeerAuthRequestTimeout"`
 	MonitorRaftStateInterval int    `json:"monitorRaftStateInterval" yaml:"MonitorRaftStateInterval"`
 	PeerConnectRetryMax      int    `json:"peerConnectRetryMax" yaml:"PeerConnectRetryMax"`

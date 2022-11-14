@@ -64,7 +64,7 @@ func Start() {
 	jobQueue := job_queue.NewJobQueue(logger, fsmStr.Raft, jobExecutor)
 	p := peers.NewPeer(logger, jobExecutor, &jobQueue, jobRepo, projectRepo)
 
-	go p.BoostrapPeer(fsmStr)
+	p.BoostrapPeer(fsmStr)
 
 	//services
 	credentialService := service.NewCredentialService(logger, credentialRepo, ctx)
@@ -84,7 +84,7 @@ func Start() {
 	projectController := controllers.NewProjectController(logger, projectService)
 	credentialController := controllers.NewCredentialController(logger, credentialService)
 	healthCheckController := controllers.NewHealthCheckController(logger, p.Rft)
-	peerController := controllers.NewPeerController(logger, p.Rft, p)
+	peerController := controllers.NewPeerController(logger, fsmStr.Raft, p)
 
 	// Mount middleware
 	middleware := middlewares.NewMiddlewareHandler(logger)
@@ -93,7 +93,7 @@ func Start() {
 	router.Use(mux.CORSMethodMiddleware(router))
 	router.Use(middleware.ContextMiddleware)
 	router.Use(middleware.AuthMiddleware(credentialService))
-	router.Use(middleware.EnsureRaftLeaderMiddleware(p.Rft))
+	router.Use(middleware.EnsureRaftLeaderMiddleware(p))
 
 	// Executions Endpoint
 	router.HandleFunc("/executions", executionController.ListExecutions).Methods(http.MethodGet)

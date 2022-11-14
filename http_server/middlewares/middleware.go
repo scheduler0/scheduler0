@@ -3,11 +3,11 @@ package middlewares
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/raft"
 	"github.com/segmentio/ksuid"
 	"log"
 	"net/http"
 	"scheduler0/http_server/middlewares/auth"
+	"scheduler0/peers"
 	"scheduler0/service"
 	"scheduler0/utils"
 	"strings"
@@ -102,13 +102,12 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 	}
 }
 
-func (m *middlewareHandler) EnsureRaftLeaderMiddleware(raft *raft.Raft) func(next http.Handler) http.Handler {
+func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *peers.Peer) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			af := raft.VerifyLeader()
-			if af.Error() != nil && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
+			if !peer.AcceptWrites && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
 				configs := utils.GetScheduler0Configurations(m.logger)
-				serverAddr, _ := raft.LeaderWithID()
+				serverAddr, _ := peer.Rft.LeaderWithID()
 
 				redirectUrl := ""
 
