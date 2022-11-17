@@ -25,9 +25,9 @@ func NewJobExecutor(logger *log.Logger, jobRepository repository.Job) *JobExecut
 }
 
 // AddPendingJobToChannel this will execute a http job
-func (jobExecutor *JobExecutor) AddPendingJobToChannel(jobProcess models.JobProcess) func() {
+func (jobExecutor *JobExecutor) AddPendingJobToChannel(jobProcess *models.JobProcess) func() {
 	return func() {
-		jobExecutor.PendingJobs <- &jobProcess
+		jobExecutor.PendingJobs <- jobProcess
 	}
 }
 
@@ -103,13 +103,15 @@ func (jobExecutor *JobExecutor) ListenToChannelsUpdates() {
 }
 
 func (jobExecutor *JobExecutor) Run(jobs []models.JobModel) {
-	for _, job := range jobs {
+	for i, _ := range jobs {
 		jobProcess := models.JobProcess{
-			Job:  &job,
+			Job:  &jobs[i],
 			Cron: cron.New(),
 		}
 
-		cronAddJobErr := jobProcess.Cron.AddFunc(job.Spec, jobExecutor.AddPendingJobToChannel(jobProcess))
+		jobExecutor.logger.Println("scheduling job with id", jobProcess.Job.ID)
+
+		cronAddJobErr := jobProcess.Cron.AddFunc(jobProcess.Job.Spec, jobExecutor.AddPendingJobToChannel(&jobProcess))
 
 		jobProcess.Cron.Start()
 
