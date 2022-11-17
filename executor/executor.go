@@ -39,9 +39,9 @@ func (executorService *Service) ExecuteHTTP() {
 			return
 		}
 		executorService.onSuccess(pjs)
-		for _, pendingJob := range pjs {
-			go executorService.WriteJobExecutionLog(*pendingJob)
-		}
+		//for _, pendingJob := range pjs {
+		//	go executorService.WriteJobExecutionLog(*pendingJob)
+		//}
 	}(executorService.pendingJob)
 }
 
