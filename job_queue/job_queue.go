@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"scheduler0/constants"
+	"scheduler0/fsm"
 	"scheduler0/job_executor"
 	"scheduler0/marsher"
 	"scheduler0/models"
@@ -22,7 +23,7 @@ type JobQueueCommand struct {
 
 type jobQueue struct {
 	Executor *job_executor.JobExecutor
-	raft     *raft.Raft
+	fsm      *fsm.Store
 	logger   *log.Logger
 }
 
@@ -30,22 +31,22 @@ type JobQueue interface {
 	Queue(jobs []models.JobModel)
 }
 
-func NewJobQueue(logger *log.Logger, raft *raft.Raft, Executor *job_executor.JobExecutor) JobQueue {
+func NewJobQueue(logger *log.Logger, fsm *fsm.Store, Executor *job_executor.JobExecutor) JobQueue {
 	return &jobQueue{
 		Executor: Executor,
-		raft:     raft,
+		fsm:      fsm,
 		logger:   logger,
 	}
 }
 
 func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
-	f := jobQ.raft.VerifyLeader()
+	f := jobQ.fsm.Raft.VerifyLeader()
 	if f.Error() != nil {
 		jobQ.logger.Println("skipping job queueing as node is not the leader")
 		return
 	}
 
-	conf := jobQ.raft.GetConfiguration().Configuration()
+	conf := jobQ.fsm.Raft.GetConfiguration().Configuration()
 	servers := conf.Servers
 
 	if len(servers) == 1 {
@@ -54,8 +55,8 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 	}
 
 	configs := utils.GetScheduler0Configurations(jobQ.logger)
-	hasSplit := ((len(jobs) - 1) % 2) == 1
-	batchPerPeer := math.Floor(float64((len(jobs) - 1) / (len(servers) - 1)))
+	hasSplit := (len(jobs) % 2) == 1
+	batchPerPeer := math.Floor(float64(len(jobs) / (len(servers) - 1)))
 	batchRanges := [][]int64{}
 	var currentRange int64 = 0
 
@@ -105,8 +106,8 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 				log.Fatalln(err.Error())
 			}
 
-			jobQ.logger.Println("Queueing jobs ", batchRange[0], " - ", batchRange[1], " on server ", createCommand.Sql, " s: ", s, " j: ", j)
-			af := jobQ.raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
+			jobQ.logger.Println("Queueing jobs ", batchRange[0], " - ", batchRange[1], " on server ", createCommand.Sql)
+			af := jobQ.fsm.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
 			if af.Error() != nil {
 				if af.Error() == raft.ErrNotLeader {
 					log.Fatalln("raft leader not found")
