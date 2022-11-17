@@ -20,7 +20,7 @@ type Credential interface {
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 	ValidateIOSAPIKey(apiKey string, IOSBundle string) (bool, *utils.GenericError)
 	ValidateAndroidAPIKey(apiKey string, androidPackageName string) (bool, *utils.GenericError)
-	ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string) (bool, *utils.GenericError)
+	ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string, ip string) (bool, *utils.GenericError)
 }
 
 func NewCredentialService(logger *log.Logger, repo repository.Credential, Ctx context.Context) Credential {
@@ -195,7 +195,7 @@ func (credentialService *credentialService) ValidateAndroidAPIKey(apiKey string,
 }
 
 // ValidateWebAPIKeyHTTPReferrerRestriction authenticates incoming request from web clients
-func (credentialService *credentialService) ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string) (bool, *utils.GenericError) {
+func (credentialService *credentialService) ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string, ip string) (bool, *utils.GenericError) {
 	credentialManager := models.CredentialModel{
 		ApiKey: apiKey,
 	}
@@ -206,6 +206,10 @@ func (credentialService *credentialService) ValidateWebAPIKeyHTTPReferrerRestric
 	}
 
 	if callerUrl == credentialManager.HTTPReferrerRestriction {
+		return true, nil
+	}
+
+	if ip == credentialManager.IPRestriction {
 		return true, nil
 	}
 

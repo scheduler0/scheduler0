@@ -125,12 +125,15 @@ func (credentialController *credentialController) DeleteOneCredential(w http.Res
 	credentialId, convertErr := strconv.Atoi(params["id"])
 	if convertErr != nil {
 		utils.SendJSON(w, convertErr.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 	_, err := credentialService.DeleteOneCredential(int64(credentialId))
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	} else {
 		utils.SendJSON(w, nil, true, http.StatusNoContent, nil)
+		return
 	}
 }
 

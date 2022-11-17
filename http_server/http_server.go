@@ -61,7 +61,7 @@ func Start() {
 	projectRepo := repository.NewProjectRepo(logger, fsmStr, jobRepo)
 
 	jobExecutor := job_executor.NewJobExecutor(logger, jobRepo)
-	jobQueue := job_queue.NewJobQueue(logger, fsmStr.Raft, jobExecutor)
+	jobQueue := job_queue.NewJobQueue(logger, fsmStr, jobExecutor)
 	p := peers.NewPeer(logger, jobExecutor, &jobQueue, jobRepo, projectRepo)
 
 	p.BoostrapPeer(fsmStr)
@@ -101,23 +101,23 @@ func Start() {
 	// Credentials Endpoint
 	router.HandleFunc("/credentials", credentialController.CreateOneCredential).Methods(http.MethodPost)
 	router.HandleFunc("/credentials", credentialController.ListCredentials).Methods(http.MethodGet)
-	router.HandleFunc("/credentials/{uuid}", credentialController.GetOneCredential).Methods(http.MethodGet)
-	router.HandleFunc("/credentials/{uuid}", credentialController.UpdateOneCredential).Methods(http.MethodPut)
-	router.HandleFunc("/credentials/{uuid}", credentialController.DeleteOneCredential).Methods(http.MethodDelete)
+	router.HandleFunc("/credentials/{id}", credentialController.GetOneCredential).Methods(http.MethodGet)
+	router.HandleFunc("/credentials/{id}", credentialController.UpdateOneCredential).Methods(http.MethodPut)
+	router.HandleFunc("/credentials/{id}", credentialController.DeleteOneCredential).Methods(http.MethodDelete)
 
 	// Job Endpoint
 	router.HandleFunc("/jobs", jobController.BatchCreateJobs).Methods(http.MethodPost)
 	router.HandleFunc("/jobs", jobController.ListJobs).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{uuid}", jobController.GetOneJob).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{uuid}", jobController.UpdateOneJob).Methods(http.MethodPut)
-	router.HandleFunc("/jobs/{uuid}", jobController.DeleteOneJob).Methods(http.MethodDelete)
+	router.HandleFunc("/jobs/{id}", jobController.GetOneJob).Methods(http.MethodGet)
+	router.HandleFunc("/jobs/{id}", jobController.UpdateOneJob).Methods(http.MethodPut)
+	router.HandleFunc("/jobs/{d}", jobController.DeleteOneJob).Methods(http.MethodDelete)
 
 	// Projects Endpoint
 	router.HandleFunc("/projects", projectController.CreateOneProject).Methods(http.MethodPost)
 	router.HandleFunc("/projects", projectController.ListProjects).Methods(http.MethodGet)
-	router.HandleFunc("/projects/{uuid}", projectController.GetOneProject).Methods(http.MethodGet)
-	router.HandleFunc("/projects/{uuid}", projectController.UpdateOneProject).Methods(http.MethodPut)
-	router.HandleFunc("/projects/{uuid}", projectController.DeleteOneProject).Methods(http.MethodDelete)
+	router.HandleFunc("/projects/{id}", projectController.GetOneProject).Methods(http.MethodGet)
+	router.HandleFunc("/projects/{id}", projectController.UpdateOneProject).Methods(http.MethodPut)
+	router.HandleFunc("/projects/{id}", projectController.DeleteOneProject).Methods(http.MethodDelete)
 
 	// Healthcheck Endpoint
 	router.HandleFunc("/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)

@@ -6,4 +6,6 @@ const (
 	IOSBundleHeader        = "x-ios-bundle-id"
 	AndroidPackageIDHeader = "x-android-package-id"
 	PeerHeader             = "x-peer"
+	HTTPReferrerIDHeader   = "http-referrer"
+	IPReferrerIDHeader     = "ip-referrer-id"
 )

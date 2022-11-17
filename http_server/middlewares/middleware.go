@@ -51,6 +51,7 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			paths := strings.Split(r.URL.Path, "/")
+
 			if len(paths) < 1 {
 				utils.SendJSON(w, "endpoint is not supported", false, http.StatusNotImplemented, nil)
 				return
@@ -65,12 +66,18 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 				if validity, _ := auth.IsAuthorizedServerClient(r, credentialService); validity {
 					next.ServeHTTP(w, r)
 					return
+				} else {
+					utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
+					return
 				}
 			}
 
 			if auth.IsIOSClient(r) {
 				if validity, _ := auth.IsAuthorizedIOSClient(r, credentialService); validity {
 					next.ServeHTTP(w, r)
+					return
+				} else {
+					utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
 					return
 				}
 			}
@@ -79,6 +86,9 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 				if validity, _ := auth.IsAuthorizedAndroidClient(r, credentialService); validity {
 					next.ServeHTTP(w, r)
 					return
+				} else {
+					utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
+					return
 				}
 			}
 
@@ -86,12 +96,18 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 				if validity, _ := auth.IsAuthorizedWebClient(r, credentialService); validity {
 					next.ServeHTTP(w, r)
 					return
+				} else {
+					utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
+					return
 				}
 			}
 
 			if auth.IsPeerClient(r) {
 				if validity := auth.IsAuthorizedPeerClient(r, m.logger); validity {
 					next.ServeHTTP(w, r)
+					return
+				} else {
+					utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
 					return
 				}
 			}
