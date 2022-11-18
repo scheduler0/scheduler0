@@ -142,8 +142,16 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *peers.Peer) func(ne
 
 				redirectUrl = fmt.Sprintf("%s%s", redirectUrl, r.URL.Path)
 
-				m.logger.Println("Redirecting request to leader", redirectUrl)
-				http.Redirect(w, r, redirectUrl, 301)
+				r.Header.Set("Location", redirectUrl)
+				requester := r.Header.Get(auth.PeerHeader)
+
+				if requester == "cmd" || requester == "node" {
+					m.logger.Println("Redirecting request to leader", redirectUrl)
+					http.Redirect(w, r, redirectUrl, 301)
+				} else {
+					utils.SendJSON(w, nil, false, http.StatusFound, nil)
+				}
+
 				return
 			}
 
