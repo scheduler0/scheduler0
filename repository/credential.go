@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/araddon/dateparse"
 	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
@@ -99,7 +100,8 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 
 // GetOneID returns a single credential
 func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialModel) error {
-	selectBuilder := sq.Select(
+	sqlr := sq.Expr(fmt.Sprintf(
+		"select %s, %s, %s, %s, %s, %s, %s, %s, %s, cast(\"%s\" as text) from %s where %s = ?",
 		JobsIdColumn,
 		ArchivedColumn,
 		PlatformColumn,
@@ -110,17 +112,22 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 		IOSBundleIdReferrerRestrictionColumn,
 		AndroidPackageIDReferrerRestrictionColumn,
 		JobsDateCreatedColumn,
-	).
-		From(CredentialTableName).
-		Where(fmt.Sprintf("%s = ?", JobsIdColumn), credential.ID).
-		RunWith(credentialRepo.store.SQLDbConnection)
+		CredentialTableName,
+		JobsIdColumn,
+	), credential.ID)
 
-	rows, err := selectBuilder.Query()
+	sqlString, args, err := sqlr.ToSql()
+	if err != nil {
+		return err
+	}
+
+	rows, err := credentialRepo.store.SQLDbConnection.Query(sqlString, args...)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
+		var dt string
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
@@ -131,10 +138,13 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 			&credential.HTTPReferrerRestriction,
 			&credential.IOSBundleIDRestriction,
 			&credential.AndroidPackageNameRestriction,
-			&credential.DateCreated,
+			&dt,
 		)
-		if err != nil {
-			return err
+
+		t, errParse := dateparse.ParseLocal(dt)
+		credential.DateCreated = t
+		if errParse != nil {
+			return utils.HTTPGenericError(500, err.Error())
 		}
 	}
 	if rows.Err() != nil {
@@ -167,6 +177,7 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 	}
 	defer rows.Close()
 	for rows.Next() {
+		dataString := ""
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
@@ -177,8 +188,13 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 			&credential.HTTPReferrerRestriction,
 			&credential.IOSBundleIDRestriction,
 			&credential.AndroidPackageNameRestriction,
-			&credential.DateCreated,
+			&dataString,
 		)
+		t, errParse := dateparse.ParseLocal(dataString)
+		if errParse != nil {
+			return utils.HTTPGenericError(500, err.Error())
+		}
+		credential.DateCreated = t
 		if err != nil {
 			return utils.HTTPGenericError(500, err.Error())
 		}
@@ -241,6 +257,7 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 	defer rows.Close()
 	for rows.Next() {
 		credential := models.CredentialModel{}
+		var dataString string
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
@@ -253,6 +270,11 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 			&credential.AndroidPackageNameRestriction,
 			&credential.DateCreated,
 		)
+		t, errParse := dateparse.ParseLocal(dataString)
+		if errParse != nil {
+			return nil, utils.HTTPGenericError(500, err.Error())
+		}
+		credential.DateCreated = t
 		if err != nil {
 			return nil, utils.HTTPGenericError(500, err.Error())
 		}

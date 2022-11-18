@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/Masterminds/squirrel v1.5.3
+	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/bxcodec/faker/v3 v3.5.0
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/raft v1.3.11

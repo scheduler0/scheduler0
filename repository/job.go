@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/araddon/dateparse"
 	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
@@ -78,15 +79,21 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 	defer rows.Close()
 	count := 0
 	for rows.Next() {
+		var dataString string
 		err = rows.Scan(
 			&jobModel.ID,
 			&jobModel.ProjectID,
 			&jobModel.Spec,
 			&jobModel.CallbackUrl,
 			&jobModel.ExecutionType,
-			&jobModel.DateCreated,
+			&dataString,
 			&jobModel.Data,
 		)
+		t, errParse := dateparse.ParseLocal(dataString)
+		if errParse != nil {
+			return utils.HTTPGenericError(500, err.Error())
+		}
+		jobModel.DateCreated = t
 		if err != nil {
 			return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
@@ -159,15 +166,21 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 		defer rows.Close()
 		for rows.Next() {
 			job := models.JobModel{}
+			var dataString string
 			scanErr := rows.Scan(
 				&job.ID,
 				&job.ProjectID,
 				&job.Spec,
 				&job.CallbackUrl,
 				&job.ExecutionType,
-				&job.DateCreated,
+				&dataString,
 				&job.Data,
 			)
+			t, errParse := dateparse.ParseLocal(dataString)
+			if errParse != nil {
+				return nil, utils.HTTPGenericError(500, err.Error())
+			}
+			job.DateCreated = t
 			if scanErr != nil {
 				return nil, utils.HTTPGenericError(http.StatusInternalServerError, scanErr.Error())
 			}
@@ -208,15 +221,21 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit i
 	defer rows.Close()
 	for rows.Next() {
 		job := models.JobModel{}
+		var dateString string
 		err = rows.Scan(
 			&job.ID,
 			&job.ProjectID,
 			&job.Spec,
 			&job.CallbackUrl,
 			&job.ExecutionType,
-			&job.DateCreated,
+			&dateString,
 			&job.Data,
 		)
+		t, errParse := dateparse.ParseLocal(dateString)
+		if errParse != nil {
+			return nil, utils.HTTPGenericError(500, err.Error())
+		}
+		job.DateCreated = t
 		if err != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}

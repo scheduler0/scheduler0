@@ -5,6 +5,7 @@ import (
 	_ "errors"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/araddon/dateparse"
 	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
@@ -116,12 +117,18 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 	defer rows.Close()
 	count := 0
 	for rows.Next() {
+		var dateString string
 		err = rows.Scan(
 			&project.ID,
 			&project.Name,
 			&project.Description,
-			&project.DateCreated,
+			&dateString,
 		)
+		t, errParse := dateparse.ParseLocal(dateString)
+		if errParse != nil {
+			return utils.HTTPGenericError(500, err.Error())
+		}
+		project.DateCreated = t
 		if err != nil {
 			return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
@@ -156,12 +163,18 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 	defer rows.Close()
 	count := 0
 	for rows.Next() {
+		var dateString string
 		err = rows.Scan(
 			&project.ID,
 			&project.Name,
 			&project.Description,
-			&project.DateCreated,
+			&dateString,
 		)
+		t, errParse := dateparse.ParseLocal(dateString)
+		if errParse != nil {
+			return utils.HTTPGenericError(500, err.Error())
+		}
+		project.DateCreated = t
 		if err != nil {
 			return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
@@ -195,12 +208,18 @@ func (projectRepo *projectRepo) List(offset int64, limit int64) ([]models.Projec
 	defer rows.Close()
 	for rows.Next() {
 		project := models.ProjectModel{}
+		var dateString string
 		err = rows.Scan(
 			&project.ID,
 			&project.Name,
 			&project.Description,
-			&project.DateCreated,
+			&dateString,
 		)
+		t, errParse := dateparse.ParseLocal(dateString)
+		if errParse != nil {
+			return nil, utils.HTTPGenericError(500, err.Error())
+		}
+		project.DateCreated = t
 		if err != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
