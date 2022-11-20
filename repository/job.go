@@ -65,7 +65,7 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 		SpecColumn,
 		CallbackURLColumn,
 		ExecutionTypeColumn,
-		JobsDateCreatedColumn,
+		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
 		DataColumn,
 	).
 		From(JobsTableName).
@@ -91,7 +91,7 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 		)
 		t, errParse := dateparse.ParseLocal(dataString)
 		if errParse != nil {
-			return utils.HTTPGenericError(500, err.Error())
+			return utils.HTTPGenericError(500, errParse.Error())
 		}
 		jobModel.DateCreated = t
 		if err != nil {
@@ -152,7 +152,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 			SpecColumn,
 			CallbackURLColumn,
 			ExecutionTypeColumn,
-			JobsDateCreatedColumn,
+			fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
 			DataColumn,
 		).
 			From(JobsTableName).
@@ -178,7 +178,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 			)
 			t, errParse := dateparse.ParseLocal(dataString)
 			if errParse != nil {
-				return nil, utils.HTTPGenericError(500, err.Error())
+				return nil, utils.HTTPGenericError(500, errParse.Error())
 			}
 			job.DateCreated = t
 			if scanErr != nil {
@@ -204,7 +204,7 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit i
 		SpecColumn,
 		CallbackURLColumn,
 		ExecutionTypeColumn,
-		JobsDateCreatedColumn,
+		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
 		DataColumn,
 	).
 		From(JobsTableName).
@@ -233,7 +233,7 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit i
 		)
 		t, errParse := dateparse.ParseLocal(dateString)
 		if errParse != nil {
-			return nil, utils.HTTPGenericError(500, err.Error())
+			return nil, utils.HTTPGenericError(500, errParse.Error())
 		}
 		job.DateCreated = t
 		if err != nil {
@@ -258,7 +258,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (int64, *utils.G
 		return 0, jobPlaceholderError
 	}
 
-	if jobPlaceholder.Spec != jobModel.Spec {
+	if jobPlaceholder.Spec != jobModel.Spec && jobModel.Spec != "" {
 		return 0, utils.HTTPGenericError(http.StatusBadRequest, "cannot update cron spec")
 	}
 
@@ -408,6 +408,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 
 		for i, job := range batchRepo {
 			query += fmt.Sprint("(?, ?, ?, ?, ?, ?)")
+			job.DateCreated = time.Now().UTC()
 			params = append(params,
 				job.ProjectID,
 				job.Spec,
