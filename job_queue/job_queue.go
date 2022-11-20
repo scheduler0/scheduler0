@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"github.com/hashicorp/raft"
 	"log"
-	"math"
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/job_executor"
@@ -55,23 +54,20 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 	}
 
 	configs := utils.GetScheduler0Configurations(jobQ.logger)
-	hasSplit := (len(jobs) % 2) == 1
-	batchPerPeer := math.Floor(float64(len(jobs) / (len(servers) - 1)))
-	batchRanges := [][]int64{}
-	var currentRange int64 = 0
+	batchRanges := [][]models.JobModel{}
 
-	for len(batchRanges) < len(servers)-1 {
-		batchRanges = append(batchRanges, []int64{
-			currentRange,
-			currentRange + int64(batchPerPeer),
-		})
-		currentRange += int64(batchPerPeer) + 1
+	numberOfServers := len(servers) - 1
+
+	for i := 0; i < numberOfServers; i++ {
+		batchRanges = append(batchRanges, []models.JobModel{})
 	}
 
-	if hasSplit {
-		batchRanges[len(batchRanges)-1] = []int64{
-			batchRanges[len(batchRanges)-1][0],
-			int64(len(jobs)),
+	currentServer := 0
+	for _, job := range jobs {
+		batchRanges[currentServer] = append(batchRanges[currentServer], job)
+		currentServer += 1
+		if currentServer == numberOfServers {
+			currentServer = 0
 		}
 	}
 
@@ -90,7 +86,7 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 		if string(server.Address) == configs.RaftAddress {
 			s++
 		} else {
-			d, err := json.Marshal(jobs[batchRange[0]:batchRange[1]])
+			d, err := json.Marshal(batchRange)
 			if err != nil {
 				log.Fatalln(err.Error())
 			}
@@ -106,7 +102,6 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 				log.Fatalln(err.Error())
 			}
 
-			jobQ.logger.Println("Queueing jobs ", batchRange[0], " - ", batchRange[1], " on server ", createCommand.Sql)
 			af := jobQ.fsm.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
 			if af.Error() != nil {
 				if af.Error() == raft.ErrNotLeader {
