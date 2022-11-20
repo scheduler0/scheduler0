@@ -142,7 +142,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *peers.Peer) func(ne
 
 				redirectUrl = fmt.Sprintf("%s%s", redirectUrl, r.URL.Path)
 
-				r.Header.Set("Location", redirectUrl)
+				w.Header().Set("Location", redirectUrl)
 				requester := r.Header.Get(auth.PeerHeader)
 
 				if requester == "cmd" || requester == "node" {
