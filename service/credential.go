@@ -100,6 +100,15 @@ func (credentialService *credentialService) UpdateOneCredential(credential model
 	if err != nil {
 		return nil, err
 	}
+
+	if credentialPlaceholder.Platform != "" {
+		return nil, errors.New("could not find credential")
+	}
+
+	if credentialPlaceholder.Platform != credential.Platform {
+		return nil, errors.New("cannot update platform type of credential")
+	}
+
 	if credentialPlaceholder.ApiKey != credential.ApiKey && len(credential.ApiKey) > 1 {
 		return nil, errors.New("cannot update api key")
 	}
