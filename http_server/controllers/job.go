@@ -34,7 +34,7 @@ func NewJoBHTTPController(logger *log.Logger, jobService service.Job) JobHTTPCon
 
 // ListJobs returns a paginated list of jobs
 func (jobController *jobHTTPController) ListJobs(w http.ResponseWriter, r *http.Request) {
-	projectIDQueryParam, err := utils.ValidateQueryString("projectID", r)
+	projectIDQueryParam, err := utils.ValidateQueryString("projectId", r)
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
@@ -43,6 +43,7 @@ func (jobController *jobHTTPController) ListJobs(w http.ResponseWriter, r *http.
 	projectID, convertErr := strconv.Atoi(projectIDQueryParam)
 	if convertErr != nil {
 		utils.SendJSON(w, convertErr.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	limitParam, err := utils.ValidateQueryString("limit", r)
@@ -111,6 +112,7 @@ func (jobController *jobHTTPController) GetOneJob(w http.ResponseWriter, r *http
 	jobID, convertErr := strconv.Atoi(params["id"])
 	if convertErr != nil {
 		utils.SendJSON(w, convertErr.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	job := models.JobModel{
@@ -137,6 +139,7 @@ func (jobController *jobHTTPController) UpdateOneJob(w http.ResponseWriter, r *h
 	jobID, convertErr := strconv.Atoi(params["id"])
 	if convertErr != nil {
 		utils.SendJSON(w, convertErr.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	jobBody.ID = int64(jobID)
@@ -162,6 +165,7 @@ func (jobController *jobHTTPController) DeleteOneJob(w http.ResponseWriter, r *h
 	jobID, convertErr := strconv.Atoi(params["id"])
 	if convertErr != nil {
 		utils.SendJSON(w, convertErr.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	job := models.JobModel{

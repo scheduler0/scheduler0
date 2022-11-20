@@ -72,6 +72,7 @@ func (credentialController *credentialController) GetOneCredential(w http.Respon
 	credentialId, err := strconv.Atoi(params["id"])
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 	credential, err := credentialService.FindOneCredentialByID(int64(credentialId))
 
@@ -97,6 +98,7 @@ func (credentialController *credentialController) UpdateOneCredential(w http.Res
 	credentialId, err := strconv.Atoi(params["id"])
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
+		return
 	}
 	credentialBody := models.CredentialModel{
 		ID: int64(credentialId),
