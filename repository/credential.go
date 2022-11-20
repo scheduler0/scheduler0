@@ -144,7 +144,7 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 		t, errParse := dateparse.ParseLocal(dt)
 		credential.DateCreated = t
 		if errParse != nil {
-			return utils.HTTPGenericError(500, err.Error())
+			return utils.HTTPGenericError(500, errParse.Error())
 		}
 	}
 	if rows.Err() != nil {
@@ -165,7 +165,7 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 		HTTPReferrerRestrictionColumn,
 		IOSBundleIdReferrerRestrictionColumn,
 		AndroidPackageIDReferrerRestrictionColumn,
-		JobsDateCreatedColumn,
+		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
 	).
 		From(CredentialTableName).
 		Where(fmt.Sprintf("%s = ?", ApiKeyColumn), credential.ApiKey).
@@ -192,7 +192,7 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 		)
 		t, errParse := dateparse.ParseLocal(dataString)
 		if errParse != nil {
-			return utils.HTTPGenericError(500, err.Error())
+			return utils.HTTPGenericError(500, errParse.Error())
 		}
 		credential.DateCreated = t
 		if err != nil {
@@ -241,7 +241,7 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 		HTTPReferrerRestrictionColumn,
 		IOSBundleIdReferrerRestrictionColumn,
 		AndroidPackageIDReferrerRestrictionColumn,
-		JobsDateCreatedColumn,
+		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
 	).
 		From(CredentialTableName).
 		Offset(uint64(offset)).
@@ -268,11 +268,11 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 			&credential.HTTPReferrerRestriction,
 			&credential.IOSBundleIDRestriction,
 			&credential.AndroidPackageNameRestriction,
-			&credential.DateCreated,
+			&dataString,
 		)
 		t, errParse := dateparse.ParseLocal(dataString)
 		if errParse != nil {
-			return nil, utils.HTTPGenericError(500, err.Error())
+			return nil, utils.HTTPGenericError(500, errParse.Error())
 		}
 		credential.DateCreated = t
 		if err != nil {
