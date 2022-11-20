@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
-	"github.com/spf13/afero"
 	"io"
 	"log"
 	"net"
@@ -159,6 +158,9 @@ func (p *Peer) RecoverRaftState() {
 		p.logger.Fatalln(err)
 	}
 
+	p.logger.Println("Found ", len(snapshots), " snapshots")
+
+	var lastSnapshotBytes []byte
 	for _, snapshot := range snapshots {
 		var source io.ReadCloser
 		_, source, err = p.Fss.Open(snapshot.ID)
@@ -168,7 +170,7 @@ func (p *Peer) RecoverRaftState() {
 			continue
 		}
 
-		_, err = utils.BytesFromSnapshot(source)
+		lastSnapshotBytes, err = utils.BytesFromSnapshot(source)
 		// Close the source after the restore has completed
 		source.Close()
 		if err != nil {
@@ -193,9 +195,7 @@ func (p *Peer) RecoverRaftState() {
 
 	recoverDbPath := fmt.Sprintf("%s/%s", dir, "recover.db")
 
-	fs := afero.NewOsFs()
-
-	_, err = fs.Create(recoverDbPath)
+	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
 	if err != nil {
 		p.logger.Println(fmt.Errorf("Fatal db file creation error: %s \n", err))
 		return
@@ -238,6 +238,8 @@ func (p *Peer) RecoverRaftState() {
 		lastTerm = entry.Term
 	}
 
+	//---count jobs
+
 	rows, err := dbConnection.Query("select count() from jobs")
 	defer rows.Close()
 	if err != nil {
@@ -257,6 +259,27 @@ func (p *Peer) RecoverRaftState() {
 	}
 
 	p.logger.Println("Wrote number of jobs to recovery db ::", count)
+
+	//---count credentials
+
+	rows, err = dbConnection.Query("select count() from credentials")
+	defer rows.Close()
+	if err != nil {
+		p.logger.Fatalf("failed to read recovery:db: %v", err)
+	}
+	for rows.Next() {
+		err := rows.Scan(&count)
+		if err != nil {
+			p.logger.Fatalf("failed to read recovery:db: %v", err)
+		}
+	}
+	if rows.Err() != nil {
+		if err != nil {
+			p.logger.Fatalf("failed to read recovery:db: %v", err)
+		}
+	}
+
+	p.logger.Println("Wrote number of credentials to recovery db ::", count)
 
 	cfg := p.getRaftConfigurationFromConfig(p.logger)
 
@@ -300,7 +323,6 @@ func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
 	if configs.Bootstrap == "true" && !p.ExistingNode {
 		p.BootstrapRaftCluster(rft)
 	}
-	go p.MonitorRaftState()
 	fsmStr.Raft = rft
 	p.Rft = rft
 	go p.ShardCronJobs()
@@ -368,6 +390,8 @@ func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) {
 			p.Neighbors[addr] = result
 		}
 	}
+
+	p.AcceptWrites = true
 }
 
 func (p *Peer) EnsureSingleBootstrapConfig() {}
@@ -395,48 +419,6 @@ func (p *Peer) ShardCronJobs() {
 				p.logger.Println("starting jobs")
 				go p.jobProcessor.StartJobs()
 				startedJobs = true
-			}
-		}
-	}
-}
-
-func (p *Peer) MonitorRaftState() {
-	p.logger.Println("begin monitoring raft state")
-	configs := utils.GetScheduler0Configurations(p.logger)
-	ticker := time.NewTicker(time.Duration(configs.MonitorRaftStateInterval) * time.Millisecond)
-	startCount := false
-	start := time.Now()
-	stopTime := time.Duration(configs.StableRaftStateTimeout) * time.Second
-	for {
-		select {
-		case <-ticker.C:
-			if p.Rft.State() == raft.Shutdown {
-				p.State = ShuttingDown
-				p.AcceptWrites = false
-				return
-			}
-			leaderAddress, _ := p.Rft.LeaderWithID()
-			if leaderAddress == "" {
-				if startCount && time.Since(start).Milliseconds() >= stopTime.Milliseconds() {
-					p.Rft.Shutdown()
-					p.logger.Println("raft state is not stable therefore shutting down")
-					p.AcceptWrites = false
-					p.State = ShuttingDown
-				}
-				if !startCount {
-					start = time.Now()
-					startCount = true
-					p.AcceptWrites = false
-					p.State = Unstable
-				}
-			} else if string(leaderAddress) == configs.RaftAddress {
-				startCount = false
-				p.AcceptWrites = true
-				p.State = Ready
-			} else {
-				startCount = false
-				p.AcceptWrites = false
-				p.State = Ready
 			}
 		}
 	}
