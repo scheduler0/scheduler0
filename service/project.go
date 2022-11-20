@@ -17,10 +17,10 @@ type projectService struct {
 
 type Project interface {
 	CreateOne(project models.ProjectModel) (*models.ProjectModel, *utils.GenericError)
-	UpdateOneByUUID(project models.ProjectModel) *utils.GenericError
-	GetOneByUUID(project models.ProjectModel) (*models.ProjectModel, *utils.GenericError)
-	GetOneByName(project models.ProjectModel) (*models.ProjectModel, *utils.GenericError)
-	DeleteOneByUUID(project models.ProjectModel) *utils.GenericError
+	UpdateOneByID(project *models.ProjectModel) *utils.GenericError
+	GetOneByID(project *models.ProjectModel) *utils.GenericError
+	GetOneByName(project *models.ProjectModel) *utils.GenericError
+	DeleteOneByID(project models.ProjectModel) *utils.GenericError
 	List(offset int64, limit int64) (*models.PaginatedProject, *utils.GenericError)
 }
 
@@ -33,7 +33,7 @@ func NewProjectService(logger *log.Logger, projectRepo repository.Project) Proje
 
 // CreateOne creates a new project
 func (projectService *projectService) CreateOne(project models.ProjectModel) (*models.ProjectModel, *utils.GenericError) {
-	_, err := projectService.projectRepo.CreateOne(project)
+	_, err := projectService.projectRepo.CreateOne(&project)
 	if err != nil {
 		return nil, err
 	}
@@ -41,39 +41,45 @@ func (projectService *projectService) CreateOne(project models.ProjectModel) (*m
 }
 
 // UpdateOneByUUID updates a single project
-func (projectService *projectService) UpdateOneByUUID(project models.ProjectModel) *utils.GenericError {
-	count, err := projectService.projectRepo.UpdateOneByID(project)
+func (projectService *projectService) UpdateOneByID(project *models.ProjectModel) *utils.GenericError {
+	count, err := projectService.projectRepo.UpdateOneByID(*project)
 	if err != nil {
 		return err
 	}
 
 	if count < 1 {
-		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("Cannot find ProjectUUID = %v", project.ID))
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("Cannot find ProjectID = %v", project.ID))
+	}
+
+	getErr := projectService.GetOneByID(project)
+	if getErr != nil {
+		return getErr
 	}
 
 	return nil
 }
 
 // GetOneByUUID returns project with matching uuid
-func (projectService *projectService) GetOneByUUID(project models.ProjectModel) (*models.ProjectModel, *utils.GenericError) {
-	err := projectService.projectRepo.GetOneByID(&project)
+func (projectService *projectService) GetOneByID(project *models.ProjectModel) *utils.GenericError {
+	err := projectService.projectRepo.GetOneByID(project)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &project, nil
+
+	return nil
 }
 
 // GetOneByName returns a project that matches the name
-func (projectService *projectService) GetOneByName(project models.ProjectModel) (*models.ProjectModel, *utils.GenericError) {
-	err := projectService.projectRepo.GetOneByName(&project)
+func (projectService *projectService) GetOneByName(project *models.ProjectModel) *utils.GenericError {
+	err := projectService.projectRepo.GetOneByName(project)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &project, nil
+	return nil
 }
 
 // DeleteOneByUUID deletes a single project
-func (projectService *projectService) DeleteOneByUUID(project models.ProjectModel) *utils.GenericError {
+func (projectService *projectService) DeleteOneByID(project models.ProjectModel) *utils.GenericError {
 	count, err := projectService.projectRepo.DeleteOneByID(project)
 	if err != nil {
 		return err
