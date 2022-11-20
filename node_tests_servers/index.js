@@ -38,7 +38,7 @@ async function createProject() {
 async function createJobs(projectID, name) {
     const payload = [];
 
-    for (let i = 0; i < 9999; i++) {
+    for (let i = 0; i < 99999; i++) {
         payload.push({
             name: name,
             spec: "@every 1m",

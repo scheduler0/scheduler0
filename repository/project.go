@@ -67,8 +67,8 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (int64, 
 	}
 
 	_ = projectRepo.GetOneByName(project)
-	if projectWithName.ID != -1 {
-		return -1, utils.HTTPGenericError(http.StatusBadRequest, "Another project exist with the same name")
+	if projectWithName.ID != 0 {
+		return -1, utils.HTTPGenericError(http.StatusBadRequest, "another project exist with the same name")
 	}
 
 	query, params, err := sq.Insert(ProjectsTableName).
@@ -89,6 +89,10 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (int64, 
 	res, applyErr := projectRepo.applyToFSM(query, params)
 	if applyErr != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
+	}
+
+	if res == nil {
+		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
 	insertedId := res.Data[0].(int64)
@@ -279,6 +283,9 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (int6
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
+	if res == nil {
+		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+	}
 
 	count := res.Data[1].(int64)
 
@@ -308,6 +315,9 @@ func (projectRepo *projectRepo) DeleteOneByID(project models.ProjectModel) (int6
 	res, applyErr := projectRepo.applyToFSM(query, params)
 	if applyErr != nil {
 		return -1, applyErr
+	}
+	if res == nil {
+		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
 	count := res.Data[1].(int64)

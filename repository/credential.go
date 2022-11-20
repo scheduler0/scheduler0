@@ -93,6 +93,10 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 		return -1, applyErr
 	}
 
+	if res == nil {
+		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+	}
+
 	credential.ID = res.Data[0].(int64)
 
 	return credential.ID, nil
@@ -310,6 +314,10 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 		return -1, applyErr
 	}
 
+	if res == nil {
+		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+	}
+
 	count := res.Data[1].(int64)
 	return count, nil
 }
@@ -326,6 +334,10 @@ func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential
 	res, applyErr := credentialRepo.applyToFSM(query, params)
 	if err != nil {
 		return -1, applyErr
+	}
+
+	if res == nil {
+		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
 	count := res.Data[1].(int64)

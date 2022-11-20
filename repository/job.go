@@ -278,6 +278,10 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (int64, *utils.G
 		return -1, applyErr
 	}
 
+	if res == nil {
+		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+	}
+
 	count := res.Data[1].(int64)
 
 	return count, nil
@@ -295,6 +299,10 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (int64, *utils.G
 	res, applyErr := jobRepo.applyToFSM(query, params)
 	if err != nil {
 		return -1, applyErr
+	}
+
+	if res == nil {
+		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
 	count := res.Data[1].(int64)
@@ -426,6 +434,10 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 		query += ";"
 
 		res, applyErr := jobRepo.applyToFSM(query, params)
+		if res == nil {
+			return nil, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+		}
+
 		if applyErr != nil {
 			return nil, applyErr
 		}
