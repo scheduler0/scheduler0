@@ -110,7 +110,7 @@ func Start() {
 	router.HandleFunc("/jobs", jobController.ListJobs).Methods(http.MethodGet)
 	router.HandleFunc("/jobs/{id}", jobController.GetOneJob).Methods(http.MethodGet)
 	router.HandleFunc("/jobs/{id}", jobController.UpdateOneJob).Methods(http.MethodPut)
-	router.HandleFunc("/jobs/{d}", jobController.DeleteOneJob).Methods(http.MethodDelete)
+	router.HandleFunc("/jobs/{id}", jobController.DeleteOneJob).Methods(http.MethodDelete)
 
 	// Projects Endpoint
 	router.HandleFunc("/projects", projectController.CreateOneProject).Methods(http.MethodPost)
