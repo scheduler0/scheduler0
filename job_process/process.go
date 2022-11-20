@@ -40,7 +40,7 @@ func (jobProcessor *JobProcessor) StartJobs() {
 
 	projectTransformers, listErr := jobProcessor.projectRepo.List(0, totalProjectCount)
 	if listErr != nil {
-		jobProcessor.logger.Fatalln(countErr.Message)
+		jobProcessor.logger.Fatalln(listErr.Message)
 	}
 
 	for _, projectTransformer := range projectTransformers {
