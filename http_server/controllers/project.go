@@ -52,7 +52,7 @@ func (controller *projectController) CreateOneProject(w http.ResponseWriter, r *
 
 	projectTransformer, createOneError := controller.projectService.CreateOne(project)
 	if createOneError != nil {
-		utils.SendJSON(w, createOneError, false, http.StatusBadRequest, nil)
+		utils.SendJSON(w, createOneError, false, createOneError.Type, nil)
 		return
 	}
 
@@ -67,19 +67,20 @@ func (controller *projectController) GetOneProject(w http.ResponseWriter, r *htt
 	projectId, convertErr := strconv.Atoi(params["id"])
 	if convertErr != nil {
 		utils.SendJSON(w, errors.New("project uuid is required"), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	project := models.ProjectModel{
 		ID: int64(projectId),
 	}
 
-	projectData, err := controller.projectService.GetOneByUUID(project)
+	err := controller.projectService.GetOneByID(&project)
 	if err != nil {
 		utils.SendJSON(w, err.Message, false, err.Type, nil)
 		return
 	}
 
-	utils.SendJSON(w, projectData, true, http.StatusOK, nil)
+	utils.SendJSON(w, project, true, http.StatusOK, nil)
 }
 
 func (controller *projectController) ListProjects(w http.ResponseWriter, r *http.Request) {
@@ -122,13 +123,14 @@ func (controller *projectController) DeleteOneProject(w http.ResponseWriter, r *
 	projectId, convertErr := strconv.Atoi(params["id"])
 	if convertErr != nil {
 		utils.SendJSON(w, errors.New("project uuid is required"), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	project := models.ProjectModel{
 		ID: int64(projectId),
 	}
 
-	err := controller.projectService.DeleteOneByUUID(project)
+	err := controller.projectService.DeleteOneByID(project)
 	if err != nil {
 		utils.SendJSON(w, err.Message, false, err.Type, nil)
 		return
@@ -143,6 +145,7 @@ func (controller *projectController) UpdateOneProject(w http.ResponseWriter, r *
 	projectId, convertErr := strconv.Atoi(params["id"])
 	if convertErr != nil {
 		utils.SendJSON(w, errors.New("project uuid is required"), false, http.StatusBadRequest, nil)
+		return
 	}
 
 	body, err := ioutil.ReadAll(r.Body)
@@ -163,18 +166,18 @@ func (controller *projectController) UpdateOneProject(w http.ResponseWriter, r *
 		Name: project.Name,
 	}
 
-	projectT, getOneError := controller.projectService.GetOneByName(projectWithSimilarName)
+	getOneError := controller.projectService.GetOneByName(&projectWithSimilarName)
 	if getOneError != nil && getOneError.Type != http.StatusNotFound {
 		utils.SendJSON(w, getOneError.Message, false, getOneError.Type, nil)
 		return
 	}
 
-	if projectT != nil {
-		utils.SendJSON(w, errors.New("a project with a similar name exists"), false, http.StatusBadRequest, nil)
+	if projectWithSimilarName.ID != 0 {
+		utils.SendJSON(w, errors.New("a project with a similar name exists").Error(), false, http.StatusBadRequest, nil)
 		return
 	}
 
-	updateError := controller.projectService.UpdateOneByUUID(project)
+	updateError := controller.projectService.UpdateOneByID(&project)
 	if updateError != nil {
 		utils.SendJSON(w, updateError.Message, false, updateError.Type, nil)
 		return
