@@ -44,7 +44,7 @@ func (jobService *jobService) GetJobsByProjectID(projectID int64, offset int64, 
 	}
 
 	if count < offset {
-		return nil, utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("there are %v jobs which is less than %v", count, offset))
+		offset = count
 	}
 
 	jobManagers, err := jobService.jobRepo.GetAllByProjectID(projectID, offset, limit, orderBy)
@@ -86,13 +86,34 @@ func (jobService *jobService) BatchInsertJobs(jobTransformers []models.JobModel)
 }
 
 // UpdateJob updates job with ID in transformer. Note that cron expression of job cannot be updated.
-func (jobService *jobService) UpdateJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError) {
-	_, jobMangerUpdateOneError := jobService.jobRepo.UpdateOneByID(jobTransformer)
+func (jobService *jobService) UpdateJob(job models.JobModel) (*models.JobModel, *utils.GenericError) {
+	currentJobState := models.JobModel{
+		ID: job.ID,
+	}
+	getErr := jobService.jobRepo.GetOneByID(&currentJobState)
+	if getErr != nil {
+		return nil, getErr
+	}
+	if job.Data != "" {
+		currentJobState.Data = job.Data
+	}
+	if job.CallbackUrl != "" {
+		currentJobState.CallbackUrl = job.CallbackUrl
+	}
+	if job.ExecutionType != "" {
+		currentJobState.ExecutionType = job.ExecutionType
+	}
+	_, jobMangerUpdateOneError := jobService.jobRepo.UpdateOneByID(currentJobState)
 	if jobMangerUpdateOneError != nil {
 		return nil, jobMangerUpdateOneError
 	}
 
-	return &jobTransformer, nil
+	getErr = jobService.jobRepo.GetOneByID(&currentJobState)
+	if getErr != nil {
+		return nil, getErr
+	}
+
+	return &currentJobState, nil
 }
 
 // DeleteJob deletes a job with ID in transformer
