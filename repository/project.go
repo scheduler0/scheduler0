@@ -20,7 +20,7 @@ import (
 )
 
 type Project interface {
-	CreateOne(project models.ProjectModel) (int64, *utils.GenericError)
+	CreateOne(project *models.ProjectModel) (int64, *utils.GenericError)
 	GetOneByName(project *models.ProjectModel) *utils.GenericError
 	GetOneByID(project *models.ProjectModel) *utils.GenericError
 	List(offset int64, limit int64) ([]models.ProjectModel, *utils.GenericError)
@@ -52,7 +52,7 @@ func NewProjectRepo(logger *log.Logger, store *fsm.Store, jobRepo Job) Project {
 }
 
 // CreateOne creates a single project
-func (projectRepo *projectRepo) CreateOne(project models.ProjectModel) (int64, *utils.GenericError) {
+func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (int64, *utils.GenericError) {
 	if len(project.Name) < 1 {
 		return -1, utils.HTTPGenericError(http.StatusBadRequest, "name field is required")
 	}
@@ -66,7 +66,7 @@ func (projectRepo *projectRepo) CreateOne(project models.ProjectModel) (int64, *
 		Name: project.Name,
 	}
 
-	_ = projectRepo.GetOneByName(&project)
+	_ = projectRepo.GetOneByName(project)
 	if projectWithName.ID != -1 {
 		return -1, utils.HTTPGenericError(http.StatusBadRequest, "Another project exist with the same name")
 	}
@@ -80,7 +80,7 @@ func (projectRepo *projectRepo) CreateOne(project models.ProjectModel) (int64, *
 		Values(
 			project.Name,
 			project.Description,
-			time.Now().String(),
+			time.Now().UTC(),
 		).ToSql()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -88,11 +88,16 @@ func (projectRepo *projectRepo) CreateOne(project models.ProjectModel) (int64, *
 
 	res, applyErr := projectRepo.applyToFSM(query, params)
 	if applyErr != nil {
-		return -1, applyErr
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
 
 	insertedId := res.Data[0].(int64)
 	project.ID = insertedId
+
+	getErr := projectRepo.GetOneByID(project)
+	if getErr != nil {
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, getErr.Error())
+	}
 
 	return insertedId, nil
 
@@ -104,7 +109,7 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 		ProjectsIdColumn,
 		NameColumn,
 		DescriptionColumn,
-		ProjectsDateCreatedColumn,
+		fmt.Sprintf("cast(\"%s\" as text)", ProjectsDateCreatedColumn),
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s = ?", NameColumn), project.Name).
@@ -126,7 +131,7 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 		)
 		t, errParse := dateparse.ParseLocal(dateString)
 		if errParse != nil {
-			return utils.HTTPGenericError(500, err.Error())
+			return utils.HTTPGenericError(500, fmt.Sprintf("%s dataString: %s", errParse.Error(), dateString))
 		}
 		project.DateCreated = t
 		if err != nil {
@@ -150,7 +155,7 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 		ProjectsIdColumn,
 		NameColumn,
 		DescriptionColumn,
-		ProjectsDateCreatedColumn,
+		fmt.Sprintf("cast(\"%s\" as text)", ProjectsDateCreatedColumn),
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID).
@@ -172,7 +177,7 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 		)
 		t, errParse := dateparse.ParseLocal(dateString)
 		if errParse != nil {
-			return utils.HTTPGenericError(500, err.Error())
+			return utils.HTTPGenericError(500, fmt.Sprintf("%s dataString: %s", errParse.Error(), dateString))
 		}
 		project.DateCreated = t
 		if err != nil {
@@ -185,7 +190,7 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 	}
 
 	if count == 0 {
-		return utils.HTTPGenericError(http.StatusNotFound, "project with name : "+project.Name+" does not exist")
+		return utils.HTTPGenericError(http.StatusNotFound, "project does not exist")
 	}
 	return nil
 }
@@ -196,7 +201,7 @@ func (projectRepo *projectRepo) List(offset int64, limit int64) ([]models.Projec
 		ProjectsIdColumn,
 		NameColumn,
 		DescriptionColumn,
-		ProjectsDateCreatedColumn,
+		fmt.Sprintf("cast(\"%s\" as text)", ProjectsDateCreatedColumn),
 	).
 		From(ProjectsTableName).
 		Offset(uint64(offset)).
@@ -205,6 +210,9 @@ func (projectRepo *projectRepo) List(offset int64, limit int64) ([]models.Projec
 
 	projects := []models.ProjectModel{}
 	rows, err := selectBuilder.Query()
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
 	defer rows.Close()
 	for rows.Next() {
 		project := models.ProjectModel{}
@@ -217,7 +225,7 @@ func (projectRepo *projectRepo) List(offset int64, limit int64) ([]models.Projec
 		)
 		t, errParse := dateparse.ParseLocal(dateString)
 		if errParse != nil {
-			return nil, utils.HTTPGenericError(500, err.Error())
+			return nil, utils.HTTPGenericError(500, fmt.Sprintf("%s dataString: %s", errParse.Error(), dateString))
 		}
 		project.DateCreated = t
 		if err != nil {
@@ -225,8 +233,8 @@ func (projectRepo *projectRepo) List(offset int64, limit int64) ([]models.Projec
 		}
 		projects = append(projects, project)
 	}
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	if rows.Err() != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, rows.Err().Error())
 	}
 
 	return projects, nil
@@ -259,7 +267,6 @@ func (projectRepo *projectRepo) Count() (int64, *utils.GenericError) {
 // UpdateOneByID updates a single project
 func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (int64, *utils.GenericError) {
 	updateQuery := sq.Update(ProjectsTableName).
-		Set(NameColumn, project.Name).
 		Set(DescriptionColumn, project.Description).
 		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID)
 
@@ -270,7 +277,7 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (int6
 
 	res, applyErr := projectRepo.applyToFSM(query, params)
 	if err != nil {
-		return -1, applyErr
+		return -1, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
 
 	count := res.Data[1].(int64)
