@@ -1,21 +1,15 @@
 package repository
 
 import (
-	"encoding/json"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/araddon/dateparse"
-	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
-	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/fsm"
-	"scheduler0/marsher"
 	"scheduler0/models"
-	"scheduler0/protobuffs"
 	"scheduler0/utils"
-	"strconv"
 	"time"
 )
 
@@ -89,7 +83,7 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := credentialRepo.applyToFSM(query, params)
+	res, applyErr := fsm.AppApply(credentialRepo.logger, credentialRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return -1, applyErr
 	}
@@ -310,7 +304,7 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := credentialRepo.applyToFSM(query, params)
+	res, applyErr := fsm.AppApply(credentialRepo.logger, credentialRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return -1, applyErr
 	}
@@ -332,7 +326,7 @@ func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := credentialRepo.applyToFSM(query, params)
+	res, applyErr := fsm.AppApply(credentialRepo.logger, credentialRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return -1, applyErr
 	}
@@ -344,49 +338,4 @@ func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential
 	count := res.Data[1].(int64)
 
 	return count, nil
-}
-
-func (credentialRepo *credentialRepo) applyToFSM(sqlString string, params []interface{}) (*fsm.Response, *utils.GenericError) {
-	data, err := json.Marshal(params)
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	createCommand := &protobuffs.Command{
-		Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
-		Sql:  sqlString,
-		Data: data,
-	}
-
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	createCommandData, err := marsher.MarshalCommand(createCommand)
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	configs := config.GetScheduler0Configurations(credentialRepo.logger)
-
-	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	af := credentialRepo.store.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
-	if af.Error() != nil {
-		if af.Error() == raft.ErrNotLeader {
-			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "raft leader not found")
-		}
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
-	}
-
-	r := af.Response().(fsm.Response)
-
-	if r.Error != "" {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
-	}
-
-	return &r, nil
 }

@@ -1,21 +1,15 @@
 package repository
 
 import (
-	"encoding/json"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/araddon/dateparse"
-	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
-	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/fsm"
-	"scheduler0/marsher"
 	"scheduler0/models"
-	"scheduler0/protobuffs"
 	"scheduler0/utils"
-	"strconv"
 	"time"
 )
 
@@ -274,7 +268,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (int64, *utils.G
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := jobRepo.applyToFSM(query, params)
+	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return -1, applyErr
 	}
@@ -297,7 +291,7 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (int64, *utils.G
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := jobRepo.applyToFSM(query, params)
+	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return -1, applyErr
 	}
@@ -434,7 +428,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 
 		query += ";"
 
-		res, applyErr := jobRepo.applyToFSM(query, params)
+		res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
 		if res == nil {
 			return nil, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 		}
@@ -453,49 +447,4 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 	}
 
 	return returningIds, nil
-}
-
-func (jobRepo *jobRepo) applyToFSM(sqlString string, params []interface{}) (*fsm.Response, *utils.GenericError) {
-	data, err := json.Marshal(params)
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	createCommand := &protobuffs.Command{
-		Type: protobuffs.Command_Type(constants.CommandTypeDbExecute),
-		Sql:  sqlString,
-		Data: data,
-	}
-
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	createCommandData, err := marsher.MarshalCommand(createCommand)
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	configs := config.GetScheduler0Configurations(jobRepo.logger)
-
-	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	af := jobRepo.store.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
-	if af.Error() != nil {
-		if af.Error() == raft.ErrNotLeader {
-			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "raft leader not found")
-		}
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
-	}
-
-	r := af.Response().(fsm.Response)
-
-	if r.Error != "" {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
-	}
-
-	return &r, nil
 }
