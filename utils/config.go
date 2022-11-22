@@ -17,24 +17,28 @@ type Peer struct {
 
 // Scheduler0Configurations global configurations
 type Scheduler0Configurations struct {
-	Protocol                 string `json:"protocol" yaml:"Protocol"`
-	Host                     string `json:"host" yaml:"Host"`
-	Port                     string `json:"port" yaml:"Port"`
-	Replicas                 []Peer `json:"replicas" yaml:"Replicas"`
-	PeerCronJobCheckInterval int    `json:"PeerCronJobCheckInterval" yaml:"PeerCronJobCheckInterval"`
-	PeerAuthRequestTimeout   int    `json:"PeerAuthRequestTimeout" yaml:"PeerAuthRequestTimeout"`
-	MonitorRaftStateInterval int    `json:"monitorRaftStateInterval" yaml:"MonitorRaftStateInterval"`
-	PeerConnectRetryMax      int    `json:"peerConnectRetryMax" yaml:"PeerConnectRetryMax"`
-	PeerConnectRetryDelay    int    `json:"peerConnectRetryDelay" yaml:"PeerConnectRetryDelay"`
-	StableRaftStateTimeout   int    `json:"stableRaftStateTimeout" yaml:"StableRaftStateTimeout"`
-	Bootstrap                string `json:"bootstrap" yaml:"Bootstrap"`
-	NodeId                   string `json:"nodeId" yaml:"NodeId"`
-	RaftAddress              string `json:"raftAddress" yaml:"RaftAddress"`
-	RaftTransportMaxPool     string `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`
-	RaftTransportTimeout     string `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`
-	RaftApplyTimeout         string `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`
-	RaftSnapshotInterval     string `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`
-	RaftSnapshotThreshold    string `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`
+	Protocol                    string `json:"protocol" yaml:"Protocol"`
+	Host                        string `json:"host" yaml:"Host"`
+	Port                        string `json:"port" yaml:"Port"`
+	Replicas                    []Peer `json:"replicas" yaml:"Replicas"`
+	PeerCronJobCheckInterval    int    `json:"PeerCronJobCheckInterval" yaml:"PeerCronJobCheckInterval"`
+	PeerAuthRequestTimeout      int    `json:"PeerAuthRequestTimeout" yaml:"PeerAuthRequestTimeout"`
+	MonitorRaftStateInterval    int    `json:"monitorRaftStateInterval" yaml:"MonitorRaftStateInterval"`
+	PeerConnectRetryMax         int    `json:"peerConnectRetryMax" yaml:"PeerConnectRetryMax"`
+	PeerConnectRetryDelay       int    `json:"peerConnectRetryDelay" yaml:"PeerConnectRetryDelay"`
+	StableRaftStateTimeout      int    `json:"stableRaftStateTimeout" yaml:"StableRaftStateTimeout"`
+	Bootstrap                   string `json:"bootstrap" yaml:"Bootstrap"`
+	NodeId                      string `json:"nodeId" yaml:"NodeId"`
+	RaftAddress                 string `json:"raftAddress" yaml:"RaftAddress"`
+	RaftTransportMaxPool        string `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`
+	RaftTransportTimeout        string `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`
+	RaftApplyTimeout            string `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`
+	RaftSnapshotInterval        string `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`
+	RaftSnapshotThreshold       string `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`
+	JobExecutionTimeout         int    `json:"jobExecutionTimeout" yaml:"JobExecutionTimeout"`
+	JobExecutionLogBackupSizeKb int    `json:"jobExecutionLogBackupSizeKb" yaml:"JobExecutionLogBackupSizeKb"`
+	RequireNetworkTimeProtocol  int    `json:"requireNetworkTimeProtocol" yaml:"RequireNetworkTimeProtocol"`
+	NetworkTimeProtocolHost     string `json:"networkTimeProtocolHost" yaml:"NetworkTimeProtocolHost"`
 }
 
 var cachedConfig *Scheduler0Configurations

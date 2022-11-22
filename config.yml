@@ -17,6 +17,10 @@ PeerCronJobCheckInterval: 500
 MonitorRaftStateInterval: 500
 PeerAuthRequestTimeout: 2
 StableRaftStateTimeout: 5
+JobExecutionTimeout: 5
+JobExecutionLogBackupSizeKb: 2
+RequireNetworkTimeProtocol: false
+NetworkTimeProtocolHost: 0.beevik-ntp.pool.ntp.org
 Replicas:
   - Address: http://127.0.0.1:9090
     RaftAddress: 127.0.0.1:7070
