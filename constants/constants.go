@@ -8,8 +8,12 @@ const RaftStableLog = "stable.dat"
 const ConfigFileName = "config.yml"
 const ExecutionLogsDir = "logs"
 
+type Command int32
+
 const (
-	CommandTypeDbExecute int32 = 0
-	CommandTypeJobQueue  int32 = 1
-	CommandTypeDbQuery   int32 = 2
+	CommandTypeDbExecute            Command = 0
+	CommandTypeJobQueue                     = 1
+	CommandTypePrepareJobExecutions         = 2
+	CommandTypeCommitJobExecutions          = 3
+	CommandTypeErrorJobExecutions           = 4
 )
