@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
+	"scheduler0/secrets"
 	"scheduler0/utils"
 )
 
@@ -65,7 +66,7 @@ func (credentialService *credentialService) CreateNewCredential(credentialTransf
 		}
 	}
 
-	credentials := utils.GetScheduler0Credentials(credentialService.logger)
+	credentials := secrets.GetScheduler0Credentials(credentialService.logger)
 
 	if credentialTransformer.Platform == models.ServerPlatform {
 		apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)

@@ -12,7 +12,7 @@ import (
 	"scheduler0/config"
 	"scheduler0/http_server/middlewares/auth"
 	"scheduler0/models"
-	"scheduler0/utils"
+	"scheduler0/secrets"
 )
 
 var CreateCmd = &cobra.Command{
@@ -34,7 +34,7 @@ var credentialCmd = &cobra.Command{
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 
 		configs := config.GetScheduler0Configurations(logger)
-		credentials := utils.GetScheduler0Credentials(logger)
+		credentials := secrets.GetScheduler0Credentials(logger)
 
 		credentialModel := models.CredentialModel{}
 		typePrompt := promptui.Select{

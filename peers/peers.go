@@ -22,6 +22,7 @@ import (
 	"scheduler0/job_process"
 	"scheduler0/job_queue"
 	"scheduler0/repository"
+	"scheduler0/secrets"
 	tcp2 "scheduler0/tcp"
 	"scheduler0/utils"
 	"strconv"
@@ -483,7 +484,7 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 	}
 	req.Header.Set(auth.PeerHeader, "peer")
 	req.Header.Set(PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
-	credentials := utils.GetScheduler0Credentials(logger)
+	credentials := secrets.GetScheduler0Credentials(logger)
 	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
 
 	start := time.Now()

@@ -5,7 +5,7 @@ import (
 	"crypto/subtle"
 	"log"
 	"net/http"
-	"scheduler0/utils"
+	"scheduler0/secrets"
 )
 
 func IsPeerClient(req *http.Request) bool {
@@ -14,7 +14,7 @@ func IsPeerClient(req *http.Request) bool {
 }
 
 func IsAuthorizedPeerClient(req *http.Request, logger *log.Logger) bool {
-	credentials := utils.GetScheduler0Credentials(logger)
+	credentials := secrets.GetScheduler0Credentials(logger)
 	username, password, ok := req.BasicAuth()
 	if ok {
 		usernameHash := sha256.Sum256([]byte(username))
