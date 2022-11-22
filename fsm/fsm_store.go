@@ -139,7 +139,6 @@ func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queu
 			logger.Println("received jobs", len(jobs))
 			queue <- jobs
 		}
-	case protobuffs.Command_Type(constants.CommandTypeDbQuery):
 	}
 
 	return nil
