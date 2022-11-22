@@ -2,6 +2,7 @@ package job_executor
 
 import (
 	"fmt"
+	"github.com/hashicorp/raft"
 	"github.com/robfig/cron"
 	"log"
 	"scheduler0/executor"
@@ -11,6 +12,7 @@ import (
 )
 
 type JobExecutor struct {
+	raft        *raft.Raft
 	PendingJobs chan *models.JobProcess
 	jobRepo     repository.Job
 	logger      *log.Logger
@@ -101,6 +103,12 @@ func (jobExecutor *JobExecutor) ListenToChannelsUpdates() {
 		}
 	}
 }
+
+func (jobExecutor *JobExecutor) PrepareJobs() {}
+
+func (jobExecutor *JobExecutor) CommitJobs() {}
+
+func (jobExecutor *JobExecutor) RollbackJobs() {}
 
 func (jobExecutor *JobExecutor) Run(jobs []models.JobModel) {
 	for i, _ := range jobs {

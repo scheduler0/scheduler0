@@ -6,6 +6,7 @@ import (
 	"github.com/segmentio/ksuid"
 	"log"
 	"net/http"
+	"scheduler0/config"
 	"scheduler0/http_server/middlewares/auth"
 	"scheduler0/peers"
 	"scheduler0/service"
@@ -122,7 +123,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *peers.Peer) func(ne
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !peer.AcceptWrites && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
-				configs := utils.GetScheduler0Configurations(m.logger)
+				configs := config.GetScheduler0Configurations(m.logger)
 				serverAddr, _ := peer.Rft.LeaderWithID()
 
 				redirectUrl := ""

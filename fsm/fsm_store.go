@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/marsher"
@@ -81,7 +82,7 @@ func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queu
 	if err != nil {
 		logger.Fatal("failed to unmarshal command", err.Error())
 	}
-	configs := utils.GetScheduler0Configurations(logger)
+	configs := config.GetScheduler0Configurations(logger)
 
 	switch command.Type {
 	case protobuffs.Command_Type(constants.CommandTypeDbExecute):

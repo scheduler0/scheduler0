@@ -1,4 +1,4 @@
-package utils
+package config
 
 import (
 	"github.com/spf13/afero"
@@ -39,6 +39,8 @@ type Scheduler0Configurations struct {
 	JobExecutionLogBackupSizeKb int    `json:"jobExecutionLogBackupSizeKb" yaml:"JobExecutionLogBackupSizeKb"`
 	RequireNetworkTimeProtocol  int    `json:"requireNetworkTimeProtocol" yaml:"RequireNetworkTimeProtocol"`
 	NetworkTimeProtocolHost     string `json:"networkTimeProtocolHost" yaml:"NetworkTimeProtocolHost"`
+	JobExecutionRetryDelay      int    `json:"jobExecutionRetryDelay" yaml:"JobExecutionRetryDelay"`
+	JobExecutionRetryMax        int    `json:"jobExecutionRetryMax" yaml:"JobExecutionRetryMax"`
 }
 
 var cachedConfig *Scheduler0Configurations
@@ -49,7 +51,7 @@ func GetScheduler0Configurations(logger *log.Logger) *Scheduler0Configurations {
 		return cachedConfig
 	}
 
-	binPath := getBinPath(logger)
+	binPath := GetBinPath(logger)
 
 	fs := afero.NewOsFs()
 	data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
@@ -65,7 +67,7 @@ func GetScheduler0Configurations(logger *log.Logger) *Scheduler0Configurations {
 	return cachedConfig
 }
 
-func getBinPath(logger *log.Logger) string {
+func GetBinPath(logger *log.Logger) string {
 	e, err := os.Executable()
 	if err != nil {
 		logger.Fatalln(err)

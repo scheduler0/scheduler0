@@ -6,6 +6,7 @@ import (
 	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"log"
 	"os"
+	"scheduler0/config"
 	"scheduler0/constants"
 )
 
@@ -23,7 +24,7 @@ func GetScheduler0Credentials(logger *log.Logger) *Scheduler0Credentials {
 		return cachedCredentials
 	}
 
-	binPath := getBinPath(logger)
+	binPath := config.GetBinPath(logger)
 
 	fs := afero.NewOsFs()
 	data, err := afero.ReadFile(fs, binPath+"/"+constants.CredentialsFileName)
@@ -40,7 +41,7 @@ func GetScheduler0Credentials(logger *log.Logger) *Scheduler0Credentials {
 }
 
 func SaveCredentials(logger *log.Logger, credentialsInput *Scheduler0Credentials) *Scheduler0Credentials {
-	binPath := getBinPath(logger)
+	binPath := config.GetBinPath(logger)
 
 	fs := afero.NewOsFs()
 	data, err := json.Marshal(credentialsInput)

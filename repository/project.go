@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
+	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/marsher"
@@ -346,7 +347,7 @@ func (projectRepo *projectRepo) applyToFSM(sqlString string, params []interface{
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := utils.GetScheduler0Configurations(projectRepo.logger)
+	configs := config.GetScheduler0Configurations(projectRepo.logger)
 
 	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
 	if err != nil {

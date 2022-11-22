@@ -4,6 +4,7 @@ import (
 	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
+	"scheduler0/config"
 	"scheduler0/peers"
 	"scheduler0/utils"
 )
@@ -27,7 +28,7 @@ func NewPeerController(logger *log.Logger, rft *raft.Raft, peer *peers.Peer) Pee
 }
 
 func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Request) {
-	configs := utils.GetScheduler0Configurations(controller.logger)
+	configs := config.GetScheduler0Configurations(controller.logger)
 	res := peers.PeerRes{
 		IsLeader: configs.Bootstrap == "true",
 	}

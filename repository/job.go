@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
+	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/marsher"
@@ -475,7 +476,7 @@ func (jobRepo *jobRepo) applyToFSM(sqlString string, params []interface{}) (*fsm
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := utils.GetScheduler0Configurations(jobRepo.logger)
+	configs := config.GetScheduler0Configurations(jobRepo.logger)
 
 	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
 	if err != nil {

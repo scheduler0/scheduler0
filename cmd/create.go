@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"scheduler0/config"
 	"scheduler0/http_server/middlewares/auth"
 	"scheduler0/models"
 	"scheduler0/utils"
@@ -32,7 +33,7 @@ var credentialCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 
-		configs := utils.GetScheduler0Configurations(logger)
+		configs := config.GetScheduler0Configurations(logger)
 		credentials := utils.GetScheduler0Credentials(logger)
 
 		credentialModel := models.CredentialModel{}

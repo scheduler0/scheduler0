@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
+	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/marsher"
@@ -366,7 +367,7 @@ func (credentialRepo *credentialRepo) applyToFSM(sqlString string, params []inte
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := utils.GetScheduler0Configurations(credentialRepo.logger)
+	configs := config.GetScheduler0Configurations(credentialRepo.logger)
 
 	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
 	if err != nil {

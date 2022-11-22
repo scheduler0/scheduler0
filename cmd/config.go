@@ -9,9 +9,9 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"os"
+	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
-	"scheduler0/utils"
 )
 
 // ConfigCmd configuration protobuffs
@@ -119,7 +119,7 @@ Note that the Port is optional. By default the server will use :9090
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 		logger.Println("Initializing Scheduler0 Configuration")
 
-		config := utils.GetScheduler0Configurations(logger)
+		config := config.GetScheduler0Configurations(logger)
 
 		if config.Port == "" {
 			portPrompt := promptui.Prompt{
@@ -164,7 +164,7 @@ Use the --show-password flag if you want the password to be visible.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
-		configs := utils.GetScheduler0Configurations(logger)
+		configs := config.GetScheduler0Configurations(logger)
 		logger.Println("Configurations:")
 		logger.Println("NodeId:", configs.NodeId)
 		logger.Println("Bootstrap:", configs.Bootstrap)

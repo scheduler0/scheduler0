@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"github.com/hashicorp/raft"
 	"log"
+	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/job_executor"
 	"scheduler0/marsher"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
-	"scheduler0/utils"
 	"strconv"
 	"time"
 )
@@ -53,7 +53,7 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 		return
 	}
 
-	configs := utils.GetScheduler0Configurations(jobQ.logger)
+	configs := config.GetScheduler0Configurations(jobQ.logger)
 	batchRanges := [][]models.JobModel{}
 
 	numberOfServers := len(servers) - 1

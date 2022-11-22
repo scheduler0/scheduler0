@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/fsm"
@@ -120,10 +121,12 @@ func (p *Peer) NewRaft(fsm raft.FSM) *raft.Raft {
 	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-Peer-raft] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
 
-	configs := utils.GetScheduler0Configurations(p.logger)
+	configs := config.GetScheduler0Configurations(p.logger)
 
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(configs.NodeId)
+
+	// TODO: Set raft configs in scheduler0 config
 
 	r, err := raft.NewRaft(c, fsm, p.Ldb, p.Sdb, p.Fss, p.Tm)
 	if err != nil {
@@ -310,7 +313,7 @@ func (p *Peer) RecoverRaftState() {
 }
 
 func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
-	configs := utils.GetScheduler0Configurations(p.logger)
+	configs := config.GetScheduler0Configurations(p.logger)
 	p.State = Bootstrapping
 	if configs.Bootstrap == "true" {
 		p.AuthenticateWithPeersInConfig(p.logger)
@@ -342,7 +345,7 @@ func (p *Peer) RemovePeerNeighbor(peerAddress string) {
 func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) {
 	p.logger.Println("Authenticating with peers...")
 
-	configs := utils.GetScheduler0Configurations(logger)
+	configs := config.GetScheduler0Configurations(logger)
 	var wg sync.WaitGroup
 
 	results := map[string]PeerStatus{}
@@ -351,7 +354,7 @@ func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) {
 	for _, replica := range configs.Replicas {
 		if replica.Address != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
 			wg.Add(1)
-			go func(rep utils.Peer, res map[string]PeerStatus) {
+			go func(rep config.Peer, res map[string]PeerStatus) {
 				wrlck.Lock()
 				err := utils.RetryOnError(func() error {
 					if peerStatus, err := connectPeer(logger, rep); err == nil {
@@ -404,7 +407,7 @@ func (p *Peer) BroadcastDetectedFailure() {}
 
 func (p *Peer) ShardCronJobs() {
 	p.logger.Println("begin sharing cron jobs")
-	configs := utils.GetScheduler0Configurations(p.logger)
+	configs := config.GetScheduler0Configurations(p.logger)
 	ticker := time.NewTicker(time.Duration(configs.PeerCronJobCheckInterval) * time.Millisecond)
 	startedJobs := false
 
@@ -441,7 +444,7 @@ func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configura
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	configs := utils.GetScheduler0Configurations(logger)
+	configs := config.GetScheduler0Configurations(logger)
 	servers := []raft.Server{}
 
 	servers = append(servers, raft.Server{
@@ -468,8 +471,8 @@ func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configura
 	return cfg
 }
 
-func connectPeer(logger *log.Logger, rep utils.Peer) (*PeerStatus, error) {
-	configs := utils.GetScheduler0Configurations(logger)
+func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
+	configs := config.GetScheduler0Configurations(logger)
 	httpClient := http.Client{
 		Timeout: time.Duration(configs.PeerAuthRequestTimeout) * time.Second,
 	}
@@ -552,7 +555,7 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Peer-essentials] ", logPrefix))
 	defer logger.SetPrefix(logPrefix)
 
-	configs := utils.GetScheduler0Configurations(logger)
+	configs := config.GetScheduler0Configurations(logger)
 
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	_, err = strconv.Atoi(configs.RaftSnapshotInterval)

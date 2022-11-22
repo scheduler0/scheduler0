@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/fsm"
@@ -19,7 +20,6 @@ import (
 	"scheduler0/peers"
 	"scheduler0/repository"
 	"scheduler0/service"
-	"scheduler0/utils"
 )
 
 func getDBConnection(logger *log.Logger) (*sql.DB, db.DataStore) {
@@ -49,7 +49,7 @@ func Start() {
 	ctx := context.Background()
 	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
 
-	configs := utils.GetScheduler0Configurations(logger)
+	configs := config.GetScheduler0Configurations(logger)
 
 	dbConnection, sqliteDb := getDBConnection(logger)
 	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
