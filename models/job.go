@@ -5,15 +5,18 @@ import (
 	"time"
 )
 
+type JobPriorityLevel int
+
 // JobModel job model
 type JobModel struct {
-	ID            int64     `json:"id,omitempty"`
-	ProjectID     int64     `json:"project_id"`
-	Spec          string    `json:"spec,omitempty"`
-	CallbackUrl   string    `json:"callback_url"`
-	Data          string    `json:"data"`
-	ExecutionType string    `json:"execution_type"`
-	DateCreated   time.Time `json:"date_created"`
+	ID            int64            `json:"id,omitempty"`
+	ProjectID     int64            `json:"project_id"`
+	Spec          string           `json:"spec,omitempty"`
+	CallbackUrl   string           `json:"callback_url"`
+	Data          string           `json:"data"`
+	ExecutionType string           `json:"execution_type"`
+	PriorityLevel JobPriorityLevel `json:"priority_level"`
+	DateCreated   time.Time        `json:"date_created"`
 }
 
 // PaginatedJob paginated container of job transformer
