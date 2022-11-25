@@ -2,12 +2,15 @@ package executor
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"scheduler0/config"
 	"scheduler0/models"
 	"scheduler0/utils"
 	"strings"
+	"time"
 )
 
 type HTTPExecutionHandler struct {
@@ -25,7 +28,6 @@ func NewHTTTPExecutor(logger *log.Logger) *HTTPExecutionHandler {
 }
 
 func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(pendingJobs []*models.JobModel) error {
-
 	urlJobCache := map[string][]*models.JobModel{}
 
 	for _, pj := range pendingJobs {
@@ -64,6 +66,8 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(pendingJobs []*models.J
 			batches = append(batches, uJc)
 		}
 
+		configs := config.GetScheduler0Configurations(httpExecutor.logger)
+
 		for _, batch := range batches {
 			finalError = utils.RetryOnError(func() error {
 				payload := make([]string, 0)
@@ -82,10 +86,18 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(pendingJobs []*models.J
 				httpExecutor.logger.Println(fmt.Sprintf("Running Job Execution for Job CallbackURL = %v with payload len = %v",
 					rurl, len(payload)))
 
-				_, err = http.Post(rurl, "application/json", strings.NewReader(toString))
+				httpClient := http.Client{
+					Timeout: time.Duration(configs.JobExecutionTimeout) * time.Second,
+				}
 
-				return nil
-			}, 20, 3)
+				res, err := httpClient.Post(rurl, "application/json", strings.NewReader(toString))
+
+				if res.StatusCode >= 200 || res.StatusCode <= 299 {
+					return nil
+				}
+
+				return errors.New(fmt.Sprintf("subscriber failed to fully requests status code: %v", res.StatusCode))
+			}, configs.JobExecutionRetryMax, configs.JobExecutionRetryDelay)
 		}
 	}
 
