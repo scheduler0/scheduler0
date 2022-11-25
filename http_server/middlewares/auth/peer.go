@@ -15,7 +15,7 @@ func IsPeerClient(req *http.Request) bool {
 }
 
 func IsAuthorizedPeerClient(req *http.Request, logger *log.Logger) bool {
-	credentials := secrets.GetScheduler0Credentials(logger)
+	credentials := secrets.GetSecrets(logger)
 	username, password, ok := req.BasicAuth()
 	if ok {
 		usernameHash := sha256.Sum256([]byte(username))

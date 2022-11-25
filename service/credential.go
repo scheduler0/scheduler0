@@ -66,7 +66,7 @@ func (credentialService *credentialService) CreateNewCredential(credentialTransf
 		}
 	}
 
-	credentials := secrets.GetScheduler0Credentials(credentialService.logger)
+	credentials := secrets.GetSecrets(credentialService.logger)
 
 	if credentialTransformer.Platform == models.ServerPlatform {
 		apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)

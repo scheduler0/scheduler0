@@ -518,7 +518,7 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 	}
 	req.Header.Set(headers.PeerHeader, "peer")
 	req.Header.Set(headers.PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
-	credentials := secrets.GetScheduler0Credentials(logger)
+	credentials := secrets.GetSecrets(logger)
 	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
 
 	start := time.Now()

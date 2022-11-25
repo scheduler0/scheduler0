@@ -1,7 +1,7 @@
 package constants
 
 const SqliteDbFileName = "db.db"
-const CredentialsFileName = ".scheduler0"
+const SecretsFileName = ".scheduler0"
 const RaftDir = "raft_data"
 const RaftLog = "logs.dat"
 const RaftStableLog = "stable.dat"
