@@ -17,10 +17,11 @@ import (
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/fsm"
-	"scheduler0/http_server/middlewares/auth"
+	"scheduler0/headers"
 	"scheduler0/job_executor"
 	"scheduler0/job_process"
 	"scheduler0/job_queue"
+	"scheduler0/models"
 	"scheduler0/repository"
 	"scheduler0/secrets"
 	tcp2 "scheduler0/tcp"
@@ -50,8 +51,6 @@ type PeerResponse struct {
 
 type PeerState int
 
-const PeerAddressHeader = "peer-address"
-
 const (
 	Cold          PeerState = 0
 	Bootstrapping           = 1
@@ -61,23 +60,24 @@ const (
 )
 
 type Peer struct {
-	Tm           *raft.NetworkTransport
-	Ldb          *boltdb.BoltStore
-	Sdb          *boltdb.BoltStore
-	Fss          *raft.FileSnapshotStore
-	logger       *log.Logger
-	Neighbors    map[string]PeerStatus
-	mtx          sync.Mutex
-	AcceptWrites bool
-	State        PeerState
-	queue        chan []PeerRequest
-	Rft          *raft.Raft
-	jobProcessor *job_process.JobProcessor
-	jobQueue     *job_queue.JobQueue
-	jobExecutor  *job_executor.JobExecutor
-	jobRepo      repository.Job
-	projectRepo  repository.Project
-	ExistingNode bool
+	Tm            *raft.NetworkTransport
+	Ldb           *boltdb.BoltStore
+	Sdb           *boltdb.BoltStore
+	Fss           *raft.FileSnapshotStore
+	logger        *log.Logger
+	Neighbors     map[string]PeerStatus
+	mtx           sync.Mutex
+	AcceptWrites  bool
+	State         PeerState
+	queue         chan []PeerRequest
+	Rft           *raft.Raft
+	jobProcessor  *job_process.JobProcessor
+	jobQueue      *job_queue.JobQueue
+	jobExecutor   *job_executor.JobExecutor
+	jobRepo       repository.Job
+	projectRepo   repository.Project
+	ExistingNode  bool
+	LeaderAddress string
 }
 
 func NewPeer(
@@ -92,7 +92,8 @@ func NewPeer(
 	defer logger.SetPrefix(logPrefix)
 	dirPath := fmt.Sprintf("%v", constants.RaftDir)
 	dirPath, exists := utils.MakeDirIfNotExist(logger, dirPath)
-	dirPath = fmt.Sprintf("%v/%v", constants.RaftDir, 1)
+	configs := config.GetScheduler0Configurations(logger)
+	dirPath = fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	utils.MakeDirIfNotExist(logger, dirPath)
 	tm, ldb, sdb, fss, err := getLogsAndTransport(logger)
 	if err != nil {
@@ -121,7 +122,6 @@ func (p *Peer) NewRaft(fsm raft.FSM) *raft.Raft {
 	logPrefix := p.logger.Prefix()
 	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-Peer-raft] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
-
 	configs := config.GetScheduler0Configurations(p.logger)
 
 	c := raft.DefaultConfig()
@@ -236,7 +236,7 @@ func (p *Peer) RecoverRaftState() {
 			p.logger.Fatalf("failed to get log at index %d: %v\n", index, err)
 		}
 		if entry.Type == raft.LogCommand {
-			fsm.ApplyCommand(p.logger, &entry, dbConnection, false, nil)
+			fsm.ApplyCommand(p.logger, &entry, dbConnection, false, nil, nil, nil, nil)
 		}
 		lastIndex = entry.Index
 		lastTerm = entry.Term
@@ -436,9 +436,43 @@ func (p *Peer) RunPendingCronJob(fsmStr *fsm.Store) {
 			select {
 			case pendingJob := <-fsmStr.PendingJobs:
 				p.jobExecutor.Run(pendingJob)
+			case preparedJob := <-fsmStr.PrepareJobs:
+				p.jobExecutor.LogPrepare(preparedJob)
+			case commitJob := <-fsmStr.CommitJobs:
+				p.jobExecutor.LogCommit(commitJob)
+			case errorJob := <-fsmStr.ErrorJobs:
+				p.jobExecutor.LogErrors(errorJob)
 			}
 		}
 	}()
+}
+
+func (p *Peer) LogJobsStatePeers(peerAddress string, pendingJobs []*models.JobModel, actionType constants.Command) {
+	if p.Rft == nil {
+		p.logger.Fatalln("raft is not set on job executor")
+	}
+
+	data := []interface{}{}
+
+	for _, pendingJob := range pendingJobs {
+		data = append(data, pendingJob)
+	}
+
+	_, applyErr := fsm.AppApply(
+		p.logger,
+		p.Rft,
+		actionType,
+		peerAddress,
+		data,
+	)
+	if applyErr != nil {
+		p.logger.Fatalln("failed to apply job update states ", applyErr)
+	}
+}
+
+func (p *Peer) SetLeaderAddress(leaderAddress string) {
+	p.LeaderAddress = leaderAddress
+	p.jobExecutor.LeaderAddress = leaderAddress
 }
 
 func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configuration {
@@ -449,17 +483,17 @@ func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configura
 	servers := []raft.Server{}
 
 	servers = append(servers, raft.Server{
-		ID:       raft.ServerID("1"),
+		ID:       raft.ServerID(configs.NodeId),
 		Suffrage: raft.Voter,
 		Address:  raft.ServerAddress(configs.RaftAddress),
 	})
 
-	for i, replica := range configs.Replicas {
+	for _, replica := range configs.Replicas {
 		if repStatus, ok := p.Neighbors[replica.Address]; ok &&
 			repStatus.IsAlive &&
 			repStatus.IsAuth {
 			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(fmt.Sprintf("%v", i+2)),
+				ID:       raft.ServerID(replica.NodeId),
 				Suffrage: raft.Voter,
 				Address:  raft.ServerAddress(replica.RaftAddress),
 			})
@@ -482,8 +516,8 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 		logger.Println("failed to create request ", err)
 		return nil, err
 	}
-	req.Header.Set(auth.PeerHeader, "peer")
-	req.Header.Set(PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
+	req.Header.Set(headers.PeerHeader, "peer")
+	req.Header.Set(headers.PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
 	credentials := secrets.GetScheduler0Credentials(logger)
 	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
 
