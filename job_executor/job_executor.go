@@ -145,7 +145,7 @@ func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []*mode
 
 	req.Header.Set(headers.PeerHeader, "peer")
 	req.Header.Set(headers.PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
-	credentials := secrets.GetScheduler0Credentials(jobExecutor.logger)
+	credentials := secrets.GetSecrets(jobExecutor.logger)
 	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
 	err = utils.RetryOnError(func() error {
 		res, err := client.Do(req)
