@@ -68,7 +68,7 @@ func Start() {
 
 	//services
 	credentialService := service.NewCredentialService(logger, credentialRepo, ctx)
-	jobService := service.NewJobService(logger, jobRepo, jobQueue, ctx)
+	jobService := service.NewJobService(logger, jobRepo, jobQueue, projectRepo, ctx)
 	executionService := service.NewExecutionService(logger, executionRepo)
 	projectService := service.NewProjectService(logger, projectRepo)
 
@@ -80,7 +80,7 @@ func Start() {
 
 	// Initialize controllers
 	executionController := controllers.NewExecutionsController(logger, executionService)
-	jobController := controllers.NewJoBHTTPController(logger, jobService)
+	jobController := controllers.NewJoBHTTPController(logger, jobService, projectService)
 	projectController := controllers.NewProjectController(logger, projectService)
 	credentialController := controllers.NewCredentialController(logger, credentialService)
 	healthCheckController := controllers.NewHealthCheckController(logger, p.Rft)
@@ -122,8 +122,9 @@ func Start() {
 	// Healthcheck Endpoint
 	router.HandleFunc("/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
 
-	// Peer Endpoint
+	// Peer Endpoints
 	router.HandleFunc("/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
+	router.HandleFunc("/execution-logs", peerController.ExecutionLogs).Methods(http.MethodPost)
 
 	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 
