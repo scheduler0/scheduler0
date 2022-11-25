@@ -13,8 +13,9 @@ import (
 
 // HTTPController http request handler for /job requests
 type jobHTTPController struct {
-	jobService service.Job
-	logger     *log.Logger
+	jobService     service.Job
+	projectService service.Project
+	logger         *log.Logger
 }
 
 type JobHTTPController interface {
@@ -25,10 +26,11 @@ type JobHTTPController interface {
 	DeleteOneJob(w http.ResponseWriter, r *http.Request)
 }
 
-func NewJoBHTTPController(logger *log.Logger, jobService service.Job) JobHTTPController {
+func NewJoBHTTPController(logger *log.Logger, jobService service.Job, projectService service.Project) JobHTTPController {
 	return &jobHTTPController{
-		jobService: jobService,
-		logger:     logger,
+		jobService:     jobService,
+		projectService: projectService,
+		logger:         logger,
 	}
 }
 
@@ -87,22 +89,22 @@ func (jobController *jobHTTPController) BatchCreateJobs(w http.ResponseWriter, r
 		return
 	}
 
-	jobTransformers := &[]models.JobModel{}
-	if err := json.Unmarshal(body, jobTransformers); err != nil {
+	jobs := &[]models.JobModel{}
+	if err := json.Unmarshal(body, jobs); err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
 		return
 	}
 
-	createJobTransformers, batchCreateError := jobController.jobService.BatchInsertJobs(*jobTransformers)
+	createdJobs, batchCreateError := jobController.jobService.BatchInsertJobs(*jobs)
 	if batchCreateError != nil {
-		jobController.logger.Println("batchCreateError", batchCreateError.Message)
 		utils.SendJSON(w, batchCreateError.Message, false, batchCreateError.Type, nil)
 		return
 	}
 
-	go jobController.jobService.QueueJobs(createJobTransformers)
+	go jobController.jobService.QueueJobs(createdJobs)
 
-	utils.SendJSON(w, createJobTransformers, true, http.StatusCreated, nil)
+	utils.SendJSON(w, createdJobs, true, http.StatusCreated, nil)
+	return
 }
 
 // GetOneJob handles request to return a single job
