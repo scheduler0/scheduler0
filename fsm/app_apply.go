@@ -50,11 +50,13 @@ func AppApply(logger *log.Logger, rft *raft.Raft, commandType constants.Command,
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
 	}
 
-	r := af.Response().(Response)
-
-	if r.Error != "" {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
+	if af.Response() != nil {
+		r := af.Response().(Response)
+		if r.Error != "" {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
+		}
+		return &r, nil
 	}
 
-	return &r, nil
+	return nil, nil
 }
