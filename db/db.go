@@ -31,7 +31,7 @@ func (db *sqlLiteDb) OpenConnection() (io.Closer, error) {
 	db.rwMux.Lock()
 	defer db.rwMux.Unlock()
 
-	return sql.Open("sqlite3", fmt.Sprintf("file:%s?parseTime=true", db.dbFilePath))
+	return sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", db.dbFilePath))
 }
 
 func (db *sqlLiteDb) Serialize() []byte {
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS credentials
 CREATE TABLE IF NOT EXISTS projects
 (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    name         TEXT      NOT NULL,
+    name         TEXT      NOT NULL UNIQUE,
     description  TEXT      NOT NULL,
     date_created datetime NOT NULL
 );
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS jobs
     callback_url   TEXT      NOT NULL,
     execution_type TEXT      NOT NULL,
     date_created   datetime NOT NULL,
-	priority_level INTEGER   NOT NULL,
+	priority_level INTEGER   NULL,
     FOREIGN KEY (project_id)
         REFERENCES projects (id)
         ON DELETE CASCADE
