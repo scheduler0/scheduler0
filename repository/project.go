@@ -196,6 +196,21 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 }
 
 func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]models.ProjectModel, *utils.GenericError) {
+
+	if len(projectIds) < 1 {
+		return []models.ProjectModel{}, nil
+	}
+
+	projectIdsArgs := []interface{}{projectIds[0]}
+	idParams := "?"
+
+	i := 0
+	for i < len(projectIds)-1 {
+		idParams += ",?"
+		i += 1
+		projectIdsArgs = append(projectIdsArgs, projectIdsArgs[i])
+	}
+
 	selectBuilder := sq.Select(
 		ProjectsIdColumn,
 		NameColumn,
@@ -203,7 +218,7 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]mod
 		fmt.Sprintf("cast(\"%s\" as text)", ProjectsDateCreatedColumn),
 	).
 		From(ProjectsTableName).
-		Where(fmt.Sprintf("%s in (?)", ProjectsIdColumn), projectIds).
+		Where(fmt.Sprintf("%s in (%s)", ProjectsIdColumn, idParams), projectIdsArgs...).
 		RunWith(projectRepo.store.SQLDbConnection)
 
 	rows, err := selectBuilder.Query()
@@ -235,10 +250,6 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]mod
 	}
 	if rows.Err() != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	if count == 0 {
-		return nil, utils.HTTPGenericError(http.StatusNotFound, "project does not exist")
 	}
 
 	return projects, nil
