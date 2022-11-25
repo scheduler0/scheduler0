@@ -3,36 +3,40 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/robfig/cron"
 	"log"
 	"net/http"
 	"scheduler0/job_queue"
 	"scheduler0/models"
 	"scheduler0/repository"
 	"scheduler0/utils"
+	"time"
 )
 
 type jobService struct {
-	jobRepo repository.Job
-	Queue   job_queue.JobQueue
-	Ctx     context.Context
-	logger  *log.Logger
+	jobRepo     repository.Job
+	projectRepo repository.Project
+	Queue       job_queue.JobQueue
+	Ctx         context.Context
+	logger      *log.Logger
 }
 
 type Job interface {
 	GetJobsByProjectID(projectID int64, offset int64, limit int64, orderBy string) (*models.PaginatedJob, *utils.GenericError)
 	GetJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
-	BatchInsertJobs(jobTransformers []models.JobModel) ([]models.JobModel, *utils.GenericError)
+	BatchInsertJobs(jobs []models.JobModel) ([]models.JobModel, *utils.GenericError)
 	UpdateJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
 	DeleteJob(jobTransformer models.JobModel) *utils.GenericError
 	QueueJobs(jobTransformer []models.JobModel)
 }
 
-func NewJobService(logger *log.Logger, jobRepo repository.Job, queue job_queue.JobQueue, context context.Context) Job {
+func NewJobService(logger *log.Logger, jobRepo repository.Job, queue job_queue.JobQueue, projectRepo repository.Project, context context.Context) Job {
 	return &jobService{
-		jobRepo: jobRepo,
-		Queue:   queue,
-		Ctx:     context,
-		logger:  logger,
+		jobRepo:     jobRepo,
+		projectRepo: projectRepo,
+		Queue:       queue,
+		Ctx:         context,
+		logger:      logger,
 	}
 }
 
@@ -72,17 +76,57 @@ func (jobService *jobService) GetJob(job models.JobModel) (*models.JobModel, *ut
 }
 
 // BatchInsertJobs creates jobs in batches
-func (jobService *jobService) BatchInsertJobs(jobTransformers []models.JobModel) ([]models.JobModel, *utils.GenericError) {
-	insertedIds, err := jobService.jobRepo.BatchInsertJobs(jobTransformers)
+func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.JobModel, *utils.GenericError) {
+
+	if len(jobs) < 1 {
+		return []models.JobModel{}, nil
+	}
+
+	for _, job := range jobs {
+		if job.Spec != "" {
+			if _, err := cron.Parse(job.Spec); err != nil {
+				return nil, utils.HTTPGenericError(http.StatusBadRequest, fmt.Sprintf("job spec is not valid %s", job.Spec))
+			}
+		} else {
+			return nil, utils.HTTPGenericError(http.StatusBadRequest, fmt.Sprintf("job spec is not valid %s", job.Spec))
+		}
+	}
+
+	projectIds := []int64{}
+
+	for _, job := range jobs {
+		projectIds = append(projectIds, job.ProjectID)
+	}
+
+	projects, err := jobService.projectRepo.GetBatchProjectsByIDs(projectIds)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, job := range jobs {
+		found := false
+		for _, project := range projects {
+			if project.ID == job.ProjectID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("a project in the payload does not exitst. project id %v", job.ProjectID))
+		}
+	}
+
+	insertedIds, err := jobService.jobRepo.BatchInsertJobs(jobs)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message))
 	}
 
 	for i, insertedId := range insertedIds {
-		jobTransformers[i].ID = insertedId
+		jobs[i].ID = insertedId
+		jobs[i].DateCreated = time.Now().UTC()
 	}
 
-	return jobTransformers, nil
+	return jobs, nil
 }
 
 // UpdateJob updates job with ID in transformer. Note that cron expression of job cannot be updated.
