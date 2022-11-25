@@ -87,8 +87,22 @@ func recreateDb(fs afero.Fs, dir string) {
 	}
 }
 
-func recreateRaftDir(fs afero.Fs, dir string) {
+func recreateRaftDir(fs afero.Fs, dir string, nodeId string) {
 	dirPath := fmt.Sprintf("%v/%v", dir, constants.RaftDir)
+	exists, err := afero.DirExists(fs, dirPath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
+	}
+	if exists {
+		err := fs.RemoveAll(dirPath)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
+		}
+	}
+}
+
+func recreateExecutionLogs(fs afero.Fs, dir string) {
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.ExecutionLogsDir)
 	exists, err := afero.DirExists(fs, dirPath)
 	if err != nil {
 		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
@@ -142,7 +156,8 @@ Note that the Port is optional. By default the server will use :9090
 		fs := afero.NewOsFs()
 
 		recreateDb(fs, dir)
-		recreateRaftDir(fs, dir)
+		recreateRaftDir(fs, dir, config.NodeId)
+		recreateExecutionLogs(fs, dir)
 		runMigration(fs, dir)
 
 		logger.Println("Scheduler0 Initialized")
