@@ -26,6 +26,9 @@ type Store struct {
 	SQLDbConnection *sql.DB
 	Raft            *raft.Raft
 	PendingJobs     chan []models.JobModel
+	PrepareJobs     chan []models.JobModel
+	CommitJobs      chan []models.JobModel
+	ErrorJobs       chan []models.JobModel
 
 	raft.BatchingFSM
 }
@@ -42,6 +45,8 @@ func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB, logger *log.Logger) *
 		SqliteDB:        db,
 		SQLDbConnection: sqlDbConnection,
 		PendingJobs:     make(chan []models.JobModel, 100),
+		PrepareJobs:     make(chan []models.JobModel, 100),
+		CommitJobs:      make(chan []models.JobModel, 100),
 		logger:          logger,
 	}
 }
@@ -50,7 +55,16 @@ func (s *Store) Apply(l *raft.Log) interface{} {
 	s.rwMtx.Lock()
 	defer s.rwMtx.Unlock()
 
-	return ApplyCommand(s.logger, l, s.SQLDbConnection, true, s.PendingJobs)
+	return ApplyCommand(
+		s.logger,
+		l,
+		s.SQLDbConnection,
+		true,
+		s.PendingJobs,
+		s.PrepareJobs,
+		s.CommitJobs,
+		s.ErrorJobs,
+	)
 }
 
 func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
@@ -60,14 +74,31 @@ func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
 	results := []interface{}{}
 
 	for _, l := range logs {
-		result := ApplyCommand(s.logger, l, s.SQLDbConnection, true, s.PendingJobs)
+		result := ApplyCommand(
+			s.logger,
+			l,
+			s.SQLDbConnection,
+			true,
+			s.PendingJobs,
+			s.PrepareJobs,
+			s.CommitJobs,
+			s.ErrorJobs,
+		)
 		results = append(results, result)
 	}
 
 	return results
 }
 
-func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queueJobs bool, queue chan []models.JobModel) interface{} {
+func ApplyCommand(
+	logger *log.Logger,
+	l *raft.Log,
+	SQLDbConnection *sql.DB,
+	queueJobs bool,
+	queue chan []models.JobModel,
+	prepareQueue chan []models.JobModel,
+	commitQueue chan []models.JobModel, errorQueue chan []models.JobModel) interface{} {
+
 	logPrefix := logger.Prefix()
 	logger.SetPrefix(fmt.Sprintf("%s[apply-raft-command] ", logPrefix))
 	defer logger.SetPrefix(logPrefix)
@@ -136,8 +167,53 @@ func ApplyCommand(logger *log.Logger, l *raft.Log, SQLDbConnection *sql.DB, queu
 				}
 			}
 
-			logger.Println("received jobs", len(jobs))
+			logger.Println(fmt.Sprintf("received %v jobs to queue", len(jobs)))
 			queue <- jobs
+		}
+		break
+	case protobuffs.Command_Type(constants.CommandTypePrepareJobExecutions):
+		if queueJobs {
+			jobs := []models.JobModel{}
+			err := json.Unmarshal(command.Data, &jobs)
+			if err != nil {
+				return Response{
+					Data:  nil,
+					Error: err.Error(),
+				}
+			}
+
+			logger.Println(fmt.Sprintf("received %v jobs to prepare", len(jobs)))
+			prepareQueue <- jobs
+		}
+		break
+	case protobuffs.Command_Type(constants.CommandTypeCommitJobExecutions):
+		if queueJobs {
+			jobs := []models.JobModel{}
+			err := json.Unmarshal(command.Data, &jobs)
+			if err != nil {
+				return Response{
+					Data:  nil,
+					Error: err.Error(),
+				}
+			}
+
+			logger.Println(fmt.Sprintf("received %v jobs to commit", len(jobs)))
+			commitQueue <- jobs
+		}
+		break
+	case protobuffs.Command_Type(constants.CommandTypeErrorJobExecutions):
+		if queueJobs {
+			jobs := []models.JobModel{}
+			err := json.Unmarshal(command.Data, &jobs)
+			if err != nil {
+				return Response{
+					Data:  nil,
+					Error: err.Error(),
+				}
+			}
+
+			logger.Println(fmt.Sprintf("received %v jobs to log erorr", len(jobs)))
+			errorQueue <- jobs
 		}
 	}
 
