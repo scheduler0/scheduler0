@@ -45,20 +45,13 @@ func (controller *projectController) CreateOneProject(w http.ResponseWriter, r *
 		return
 	}
 
-	if len(project.Name) < 1 {
-		utils.SendJSON(w, "project name is required", false, http.StatusBadRequest, nil)
-		return
-	}
-
 	projectTransformer, createOneError := controller.projectService.CreateOne(project)
 	if createOneError != nil {
 		utils.SendJSON(w, createOneError, false, createOneError.Type, nil)
 		return
 	}
 
-	customHeader := map[string]string{}
-
-	utils.SendJSON(w, projectTransformer, true, http.StatusCreated, customHeader)
+	utils.SendJSON(w, projectTransformer, true, http.StatusCreated, nil)
 }
 
 func (controller *projectController) GetOneProject(w http.ResponseWriter, r *http.Request) {
@@ -161,21 +154,6 @@ func (controller *projectController) UpdateOneProject(w http.ResponseWriter, r *
 	}
 
 	project.ID = int64(projectId)
-
-	projectWithSimilarName := models.ProjectModel{
-		Name: project.Name,
-	}
-
-	getOneError := controller.projectService.GetOneByName(&projectWithSimilarName)
-	if getOneError != nil && getOneError.Type != http.StatusNotFound {
-		utils.SendJSON(w, getOneError.Message, false, getOneError.Type, nil)
-		return
-	}
-
-	if projectWithSimilarName.ID != 0 {
-		utils.SendJSON(w, errors.New("a project with a similar name exists").Error(), false, http.StatusBadRequest, nil)
-		return
-	}
 
 	updateError := controller.projectService.UpdateOneByID(&project)
 	if updateError != nil {

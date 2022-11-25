@@ -22,6 +22,7 @@ type Project interface {
 	GetOneByName(project *models.ProjectModel) *utils.GenericError
 	DeleteOneByID(project models.ProjectModel) *utils.GenericError
 	List(offset int64, limit int64) (*models.PaginatedProject, *utils.GenericError)
+	BatchGetProjects(projectIds []int64) ([]models.ProjectModel, *utils.GenericError)
 }
 
 func NewProjectService(logger *log.Logger, projectRepo repository.Project) Project {
@@ -40,8 +41,11 @@ func (projectService *projectService) CreateOne(project models.ProjectModel) (*m
 	return &project, nil
 }
 
-// UpdateOneByUUID updates a single project
 func (projectService *projectService) UpdateOneByID(project *models.ProjectModel) *utils.GenericError {
+	if len(project.Name) < 1 {
+		return utils.HTTPGenericError(http.StatusBadRequest, fmt.Sprintf("project name is required"))
+	}
+
 	count, err := projectService.projectRepo.UpdateOneByID(*project)
 	if err != nil {
 		return err
@@ -59,7 +63,6 @@ func (projectService *projectService) UpdateOneByID(project *models.ProjectModel
 	return nil
 }
 
-// GetOneByUUID returns project with matching uuid
 func (projectService *projectService) GetOneByID(project *models.ProjectModel) *utils.GenericError {
 	err := projectService.projectRepo.GetOneByID(project)
 	if err != nil {
@@ -78,7 +81,7 @@ func (projectService *projectService) GetOneByName(project *models.ProjectModel)
 	return nil
 }
 
-// DeleteOneByUUID deletes a single project
+// DeleteOneByID deletes a single project
 func (projectService *projectService) DeleteOneByID(project models.ProjectModel) *utils.GenericError {
 	count, err := projectService.projectRepo.DeleteOneByID(project)
 	if err != nil {
@@ -112,4 +115,17 @@ func (projectService *projectService) List(offset int64, limit int64) (*models.P
 	paginatedProjects.Offset = offset
 
 	return &paginatedProjects, nil
+}
+
+func (projectService *projectService) BatchGetProjects(projectIds []int64) ([]models.ProjectModel, *utils.GenericError) {
+	if len(projectIds) < 1 {
+		return []models.ProjectModel{}, nil
+	}
+
+	projects, err := projectService.projectRepo.GetBatchProjectsByIDs(projectIds)
+	if err != nil {
+		return nil, err
+	}
+
+	return projects, nil
 }

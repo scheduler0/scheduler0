@@ -22,6 +22,7 @@ type Project interface {
 	Count() (int64, *utils.GenericError)
 	UpdateOneByID(project models.ProjectModel) (int64, *utils.GenericError)
 	DeleteOneByID(project models.ProjectModel) (int64, *utils.GenericError)
+	GetBatchProjectsByIDs(projectIds []int64) ([]models.ProjectModel, *utils.GenericError)
 }
 
 type projectRepo struct {
@@ -62,8 +63,8 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (int64, 
 	}
 
 	_ = projectRepo.GetOneByName(project)
-	if projectWithName.ID != 0 {
-		return -1, utils.HTTPGenericError(http.StatusBadRequest, "another project exist with the same name")
+	if projectWithName.ID > 0 {
+		return -1, utils.HTTPGenericError(http.StatusBadRequest, fmt.Sprintf("another project exist with the same name, project with id %v has the same name", projectWithName.ID))
 	}
 
 	query, params, err := sq.Insert(ProjectsTableName).
@@ -192,6 +193,55 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 		return utils.HTTPGenericError(http.StatusNotFound, "project does not exist")
 	}
 	return nil
+}
+
+func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]models.ProjectModel, *utils.GenericError) {
+	selectBuilder := sq.Select(
+		ProjectsIdColumn,
+		NameColumn,
+		DescriptionColumn,
+		fmt.Sprintf("cast(\"%s\" as text)", ProjectsDateCreatedColumn),
+	).
+		From(ProjectsTableName).
+		Where(fmt.Sprintf("%s in (?)", ProjectsIdColumn), projectIds).
+		RunWith(projectRepo.store.SQLDbConnection)
+
+	rows, err := selectBuilder.Query()
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+	defer rows.Close()
+	count := 0
+	projects := []models.ProjectModel{}
+	for rows.Next() {
+		project := models.ProjectModel{}
+		var dateString string
+		err = rows.Scan(
+			&project.ID,
+			&project.Name,
+			&project.Description,
+			&dateString,
+		)
+		t, errParse := dateparse.ParseLocal(dateString)
+		if errParse != nil {
+			return nil, utils.HTTPGenericError(500, fmt.Sprintf("%s dataString: %s", errParse.Error(), dateString))
+		}
+		project.DateCreated = t
+		if err != nil {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		}
+		projects = append(projects, project)
+		count += 1
+	}
+	if rows.Err() != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	if count == 0 {
+		return nil, utils.HTTPGenericError(http.StatusNotFound, "project does not exist")
+	}
+
+	return projects, nil
 }
 
 // List returns a paginated set of results
