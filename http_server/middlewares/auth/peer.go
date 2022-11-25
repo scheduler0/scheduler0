@@ -5,11 +5,12 @@ import (
 	"crypto/subtle"
 	"log"
 	"net/http"
+	"scheduler0/headers"
 	"scheduler0/secrets"
 )
 
 func IsPeerClient(req *http.Request) bool {
-	peerHeaderVal := req.Header.Get(PeerHeader)
+	peerHeaderVal := req.Header.Get(headers.PeerHeader)
 	return peerHeaderVal == "cmd" || peerHeaderVal == "peer"
 }
 

@@ -1,4 +1,4 @@
-package auth
+package headers
 
 const (
 	APIKeyHeader           = "x-api-key"
@@ -8,4 +8,5 @@ const (
 	PeerHeader             = "x-peer"
 	HTTPReferrerIDHeader   = "http-referrer"
 	IPReferrerIDHeader     = "ip-referrer-id"
+	PeerAddressHeader      = "peer-address"
 )

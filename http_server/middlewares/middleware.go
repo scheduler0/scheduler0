@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"scheduler0/config"
+	"scheduler0/headers"
 	"scheduler0/http_server/middlewares/auth"
 	"scheduler0/peers"
 	"scheduler0/service"
@@ -144,7 +145,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *peers.Peer) func(ne
 				redirectUrl = fmt.Sprintf("%s%s", redirectUrl, r.URL.Path)
 
 				w.Header().Set("Location", redirectUrl)
-				requester := r.Header.Get(auth.PeerHeader)
+				requester := r.Header.Get(headers.PeerHeader)
 
 				if requester == "cmd" || requester == "node" {
 					m.logger.Println("Redirecting request to leader", redirectUrl)

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"os"
 	"scheduler0/config"
-	"scheduler0/http_server/middlewares/auth"
+	"scheduler0/headers"
 	"scheduler0/models"
 	"scheduler0/secrets"
 )
@@ -101,7 +101,7 @@ var credentialCmd = &cobra.Command{
 				rc := ioutil.NopCloser(body)
 				req.Body = rc
 				req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
-				req.Header.Add(auth.PeerHeader, "cmd")
+				req.Header.Add(headers.PeerHeader, "cmd")
 				req.Header.Add("Content-Type", "application/json")
 
 				if len(via) > 5 {
@@ -118,7 +118,7 @@ var credentialCmd = &cobra.Command{
 		)
 
 		req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
-		req.Header.Add(auth.PeerHeader, "cmd")
+		req.Header.Add(headers.PeerHeader, "cmd")
 		req.Header.Add("Content-Type", "application/json")
 		res, err := client.Do(req)
 		if err != nil {
