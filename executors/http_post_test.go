@@ -1,4 +1,4 @@
-package executor
+package executors
 
 //func Test_HTTPPost(t *testing.T) {
 //
