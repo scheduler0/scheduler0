@@ -208,7 +208,7 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]mod
 	for i < len(projectIds)-1 {
 		idParams += ",?"
 		i += 1
-		projectIdsArgs = append(projectIdsArgs, projectIdsArgs[i])
+		projectIdsArgs = append(projectIdsArgs, projectIds[i])
 	}
 
 	selectBuilder := sq.Select(
