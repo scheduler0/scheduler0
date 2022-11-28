@@ -7,6 +7,7 @@ require (
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/bxcodec/faker/v3 v3.5.0
 	github.com/gorilla/mux v1.8.0
+	github.com/hashicorp/go-uuid v1.0.1
 	github.com/hashicorp/raft v1.3.11
 	github.com/hashicorp/raft-boltdb/v2 v2.2.2
 	github.com/manifoldco/promptui v0.8.0
@@ -17,7 +18,6 @@ require (
 	github.com/spf13/cobra v1.1.1
 	github.com/unrolled/secure v1.0.8
 	github.com/victorlenerd/scheduler0/server v0.0.0-20210208050834-cb7d550eb16e
-	golang.org/x/exp v0.0.0-20220602145555-4a0574d9293f
 	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/yaml.v2 v2.3.0
