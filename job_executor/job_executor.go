@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/raft"
 	"github.com/robfig/cron"
 	"github.com/spf13/afero"
@@ -13,7 +14,7 @@ import (
 	"os"
 	"scheduler0/config"
 	"scheduler0/constants"
-	"scheduler0/executor"
+	"scheduler0/executors"
 	"scheduler0/headers"
 	"scheduler0/models"
 	"scheduler0/repository"
@@ -29,6 +30,7 @@ type JobExecutor struct {
 	fileMtx       sync.Mutex
 	raft          *raft.Raft
 	LeaderAddress string
+	KnownPeers    int64
 	PendingJobs   chan *models.JobProcess
 	jobRepo       repository.Job
 	logger        *log.Logger
@@ -76,30 +78,29 @@ func (jobExecutor *JobExecutor) ExecutePendingJobs(pendingJobs []*models.JobProc
 
 	jobExecutor.logger.Println(fmt.Sprintf("Batched Queried %v", len(jobs)))
 
-	jobsToExecute := make([]*models.JobModel, 0)
+	jobsToExecute := make([]models.JobModel, 0)
 
 	// TODO: execute jobs based on priority level
 
 	for _, job := range jobs {
 		pendingJob := getPendingJob(job.ID)
 		if pendingJob != nil {
-			jobsToExecute = append(jobsToExecute, pendingJob.Job)
+			jobsToExecute = append(jobsToExecute, *pendingJob.Job)
 		}
 	}
 
-	onSuccess := func(pendingJobs []*models.JobModel) {
+	onSuccess := func(pendingJobs []models.JobModel) {
 		for _, pendingJob := range pendingJobs {
 			jobExecutor.logger.Println(fmt.Sprintf("Executed job %v", pendingJob.ID))
 		}
 		jobExecutor.LogJobExecutionStateOnLeader(pendingJobs, constants.CommandTypeCommitJobExecutions)
 	}
 
-	onFail := func(erroredJobs []*models.JobModel, err error) {
+	onFail := func(erroredJobs []models.JobModel) {
 		jobExecutor.LogJobExecutionStateOnLeader(erroredJobs, constants.CommandTypeErrorJobExecutions)
-		jobExecutor.logger.Println(fmt.Sprintf("%v jobs failed"), err.Error())
 	}
 
-	executorService := executor.NewService(jobExecutor.logger, jobsToExecute, onSuccess, onFail)
+	executorService := executors.NewService(jobExecutor.logger, jobsToExecute, onSuccess, onFail)
 
 	// TODO: execute job based on job execution type
 	executorService.ExecuteHTTP()
@@ -116,9 +117,14 @@ func (jobExecutor *JobExecutor) ListenToChannelsUpdates() {
 			pendingJobs = append(pendingJobs, pendingJob)
 		case <-ticker.C:
 			if len(pendingJobs) > 0 {
-				prepareJobs := make([]*models.JobModel, 0)
+				prepareJobs := make([]models.JobModel, 0)
 				for _, jobProcess := range pendingJobs[0:] {
-					prepareJobs = append(prepareJobs, jobProcess.Job)
+					executionUUID, err := uuid.GenerateUUID()
+					if err != nil {
+						jobExecutor.logger.Fatalln(fmt.Sprintf("failed to created execution id for job %s", err.Error()))
+					}
+					jobProcess.Job.NextExecutionId = executionUUID
+					prepareJobs = append(prepareJobs, *jobProcess.Job)
 				}
 				jobExecutor.LogJobExecutionStateOnLeader(prepareJobs, constants.CommandTypePrepareJobExecutions)
 				jobExecutor.logger.Println(fmt.Sprintf("%v Pending Jobs To Execute", len(pendingJobs[0:])))
@@ -128,7 +134,22 @@ func (jobExecutor *JobExecutor) ListenToChannelsUpdates() {
 	}
 }
 
-func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []*models.JobModel, actionType constants.Command) {
+func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []models.JobModel, actionType constants.Command) {
+	configs := config.GetScheduler0Configurations(jobExecutor.logger)
+
+	if jobExecutor.KnownPeers < 2 || jobExecutor.LeaderAddress == fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
+
+		switch actionType {
+		case constants.CommandTypeCommitJobExecutions:
+			jobExecutor.LogCommit(pendingJobs)
+		case constants.CommandTypePrepareJobExecutions:
+			jobExecutor.LogPrepare(pendingJobs)
+		case constants.CommandTypeErrorJobExecutions:
+			jobExecutor.LogErrors(pendingJobs)
+		}
+		return
+	}
+
 	client := http.Client{}
 	body := models.JobStateReqPayload{
 		State: actionType,
@@ -140,8 +161,6 @@ func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []*mode
 	}
 	reader := bytes.NewReader(data)
 	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/execution-logs", jobExecutor.LeaderAddress), reader)
-
-	configs := config.GetScheduler0Configurations(jobExecutor.logger)
 
 	req.Header.Set(headers.PeerHeader, "peer")
 	req.Header.Set(headers.PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
@@ -194,7 +213,13 @@ func (jobExecutor *JobExecutor) LogPrepare(jobs []models.JobModel) {
 	jobProcesses := []*models.JobProcess{}
 
 	for _, job := range jobs {
-		entry := fmt.Sprintf("prepare %v %v", job.ID, time.Now().UTC())
+		schedule, parseErr := cron.Parse(job.Spec)
+		if parseErr != nil {
+			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+		}
+		executionTime := schedule.Next(job.LastExecutionDate)
+
+		entry := fmt.Sprintf("prepare %v, %v, %v, %v", job.ID, job.NextExecutionId, job.LastExecutionDate.String(), executionTime.String())
 		WriteJobExecutionLog(job, entry)
 		for _, jobProcess := range jobExecutor.jobProcess {
 			if jobProcess.Job.ID == job.ID {
@@ -210,7 +235,13 @@ func (jobExecutor *JobExecutor) LogCommit(jobs []models.JobModel) {
 	jobExecutor.fileMtx.Lock()
 	defer jobExecutor.fileMtx.Unlock()
 	for _, job := range jobs {
-		entry := fmt.Sprintf("commit %v %v", job.ID, time.Now().UTC())
+		schedule, parseErr := cron.Parse(job.Spec)
+		if parseErr != nil {
+			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+		}
+		executionTime := schedule.Next(job.LastExecutionDate)
+		entry := fmt.Sprintf("commit %v, %v, %v, %v", job.ID, job.NextExecutionId, job.LastExecutionDate.String(), executionTime.String())
+		// TODO: update last execution data of job in memory
 		WriteJobExecutionLog(job, entry)
 	}
 }
@@ -219,9 +250,26 @@ func (jobExecutor *JobExecutor) LogErrors(jobs []models.JobModel) {
 	jobExecutor.fileMtx.Lock()
 	defer jobExecutor.fileMtx.Unlock()
 	for _, job := range jobs {
-		entry := fmt.Sprintf("error %v %v", job.ID, time.Now().UTC())
+		schedule, parseErr := cron.Parse(job.Spec)
+		if parseErr != nil {
+			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+		}
+		executionTime := schedule.Next(job.LastExecutionDate)
+		entry := fmt.Sprintf("error %v, %v, %v, %v", job.ID, job.NextExecutionId, job.LastExecutionDate.String(), executionTime.String())
+		// TODO: update last execution data of job in memory
 		WriteJobExecutionLog(job, entry)
 	}
+}
+
+func (jobExecutor *JobExecutor) StopAll() {
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+
+	for _, jobProcess := range jobExecutor.jobProcess {
+		jobProcess.Cron.Stop()
+	}
+
+	jobExecutor.jobProcess = []*models.JobProcess{}
 }
 
 func WriteJobExecutionLog(job models.JobModel, entry string) {
