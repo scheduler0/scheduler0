@@ -229,14 +229,17 @@ func (p *Peer) RecoverRaftState() {
 	if err != nil {
 		p.logger.Fatalf("failed to find last log: %v", err)
 	}
-
+	var lastConfiguration raft.Configuration
+	var lastConfigurationIndex uint64
 	for index := snapshotIndex + 1; index <= lastLogIndex; index++ {
 		var entry raft.Log
 		if err = p.Ldb.GetLog(index, &entry); err != nil {
 			p.logger.Fatalf("failed to get log at index %d: %v\n", index, err)
 		}
-		if entry.Type == raft.LogCommand {
-			fsm.ApplyCommand(p.logger, &entry, dbConnection, false, nil, nil, nil, nil)
+		fsm.ApplyCommand(p.logger, &entry, dbConnection, false, nil, nil, nil, nil)
+		if entry.Type == raft.LogConfiguration {
+			lastConfigurationIndex = index
+			lastConfiguration = raft.DecodeConfiguration(entry.Data)
 		}
 		lastIndex = entry.Index
 		lastTerm = entry.Term
@@ -285,10 +288,8 @@ func (p *Peer) RecoverRaftState() {
 
 	p.logger.Println("Wrote number of credentials to recovery db ::", count)
 
-	cfg := p.getRaftConfigurationFromConfig(p.logger)
-
 	snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
-	sink, err := p.Fss.Create(1, lastIndex, lastTerm, cfg, 1, p.Tm)
+	sink, err := p.Fss.Create(1, lastIndex, lastTerm, lastConfiguration, lastConfigurationIndex, p.Tm)
 	if err != nil {
 		p.logger.Fatalf("failed to create snapshot: %v", err)
 	}
@@ -317,6 +318,7 @@ func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
 	configs := config.GetScheduler0Configurations(p.logger)
 	p.State = Bootstrapping
 	if configs.Bootstrap == "true" {
+		p.jobExecutor.LeaderAddress = fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port)
 		p.AuthenticateWithPeersInConfig(p.logger)
 	}
 	if p.ExistingNode {
@@ -414,6 +416,14 @@ func (p *Peer) ShardCronJobs() {
 
 	for !startedJobs {
 		select {
+		case <-p.Rft.LeaderCh():
+			leaderAddress, _ := p.Rft.LeaderWithID()
+			if p.LeaderAddress != string(leaderAddress) {
+				// TODO: Get leader address from configs
+				p.LeaderAddress = string(leaderAddress)
+				p.jobExecutor.LeaderAddress = string(leaderAddress)
+				p.jobExecutor.StopAll()
+			}
 		case <-ticker.C:
 			if p.Rft.State() == raft.Shutdown {
 				return
@@ -447,9 +457,9 @@ func (p *Peer) RunPendingCronJob(fsmStr *fsm.Store) {
 	}()
 }
 
-func (p *Peer) LogJobsStatePeers(peerAddress string, pendingJobs []*models.JobModel, actionType constants.Command) {
+func (p *Peer) LogJobsStatePeers(peerAddress string, pendingJobs []models.JobModel, actionType constants.Command) {
 	if p.Rft == nil {
-		p.logger.Fatalln("raft is not set on job executor")
+		p.logger.Fatalln("raft is not set on job executors")
 	}
 
 	data := []interface{}{}
