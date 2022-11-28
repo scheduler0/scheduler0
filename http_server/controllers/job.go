@@ -101,8 +101,6 @@ func (jobController *jobHTTPController) BatchCreateJobs(w http.ResponseWriter, r
 		return
 	}
 
-	go jobController.jobService.QueueJobs(createdJobs)
-
 	utils.SendJSON(w, createdJobs, true, http.StatusCreated, nil)
 	return
 }

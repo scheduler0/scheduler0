@@ -124,7 +124,10 @@ func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.
 	for i, insertedId := range insertedIds {
 		jobs[i].ID = insertedId
 		jobs[i].DateCreated = time.Now().UTC()
+		jobs[i].LastExecutionDate = time.Now().UTC()
 	}
+
+	go jobService.QueueJobs(jobs)
 
 	return jobs, nil
 }
