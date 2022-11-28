@@ -38,19 +38,24 @@ func (jobProcessor *JobProcessor) StartJobs() {
 
 	jobProcessor.logger.Println("Total number of projects: ", totalProjectCount)
 
-	projectTransformers, listErr := jobProcessor.projectRepo.List(0, totalProjectCount)
+	projects, listErr := jobProcessor.projectRepo.List(0, totalProjectCount)
 	if listErr != nil {
 		jobProcessor.logger.Fatalln(listErr.Message)
 	}
 
-	for _, projectTransformer := range projectTransformers {
-		jobsTotalCount, err := jobProcessor.jobRepo.GetJobsTotalCountByProjectID(projectTransformer.ID)
+	for _, project := range projects {
+		jobsTotalCount, err := jobProcessor.jobRepo.GetJobsTotalCountByProjectID(project.ID)
 		if err != nil {
 			jobProcessor.logger.Fatalln(err.Message)
 		}
 
-		jobProcessor.logger.Println(fmt.Sprintf("Total number of jobs for project %v is %v : ", projectTransformer.ID, jobsTotalCount))
-		jobs, _, loadErr := jobProcessor.jobRepo.GetJobsPaginated(projectTransformer.ID, 0, jobsTotalCount)
+		jobProcessor.logger.Println(fmt.Sprintf("Total number of jobs for project %v is %v : ", project.ID, jobsTotalCount))
+		jobs, _, loadErr := jobProcessor.jobRepo.GetJobsPaginated(project.ID, 0, jobsTotalCount)
+
+		for i, job := range jobs {
+			jobs[i].LastExecutionDate = job.DateCreated
+		}
+
 		if loadErr != nil {
 			jobProcessor.logger.Fatalln(loadErr.Message)
 		}
