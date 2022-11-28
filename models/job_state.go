@@ -6,5 +6,5 @@ import (
 
 type JobStateReqPayload struct {
 	State constants.Command
-	Data  []*JobModel
+	Data  []JobModel
 }
