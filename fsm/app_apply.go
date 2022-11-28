@@ -45,7 +45,7 @@ func AppApply(logger *log.Logger, rft *raft.Raft, commandType constants.Command,
 	af := rft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
 	if af.Error() != nil {
 		if af.Error() == raft.ErrNotLeader {
-			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "raft leader not found")
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "server not raft leader")
 		}
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
 	}
