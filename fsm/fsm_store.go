@@ -29,6 +29,7 @@ type Store struct {
 	PrepareJobs     chan []models.JobModel
 	CommitJobs      chan []models.JobModel
 	ErrorJobs       chan []models.JobModel
+	StopAllJobs     chan bool
 
 	raft.BatchingFSM
 }
@@ -47,6 +48,7 @@ func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB, logger *log.Logger) *
 		PendingJobs:     make(chan []models.JobModel, 100),
 		PrepareJobs:     make(chan []models.JobModel, 100),
 		CommitJobs:      make(chan []models.JobModel, 100),
+		StopAllJobs:     make(chan bool, 1),
 		logger:          logger,
 	}
 }
@@ -64,6 +66,7 @@ func (s *Store) Apply(l *raft.Log) interface{} {
 		s.PrepareJobs,
 		s.CommitJobs,
 		s.ErrorJobs,
+		s.StopAllJobs,
 	)
 }
 
@@ -83,6 +86,7 @@ func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
 			s.PrepareJobs,
 			s.CommitJobs,
 			s.ErrorJobs,
+			s.StopAllJobs,
 		)
 		results = append(results, result)
 	}
@@ -94,10 +98,12 @@ func ApplyCommand(
 	logger *log.Logger,
 	l *raft.Log,
 	SQLDbConnection *sql.DB,
-	queueJobs bool,
+	useQueues bool,
 	queue chan []models.JobModel,
 	prepareQueue chan []models.JobModel,
-	commitQueue chan []models.JobModel, errorQueue chan []models.JobModel) interface{} {
+	commitQueue chan []models.JobModel,
+	errorQueue chan []models.JobModel,
+	stopAllJobsQueue chan bool) interface{} {
 
 	logPrefix := logger.Prefix()
 	logger.SetPrefix(fmt.Sprintf("%s[apply-raft-command] ", logPrefix))
@@ -157,7 +163,7 @@ func ApplyCommand(
 			Error: "",
 		}
 	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
-		if command.Sql == configs.RaftAddress && queueJobs {
+		if command.Sql == configs.RaftAddress && useQueues {
 			jobs := []models.JobModel{}
 			err := json.Unmarshal(command.Data, &jobs)
 			if err != nil {
@@ -172,7 +178,7 @@ func ApplyCommand(
 		}
 		break
 	case protobuffs.Command_Type(constants.CommandTypePrepareJobExecutions):
-		if queueJobs {
+		if useQueues {
 			jobs := []models.JobModel{}
 			err := json.Unmarshal(command.Data, &jobs)
 			if err != nil {
@@ -187,7 +193,7 @@ func ApplyCommand(
 		}
 		break
 	case protobuffs.Command_Type(constants.CommandTypeCommitJobExecutions):
-		if queueJobs {
+		if useQueues {
 			jobs := []models.JobModel{}
 			err := json.Unmarshal(command.Data, &jobs)
 			if err != nil {
@@ -202,7 +208,7 @@ func ApplyCommand(
 		}
 		break
 	case protobuffs.Command_Type(constants.CommandTypeErrorJobExecutions):
-		if queueJobs {
+		if useQueues {
 			jobs := []models.JobModel{}
 			err := json.Unmarshal(command.Data, &jobs)
 			if err != nil {
@@ -214,6 +220,10 @@ func ApplyCommand(
 
 			logger.Println(fmt.Sprintf("received %v jobs to log erorr", len(jobs)))
 			errorQueue <- jobs
+		}
+	case protobuffs.Command_Type(constants.CommandTypeStopJobs):
+		if useQueues {
+			stopAllJobsQueue <- true
 		}
 	}
 
