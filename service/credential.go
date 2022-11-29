@@ -19,9 +19,6 @@ type Credential interface {
 	DeleteOneCredential(id int64) (*models.CredentialModel, error)
 	ListCredentials(offset int64, limit int64, orderBy string) (*models.PaginatedCredential, *utils.GenericError)
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
-	ValidateIOSAPIKey(apiKey string, IOSBundle string) (bool, *utils.GenericError)
-	ValidateAndroidAPIKey(apiKey string, androidPackageName string) (bool, *utils.GenericError)
-	ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string, ip string) (bool, *utils.GenericError)
 }
 
 func NewCredentialService(logger *log.Logger, repo repository.Credential, Ctx context.Context) Credential {
@@ -40,39 +37,11 @@ type credentialService struct {
 
 // CreateNewCredential creates a new credentials
 func (credentialService *credentialService) CreateNewCredential(credentialTransformer models.CredentialModel) (int64, *utils.GenericError) {
-	if len(credentialTransformer.Platform) < 1 {
-		return -1, utils.HTTPGenericError(http.StatusBadRequest, "credential should have a platform")
-	}
-
-	if credentialTransformer.Platform != models.AndroidPlatform &&
-		credentialTransformer.Platform != models.WebPlatform &&
-		credentialTransformer.Platform != models.IOSPlatform &&
-		credentialTransformer.Platform != models.ServerPlatform {
-		return -1, utils.HTTPGenericError(http.StatusBadRequest, "credential platform should be one of server, web, android, or ios")
-	}
-
-	switch credentialTransformer.Platform {
-	case models.AndroidPlatform:
-		if len(credentialTransformer.AndroidPackageNameRestriction) < 1 {
-			return -1, utils.HTTPGenericError(http.StatusBadRequest, "android credentials should have a package name restriction")
-		}
-	case models.IOSPlatform:
-		if len(credentialTransformer.IOSBundleIDRestriction) < 1 {
-			return -1, utils.HTTPGenericError(http.StatusBadRequest, "ios credentials should have a bundle restriction")
-		}
-	case models.WebPlatform:
-		if len(credentialTransformer.HTTPReferrerRestriction) < 1 && len(credentialTransformer.IPRestriction) < 1 {
-			return -1, utils.HTTPGenericError(http.StatusBadRequest, "web credentials should either an ip restriction or a url restriction")
-		}
-	}
-
 	credentials := secrets.GetSecrets(credentialService.logger)
 
-	if credentialTransformer.Platform == models.ServerPlatform {
-		apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
-		credentialTransformer.ApiKey = apiKey
-		credentialTransformer.ApiSecret = apiSecret
-	}
+	apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
+	credentialTransformer.ApiKey = apiKey
+	credentialTransformer.ApiSecret = apiSecret
 
 	newCredentialId, err := credentialService.CredentialRepo.CreateOne(credentialTransformer)
 	if err != nil {
@@ -100,14 +69,6 @@ func (credentialService *credentialService) UpdateOneCredential(credential model
 	err := credentialService.CredentialRepo.GetOneID(&credentialPlaceholder)
 	if err != nil {
 		return nil, err
-	}
-
-	if credentialPlaceholder.Platform != "" {
-		return nil, errors.New("could not find credential")
-	}
-
-	if credentialPlaceholder.Platform != credential.Platform {
-		return nil, errors.New("cannot update platform type of credential")
 	}
 
 	if credentialPlaceholder.ApiKey != credential.ApiKey && len(credential.ApiKey) > 1 {
@@ -174,54 +135,4 @@ func (credentialService *credentialService) ValidateServerAPIKey(apiKey string, 
 	}
 
 	return apiSecret == credentialManager.ApiSecret, nil
-}
-
-// ValidateIOSAPIKey authenticates incoming request from iOS app s
-func (credentialService *credentialService) ValidateIOSAPIKey(apiKey string, IOSBundle string) (bool, *utils.GenericError) {
-	credentialManager := models.CredentialModel{
-		ApiKey: apiKey,
-	}
-
-	getApIError := credentialService.CredentialRepo.GetByAPIKey(&credentialManager)
-	if getApIError != nil {
-		return false, getApIError
-	}
-
-	return credentialManager.IOSBundleIDRestriction == IOSBundle, nil
-}
-
-// ValidateAndroidAPIKey authenticates incoming request from android app
-func (credentialService *credentialService) ValidateAndroidAPIKey(apiKey string, androidPackageName string) (bool, *utils.GenericError) {
-	credentialManager := models.CredentialModel{
-		ApiKey: apiKey,
-	}
-
-	getApIError := credentialService.CredentialRepo.GetByAPIKey(&credentialManager)
-	if getApIError != nil {
-		return false, getApIError
-	}
-
-	return credentialManager.AndroidPackageNameRestriction == androidPackageName, nil
-}
-
-// ValidateWebAPIKeyHTTPReferrerRestriction authenticates incoming request from web clients
-func (credentialService *credentialService) ValidateWebAPIKeyHTTPReferrerRestriction(apiKey string, callerUrl string, ip string) (bool, *utils.GenericError) {
-	credentialManager := models.CredentialModel{
-		ApiKey: apiKey,
-	}
-
-	getApIError := credentialService.CredentialRepo.GetByAPIKey(&credentialManager)
-	if getApIError != nil {
-		return false, getApIError
-	}
-
-	if callerUrl == credentialManager.HTTPReferrerRestriction {
-		return true, nil
-	}
-
-	if ip == credentialManager.IPRestriction {
-		return true, nil
-	}
-
-	return false, utils.HTTPGenericError(http.StatusUnauthorized, "the user is not authorized")
 }

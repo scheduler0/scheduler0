@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"io/ioutil"
 	"log"
@@ -37,58 +36,6 @@ var credentialCmd = &cobra.Command{
 		credentials := secrets.GetSecrets(logger)
 
 		credentialModel := models.CredentialModel{}
-		typePrompt := promptui.Select{
-			Label: "Platform",
-			Items: []string{"server", "web", "ios", "android"},
-		}
-		_, credentialType, err := typePrompt.Run()
-		if err != nil {
-			logger.Fatalln(err)
-		}
-		credentialModel.Platform = credentialType
-
-		if credentialType == models.WebPlatform {
-			httpReferrerPrompt := promptui.Prompt{
-				Label: "HTTP Referrer Restriction",
-			}
-			httpReferrerRestriction, err := httpReferrerPrompt.Run()
-			if err != nil {
-				logger.Fatalln(err)
-			}
-			credentialModel.HTTPReferrerRestriction = httpReferrerRestriction
-			ipRestrictionPrompt := promptui.Prompt{
-				Label: "IP Restriction",
-			}
-			ipRestriction, err := ipRestrictionPrompt.Run()
-			if err != nil {
-				logger.Fatalln(err)
-			}
-			credentialModel.HTTPReferrerRestriction = httpReferrerRestriction
-			credentialModel.IPRestriction = ipRestriction
-		}
-
-		if credentialType == models.IOSPlatform {
-			iOSBundlePrompt := promptui.Prompt{
-				Label: "iOS Bundle Id Restriction",
-			}
-			iOSBundleRestriction, err := iOSBundlePrompt.Run()
-			if err != nil {
-				logger.Fatalln(err)
-			}
-			credentialModel.IOSBundleIDRestriction = iOSBundleRestriction
-		}
-
-		if credentialType == models.AndroidPlatform {
-			androidPackageIdPrompt := promptui.Prompt{
-				Label: "Android Package Restriction",
-			}
-			androidPackageIdRestriction, err := androidPackageIdPrompt.Run()
-			if err != nil {
-				logger.Fatalln(err)
-			}
-			credentialModel.AndroidPackageNameRestriction = androidPackageIdRestriction
-		}
-
 		data, err := credentialModel.ToJSON()
 		if err != nil {
 			logger.Fatalln(err)

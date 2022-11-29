@@ -52,13 +52,8 @@ CREATE TABLE IF NOT EXISTS credentials
 (
     id                               INTEGER PRIMARY KEY AUTOINCREMENT,
     archived                         boolean   NOT NULL,
-    platform                         TEXT      NOT NULL,
     api_key                          TEXT,
     api_secret                       TEXT,
-    ip_restriction                   TEXT,
-    http_referrer_restriction        TEXT,
-    ios_bundle_id_restriction        TEXT,
-    android_package_name_restriction TEXT,
     date_created                     datetime NOT NULL
 );
 

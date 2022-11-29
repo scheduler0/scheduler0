@@ -31,7 +31,7 @@ type RecoveredJob struct {
 //
 //	time.Sleep(executionTime.Sub(now))
 //
-//	onSuccess := func(pendingJobs []*job_process.JobProcess) {
+//	onSuccess := func(pendingJobs []*job_processor.JobProcess) {
 //		for _, pendingJob := range pendingJobs {
 //			//if jobProcessor.IsRecovered(pendingJob.ID) {
 //			jobProcessor.RemoveJobRecovery(pendingJob.ID)
@@ -42,11 +42,11 @@ type RecoveredJob struct {
 //		}
 //	}
 //
-//	onFail := func(pj []*job_process.JobProcess, err error) {
+//	onFail := func(pj []*job_processor.JobProcess, err error) {
 //		utils.Error("HTTP REQUEST ERROR:: ", err.Error())
 //	}
 //
-//	executorService := executor.NewService([]*job_process.JobProcess{
+//	executorService := executor.NewService([]*job_processor.JobProcess{
 //		{
 //			Job: recoveredJob.Job,
 //		},

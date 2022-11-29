@@ -144,7 +144,7 @@ func (jobExecutor *JobExecutor) ListenToChannelsUpdates() {
 					if err != nil {
 						jobExecutor.logger.Fatalln(fmt.Sprintf("failed to created execution id for job %s", err.Error()))
 					}
-					jobProcess.Job.NextExecutionId = executionUUID
+					jobProcess.Job.ExecutionId = executionUUID
 					prepareJobs = append(prepareJobs, *jobProcess.Job)
 				}
 				jobExecutor.LogJobExecutionStateOnLeader(prepareJobs, constants.CommandTypePrepareJobExecutions)
@@ -269,7 +269,7 @@ func (jobExecutor *JobExecutor) LogPrepare(jobs []models.JobModel) {
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
 
-		entry := fmt.Sprintf("prepare %v, %v, %v, %v", job.ID, job.NextExecutionId, job.LastExecutionDate.String(), executionTime.String())
+		entry := fmt.Sprintf("prepare %v, %v, %v, %v", job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
 		jobExecutor.WriteJobExecutionLog(entry)
 		for _, jobProcess := range jobExecutor.jobProcess {
 			if jobProcess.Job.ID == job.ID {
@@ -292,7 +292,7 @@ func (jobExecutor *JobExecutor) LogCommit(jobs []models.JobModel) {
 			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
-		entry := fmt.Sprintf("commit %v, %v, %v, %v", job.ID, job.NextExecutionId, job.LastExecutionDate.String(), executionTime.String())
+		entry := fmt.Sprintf("commit %v, %v, %v, %v", job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
 		// TODO: update last execution data of job in memory
 		jobExecutor.WriteJobExecutionLog(entry)
 	}
@@ -307,7 +307,7 @@ func (jobExecutor *JobExecutor) LogErrors(jobs []models.JobModel) {
 			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
-		entry := fmt.Sprintf("error %v, %v, %v, %v", job.ID, job.NextExecutionId, job.LastExecutionDate.String(), executionTime.String())
+		entry := fmt.Sprintf("error %v, %v, %v, %v", job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
 		// TODO: update last execution data of job in memory
 		jobExecutor.WriteJobExecutionLog(entry)
 	}

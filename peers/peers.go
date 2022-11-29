@@ -19,7 +19,7 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/headers"
 	"scheduler0/job_executor"
-	"scheduler0/job_process"
+	"scheduler0/job_processor"
 	"scheduler0/job_queue"
 	"scheduler0/models"
 	"scheduler0/repository"
@@ -67,7 +67,7 @@ type Peer struct {
 	State        PeerState
 	queue        chan []PeerRequest
 	FsmStore     *fsm.Store
-	jobProcessor *job_process.JobProcessor
+	jobProcessor *job_processor.JobProcessor
 	jobQueue     *job_queue.JobQueue
 	jobExecutor  *job_executor.JobExecutor
 	jobRepo      repository.Job
@@ -103,7 +103,7 @@ func NewPeer(
 		logger:       logger,
 		AcceptWrites: false,
 		State:        Cold,
-		jobProcessor: job_process.NewJobProcessor(jobRepo, projectRepo, *jobQueue, logger),
+		jobProcessor: job_processor.NewJobProcessor(jobRepo, projectRepo, *jobQueue, logger),
 		jobQueue:     jobQueue,
 		jobExecutor:  jobExecutor,
 		jobRepo:      jobRepo,

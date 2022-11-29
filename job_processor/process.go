@@ -1,4 +1,4 @@
-package job_process
+package job_processor
 
 import (
 	"fmt"
@@ -25,7 +25,7 @@ func NewJobProcessor(jobRepo repository.Job, projectRepo repository.Project, job
 	}
 }
 
-// StartJobs the cron job job_process
+// StartJobs the cron job job_processor
 func (jobProcessor *JobProcessor) StartJobs() {
 	logPrefix := jobProcessor.logger.Prefix()
 	jobProcessor.logger.SetPrefix(fmt.Sprintf("%s[job-processor] ", logPrefix))

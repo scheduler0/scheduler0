@@ -67,14 +67,9 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 			JobsDateCreatedColumn,
 		).
 		Values(
-			credential.Platform,
 			credential.Archived,
 			credential.ApiKey,
 			credential.ApiSecret,
-			credential.IPRestriction,
-			credential.HTTPReferrerRestriction,
-			credential.IOSBundleIDRestriction,
-			credential.AndroidPackageNameRestriction,
 			credential.DateCreated.String(),
 		)
 
@@ -130,13 +125,8 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
-			&credential.Platform,
 			&credential.ApiKey,
 			&credential.ApiSecret,
-			&credential.IPRestriction,
-			&credential.HTTPReferrerRestriction,
-			&credential.IOSBundleIDRestriction,
-			&credential.AndroidPackageNameRestriction,
 			&dt,
 		)
 
@@ -180,13 +170,8 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
-			&credential.Platform,
 			&credential.ApiKey,
 			&credential.ApiSecret,
-			&credential.IPRestriction,
-			&credential.HTTPReferrerRestriction,
-			&credential.IOSBundleIDRestriction,
-			&credential.AndroidPackageNameRestriction,
 			&dataString,
 		)
 		t, errParse := dateparse.ParseLocal(dataString)
@@ -260,13 +245,8 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
-			&credential.Platform,
 			&credential.ApiKey,
 			&credential.ApiSecret,
-			&credential.IPRestriction,
-			&credential.HTTPReferrerRestriction,
-			&credential.IOSBundleIDRestriction,
-			&credential.AndroidPackageNameRestriction,
 			&dataString,
 		)
 		t, errParse := dateparse.ParseLocal(dataString)
@@ -289,13 +269,8 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 func (credentialRepo *credentialRepo) UpdateOneByID(credential models.CredentialModel) (int64, *utils.GenericError) {
 	updateQuery := sq.Update(CredentialTableName).
 		Set(ArchivedColumn, credential.Archived).
-		Set(PlatformColumn, credential.Platform).
 		Set(ApiKeyColumn, credential.ApiKey).
 		Set(ApiSecretColumn, credential.ApiSecret).
-		Set(IPRestrictionColumn, credential.IPRestriction).
-		Set(HTTPReferrerRestrictionColumn, credential.HTTPReferrerRestriction).
-		Set(IOSBundleIdReferrerRestrictionColumn, credential.IOSBundleIDRestriction).
-		Set(AndroidPackageIDReferrerRestrictionColumn, credential.AndroidPackageNameRestriction).
 		Where(fmt.Sprintf("%s = ?", JobsIdColumn), credential.ID).
 		RunWith(credentialRepo.store.SQLDbConnection)
 

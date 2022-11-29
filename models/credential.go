@@ -5,25 +5,13 @@ import (
 	"time"
 )
 
-const (
-	AndroidPlatform = "android"
-	WebPlatform     = "web"
-	IOSPlatform     = "ios"
-	ServerPlatform  = "server"
-)
-
 // CredentialModel credential model
 type CredentialModel struct {
-	ID                            int64     `json:"id"`
-	Archived                      bool      `json:"archived"`
-	Platform                      string    `json:"platform"`
-	ApiKey                        string    `json:"api_key"`
-	ApiSecret                     string    `json:"api_secret"`
-	IPRestriction                 string    `json:"ip_restriction"`
-	HTTPReferrerRestriction       string    `json:"http_referrer_restriction"`
-	IOSBundleIDRestriction        string    `json:"ios_bundle_id_restriction"`
-	AndroidPackageNameRestriction string    `json:"android_package_name_restriction"`
-	DateCreated                   time.Time `json:"date_created"`
+	ID          int64     `json:"id"`
+	Archived    bool      `json:"archived"`
+	ApiKey      string    `json:"api_key"`
+	ApiSecret   string    `json:"api_secret"`
+	DateCreated time.Time `json:"date_created"`
 }
 
 // PaginatedCredential paginated container of credential transformer

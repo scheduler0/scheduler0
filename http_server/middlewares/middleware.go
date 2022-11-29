@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/headers"
-	"scheduler0/http_server/middlewares/auth"
 	"scheduler0/peers"
 	"scheduler0/service"
 	"scheduler0/utils"
@@ -64,8 +63,8 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 				return
 			}
 
-			if auth.IsServerClient(r) {
-				if validity, _ := auth.IsAuthorizedServerClient(r, credentialService); validity {
+			if IsServerClient(r) {
+				if validity, _ := IsAuthorizedServerClient(r, credentialService); validity {
 					next.ServeHTTP(w, r)
 					return
 				} else {
@@ -74,38 +73,8 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 				}
 			}
 
-			if auth.IsIOSClient(r) {
-				if validity, _ := auth.IsAuthorizedIOSClient(r, credentialService); validity {
-					next.ServeHTTP(w, r)
-					return
-				} else {
-					utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
-					return
-				}
-			}
-
-			if auth.IsAndroidClient(r) {
-				if validity, _ := auth.IsAuthorizedAndroidClient(r, credentialService); validity {
-					next.ServeHTTP(w, r)
-					return
-				} else {
-					utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
-					return
-				}
-			}
-
-			if auth.IsWebClient(r) {
-				if validity, _ := auth.IsAuthorizedWebClient(r, credentialService); validity {
-					next.ServeHTTP(w, r)
-					return
-				} else {
-					utils.SendJSON(w, "unauthorized requests", false, http.StatusUnauthorized, nil)
-					return
-				}
-			}
-
-			if auth.IsPeerClient(r) {
-				if validity := auth.IsAuthorizedPeerClient(r, m.logger); validity {
+			if IsPeerClient(r) {
+				if validity := IsAuthorizedPeerClient(r, m.logger); validity {
 					next.ServeHTTP(w, r)
 					return
 				} else {
