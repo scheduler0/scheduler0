@@ -14,6 +14,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"scheduler0/config"
 	"unsafe"
 )
 
@@ -116,4 +117,16 @@ func BytesFromSnapshot(rc io.ReadCloser) ([]byte, error) {
 		database = nil
 	}
 	return database, nil
+}
+
+func GetNodeIPWithRaftAddress(logger *log.Logger, raftAddress string) string {
+	configs := config.GetScheduler0Configurations(logger)
+
+	for _, replica := range configs.Replicas {
+		if replica.RaftAddress == raftAddress {
+			return replica.Address
+		}
+	}
+
+	return ""
 }
