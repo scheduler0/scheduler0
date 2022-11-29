@@ -125,7 +125,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *peers.Peer) func(ne
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !peer.AcceptWrites && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
 				configs := config.GetScheduler0Configurations(m.logger)
-				serverAddr, _ := peer.Rft.LeaderWithID()
+				serverAddr, _ := peer.FsmStore.Raft.LeaderWithID()
 
 				redirectUrl := ""
 
