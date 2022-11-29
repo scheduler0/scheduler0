@@ -2,19 +2,21 @@ package job_executor
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-uuid"
 	"github.com/hashicorp/raft"
 	"github.com/robfig/cron"
-	"github.com/spf13/afero"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/executors"
+	"scheduler0/fsm"
 	"scheduler0/headers"
 	"scheduler0/models"
 	"scheduler0/repository"
@@ -26,22 +28,47 @@ import (
 )
 
 type JobExecutor struct {
-	mtx           sync.Mutex
-	fileMtx       sync.Mutex
-	raft          *raft.Raft
-	LeaderAddress string
-	KnownPeers    int64
-	PendingJobs   chan *models.JobProcess
-	jobRepo       repository.Job
-	logger        *log.Logger
-	jobProcess    []*models.JobProcess
+	context     context.Context
+	mtx         sync.Mutex
+	fileMtx     sync.Mutex
+	Raft        *raft.Raft
+	PendingJobs chan *models.JobProcess
+	jobRepo     repository.Job
+	logFile     *os.File
+	logger      *log.Logger
+	jobProcess  []*models.JobProcess
+	cancelReq   context.CancelFunc
+	executor    *executors.Service
 }
 
 func NewJobExecutor(logger *log.Logger, jobRepository repository.Job) *JobExecutor {
+	ctx, cancel := context.WithCancel(context.Background())
+	dir, err := os.Getwd()
+	if err != nil {
+		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.ExecutionLogsDir)
+	mkdirErr := os.Mkdir(dirPath, os.ModePerm)
+	if !os.IsExist(mkdirErr) && !os.IsNotExist(mkdirErr) && err != nil {
+		logger.Fatalln(fmt.Errorf("failed to create the logs dir %s \n", err))
+	}
+	logFilePath := fmt.Sprintf("%v/executions.txt", dirPath)
+	logFile, err := os.OpenFile(logFilePath, os.O_RDWR, os.ModePerm)
+	if os.IsNotExist(err) {
+		file, createErr := os.Create(logFilePath)
+		if createErr != nil {
+			logger.Fatalln(fmt.Errorf("failed to create the executions.txt file %s \n", err))
+		}
+		logFile = file
+	}
 	return &JobExecutor{
 		PendingJobs: make(chan *models.JobProcess, 100),
 		jobRepo:     jobRepository,
 		logger:      logger,
+		context:     ctx,
+		cancelReq:   cancel,
+		logFile:     logFile,
+		executor:    executors.NewService(logger),
 	}
 }
 
@@ -89,21 +116,15 @@ func (jobExecutor *JobExecutor) ExecutePendingJobs(pendingJobs []*models.JobProc
 		}
 	}
 
-	onSuccess := func(pendingJobs []models.JobModel) {
-		for _, pendingJob := range pendingJobs {
-			jobExecutor.logger.Println(fmt.Sprintf("Executed job %v", pendingJob.ID))
-		}
-		jobExecutor.LogJobExecutionStateOnLeader(pendingJobs, constants.CommandTypeCommitJobExecutions)
-	}
-
-	onFail := func(erroredJobs []models.JobModel) {
-		jobExecutor.LogJobExecutionStateOnLeader(erroredJobs, constants.CommandTypeErrorJobExecutions)
-	}
-
-	executorService := executors.NewService(jobExecutor.logger, jobsToExecute, onSuccess, onFail)
-
 	// TODO: execute job based on job execution type
-	executorService.ExecuteHTTP()
+	if len(jobsToExecute) > 0 {
+		jobExecutor.executor.ExecuteHTTP(
+			jobsToExecute,
+			jobExecutor.context,
+			jobExecutor.HandleSuccessJobs,
+			jobExecutor.HandleFailedJobs,
+		)
+	}
 }
 
 // ListenToChannelsUpdates periodically checks channels for updates
@@ -136,17 +157,44 @@ func (jobExecutor *JobExecutor) ListenToChannelsUpdates() {
 
 func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []models.JobModel, actionType constants.Command) {
 	configs := config.GetScheduler0Configurations(jobExecutor.logger)
+	configuration := jobExecutor.Raft.GetConfiguration().Configuration()
 
-	if jobExecutor.KnownPeers < 2 || jobExecutor.LeaderAddress == fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
+	leaderAddress := ""
 
-		switch actionType {
-		case constants.CommandTypeCommitJobExecutions:
-			jobExecutor.LogCommit(pendingJobs)
-		case constants.CommandTypePrepareJobExecutions:
-			jobExecutor.LogPrepare(pendingJobs)
-		case constants.CommandTypeErrorJobExecutions:
-			jobExecutor.LogErrors(pendingJobs)
+	err := utils.RetryOnError(func() error {
+		address, _ := jobExecutor.Raft.LeaderWithID()
+		leaderAddress = string(address)
+		if leaderAddress == "" {
+			return errors.New("cannot get leader with id")
 		}
+		return nil
+	}, configs.JobExecutionStateLogRetryMax, configs.JobExecutionStateLogRetryDelay)
+
+	if err != nil {
+		jobExecutor.logger.Fatalln("cannot get leader with id")
+	}
+
+	// When only a single-node is running
+	if string(leaderAddress) == fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) &&
+		len(configuration.Servers) < 2 {
+		data := []interface{}{}
+
+		for _, pendingJob := range pendingJobs {
+			data = append(data, pendingJob)
+		}
+
+		_, applyErr := fsm.AppApply(
+			jobExecutor.logger,
+			jobExecutor.Raft,
+			actionType,
+			configs.RaftAddress,
+			data,
+		)
+
+		if applyErr != nil {
+			jobExecutor.logger.Fatalln("failed to apply job update states ", applyErr)
+		}
+
 		return
 	}
 
@@ -160,8 +208,10 @@ func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []model
 		jobExecutor.logger.Fatalln("failed to convert jobs ", err)
 	}
 	reader := bytes.NewReader(data)
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/execution-logs", jobExecutor.LeaderAddress), reader)
-
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/execution-logs", utils.GetNodeIPWithRaftAddress(jobExecutor.logger, string(leaderAddress))), reader)
+	if err != nil {
+		jobExecutor.logger.Fatalln("failed to req ", err)
+	}
 	req.Header.Set(headers.PeerHeader, "peer")
 	req.Header.Set(headers.PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
 	credentials := secrets.GetSecrets(jobExecutor.logger)
@@ -220,7 +270,7 @@ func (jobExecutor *JobExecutor) LogPrepare(jobs []models.JobModel) {
 		executionTime := schedule.Next(job.LastExecutionDate)
 
 		entry := fmt.Sprintf("prepare %v, %v, %v, %v", job.ID, job.NextExecutionId, job.LastExecutionDate.String(), executionTime.String())
-		WriteJobExecutionLog(job, entry)
+		jobExecutor.WriteJobExecutionLog(entry)
 		for _, jobProcess := range jobExecutor.jobProcess {
 			if jobProcess.Job.ID == job.ID {
 				jobProcesses = append(jobProcesses, jobProcess)
@@ -228,7 +278,9 @@ func (jobExecutor *JobExecutor) LogPrepare(jobs []models.JobModel) {
 		}
 	}
 
-	jobExecutor.ExecutePendingJobs(jobProcesses)
+	if len(jobProcesses) > 0 {
+		jobExecutor.ExecutePendingJobs(jobProcesses)
+	}
 }
 
 func (jobExecutor *JobExecutor) LogCommit(jobs []models.JobModel) {
@@ -242,7 +294,7 @@ func (jobExecutor *JobExecutor) LogCommit(jobs []models.JobModel) {
 		executionTime := schedule.Next(job.LastExecutionDate)
 		entry := fmt.Sprintf("commit %v, %v, %v, %v", job.ID, job.NextExecutionId, job.LastExecutionDate.String(), executionTime.String())
 		// TODO: update last execution data of job in memory
-		WriteJobExecutionLog(job, entry)
+		jobExecutor.WriteJobExecutionLog(entry)
 	}
 }
 
@@ -257,7 +309,7 @@ func (jobExecutor *JobExecutor) LogErrors(jobs []models.JobModel) {
 		executionTime := schedule.Next(job.LastExecutionDate)
 		entry := fmt.Sprintf("error %v, %v, %v, %v", job.ID, job.NextExecutionId, job.LastExecutionDate.String(), executionTime.String())
 		// TODO: update last execution data of job in memory
-		WriteJobExecutionLog(job, entry)
+		jobExecutor.WriteJobExecutionLog(entry)
 	}
 }
 
@@ -265,42 +317,43 @@ func (jobExecutor *JobExecutor) StopAll() {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
+	if len(jobExecutor.jobProcess) < 1 {
+		return
+	}
+
 	for _, jobProcess := range jobExecutor.jobProcess {
 		jobProcess.Cron.Stop()
 	}
 
+	jobExecutor.logger.Println("stopped all scheduled job")
+	jobExecutor.PendingJobs = make(chan *models.JobProcess, 100)
 	jobExecutor.jobProcess = []*models.JobProcess{}
+	jobExecutor.cancelReq()
+	ctx, cancel := context.WithCancel(context.Background())
+	jobExecutor.cancelReq = cancel
+	jobExecutor.context = ctx
 }
 
-func WriteJobExecutionLog(job models.JobModel, entry string) {
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+func (jobExecutor *JobExecutor) HandleSuccessJobs(successfulJobs []models.JobModel) {
+	for _, pendingJob := range successfulJobs {
+		jobExecutor.logger.Println(fmt.Sprintf("Executed job %v", pendingJob.ID))
 	}
-	dirPath := fmt.Sprintf("%v/%v", dir, constants.ExecutionLogsDir)
-	logFilePath := fmt.Sprintf("%v/%v/%v.txt", dir, constants.ExecutionLogsDir, job.ID)
+	jobExecutor.LogJobExecutionStateOnLeader(successfulJobs, constants.CommandTypeCommitJobExecutions)
+}
 
-	fs := afero.NewOsFs()
+func (jobExecutor *JobExecutor) HandleFailedJobs(erroredJobs []models.JobModel) {
+	jobExecutor.LogJobExecutionStateOnLeader(erroredJobs, constants.CommandTypeErrorJobExecutions)
+}
 
-	exists, err := afero.DirExists(fs, dirPath)
-	if err != nil {
-		return
-	}
-
-	if !exists {
-		err := fs.Mkdir(dirPath, os.ModePerm)
-		if err != nil {
-			return
-		}
-	}
+func (jobExecutor *JobExecutor) WriteJobExecutionLog(entry string) {
+	data, err := io.ReadAll(jobExecutor.logFile)
 
 	logs := []string{}
 	lines := []string{}
 
-	fileData, err := afero.ReadFile(fs, logFilePath)
+	fileData := string(data)
 	if err == nil {
-		dataString := string(fileData)
-		lines = strings.Split(dataString, "\n")
+		lines = strings.Split(fileData, "\n")
 	}
 
 	logs = append(logs, entry)
@@ -309,8 +362,8 @@ func WriteJobExecutionLog(job models.JobModel, entry string) {
 	str := strings.Join(logs, "\n")
 	sliceByte := []byte(str)
 
-	writeErr := afero.WriteFile(fs, logFilePath, sliceByte, os.ModePerm)
+	_, writeErr := jobExecutor.logFile.Write(sliceByte)
 	if writeErr != nil {
-		log.Fatalln("Binary Write Error::", writeErr)
+		log.Fatalln("execution log write error::", writeErr)
 	}
 }
