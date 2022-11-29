@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/net/context"
 	"log"
 	"net/http"
 	"scheduler0/config"
@@ -27,7 +28,7 @@ func NewHTTTPExecutor(logger *log.Logger) *HTTPExecutionHandler {
 	}
 }
 
-func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(pendingJobs []models.JobModel, onSuccess func(jobs []models.JobModel), onFailure func(jobs []models.JobModel)) ([]models.JobModel, []models.JobModel) {
+func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, pendingJobs []models.JobModel, onSuccess func(jobs []models.JobModel), onFailure func(jobs []models.JobModel)) ([]models.JobModel, []models.JobModel) {
 	urlJobCache := map[string][]models.JobModel{}
 
 	for _, pj := range pendingJobs {
@@ -68,31 +69,43 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(pendingJobs []models.Jo
 		configs := config.GetScheduler0Configurations(httpExecutor.logger)
 
 		for _, batch := range batches {
-			go func(b []models.JobModel) {
+			go func(url string, b []models.JobModel) {
 				utils.RetryOnError(func() error {
 					payload := make([]string, 0)
 
-					for i := 0; i < len(batch); i += 1 {
-						payload = append(payload, batch[i].Data)
+					// TODO: include job execution id in payload
+
+					for i := 0; i < len(b); i += 1 {
+						payload = append(payload, b[i].Data)
 					}
 
 					strBuilder := new(strings.Builder)
 					err := json.NewEncoder(strBuilder).Encode(payload)
 					if err != nil {
+						httpExecutor.logger.Println("failed to create request payload: ", err.Error())
 						onFailure(b)
 						return err
 					}
 					toString := strBuilder.String()
 
 					httpExecutor.logger.Println(fmt.Sprintf("Running Job Execution for Job CallbackURL = %v with payload len = %v",
-						rurl, len(payload)))
+						url, len(payload)))
 
 					httpClient := http.Client{
 						Timeout: time.Duration(configs.JobExecutionTimeout) * time.Second,
 					}
 
-					res, err := httpClient.Post(rurl, "application/json", strings.NewReader(toString))
+					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(toString))
+					req.Header.Set("Content-Type", "application/json")
 					if err != nil {
+						httpExecutor.logger.Println("failed to create request: ", err.Error())
+						onFailure(b)
+						return err
+					}
+
+					res, err := httpClient.Do(req)
+					if err != nil {
+						httpExecutor.logger.Println("request error: ", err.Error())
 						onFailure(b)
 						return err
 					}
@@ -105,7 +118,7 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(pendingJobs []models.Jo
 					onFailure(b)
 					return errors.New(fmt.Sprintf("subscriber failed to fully requests status code: %v", res.StatusCode))
 				}, configs.JobExecutionRetryMax, configs.JobExecutionRetryDelay)
-			}(batch)
+			}(rurl, batch)
 		}
 	}
 
