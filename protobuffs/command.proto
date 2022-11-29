@@ -9,6 +9,7 @@ message Command {
     COMMAND_TYPE_PREPARE_JOB_EXECUTIONS = 2;
     COMMAND_TYPE_COMMIT_JOB_EXECUTIONS = 3;
     COMMAND_TYPE_ERROR_Job_EXECUTIONS = 4;
+    COMMAND_TYPE_STOP_JOBS = 5;
   }
   Type type = 1;
   string sql = 2;
