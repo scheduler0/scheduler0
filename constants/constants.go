@@ -16,4 +16,5 @@ const (
 	CommandTypePrepareJobExecutions         = 2
 	CommandTypeCommitJobExecutions          = 3
 	CommandTypeErrorJobExecutions           = 4
+	CommandTypeStopJobs                     = 5
 )
