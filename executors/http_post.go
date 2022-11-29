@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	"scheduler0/config"
 	"scheduler0/models"
 	"scheduler0/utils"
-	"strings"
 	"time"
 )
 
@@ -71,31 +71,20 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, pe
 		for _, batch := range batches {
 			go func(url string, b []models.JobModel) {
 				utils.RetryOnError(func() error {
-					payload := make([]string, 0)
-
-					// TODO: include job execution id in payload
-
-					for i := 0; i < len(b); i += 1 {
-						payload = append(payload, b[i].Data)
-					}
-
-					strBuilder := new(strings.Builder)
-					err := json.NewEncoder(strBuilder).Encode(payload)
+					by, err := json.Marshal(b)
 					if err != nil {
 						httpExecutor.logger.Println("failed to create request payload: ", err.Error())
 						onFailure(b)
 						return err
 					}
-					toString := strBuilder.String()
 
-					httpExecutor.logger.Println(fmt.Sprintf("Running Job Execution for Job CallbackURL = %v with payload len = %v",
-						url, len(payload)))
+					httpExecutor.logger.Println(fmt.Sprintf("Running Job Execution for Job CallbackURL = %v", url))
 
 					httpClient := http.Client{
 						Timeout: time.Duration(configs.JobExecutionTimeout) * time.Second,
 					}
 
-					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(toString))
+					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(by))
 					req.Header.Set("Content-Type", "application/json")
 					if err != nil {
 						httpExecutor.logger.Println("failed to create request: ", err.Error())
