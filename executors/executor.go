@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"golang.org/x/net/context"
 	"log"
 	"scheduler0/models"
 )
@@ -10,23 +11,17 @@ type Executor interface {
 }
 
 type Service struct {
-	pendingJob           []models.JobModel
 	httpExecutionHandler *HTTPExecutionHandler
-	onSuccess            func(pj []models.JobModel)
-	onFailure            func(pj []models.JobModel)
 }
 
-func NewService(logger *log.Logger, pj []models.JobModel, onSuccess func(pj []models.JobModel), onFailure func(pj []models.JobModel)) *Service {
+func NewService(logger *log.Logger) *Service {
 	return &Service{
-		pendingJob:           pj,
 		httpExecutionHandler: NewHTTTPExecutor(logger),
-		onSuccess:            onSuccess,
-		onFailure:            onFailure,
 	}
 }
 
-func (executorService *Service) ExecuteHTTP() {
+func (executorService *Service) ExecuteHTTP(pj []models.JobModel, ctx context.Context, onSuccess func(pj []models.JobModel), onFailure func(pj []models.JobModel)) {
 	go func(pjs []models.JobModel) {
-		executorService.httpExecutionHandler.ExecuteHTTPJob(pjs, executorService.onSuccess, executorService.onFailure)
-	}(executorService.pendingJob)
+		executorService.httpExecutionHandler.ExecuteHTTPJob(ctx, pjs, onSuccess, onFailure)
+	}(pj)
 }
