@@ -54,30 +54,25 @@ type PeerState int
 const (
 	Cold          PeerState = 0
 	Bootstrapping           = 1
-	Ready                   = 2
-	ShuttingDown            = 3
-	Unstable                = 4
 )
 
 type Peer struct {
-	Tm            *raft.NetworkTransport
-	Ldb           *boltdb.BoltStore
-	Sdb           *boltdb.BoltStore
-	Fss           *raft.FileSnapshotStore
-	logger        *log.Logger
-	Neighbors     map[string]PeerStatus
-	mtx           sync.Mutex
-	AcceptWrites  bool
-	State         PeerState
-	queue         chan []PeerRequest
-	Rft           *raft.Raft
-	jobProcessor  *job_process.JobProcessor
-	jobQueue      *job_queue.JobQueue
-	jobExecutor   *job_executor.JobExecutor
-	jobRepo       repository.Job
-	projectRepo   repository.Project
-	ExistingNode  bool
-	LeaderAddress string
+	Tm           *raft.NetworkTransport
+	Ldb          *boltdb.BoltStore
+	Sdb          *boltdb.BoltStore
+	Fss          *raft.FileSnapshotStore
+	logger       *log.Logger
+	mtx          sync.Mutex
+	AcceptWrites bool
+	State        PeerState
+	queue        chan []PeerRequest
+	FsmStore     *fsm.Store
+	jobProcessor *job_process.JobProcessor
+	jobQueue     *job_queue.JobQueue
+	jobExecutor  *job_executor.JobExecutor
+	jobRepo      repository.Job
+	projectRepo  repository.Project
+	ExistingNode bool
 }
 
 func NewPeer(
@@ -106,7 +101,6 @@ func NewPeer(
 		Sdb:          sdb,
 		Fss:          fss,
 		logger:       logger,
-		Neighbors:    map[string]PeerStatus{},
 		AcceptWrites: false,
 		State:        Cold,
 		jobProcessor: job_process.NewJobProcessor(jobRepo, projectRepo, *jobQueue, logger),
@@ -229,18 +223,12 @@ func (p *Peer) RecoverRaftState() {
 	if err != nil {
 		p.logger.Fatalf("failed to find last log: %v", err)
 	}
-	var lastConfiguration raft.Configuration
-	var lastConfigurationIndex uint64
 	for index := snapshotIndex + 1; index <= lastLogIndex; index++ {
 		var entry raft.Log
 		if err = p.Ldb.GetLog(index, &entry); err != nil {
 			p.logger.Fatalf("failed to get log at index %d: %v\n", index, err)
 		}
-		fsm.ApplyCommand(p.logger, &entry, dbConnection, false, nil, nil, nil, nil)
-		if entry.Type == raft.LogConfiguration {
-			lastConfigurationIndex = index
-			lastConfiguration = raft.DecodeConfiguration(entry.Data)
-		}
+		fsm.ApplyCommand(p.logger, &entry, dbConnection, false, nil, nil, nil, nil, nil)
 		lastIndex = entry.Index
 		lastTerm = entry.Term
 	}
@@ -288,8 +276,10 @@ func (p *Peer) RecoverRaftState() {
 
 	p.logger.Println("Wrote number of credentials to recovery db ::", count)
 
+	lastConfiguration := p.getRaftConfigurationFromConfig(p.logger)
+
 	snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
-	sink, err := p.Fss.Create(1, lastIndex, lastTerm, lastConfiguration, lastConfigurationIndex, p.Tm)
+	sink, err := p.Fss.Create(1, lastIndex, lastTerm, lastConfiguration, 0, p.Tm)
 	if err != nil {
 		p.logger.Fatalf("failed to create snapshot: %v", err)
 	}
@@ -317,10 +307,6 @@ func (p *Peer) RecoverRaftState() {
 func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
 	configs := config.GetScheduler0Configurations(p.logger)
 	p.State = Bootstrapping
-	if configs.Bootstrap == "true" {
-		p.jobExecutor.LeaderAddress = fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port)
-		p.AuthenticateWithPeersInConfig(p.logger)
-	}
 	if p.ExistingNode {
 		p.logger.Println("discovered existing raft dir")
 		p.RecoverRaftState()
@@ -330,22 +316,14 @@ func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
 		p.BootstrapRaftCluster(rft)
 	}
 	fsmStr.Raft = rft
-	p.Rft = rft
-	go p.ShardCronJobs()
+	p.FsmStore = fsmStr
+	p.jobExecutor.Raft = fsmStr.Raft
+	go p.HandleLeaderChange()
 	go p.jobExecutor.ListenToChannelsUpdates()
-	p.RunPendingCronJob(fsmStr)
+	p.ListenOnInputQueues(fsmStr)
 }
 
-func (p *Peer) AddNewPeerNeighbor() {}
-
-func (p *Peer) RemovePeerNeighbor(peerAddress string) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	delete(p.Neighbors, peerAddress)
-}
-
-func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) {
+func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) map[string]PeerStatus {
 	p.logger.Println("Authenticating with peers...")
 
 	configs := config.GetScheduler0Configurations(logger)
@@ -357,7 +335,7 @@ func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) {
 	for _, replica := range configs.Replicas {
 		if replica.Address != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
 			wg.Add(1)
-			go func(rep config.Peer, res map[string]PeerStatus) {
+			go func(rep config.Peer, res map[string]PeerStatus, wg *sync.WaitGroup, wrlck *sync.Mutex) {
 				wrlck.Lock()
 				err := utils.RetryOnError(func() error {
 					if peerStatus, err := connectPeer(logger, rep); err == nil {
@@ -371,75 +349,39 @@ func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) {
 				wg.Done()
 				wrlck.Unlock()
 				if err != nil {
-					p.logger.Println("failed to authenticate with Peer ", rep.Address)
+					p.logger.Println("failed to authenticate with peer ", rep.Address, " error:", err)
 				}
-
-				logger.Println("failed to connect with Peer error:", err)
-			}(replica, results)
+			}(replica, results, &wg, &wrlck)
 		}
 	}
 	wg.Wait()
 
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	for addr, result := range results {
-		_, ok := p.Neighbors[addr]
-		if ok {
-			p.Neighbors[addr] = PeerStatus{
-				IsAlive:            result.IsAlive,
-				IsLeader:           result.IsLeader,
-				LastConnectionTime: result.LastConnectionTime,
-				IsAuth:             result.IsAuth,
-			}
-		} else {
-			p.Neighbors[addr] = result
-		}
-	}
-
-	p.AcceptWrites = true
+	return results
 }
 
-func (p *Peer) EnsureSingleBootstrapConfig() {}
-
-func (p *Peer) ConsolidateLeaderFromPeers() {}
-
-func (p *Peer) StartFailureDetector() {}
-
-func (p *Peer) BroadcastDetectedFailure() {}
-
-func (p *Peer) ShardCronJobs() {
-	p.logger.Println("begin sharing cron jobs")
-	configs := config.GetScheduler0Configurations(p.logger)
-	ticker := time.NewTicker(time.Duration(configs.PeerCronJobCheckInterval) * time.Millisecond)
-	startedJobs := false
-
-	for !startedJobs {
-		select {
-		case <-p.Rft.LeaderCh():
-			leaderAddress, _ := p.Rft.LeaderWithID()
-			if p.LeaderAddress != string(leaderAddress) {
-				// TODO: Get leader address from configs
-				p.LeaderAddress = string(leaderAddress)
-				p.jobExecutor.LeaderAddress = string(leaderAddress)
-				p.jobExecutor.StopAll()
-			}
-		case <-ticker.C:
-			if p.Rft.State() == raft.Shutdown {
-				return
-			}
-			vErr := p.Rft.VerifyLeader()
-			if vErr.Error() == nil {
-				p.logger.Println("starting jobs")
-				go p.jobProcessor.StartJobs()
-				startedJobs = true
-			}
+func (p *Peer) HandleLeaderChange() {
+	select {
+	case <-p.FsmStore.Raft.LeaderCh():
+		p.jobExecutor.StopAll()
+		_, applyErr := fsm.AppApply(
+			p.logger,
+			p.FsmStore.Raft,
+			constants.CommandTypeStopJobs,
+			"",
+			nil,
+		)
+		if applyErr != nil {
+			p.logger.Fatalln("failed to apply job update states ", applyErr)
 		}
+		p.logger.Println("starting jobs")
+		p.jobProcessor.StartJobs()
+		p.AcceptWrites = true
+		p.logger.Println("Ready to accept requests")
 	}
 }
 
-func (p *Peer) RunPendingCronJob(fsmStr *fsm.Store) {
-	p.logger.Println("begin listening for jobs")
+func (p *Peer) ListenOnInputQueues(fsmStr *fsm.Store) {
+	p.logger.Println("begin listening input queues")
 
 	go func() {
 		for {
@@ -452,13 +394,16 @@ func (p *Peer) RunPendingCronJob(fsmStr *fsm.Store) {
 				p.jobExecutor.LogCommit(commitJob)
 			case errorJob := <-fsmStr.ErrorJobs:
 				p.jobExecutor.LogErrors(errorJob)
+			case _ = <-fsmStr.StopAllJobs:
+				p.jobExecutor.StopAll()
+				p.AcceptWrites = false
 			}
 		}
 	}()
 }
 
 func (p *Peer) LogJobsStatePeers(peerAddress string, pendingJobs []models.JobModel, actionType constants.Command) {
-	if p.Rft == nil {
+	if p.FsmStore.Raft == nil {
 		p.logger.Fatalln("raft is not set on job executors")
 	}
 
@@ -470,7 +415,7 @@ func (p *Peer) LogJobsStatePeers(peerAddress string, pendingJobs []models.JobMod
 
 	_, applyErr := fsm.AppApply(
 		p.logger,
-		p.Rft,
+		p.FsmStore.Raft,
 		actionType,
 		peerAddress,
 		data,
@@ -480,28 +425,22 @@ func (p *Peer) LogJobsStatePeers(peerAddress string, pendingJobs []models.JobMod
 	}
 }
 
-func (p *Peer) SetLeaderAddress(leaderAddress string) {
-	p.LeaderAddress = leaderAddress
-	p.jobExecutor.LeaderAddress = leaderAddress
-}
-
 func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configuration {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
 	configs := config.GetScheduler0Configurations(logger)
-	servers := []raft.Server{}
-
-	servers = append(servers, raft.Server{
-		ID:       raft.ServerID(configs.NodeId),
-		Suffrage: raft.Voter,
-		Address:  raft.ServerAddress(configs.RaftAddress),
-	})
+	results := p.AuthenticateWithPeersInConfig(p.logger)
+	servers := []raft.Server{
+		{
+			ID:       raft.ServerID(configs.NodeId),
+			Suffrage: raft.Voter,
+			Address:  raft.ServerAddress(configs.RaftAddress),
+		},
+	}
 
 	for _, replica := range configs.Replicas {
-		if repStatus, ok := p.Neighbors[replica.Address]; ok &&
-			repStatus.IsAlive &&
-			repStatus.IsAuth {
+		if repStatus, ok := results[replica.Address]; ok && repStatus.IsAlive && repStatus.IsAuth {
 			servers = append(servers, raft.Server{
 				ID:       raft.ServerID(replica.NodeId),
 				Suffrage: raft.Voter,
@@ -509,6 +448,7 @@ func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configura
 			})
 		}
 	}
+
 	cfg := raft.Configuration{
 		Servers: servers,
 	}
@@ -557,7 +497,7 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 			return nil, err
 		}
 
-		logger.Println("successfully authenticated ", rep.Address, " body ", body)
+		logger.Println("successfully authenticated ", rep.Address)
 
 		return &PeerStatus{
 			IsAlive:            true,
