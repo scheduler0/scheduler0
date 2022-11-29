@@ -83,7 +83,7 @@ func Start() {
 	jobController := controllers.NewJoBHTTPController(logger, jobService, projectService)
 	projectController := controllers.NewProjectController(logger, projectService)
 	credentialController := controllers.NewCredentialController(logger, credentialService)
-	healthCheckController := controllers.NewHealthCheckController(logger, p.Rft)
+	healthCheckController := controllers.NewHealthCheckController(logger, fsmStr.Raft)
 	peerController := controllers.NewPeerController(logger, fsmStr.Raft, p)
 
 	// Mount middleware
