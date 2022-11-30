@@ -7,18 +7,18 @@ import (
 
 // ProjectModel project model
 type ProjectModel struct {
-	ID          int64     `json:"id" sql:",pk:notnull"`
-	Name        string    `json:"name" sql:",unique,notnull"`
-	Description string    `json:"description" sql:",notnull"`
-	DateCreated time.Time `json:"date_created" sql:",notnull,default:now()"`
+	ID          int64     `json:"id,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	Description string    `json:"description,omitempty"`
+	DateCreated time.Time `json:"date_created,omitempty"`
 }
 
 // PaginatedProject paginated container of project transformer
 type PaginatedProject struct {
-	Total  int64          `json:"total"`
-	Offset int64          `json:"offset"`
-	Limit  int64          `json:"limit"`
-	Data   []ProjectModel `json:"projects"`
+	Total  int64          `json:"total,omitempty"`
+	Offset int64          `json:"offset,omitempty"`
+	Limit  int64          `json:"limit,omitempty"`
+	Data   []ProjectModel `json:"projects,omitempty"`
 }
 
 // ToJSON returns content of transformer as JSON
