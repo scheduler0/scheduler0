@@ -21,6 +21,7 @@ import (
 	"scheduler0/job_executor"
 	"scheduler0/job_processor"
 	"scheduler0/job_queue"
+	"scheduler0/job_recovery"
 	"scheduler0/models"
 	"scheduler0/repository"
 	"scheduler0/secrets"
@@ -70,6 +71,7 @@ type Peer struct {
 	jobProcessor *job_processor.JobProcessor
 	jobQueue     *job_queue.JobQueue
 	jobExecutor  *job_executor.JobExecutor
+	jobRecovery  *job_recovery.JobRecovery
 	jobRepo      repository.Job
 	projectRepo  repository.Project
 	ExistingNode bool
@@ -108,6 +110,7 @@ func NewPeer(
 		jobExecutor:  jobExecutor,
 		jobRepo:      jobRepo,
 		projectRepo:  projectRepo,
+		jobRecovery:  job_recovery.NewJobRecovery(logger, jobRepo, jobExecutor),
 		ExistingNode: exists,
 	}
 }
@@ -310,6 +313,7 @@ func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
 	if p.ExistingNode {
 		p.logger.Println("discovered existing raft dir")
 		p.RecoverRaftState()
+		p.jobRecovery.Run()
 	}
 	rft := p.NewRaft(fsmStr)
 	if configs.Bootstrap == "true" && !p.ExistingNode {
@@ -389,6 +393,7 @@ func (p *Peer) ListenOnInputQueues(fsmStr *fsm.Store) {
 			p.jobExecutor.Run(pendingJob)
 		case preparedJob := <-fsmStr.PrepareJobs:
 			p.jobExecutor.LogPrepare(preparedJob)
+			p.jobRecovery.HandlePrepare(preparedJob)
 		case commitJob := <-fsmStr.CommitJobs:
 			p.jobExecutor.LogCommit(commitJob)
 		case errorJob := <-fsmStr.ErrorJobs:
@@ -400,7 +405,7 @@ func (p *Peer) ListenOnInputQueues(fsmStr *fsm.Store) {
 	}
 }
 
-func (p *Peer) LogJobsStatePeers(peerAddress string, jobState models.JobStateReqPayload) {
+func (p *Peer) LogJobsStatePeers(peerAddress string, jobState models.JobStateLog) {
 	if p.FsmStore.Raft == nil {
 		p.logger.Fatalln("raft is not set on job executors")
 	}
