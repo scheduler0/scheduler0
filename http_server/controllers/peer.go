@@ -50,7 +50,7 @@ func (controller *peerController) ExecutionLogs(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	jobsState := models.JobStateReqPayload{}
+	jobsState := models.JobStateLog{}
 	err = json.Unmarshal(data, &jobsState)
 	if err != nil {
 		controller.logger.Println("failed to read data from execution logs request", err)

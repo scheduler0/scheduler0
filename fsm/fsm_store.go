@@ -26,9 +26,9 @@ type Store struct {
 	SQLDbConnection *sql.DB
 	Raft            *raft.Raft
 	PendingJobs     chan []models.JobModel
-	PrepareJobs     chan models.JobStateReqPayload
-	CommitJobs      chan models.JobStateReqPayload
-	ErrorJobs       chan models.JobStateReqPayload
+	PrepareJobs     chan models.JobStateLog
+	CommitJobs      chan models.JobStateLog
+	ErrorJobs       chan models.JobStateLog
 	StopAllJobs     chan bool
 
 	raft.BatchingFSM
@@ -46,8 +46,8 @@ func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB, logger *log.Logger) *
 		SqliteDB:        db,
 		SQLDbConnection: sqlDbConnection,
 		PendingJobs:     make(chan []models.JobModel, 100),
-		PrepareJobs:     make(chan models.JobStateReqPayload, 1),
-		CommitJobs:      make(chan models.JobStateReqPayload, 1),
+		PrepareJobs:     make(chan models.JobStateLog, 1),
+		CommitJobs:      make(chan models.JobStateLog, 1),
 		StopAllJobs:     make(chan bool, 1),
 		logger:          logger,
 	}
@@ -100,9 +100,9 @@ func ApplyCommand(
 	SQLDbConnection *sql.DB,
 	useQueues bool,
 	queue chan []models.JobModel,
-	prepareQueue chan models.JobStateReqPayload,
-	commitQueue chan models.JobStateReqPayload,
-	errorQueue chan models.JobStateReqPayload,
+	prepareQueue chan models.JobStateLog,
+	commitQueue chan models.JobStateLog,
+	errorQueue chan models.JobStateLog,
 	stopAllJobsQueue chan bool) interface{} {
 
 	logPrefix := logger.Prefix()
@@ -179,7 +179,7 @@ func ApplyCommand(
 		break
 	case protobuffs.Command_Type(constants.CommandTypePrepareJobExecutions):
 		if useQueues {
-			jobState := []models.JobStateReqPayload{}
+			jobState := []models.JobStateLog{}
 			err := json.Unmarshal(command.Data, &jobState)
 			if err != nil {
 				return Response{
@@ -188,13 +188,13 @@ func ApplyCommand(
 				}
 			}
 
-			logger.Println(fmt.Sprintf("received %v jobs to from %s to log prepare", len(jobState[0].Data), jobState[0].ServerAddress))
+			logger.Println(fmt.Sprintf("received %v jobs from %s to log prepare", len(jobState[0].Data), jobState[0].ServerAddress))
 			prepareQueue <- jobState[0]
 		}
 		break
 	case protobuffs.Command_Type(constants.CommandTypeCommitJobExecutions):
 		if useQueues {
-			jobState := []models.JobStateReqPayload{}
+			jobState := []models.JobStateLog{}
 			err := json.Unmarshal(command.Data, &jobState)
 			if err != nil {
 				return Response{
@@ -203,13 +203,13 @@ func ApplyCommand(
 				}
 			}
 
-			logger.Println(fmt.Sprintf("received %v jobs to from %s to log commit", len(jobState[0].Data), jobState[0].ServerAddress))
+			logger.Println(fmt.Sprintf("received %v jobs from %s to log commit", len(jobState[0].Data), jobState[0].ServerAddress))
 			commitQueue <- jobState[0]
 		}
 		break
 	case protobuffs.Command_Type(constants.CommandTypeErrorJobExecutions):
 		if useQueues {
-			jobState := []models.JobStateReqPayload{}
+			jobState := []models.JobStateLog{}
 			err := json.Unmarshal(command.Data, &jobState)
 			if err != nil {
 				return Response{
@@ -218,7 +218,7 @@ func ApplyCommand(
 				}
 			}
 
-			logger.Println(fmt.Sprintf("received %v jobs to from %s to log prepare", len(jobState[0].Data), jobState[0].ServerAddress))
+			logger.Println(fmt.Sprintf("received %v jobs from %s to log prepare", len(jobState[0].Data), jobState[0].ServerAddress))
 			errorQueue <- jobState[0]
 		}
 	case protobuffs.Command_Type(constants.CommandTypeStopJobs):
