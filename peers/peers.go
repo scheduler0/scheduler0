@@ -383,40 +383,34 @@ func (p *Peer) HandleLeaderChange() {
 func (p *Peer) ListenOnInputQueues(fsmStr *fsm.Store) {
 	p.logger.Println("begin listening input queues")
 
-	go func() {
-		for {
-			select {
-			case pendingJob := <-fsmStr.PendingJobs:
-				p.jobExecutor.Run(pendingJob)
-			case preparedJob := <-fsmStr.PrepareJobs:
-				p.jobExecutor.LogPrepare(preparedJob)
-			case commitJob := <-fsmStr.CommitJobs:
-				p.jobExecutor.LogCommit(commitJob)
-			case errorJob := <-fsmStr.ErrorJobs:
-				p.jobExecutor.LogErrors(errorJob)
-			case _ = <-fsmStr.StopAllJobs:
-				p.jobExecutor.StopAll()
-				p.AcceptWrites = false
-			}
+	for {
+		select {
+		case pendingJob := <-fsmStr.PendingJobs:
+			p.jobExecutor.Run(pendingJob)
+		case preparedJob := <-fsmStr.PrepareJobs:
+			p.jobExecutor.LogPrepare(preparedJob)
+		case commitJob := <-fsmStr.CommitJobs:
+			p.jobExecutor.LogCommit(commitJob)
+		case errorJob := <-fsmStr.ErrorJobs:
+			p.jobExecutor.LogErrors(errorJob)
+		case _ = <-fsmStr.StopAllJobs:
+			p.jobExecutor.StopAll()
+			p.AcceptWrites = false
 		}
-	}()
+	}
 }
 
-func (p *Peer) LogJobsStatePeers(peerAddress string, pendingJobs []models.JobModel, actionType constants.Command) {
+func (p *Peer) LogJobsStatePeers(peerAddress string, jobState models.JobStateReqPayload) {
 	if p.FsmStore.Raft == nil {
 		p.logger.Fatalln("raft is not set on job executors")
 	}
 
-	data := []interface{}{}
-
-	for _, pendingJob := range pendingJobs {
-		data = append(data, pendingJob)
-	}
+	data := []interface{}{jobState}
 
 	_, applyErr := fsm.AppApply(
 		p.logger,
 		p.FsmStore.Raft,
-		actionType,
+		jobState.State,
 		peerAddress,
 		data,
 	)
