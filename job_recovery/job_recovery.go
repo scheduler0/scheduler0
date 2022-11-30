@@ -1,104 +1,95 @@
 package job_recovery
 
 import (
+	"fmt"
+	"github.com/robfig/cron"
+	"log"
+	"scheduler0/config"
+	"scheduler0/constants"
+	"scheduler0/job_executor"
 	models "scheduler0/models"
+	"scheduler0/repository"
+	"sync"
+	"time"
 )
 
 type JobRecovery struct {
-	RecoveredJobs []RecoveredJob
+	jobExecutor   *job_executor.JobExecutor
+	jobRepo       repository.Job
+	logger        *log.Logger
+	recoveredJobs []models.JobModel
+	mtx           sync.Mutex
 }
 
-type RecoveredJob struct {
-	Job       *models.JobModel
-	Execution *models.ExecutionModel
+func NewJobRecovery(logger *log.Logger, jobRepo repository.Job, jobExecutor *job_executor.JobExecutor) *JobRecovery {
+	return &JobRecovery{
+		jobExecutor: jobExecutor,
+		logger:      logger,
+		jobRepo:     jobRepo,
+	}
 }
 
-//func (recoveredJob *RecoveredJob) Run() {
-//	schedule, parseErr := cron.Parse(recoveredJob.Job.Spec)
-//	if parseErr != nil {
-//		utils.Error(fmt.Sprintf("Failed to parse spec %v", parseErr.Error()))
-//		return
-//	}
-//	now := time.Now().UTC()
-//	executionTime := schedule.Next(recoveredJob.Execution.TimeAdded).UTC()
-//
-//	utils.Info(fmt.Sprintf("Recovered Job--ExecutionAdded %s jobID = %v should execute on %v which is %s from now",
-//		recoveredJob.Execution.TimeAdded,
-//		recoveredJob.Job.ID,
-//		executionTime.String(),
-//		executionTime.Sub(now),
-//	))
-//
-//	time.Sleep(executionTime.Sub(now))
-//
-//	onSuccess := func(pendingJobs []*job_processor.JobProcess) {
-//		for _, pendingJob := range pendingJobs {
-//			//if jobProcessor.IsRecovered(pendingJob.ID) {
-//			jobProcessor.RemoveJobRecovery(pendingJob.ID)
-//			//	jobProcessor.AddJobs([]models.JobModel{*pendingJob}, nil)
-//			//}
-//
-//			utils.Info(fmt.Sprintf("Executed job %v", pendingJob.Job.ID))
-//		}
-//	}
-//
-//	onFail := func(pj []*job_processor.JobProcess, err error) {
-//		utils.Error("HTTP REQUEST ERROR:: ", err.Error())
-//	}
-//
-//	executorService := executor.NewService([]*job_processor.JobProcess{
-//		{
-//			Job: recoveredJob.Job,
-//		},
-//	}, onSuccess, onFail)
-//
-//	executorService.ExecuteHTTP()
-//}
+func (jobRecovery *JobRecovery) Run() {
+	jobRecovery.mtx.Lock()
+	defer jobRecovery.mtx.Unlock()
 
-// RecoverJobExecutions find jobs that could've not been executed due to timeout
-//func (jobProcessor *JobRecovery) RecoverJobExecutions(jobTransformers []models.JobModel) {
-//	manager := execution.Manager{}
-//	for _, jobTransformer := range jobTransformers {
-//		if jobProcessor.IsRecovered(jobTransformer.UUID) {
-//			continue
-//		}
-//
-//		count, err, executionManagers := manager.FindJobExecutionPlaceholderByUUID(jobProcessor.DBConnection, jobTransformer.UUID)
-//		if err != nil {
-//			utils.Error(fmt.Sprintf("Error occurred while fetching execution mangers for jobs to be recovered %s", err.Message))
-//			continue
-//		}
-//
-//		if count < 1 {
-//			continue
-//		}
-//
-//		executionManager := executionManagers[0]
-//		schedule, parseErr := cron.Parse(jobTransformer.Spec)
-//
-//		if parseErr != nil {
-//			utils.Error(fmt.Sprintf("Failed to create schedule%s", parseErr.Error()))
-//			continue
-//		}
-//		now := time.Now().UTC()
-//		executionTime := schedule.Next(executionManager.TimeAdded).UTC()
-//
-//		if now.Before(executionTime) {
-//			executionTransformer := transformers.Execution{}
-//			executionTransformer.FromManager(executionManager)
-//			recovery := RecoveredJob{
-//				Execution: &executionTransformer,
-//				Job:       &jobTransformer,
-//			}
-//			jobProcessor.RecoveredJobs = append(jobProcessor.RecoveredJobs, recovery)
-//		}
-//	}
-//}
+	jobRecovery.logger.Println("recovering jobs.")
+	configs := config.GetScheduler0Configurations(jobRecovery.logger)
+	jobsStates := jobRecovery.jobExecutor.GetJobLogsForServer(fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
+
+	jobsIds := []int64{}
+
+	for _, jobsState := range jobsStates {
+		jobsIds = append(jobsIds, jobsState.Data[0].ID)
+	}
+
+	jobsFromDb, err := jobRecovery.jobRepo.BatchGetJobsByID(jobsIds)
+	if err != nil {
+		jobRecovery.logger.Fatalln("failed to retrieve jobs from db")
+	}
+
+	jobRecovery.logger.Println("recovered ", len(jobsFromDb), " jobs")
+
+	for _, job := range jobsFromDb {
+		schedule, parseErr := cron.Parse(job.Spec)
+		if parseErr != nil {
+			jobRecovery.logger.Fatalln(fmt.Sprintf("failed to parse spec %v", parseErr.Error()))
+		}
+		jobState := jobsStates[int(job.ID)]
+
+		now := time.Now().UTC()
+		executionTime := schedule.Next(jobState.ExecutionTime)
+		job.ExecutionId = jobState.Data[0].ExecutionId
+		job.LastExecutionDate = jobState.Data[0].LastExecutionDate
+		if now.Before(executionTime) {
+			jobRecovery.logger.Println("quick recovered job", job.ID, job.ExecutionId)
+			go func(j models.JobModel, e time.Time) {
+				time.Sleep(e.Sub(now))
+				jobRecovery.jobExecutor.LogJobExecutionStateOnLeader([]models.JobModel{j}, constants.CommandTypePrepareJobExecutions)
+			}(job, executionTime)
+		} else {
+			jobRecovery.jobExecutor.Run([]models.JobModel{job})
+		}
+		jobRecovery.recoveredJobs = append(jobRecovery.recoveredJobs, job)
+	}
+}
+
+func (jobRecovery *JobRecovery) HandlePrepare(jobState models.JobStateLog) {
+	jobRecovery.mtx.Lock()
+	defer jobRecovery.mtx.Unlock()
+	for _, job := range jobState.Data {
+		if jobRecovery.IsRecovered(job.ID) {
+			jobProcess := jobRecovery.jobExecutor.AddNewProcess(job)
+			jobRecovery.jobExecutor.ExecutePendingJobs([]*models.JobProcess{jobProcess})
+			jobRecovery.RemoveJobRecovery(job.ID)
+		}
+	}
+}
 
 // IsRecovered Check if a job is in recovered job queues
 func (jobRecovery *JobRecovery) IsRecovered(jobID int64) bool {
-	for _, recoveredJob := range jobRecovery.RecoveredJobs {
-		if recoveredJob.Job.ID == jobID {
+	for _, recoveredJob := range jobRecovery.recoveredJobs {
+		if recoveredJob.ID == jobID {
 			return true
 		}
 	}
@@ -107,9 +98,9 @@ func (jobRecovery *JobRecovery) IsRecovered(jobID int64) bool {
 }
 
 // GetRecovery Returns recovery object
-func (jobRecovery *JobRecovery) GetRecovery(jobID int64) *RecoveredJob {
-	for _, recoveredJob := range jobRecovery.RecoveredJobs {
-		if recoveredJob.Job.ID == jobID {
+func (jobRecovery *JobRecovery) GetRecovery(jobID int64) *models.JobModel {
+	for _, recoveredJob := range jobRecovery.recoveredJobs {
+		if recoveredJob.ID == jobID {
 			return &recoveredJob
 		}
 	}
@@ -121,12 +112,12 @@ func (jobRecovery *JobRecovery) GetRecovery(jobID int64) *RecoveredJob {
 func (jobRecovery *JobRecovery) RemoveJobRecovery(jobID int64) {
 	jobIndex := -1
 
-	for index, recoveredJob := range jobRecovery.RecoveredJobs {
-		if recoveredJob.Job.ID == jobID {
+	for index, recoveredJob := range jobRecovery.recoveredJobs {
+		if recoveredJob.ID == jobID {
 			jobIndex = index
 			break
 		}
 	}
 
-	jobRecovery.RecoveredJobs = append(jobRecovery.RecoveredJobs[:jobIndex], jobRecovery.RecoveredJobs[jobIndex+1:]...)
+	jobRecovery.recoveredJobs = append(jobRecovery.recoveredJobs[:jobIndex], jobRecovery.recoveredJobs[jobIndex+1:]...)
 }
