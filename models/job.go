@@ -17,7 +17,7 @@ type JobModel struct {
 	ExecutionType     string           `json:"execution_type,omitempty"`
 	PriorityLevel     JobPriorityLevel `json:"priority_level,omitempty"`
 	LastExecutionDate time.Time        `json:"last_execution_date,omitempty"`
-	ExecutionId       string           `json:"next_execution_id,omitempty"`
+	ExecutionId       string           `json:"execution_id,omitempty"`
 	DateCreated       time.Time        `json:"date_created,omitempty"`
 }
 
