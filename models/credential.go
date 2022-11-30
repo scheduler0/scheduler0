@@ -7,19 +7,19 @@ import (
 
 // CredentialModel credential model
 type CredentialModel struct {
-	ID          int64     `json:"id"`
-	Archived    bool      `json:"archived"`
-	ApiKey      string    `json:"api_key"`
-	ApiSecret   string    `json:"api_secret"`
-	DateCreated time.Time `json:"date_created"`
+	ID          int64     `json:"id,omitempty"`
+	Archived    bool      `json:"archived,omitempty"`
+	ApiKey      string    `json:"api_key,omitempty"`
+	ApiSecret   string    `json:"api_secret,omitempty"`
+	DateCreated time.Time `json:"date_created,omitempty"`
 }
 
 // PaginatedCredential paginated container of credential transformer
 type PaginatedCredential struct {
-	Total  int64             `json:"total"`
-	Offset int64             `json:"offset"`
-	Limit  int64             `json:"limit"`
-	Data   []CredentialModel `json:"credentials"`
+	Total  int64             `json:"total,omitempty"`
+	Offset int64             `json:"offset,omitempty"`
+	Limit  int64             `json:"limit,omitempty"`
+	Data   []CredentialModel `json:"credentials,omitempty"`
 }
 
 // ToJSON returns content of transformer as JSON
