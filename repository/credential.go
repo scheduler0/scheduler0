@@ -34,14 +34,9 @@ const (
 )
 
 const (
-	ArchivedColumn                            = "archived"
-	PlatformColumn                            = "platform"
-	ApiKeyColumn                              = "api_key"
-	ApiSecretColumn                           = "api_secret"
-	IPRestrictionColumn                       = "ip_restriction"
-	HTTPReferrerRestrictionColumn             = "http_referrer_restriction"
-	IOSBundleIdReferrerRestrictionColumn      = "ios_bundle_id_restriction"
-	AndroidPackageIDReferrerRestrictionColumn = "android_package_name_restriction"
+	ArchivedColumn  = "archived"
+	ApiKeyColumn    = "api_key"
+	ApiSecretColumn = "api_secret"
 )
 
 func NewCredentialRepo(logger *log.Logger, store *fsm.Store) Credential {
@@ -56,14 +51,9 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 	credential.DateCreated = time.Now().UTC()
 	insertBuilder := sq.Insert(CredentialTableName).
 		Columns(
-			PlatformColumn,
 			ArchivedColumn,
 			ApiKeyColumn,
 			ApiSecretColumn,
-			IPRestrictionColumn,
-			HTTPReferrerRestrictionColumn,
-			IOSBundleIdReferrerRestrictionColumn,
-			AndroidPackageIDReferrerRestrictionColumn,
 			JobsDateCreatedColumn,
 		).
 		Values(
@@ -95,16 +85,11 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 // GetOneID returns a single credential
 func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialModel) error {
 	sqlr := sq.Expr(fmt.Sprintf(
-		"select %s, %s, %s, %s, %s, %s, %s, %s, %s, cast(\"%s\" as text) from %s where %s = ?",
+		"select %s, %s, %s, %s, cast(\"%s\" as text) from %s where %s = ?",
 		JobsIdColumn,
 		ArchivedColumn,
-		PlatformColumn,
 		ApiKeyColumn,
 		ApiSecretColumn,
-		IPRestrictionColumn,
-		HTTPReferrerRestrictionColumn,
-		IOSBundleIdReferrerRestrictionColumn,
-		AndroidPackageIDReferrerRestrictionColumn,
 		JobsDateCreatedColumn,
 		CredentialTableName,
 		JobsIdColumn,
@@ -147,13 +132,8 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 	selectBuilder := sq.Select(
 		JobsIdColumn,
 		ArchivedColumn,
-		PlatformColumn,
 		ApiKeyColumn,
 		ApiSecretColumn,
-		IPRestrictionColumn,
-		HTTPReferrerRestrictionColumn,
-		IOSBundleIdReferrerRestrictionColumn,
-		AndroidPackageIDReferrerRestrictionColumn,
 		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
 	).
 		From(CredentialTableName).
@@ -218,13 +198,8 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 	selectBuilder := sq.Select(
 		JobsIdColumn,
 		ArchivedColumn,
-		PlatformColumn,
 		ApiKeyColumn,
 		ApiSecretColumn,
-		IPRestrictionColumn,
-		HTTPReferrerRestrictionColumn,
-		IOSBundleIdReferrerRestrictionColumn,
-		AndroidPackageIDReferrerRestrictionColumn,
 		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
 	).
 		From(CredentialTableName).
