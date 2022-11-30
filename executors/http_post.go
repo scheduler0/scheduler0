@@ -78,7 +78,7 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, pe
 						return err
 					}
 
-					httpExecutor.logger.Println(fmt.Sprintf("Running Job Execution for Job CallbackURL = %v", url))
+					httpExecutor.logger.Println(fmt.Sprintf("running job execution for job callback url = %v", url))
 
 					httpClient := http.Client{
 						Timeout: time.Duration(configs.JobExecutionTimeout) * time.Second,
