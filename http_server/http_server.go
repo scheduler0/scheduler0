@@ -64,8 +64,6 @@ func Start() {
 	jobQueue := job_queue.NewJobQueue(logger, fsmStr, jobExecutor)
 	p := peers.NewPeer(logger, jobExecutor, &jobQueue, jobRepo, projectRepo)
 
-	p.BoostrapPeer(fsmStr)
-
 	//services
 	credentialService := service.NewCredentialService(logger, credentialRepo, ctx)
 	jobService := service.NewJobService(logger, jobRepo, jobQueue, projectRepo, ctx)
@@ -129,8 +127,12 @@ func Start() {
 	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 
 	logger.Println("Server is running on port", configs.Port)
-	err := http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), router)
-	if err != nil {
-		logger.Fatal("failed to start http-server", err)
-	}
+	go func() {
+		err := http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), router)
+		if err != nil {
+			logger.Fatal("failed to start http-server", err)
+		}
+	}()
+
+	p.BoostrapPeer(fsmStr)
 }
