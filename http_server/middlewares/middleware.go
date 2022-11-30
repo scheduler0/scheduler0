@@ -92,6 +92,18 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *peers.Peer) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			paths := strings.Split(r.URL.Path, "/")
+
+			if len(paths) < 1 {
+				utils.SendJSON(w, "endpoint is not supported", false, http.StatusNotImplemented, nil)
+				return
+			}
+
+			if paths[1] == "peer-handshake" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			if !peer.AcceptWrites && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
 				configs := config.GetScheduler0Configurations(m.logger)
 				serverAddr, _ := peer.FsmStore.Raft.LeaderWithID()
