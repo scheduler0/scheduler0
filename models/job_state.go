@@ -5,6 +5,7 @@ import (
 )
 
 type JobStateReqPayload struct {
-	State constants.Command
-	Data  []JobModel
+	ServerAddress string
+	State         constants.Command
+	Data          []JobModel
 }

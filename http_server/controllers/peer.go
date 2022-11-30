@@ -58,7 +58,7 @@ func (controller *peerController) ExecutionLogs(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	go controller.peer.LogJobsStatePeers(r.Header.Get(headers.PeerAddressHeader), jobsState.Data, jobsState.State)
+	go controller.peer.LogJobsStatePeers(r.Header.Get(headers.PeerAddressHeader), jobsState)
 
 	utils.SendJSON(w, nil, true, http.StatusOK, nil)
 	return

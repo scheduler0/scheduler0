@@ -175,13 +175,20 @@ func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []model
 	}
 
 	// When only a single-node is running
-	if string(leaderAddress) == fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) &&
+	if leaderAddress == fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) &&
 		len(configuration.Servers) < 2 {
-		data := []interface{}{}
+		body := models.JobStateReqPayload{
+			State:         actionType,
+			Data:          []models.JobModel{},
+			ServerAddress: fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port),
+		}
 
 		for _, pendingJob := range pendingJobs {
-			data = append(data, pendingJob)
+			body.Data = append(body.Data, pendingJob)
 		}
+
+		data := []interface{}{}
+		data = append(data, body)
 
 		_, applyErr := fsm.AppApply(
 			jobExecutor.logger,
@@ -198,25 +205,27 @@ func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []model
 		return
 	}
 
-	client := http.Client{}
-	body := models.JobStateReqPayload{
-		State: actionType,
-		Data:  pendingJobs,
-	}
-	data, err := json.Marshal(body)
-	if err != nil {
-		jobExecutor.logger.Fatalln("failed to convert jobs ", err)
-	}
-	reader := bytes.NewReader(data)
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/execution-logs", utils.GetNodeIPWithRaftAddress(jobExecutor.logger, string(leaderAddress))), reader)
-	if err != nil {
-		jobExecutor.logger.Fatalln("failed to req ", err)
-	}
-	req.Header.Set(headers.PeerHeader, "peer")
-	req.Header.Set(headers.PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
-	credentials := secrets.GetSecrets(jobExecutor.logger)
-	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
 	err = utils.RetryOnError(func() error {
+		client := http.Client{}
+		body := models.JobStateReqPayload{
+			State:         actionType,
+			Data:          pendingJobs,
+			ServerAddress: fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port),
+		}
+		data, err := json.Marshal(body)
+		if err != nil {
+			jobExecutor.logger.Fatalln("failed to convert jobs ", err)
+		}
+		reader := bytes.NewReader(data)
+		req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/execution-logs", utils.GetNodeIPWithRaftAddress(jobExecutor.logger, leaderAddress)), reader)
+		if err != nil {
+			jobExecutor.logger.Fatalln("failed to req ", err)
+		}
+		req.Header.Set(headers.PeerHeader, "peer")
+		req.Header.Set(headers.PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
+		credentials := secrets.GetSecrets(jobExecutor.logger)
+		req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+
 		res, err := client.Do(req)
 		if err != nil {
 			return err
@@ -257,19 +266,19 @@ func (jobExecutor *JobExecutor) Run(jobs []models.JobModel) {
 	}
 }
 
-func (jobExecutor *JobExecutor) LogPrepare(jobs []models.JobModel) {
+func (jobExecutor *JobExecutor) LogPrepare(jobState models.JobStateReqPayload) {
 	jobExecutor.fileMtx.Lock()
 	defer jobExecutor.fileMtx.Unlock()
 	jobProcesses := []*models.JobProcess{}
 
-	for _, job := range jobs {
+	for _, job := range jobState.Data {
 		schedule, parseErr := cron.Parse(job.Spec)
 		if parseErr != nil {
 			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
 
-		entry := fmt.Sprintf("prepare %v, %v, %v, %v", job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
+		entry := fmt.Sprintf("prepare %v, %v, %v, %v, %v", jobState.ServerAddress, job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
 		jobExecutor.WriteJobExecutionLog(entry)
 		for _, jobProcess := range jobExecutor.jobProcess {
 			if jobProcess.Job.ID == job.ID {
@@ -283,31 +292,31 @@ func (jobExecutor *JobExecutor) LogPrepare(jobs []models.JobModel) {
 	}
 }
 
-func (jobExecutor *JobExecutor) LogCommit(jobs []models.JobModel) {
+func (jobExecutor *JobExecutor) LogCommit(jobState models.JobStateReqPayload) {
 	jobExecutor.fileMtx.Lock()
 	defer jobExecutor.fileMtx.Unlock()
-	for _, job := range jobs {
+	for _, job := range jobState.Data {
 		schedule, parseErr := cron.Parse(job.Spec)
 		if parseErr != nil {
 			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
-		entry := fmt.Sprintf("commit %v, %v, %v, %v", job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
+		entry := fmt.Sprintf("commit %v, %v, %v, %v, %v", jobState.ServerAddress, job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
 		// TODO: update last execution data of job in memory
 		jobExecutor.WriteJobExecutionLog(entry)
 	}
 }
 
-func (jobExecutor *JobExecutor) LogErrors(jobs []models.JobModel) {
+func (jobExecutor *JobExecutor) LogErrors(jobState models.JobStateReqPayload) {
 	jobExecutor.fileMtx.Lock()
 	defer jobExecutor.fileMtx.Unlock()
-	for _, job := range jobs {
+	for _, job := range jobState.Data {
 		schedule, parseErr := cron.Parse(job.Spec)
 		if parseErr != nil {
 			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
-		entry := fmt.Sprintf("error %v, %v, %v, %v", job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
+		entry := fmt.Sprintf("error %v, %v, %v, %v, %v", jobState.ServerAddress, job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
 		// TODO: update last execution data of job in memory
 		jobExecutor.WriteJobExecutionLog(entry)
 	}
@@ -366,4 +375,16 @@ func (jobExecutor *JobExecutor) WriteJobExecutionLog(entry string) {
 	if writeErr != nil {
 		log.Fatalln("execution log write error::", writeErr)
 	}
+}
+
+func (jobExecutor *JobExecutor) GetJobLastPrepareLog(jobId int64) string {
+	//data, err := io.ReadAll(jobExecutor.logFile)
+	//lines := []string{}
+	//
+	//fileData := string(data)
+	//if err == nil {
+	//	lines = strings.Split(fileData, "\n")
+	//}
+
+	return ""
 }
