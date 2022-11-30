@@ -23,10 +23,10 @@ type JobModel struct {
 
 // PaginatedJob paginated container of job transformer
 type PaginatedJob struct {
-	Total  int64      `json:"total"`
-	Offset int64      `json:"offset"`
-	Limit  int64      `json:"limit"`
-	Data   []JobModel `json:"jobs"`
+	Total  int64      `json:"total,omitempty"`
+	Offset int64      `json:"offset,omitempty"`
+	Limit  int64      `json:"limit,omitempty"`
+	Data   []JobModel `json:"jobs,omitempty"`
 }
 
 // ToJSON returns content of transformer as JSON
