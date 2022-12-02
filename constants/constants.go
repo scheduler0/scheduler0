@@ -18,3 +18,6 @@ const (
 	CommandTypeErrorJobExecutions           = 4
 	CommandTypeStopJobs                     = 5
 )
+
+// JobMaxBatchSize exceed this and sql-lite won't be happy
+const JobMaxBatchSize = 166
