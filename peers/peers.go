@@ -69,7 +69,7 @@ type Peer struct {
 	queue        chan []PeerRequest
 	FsmStore     *fsm.Store
 	jobProcessor *job_processor.JobProcessor
-	jobQueue     *job_queue.JobQueue
+	jobQueue     job_queue.JobQueue
 	jobExecutor  *job_executor.JobExecutor
 	jobRecovery  *job_recovery.JobRecovery
 	jobRepo      repository.Job
@@ -80,7 +80,7 @@ type Peer struct {
 func NewPeer(
 	logger *log.Logger,
 	jobExecutor *job_executor.JobExecutor,
-	jobQueue *job_queue.JobQueue,
+	jobQueue job_queue.JobQueue,
 	jobRepo repository.Job,
 	projectRepo repository.Project,
 ) *Peer {
@@ -105,7 +105,7 @@ func NewPeer(
 		logger:       logger,
 		AcceptWrites: false,
 		State:        Cold,
-		jobProcessor: job_processor.NewJobProcessor(jobRepo, projectRepo, *jobQueue, logger),
+		jobProcessor: job_processor.NewJobProcessor(jobRepo, projectRepo, jobQueue, logger),
 		jobQueue:     jobQueue,
 		jobExecutor:  jobExecutor,
 		jobRepo:      jobRepo,
@@ -367,6 +367,11 @@ func (p *Peer) HandleLeaderChange() {
 	select {
 	case <-p.FsmStore.Raft.LeaderCh():
 		p.jobExecutor.StopAll()
+
+		configuration := p.FsmStore.Raft.GetConfiguration().Configuration()
+		servers := configuration.Servers
+		p.jobQueue.RemoveServers(servers)
+		p.jobQueue.AddServers(servers)
 		_, applyErr := fsm.AppApply(
 			p.logger,
 			p.FsmStore.Raft,
