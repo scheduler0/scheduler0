@@ -62,7 +62,7 @@ func Start() {
 
 	jobExecutor := job_executor.NewJobExecutor(logger, jobRepo)
 	jobQueue := job_queue.NewJobQueue(logger, fsmStr, jobExecutor)
-	p := peers.NewPeer(logger, jobExecutor, &jobQueue, jobRepo, projectRepo)
+	p := peers.NewPeer(logger, jobExecutor, jobQueue, jobRepo, projectRepo)
 
 	//services
 	credentialService := service.NewCredentialService(logger, credentialRepo, ctx)
