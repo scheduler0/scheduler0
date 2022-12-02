@@ -23,21 +23,23 @@ type jobService struct {
 
 type Job interface {
 	GetJobsByProjectID(projectID int64, offset int64, limit int64, orderBy string) (*models.PaginatedJob, *utils.GenericError)
-	GetJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
+	GetJob(job models.JobModel) (*models.JobModel, *utils.GenericError)
 	BatchInsertJobs(jobs []models.JobModel) ([]models.JobModel, *utils.GenericError)
-	UpdateJob(jobTransformer models.JobModel) (*models.JobModel, *utils.GenericError)
-	DeleteJob(jobTransformer models.JobModel) *utils.GenericError
-	QueueJobs(jobTransformer []models.JobModel)
+	UpdateJob(job models.JobModel) (*models.JobModel, *utils.GenericError)
+	DeleteJob(job models.JobModel) *utils.GenericError
+	QueueJobs(jobs []models.JobModel)
 }
 
 func NewJobService(logger *log.Logger, jobRepo repository.Job, queue job_queue.JobQueue, projectRepo repository.Project, context context.Context) Job {
-	return &jobService{
+	service := &jobService{
 		jobRepo:     jobRepo,
 		projectRepo: projectRepo,
 		Queue:       queue,
 		Ctx:         context,
 		logger:      logger,
 	}
+
+	return service
 }
 
 // GetJobsByProjectID returns a paginated set of jobs for a project
@@ -127,7 +129,7 @@ func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.
 		jobs[i].LastExecutionDate = time.Now().UTC()
 	}
 
-	go jobService.QueueJobs(jobs)
+	jobService.QueueJobs(jobs)
 
 	return jobs, nil
 }
@@ -164,13 +166,13 @@ func (jobService *jobService) UpdateJob(job models.JobModel) (*models.JobModel, 
 }
 
 // DeleteJob deletes a job with ID in transformer
-func (jobService *jobService) DeleteJob(jobTransformer models.JobModel) *utils.GenericError {
-	err := jobService.jobRepo.GetOneByID(&jobTransformer)
+func (jobService *jobService) DeleteJob(job models.JobModel) *utils.GenericError {
+	err := jobService.jobRepo.GetOneByID(&job)
 	if err != nil {
 		return err
 	}
 
-	count, delError := jobService.jobRepo.DeleteOneByID(jobTransformer)
+	count, delError := jobService.jobRepo.DeleteOneByID(job)
 	if delError != nil {
 		return utils.HTTPGenericError(http.StatusInternalServerError, delError.Message)
 	}
@@ -182,6 +184,6 @@ func (jobService *jobService) DeleteJob(jobTransformer models.JobModel) *utils.G
 	return nil
 }
 
-func (jobService *jobService) QueueJobs(jobTransformer []models.JobModel) {
-	jobService.Queue.Queue(jobTransformer)
+func (jobService *jobService) QueueJobs(jobs []models.JobModel) {
+	jobService.Queue.Queue(jobs)
 }
