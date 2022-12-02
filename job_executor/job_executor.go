@@ -153,7 +153,7 @@ func (jobExecutor *JobExecutor) ListenToChannelsUpdates() {
 					prepareJobs = append(prepareJobs, *jobProcess.Job)
 				}
 				jobExecutor.LogJobExecutionStateOnLeader(prepareJobs, constants.CommandTypePrepareJobExecutions)
-				jobExecutor.logger.Println(fmt.Sprintf("%v Pending Jobs To Execute", len(pendingJobs[0:])))
+				jobExecutor.logger.Println(fmt.Sprintf("%v pending jobs to execute", len(pendingJobs[0:])))
 				pendingJobs = pendingJobs[len(pendingJobs):]
 			}
 		}
@@ -212,8 +212,7 @@ func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []model
 
 	err = utils.RetryOnError(func() error {
 		client := http.Client{
-			// TODO: make this configurable
-			Timeout: time.Minute * 15,
+			Timeout: time.Minute * 99999,
 		}
 		body := models.JobStateLog{
 			State:         actionType,
