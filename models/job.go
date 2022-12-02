@@ -9,16 +9,15 @@ type JobPriorityLevel int
 
 // JobModel job model
 type JobModel struct {
-	ID                int64            `json:"id,omitempty"`
-	ProjectID         int64            `json:"project_id,omitempty"`
-	Spec              string           `json:"spec,omitempty"`
-	CallbackUrl       string           `json:"callback_url,omitempty"`
-	Data              string           `json:"data,omitempty"`
-	ExecutionType     string           `json:"execution_type,omitempty"`
-	PriorityLevel     JobPriorityLevel `json:"priority_level,omitempty"`
-	LastExecutionDate time.Time        `json:"last_execution_date,omitempty"`
-	ExecutionId       string           `json:"execution_id,omitempty"`
-	DateCreated       time.Time        `json:"date_created,omitempty"`
+	ID                int64     `json:"id,omitempty"`
+	ProjectID         int64     `json:"project_id,omitempty"`
+	Spec              string    `json:"spec,omitempty"`
+	CallbackUrl       string    `json:"callback_url,omitempty"`
+	Data              string    `json:"data,omitempty"`
+	ExecutionType     string    `json:"execution_type,omitempty"`
+	LastExecutionDate time.Time `json:"last_execution_date,omitempty"`
+	ExecutionId       string    `json:"execution_id,omitempty"`
+	DateCreated       time.Time `json:"date_created,omitempty"`
 }
 
 // PaginatedJob paginated container of job transformer
