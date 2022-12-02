@@ -106,13 +106,13 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 	jobs := []models.JobModel{}
 	batches := [][]int64{}
 
-	if len(jobIDs) > 100 {
+	if len(jobIDs) > constants.JobMaxBatchSize {
 		temp := []int64{}
 		count := 0
 
 		for count < len(jobIDs) {
 			temp = append(temp, jobIDs[count])
-			if len(temp) == 100 {
+			if len(temp) == constants.JobMaxBatchSize {
 				batches = append(batches, temp)
 				temp = []int64{}
 			}
@@ -376,12 +376,12 @@ func (jobRepo *jobRepo) GetJobsPaginated(projectID int64, offset int64, limit in
 func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *utils.GenericError) {
 	batches := make([][]models.JobModel, 0)
 
-	if len(jobRepos) > 100 {
+	if len(jobRepos) > constants.JobMaxBatchSize {
 		temp := make([]models.JobModel, 0)
 		count := 0
 		for count < len(jobRepos) {
 			temp = append(temp, jobRepos[count])
-			if len(temp) == 100 {
+			if len(temp) == constants.JobMaxBatchSize {
 				batches = append(batches, temp)
 				temp = make([]models.JobModel, 0)
 			}
