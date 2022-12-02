@@ -1,12 +1,8 @@
 package headers
 
 const (
-	APIKeyHeader           = "x-api-key"
-	SecretKeyHeader        = "x-secret-key"
-	IOSBundleHeader        = "x-ios-bundle-id"
-	AndroidPackageIDHeader = "x-android-package-id"
-	PeerHeader             = "x-peer"
-	HTTPReferrerIDHeader   = "http-referrer"
-	IPReferrerIDHeader     = "ip-referrer-id"
-	PeerAddressHeader      = "peer-address"
+	APIKeyHeader      = "x-api-key"
+	SecretKeyHeader   = "x-secret-key"
+	PeerHeader        = "x-peer"
+	PeerAddressHeader = "peer-address"
 )
