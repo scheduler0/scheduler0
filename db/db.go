@@ -74,7 +74,6 @@ CREATE TABLE IF NOT EXISTS jobs
     callback_url   TEXT      NOT NULL,
     execution_type TEXT      NOT NULL,
     date_created   datetime NOT NULL,
-	priority_level INTEGER   NULL,
     FOREIGN KEY (project_id)
         REFERENCES projects (id)
         ON DELETE CASCADE
