@@ -5,9 +5,11 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"scheduler0/config"
 	"scheduler0/models"
 	"scheduler0/service"
 	"scheduler0/utils"
+	"scheduler0/workers"
 	"strconv"
 )
 
@@ -15,6 +17,7 @@ import (
 type jobHTTPController struct {
 	jobService     service.Job
 	projectService service.Project
+	Dispatcher     *workers.Dispatcher
 	logger         *log.Logger
 }
 
@@ -27,11 +30,28 @@ type JobHTTPController interface {
 }
 
 func NewJoBHTTPController(logger *log.Logger, jobService service.Job, projectService service.Project) JobHTTPController {
-	return &jobHTTPController{
+	controller := &jobHTTPController{
 		jobService:     jobService,
 		projectService: projectService,
 		logger:         logger,
 	}
+
+	configs := config.GetScheduler0Configurations(logger)
+	controller.Dispatcher = workers.NewDispatcher(
+		int64(configs.IncomingRequestMaxWorkers),
+		int64(configs.IncomingRequestMaxQueue),
+		func(args ...any) {
+			jobs := args[0].([]models.JobModel)
+			_, err := controller.jobService.BatchInsertJobs(jobs)
+			if err != nil {
+				logger.Println("batch job create error ", err.Message)
+			}
+		},
+	)
+
+	controller.Dispatcher.Run()
+
+	return controller
 }
 
 // ListJobs returns a paginated list of jobs
@@ -89,19 +109,15 @@ func (jobController *jobHTTPController) BatchCreateJobs(w http.ResponseWriter, r
 		return
 	}
 
-	jobs := &[]models.JobModel{}
-	if err := json.Unmarshal(body, jobs); err != nil {
+	jobs := []models.JobModel{}
+	if err := json.Unmarshal(body, &jobs); err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
 		return
 	}
 
-	createdJobs, batchCreateError := jobController.jobService.BatchInsertJobs(*jobs)
-	if batchCreateError != nil {
-		utils.SendJSON(w, batchCreateError.Message, false, batchCreateError.Type, nil)
-		return
-	}
+	jobController.Dispatcher.InputQueue <- jobs
 
-	utils.SendJSON(w, createdJobs, true, http.StatusCreated, nil)
+	utils.SendJSON(w, nil, true, http.StatusAccepted, nil)
 	return
 }
 
