@@ -20,6 +20,7 @@ const scheduler0ApiSecret = process.env.API_SECRET
 
 const axiosInstance = axios.create({
     baseURL: scheduler0Endpoint,
+    timeout: 10000,
     headers: {
         'x-api-key': scheduler0ApiKey,
         'x-secret-key': scheduler0ApiSecret
@@ -36,26 +37,43 @@ async function createProject() {
 }
 
 async function createJobs(projectID, name) {
-    const payload = [];
+    let payload = [];
 
-    for (let i = 0; i < 99999; i++) {
-        payload.push({
-            name: name,
-            spec: "@every 1m",
-            project_id: projectID,
-            data: JSON.stringify({ jobId: i }),
-            callback_url: `http://localhost:3000/callback`
-        })
-    }
+    // for (let i = 0; i < 9999999; i++) {
+    //     try {
+    //         payload.push({
+    //             name: name,
+    //             spec: "@every 1h30m",
+    //             project_id: projectID,
+    //             data: JSON.stringify({ jobId: i }),
+    //             callback_url: `http://localhost:3000/callback`
+    //         })
+    //         const { data: { data } } = await axiosInstance
+    //             .post('/jobs', payload );
+    //         payload = []
+    //     } catch (err) {
+    //         console.error(err)
+    //     }
+    // }
 
-
-    try {
-        const { data: { data } } = await axiosInstance
-            .post('/jobs', payload );
-
-        return data
-    } catch (err) {
-        console.log({ error: err.response.data})
+    for (let i = 0; i < 999999; i++) {
+        if (payload.length ===  999){
+            try {
+                const { data: { data } } = await axiosInstance
+                    .post('/jobs', payload );
+                payload = []
+            } catch (err) {
+                console.error(err)
+            }
+        } else {
+            payload.push({
+                name: name,
+                spec: "@every 1h30m",
+                project_id: projectID,
+                data: JSON.stringify({ jobId: i }),
+                callback_url: `http://localhost:3001/callback`
+            })
+        }
     }
 }
 
@@ -64,18 +82,20 @@ const hits = new Map();
 app.use(express.json());
 
 app.post('/callback', (req, res) => {
-    req.body.forEach((body) => {
-        const payload = JSON.parse(body);
-        if (!hits.has(payload.jobId)) {
-            hits.set(payload.jobId, 1);
+
+    const payload =  req.body
+
+    res.send(null);
+
+    payload.forEach((payload) => {
+        if (!hits.has(payload.id)) {
+            hits.set(payload.id, 1);
         } else {
-            hits.set(payload.jobId, hits.get(payload.jobId) + 1);
+            hits.set(payload.id, hits.get(payload.id) + 1);
         }
     })
 
     console.log(hits)
-
-    res.send(null);
 });
 
 app.listen(port, async () => {

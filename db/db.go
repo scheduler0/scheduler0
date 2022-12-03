@@ -78,19 +78,5 @@ CREATE TABLE IF NOT EXISTS jobs
         REFERENCES projects (id)
         ON DELETE CASCADE
 );
-
-CREATE TABLE IF NOT EXISTS executions
-(
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id         INTEGER   NOT NULL,
-    time_added     TIMESTAMP NOT NULL,
-    time_executed  TIMESTAMP,
-    execution_time INTEGER,
-    status_code    TEXT,
-    date_created   datetime NOT NULL,
-    FOREIGN KEY (job_id)
-        REFERENCES jobs (id)
-        ON DELETE CASCADE
-);
 `
 }

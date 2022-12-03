@@ -1,4 +1,4 @@
-package peers
+package node
 
 import (
 	"database/sql"
@@ -32,32 +32,30 @@ import (
 	"time"
 )
 
-type PeerStatus struct {
+type Status struct {
 	IsLeader           bool
 	IsAuth             bool
 	IsAlive            bool
 	LastConnectionTime time.Duration
 }
 
-type PeerRequest struct{}
-
-type PeerRes struct {
+type Res struct {
 	IsLeader bool
 }
 
-type PeerResponse struct {
-	Data    PeerRes `json:"data"`
-	Success bool    `json:"success"`
+type Response struct {
+	Data    Res  `json:"data"`
+	Success bool `json:"success"`
 }
 
-type PeerState int
+type State int
 
 const (
-	Cold          PeerState = 0
-	Bootstrapping           = 1
+	Cold          State = 0
+	Bootstrapping       = 1
 )
 
-type Peer struct {
+type Node struct {
 	Tm           *raft.NetworkTransport
 	Ldb          *boltdb.BoltStore
 	Sdb          *boltdb.BoltStore
@@ -65,8 +63,7 @@ type Peer struct {
 	logger       *log.Logger
 	mtx          sync.Mutex
 	AcceptWrites bool
-	State        PeerState
-	queue        chan []PeerRequest
+	State        State
 	FsmStore     *fsm.Store
 	jobProcessor *job_processor.JobProcessor
 	jobQueue     job_queue.JobQueue
@@ -77,15 +74,15 @@ type Peer struct {
 	ExistingNode bool
 }
 
-func NewPeer(
+func NewNode(
 	logger *log.Logger,
 	jobExecutor *job_executor.JobExecutor,
 	jobQueue job_queue.JobQueue,
 	jobRepo repository.Job,
 	projectRepo repository.Project,
-) *Peer {
+) *Node {
 	logPrefix := logger.Prefix()
-	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Peer] ", logPrefix))
+	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node] ", logPrefix))
 	defer logger.SetPrefix(logPrefix)
 	dirPath := fmt.Sprintf("%v", constants.RaftDir)
 	dirPath, exists := utils.MakeDirIfNotExist(logger, dirPath)
@@ -94,10 +91,10 @@ func NewPeer(
 	utils.MakeDirIfNotExist(logger, dirPath)
 	tm, ldb, sdb, fss, err := getLogsAndTransport(logger)
 	if err != nil {
-		logger.Fatal("failed essentials for Peer", err)
+		logger.Fatal("failed essentials for Node", err)
 	}
 
-	return &Peer{
+	return &Node{
 		Tm:           tm,
 		Ldb:          ldb,
 		Sdb:          sdb,
@@ -115,9 +112,9 @@ func NewPeer(
 	}
 }
 
-func (p *Peer) NewRaft(fsm raft.FSM) *raft.Raft {
+func (p *Node) NewRaft(fsm raft.FSM) *raft.Raft {
 	logPrefix := p.logger.Prefix()
-	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-Peer-raft] ", logPrefix))
+	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node-raft] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
 	configs := config.GetScheduler0Configurations(p.logger)
 
@@ -128,12 +125,12 @@ func (p *Peer) NewRaft(fsm raft.FSM) *raft.Raft {
 
 	r, err := raft.NewRaft(c, fsm, p.Ldb, p.Sdb, p.Fss, p.Tm)
 	if err != nil {
-		p.logger.Fatalln("failed to create raft object for Peer", err)
+		p.logger.Fatalln("failed to create raft object for Node", err)
 	}
 	return r
 }
 
-func (p *Peer) BootstrapRaftCluster(r *raft.Raft) {
+func (p *Node) BootstrapRaftCluster(r *raft.Raft) {
 	logPrefix := p.logger.Prefix()
 	p.logger.SetPrefix(fmt.Sprintf("%s[boostraping-raft-cluster] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
@@ -141,13 +138,13 @@ func (p *Peer) BootstrapRaftCluster(r *raft.Raft) {
 	cfg := p.getRaftConfigurationFromConfig(p.logger)
 	f := r.BootstrapCluster(cfg)
 	if err := f.Error(); err != nil {
-		p.logger.Fatalln("failed to bootstrap raft Peer", err)
+		p.logger.Fatalln("failed to bootstrap raft Node", err)
 	}
 }
 
-func (p *Peer) RecoverRaftState() {
+func (p *Node) RecoverRaftState() {
 	logPrefix := p.logger.Prefix()
-	p.logger.SetPrefix(fmt.Sprintf("%s[recovering-Peer] ", logPrefix))
+	p.logger.SetPrefix(fmt.Sprintf("%s[recovering-Node] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
 
 	var (
@@ -307,7 +304,7 @@ func (p *Peer) RecoverRaftState() {
 	}
 }
 
-func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
+func (p *Node) Boostrap(fsmStr *fsm.Store) {
 	configs := config.GetScheduler0Configurations(p.logger)
 	p.State = Bootstrapping
 	if p.ExistingNode {
@@ -327,22 +324,22 @@ func (p *Peer) BoostrapPeer(fsmStr *fsm.Store) {
 	p.ListenOnInputQueues(fsmStr)
 }
 
-func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) map[string]PeerStatus {
-	p.logger.Println("Authenticating with peers...")
+func (p *Node) AuthenticateWithPeersInConfig(logger *log.Logger) map[string]Status {
+	p.logger.Println("Authenticating with node...")
 
 	configs := config.GetScheduler0Configurations(logger)
 	var wg sync.WaitGroup
 
-	results := map[string]PeerStatus{}
+	results := map[string]Status{}
 	wrlck := sync.Mutex{}
 
 	for _, replica := range configs.Replicas {
 		if replica.Address != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
 			wg.Add(1)
-			go func(rep config.Peer, res map[string]PeerStatus, wg *sync.WaitGroup, wrlck *sync.Mutex) {
+			go func(rep config.RaftNode, res map[string]Status, wg *sync.WaitGroup, wrlck *sync.Mutex) {
 				wrlck.Lock()
 				err := utils.RetryOnError(func() error {
-					if peerStatus, err := connectPeer(logger, rep); err == nil {
+					if peerStatus, err := connectNode(logger, rep); err == nil {
 						results[rep.Address] = *peerStatus
 					} else {
 						return err
@@ -363,7 +360,7 @@ func (p *Peer) AuthenticateWithPeersInConfig(logger *log.Logger) map[string]Peer
 	return results
 }
 
-func (p *Peer) HandleLeaderChange() {
+func (p *Node) HandleLeaderChange() {
 	select {
 	case <-p.FsmStore.Raft.LeaderCh():
 		p.jobExecutor.StopAll()
@@ -389,7 +386,7 @@ func (p *Peer) HandleLeaderChange() {
 	}
 }
 
-func (p *Peer) ListenOnInputQueues(fsmStr *fsm.Store) {
+func (p *Node) ListenOnInputQueues(fsmStr *fsm.Store) {
 	p.logger.Println("begin listening input queues")
 
 	for {
@@ -410,7 +407,7 @@ func (p *Peer) ListenOnInputQueues(fsmStr *fsm.Store) {
 	}
 }
 
-func (p *Peer) LogJobsStatePeers(peerAddress string, jobState models.JobStateLog) {
+func (p *Node) LogJobsStatePeers(peerAddress string, jobState models.JobStateLog) {
 	if p.FsmStore.Raft == nil {
 		p.logger.Fatalln("raft is not set on job executors")
 	}
@@ -429,7 +426,7 @@ func (p *Peer) LogJobsStatePeers(peerAddress string, jobState models.JobStateLog
 	}
 }
 
-func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configuration {
+func (p *Node) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configuration {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -460,7 +457,7 @@ func (p *Peer) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configura
 	return cfg
 }
 
-func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
+func connectNode(logger *log.Logger, rep config.RaftNode) (*Status, error) {
 	configs := config.GetScheduler0Configurations(logger)
 	httpClient := http.Client{
 		Timeout: time.Duration(configs.PeerAuthRequestTimeout) * time.Second,
@@ -493,7 +490,7 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 			return nil, err
 		}
 
-		body := PeerResponse{}
+		body := Response{}
 
 		err = json.Unmarshal(data, &body)
 		if err != nil {
@@ -503,7 +500,7 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 
 		logger.Println("successfully authenticated ", rep.Address)
 
-		return &PeerStatus{
+		return &Status{
 			IsAlive:            true,
 			IsAuth:             true,
 			IsLeader:           body.Data.IsLeader,
@@ -514,7 +511,7 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 	logger.Println("could not authenticate ", rep.Address, " status code:", resp.StatusCode)
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return &PeerStatus{
+		return &Status{
 			IsAlive:            true,
 			IsAuth:             false,
 			IsLeader:           false,
@@ -523,7 +520,7 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 	}
 
 	if resp.StatusCode == http.StatusServiceUnavailable {
-		return &PeerStatus{
+		return &Status{
 			IsAlive:            false,
 			IsAuth:             false,
 			IsLeader:           false,
@@ -531,7 +528,7 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 		}, nil
 	}
 
-	return &PeerStatus{
+	return &Status{
 		IsAlive:            false,
 		IsAuth:             false,
 		IsLeader:           false,
@@ -541,7 +538,7 @@ func connectPeer(logger *log.Logger, rep config.Peer) (*PeerStatus, error) {
 
 func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *boltdb.BoltStore, sdb *boltdb.BoltStore, fss *raft.FileSnapshotStore, err error) {
 	logPrefix := logger.Prefix()
-	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Peer-essentials] ", logPrefix))
+	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node-essentials] ", logPrefix))
 	defer logger.SetPrefix(logPrefix)
 
 	configs := config.GetScheduler0Configurations(logger)

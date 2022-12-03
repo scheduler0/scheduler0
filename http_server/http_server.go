@@ -17,7 +17,7 @@ import (
 	"scheduler0/http_server/middlewares"
 	"scheduler0/job_executor"
 	"scheduler0/job_queue"
-	"scheduler0/peers"
+	"scheduler0/node"
 	"scheduler0/repository"
 	"scheduler0/service"
 )
@@ -57,17 +57,15 @@ func Start() {
 	//repository
 	credentialRepo := repository.NewCredentialRepo(logger, fsmStr)
 	jobRepo := repository.NewJobRepo(logger, fsmStr)
-	executionRepo := repository.NewExecutionRepo(logger, fsmStr)
 	projectRepo := repository.NewProjectRepo(logger, fsmStr, jobRepo)
 
 	jobExecutor := job_executor.NewJobExecutor(logger, jobRepo)
 	jobQueue := job_queue.NewJobQueue(logger, fsmStr, jobExecutor)
-	p := peers.NewPeer(logger, jobExecutor, jobQueue, jobRepo, projectRepo)
+	p := node.NewNode(logger, jobExecutor, jobQueue, jobRepo, projectRepo)
 
 	//services
 	credentialService := service.NewCredentialService(logger, credentialRepo, ctx)
 	jobService := service.NewJobService(logger, jobRepo, jobQueue, projectRepo, ctx)
-	executionService := service.NewExecutionService(logger, executionRepo)
 	projectService := service.NewProjectService(logger, projectRepo)
 
 	// HTTP router setup
@@ -77,7 +75,6 @@ func Start() {
 	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
-	executionController := controllers.NewExecutionsController(logger, executionService)
 	jobController := controllers.NewJoBHTTPController(logger, jobService, projectService)
 	projectController := controllers.NewProjectController(logger, projectService)
 	credentialController := controllers.NewCredentialController(logger, credentialService)
@@ -92,9 +89,6 @@ func Start() {
 	router.Use(middleware.ContextMiddleware)
 	router.Use(middleware.AuthMiddleware(credentialService))
 	router.Use(middleware.EnsureRaftLeaderMiddleware(p))
-
-	// Executions Endpoint
-	router.HandleFunc("/executions", executionController.ListExecutions).Methods(http.MethodGet)
 
 	// Credentials Endpoint
 	router.HandleFunc("/credentials", credentialController.CreateOneCredential).Methods(http.MethodPost)
@@ -120,7 +114,7 @@ func Start() {
 	// Healthcheck Endpoint
 	router.HandleFunc("/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
 
-	// Peer Endpoints
+	// Node Endpoints
 	router.HandleFunc("/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
 	router.HandleFunc("/execution-logs", peerController.ExecutionLogs).Methods(http.MethodPost)
 
@@ -134,5 +128,5 @@ func Start() {
 		}
 	}()
 
-	p.BoostrapPeer(fsmStr)
+	p.Boostrap(fsmStr)
 }

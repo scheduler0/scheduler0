@@ -9,7 +9,7 @@ import (
 	"scheduler0/config"
 	"scheduler0/headers"
 	"scheduler0/models"
-	"scheduler0/peers"
+	"scheduler0/node"
 	"scheduler0/utils"
 	"scheduler0/workers"
 )
@@ -22,11 +22,11 @@ type PeerController interface {
 type peerController struct {
 	raft       *raft.Raft
 	logger     *log.Logger
-	peer       *peers.Peer
+	peer       *node.Node
 	Dispatcher *workers.Dispatcher
 }
 
-func NewPeerController(logger *log.Logger, rft *raft.Raft, peer *peers.Peer) PeerController {
+func NewPeerController(logger *log.Logger, rft *raft.Raft, peer *node.Node) PeerController {
 	controller := peerController{
 		raft:   rft,
 		logger: logger,
@@ -53,7 +53,7 @@ func NewPeerController(logger *log.Logger, rft *raft.Raft, peer *peers.Peer) Pee
 func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Request) {
 	configs := config.GetScheduler0Configurations(controller.logger)
 
-	res := peers.PeerRes{
+	res := node.Res{
 		IsLeader: configs.Bootstrap == "true",
 	}
 

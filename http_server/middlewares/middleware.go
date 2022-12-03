@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/headers"
-	"scheduler0/peers"
+	"scheduler0/node"
 	"scheduler0/service"
 	"scheduler0/utils"
 	"strings"
@@ -89,7 +89,7 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 	}
 }
 
-func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *peers.Peer) func(next http.Handler) http.Handler {
+func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *node.Node) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			paths := strings.Split(r.URL.Path, "/")
