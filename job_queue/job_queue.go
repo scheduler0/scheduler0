@@ -12,7 +12,9 @@ import (
 	"scheduler0/marsher"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
+	"scheduler0/utils"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -26,6 +28,12 @@ type jobQueue struct {
 	fsm         *fsm.Store
 	logger      *log.Logger
 	allocations map[raft.ServerAddress]int64
+	minId       int64
+	maxId       int64
+	threshold   time.Time
+	ticker      *time.Ticker
+	mtx         sync.Mutex
+	once        sync.Once
 }
 
 type JobQueue interface {
@@ -34,11 +42,13 @@ type JobQueue interface {
 	RemoveServers(serverAddresses []raft.Server)
 }
 
-func NewJobQueue(logger *log.Logger, fsm *fsm.Store, Executor *job_executor.JobExecutor) JobQueue {
+func NewJobQueue(logger *log.Logger, fsm *fsm.Store, Executor *job_executor.JobExecutor) *jobQueue {
 	return &jobQueue{
 		Executor:    Executor,
 		fsm:         fsm,
 		logger:      logger,
+		minId:       math.MaxInt64,
+		maxId:       math.MinInt16,
 		allocations: map[raft.ServerAddress]int64{},
 	}
 }
@@ -56,6 +66,63 @@ func (jobQ *jobQueue) RemoveServers(serverAddresses []raft.Server) {
 }
 
 func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
+	jobQ.mtx.Lock()
+	defer jobQ.mtx.Unlock()
+
+	if len(jobs) < 1 {
+		return
+	}
+
+	if len(jobs) > 1 {
+		for _, job := range jobs {
+			if jobQ.maxId < job.ID {
+				jobQ.maxId = job.ID
+			}
+			if jobQ.minId > job.ID {
+				jobQ.minId = job.ID
+			}
+		}
+	} else {
+		jobQ.maxId = jobs[0].ID
+		jobQ.minId = jobs[0].ID
+	}
+
+	configs := config.Configurations(jobQ.logger)
+
+	jobQ.threshold = time.Now().Add(time.Duration(configs.JobPrepareDebounceDelay) * time.Second)
+
+	jobQ.once.Do(func() {
+		go func() {
+			defer func() {
+				jobQ.mtx.Lock()
+				jobQ.ticker.Stop()
+				jobQ.once = sync.Once{}
+				jobQ.minId = math.MaxInt64
+				jobQ.maxId = math.MinInt16
+				jobQ.mtx.Unlock()
+			}()
+
+			jobQ.ticker = time.NewTicker(time.Duration(500) * time.Millisecond)
+
+			for {
+				select {
+				case <-jobQ.ticker.C:
+					jobQ.mtx.Lock()
+					if time.Now().After(jobQ.threshold) {
+						jobQ.queue(jobQ.minId, jobQ.maxId)
+						jobQ.minId = math.MaxInt64
+						jobQ.maxId = math.MinInt16
+						jobQ.mtx.Unlock()
+						return
+					}
+					jobQ.mtx.Unlock()
+				}
+			}
+		}()
+	})
+}
+
+func (jobQ *jobQueue) queue(minId, maxId int64) {
 	f := jobQ.fsm.Raft.VerifyLeader()
 	if f.Error() != nil {
 		jobQ.logger.Println("skipping job queueing as node is not the leader")
@@ -63,21 +130,34 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 	}
 
 	if len(jobQ.allocations) == 1 {
-		jobQ.Executor.Run(jobs)
+		jobQ.Executor.Run([]int64{minId, maxId})
 		return
 	}
 
-	configs := config.GetScheduler0Configurations(jobQ.logger)
-	batchRanges := [][]models.JobModel{}
+	configs := config.Configurations(jobQ.logger)
+	batchRanges := [][]int64{}
 
 	numberOfServers := len(jobQ.allocations) - 1
 	for i := 0; i < numberOfServers; i++ {
-		batchRanges = append(batchRanges, []models.JobModel{})
+		batchRanges = append(batchRanges, []int64{})
 	}
 
 	currentServer := 0
-	for _, job := range jobs {
-		batchRanges[currentServer] = append(batchRanges[currentServer], job)
+	cycle := int64(math.Ceil(float64((maxId - minId) / int64(numberOfServers))))
+	epoc := minId
+	for epoc < maxId {
+		lowerBound := epoc
+		upperBound := epoc + cycle
+
+		batchRanges[currentServer] = append(batchRanges[currentServer], lowerBound)
+		batchRanges[currentServer] = append(batchRanges[currentServer], upperBound)
+
+		epoc = upperBound + 1
+
+		if maxId-upperBound < cycle {
+			upperBound = maxId
+		}
+
 		currentServer += 1
 		if currentServer == numberOfServers {
 			currentServer = 0
@@ -89,13 +169,19 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 		jobQ.logger.Fatalln(err.Error())
 	}
 
+	allocations := jobQ.allocations
+
 	j := 0
 	for j < len(batchRanges) {
+		if utils.MonitorMemoryUsage(jobQueue{}.logger) {
+			return
+		}
+
 		server := func() raft.ServerAddress {
-			var minAllocation int64 = math.MinInt16
+			var minAllocation int64 = math.MaxInt64
 			var minServer raft.ServerAddress
-			for server, allocation := range jobQ.allocations {
-				if allocation > minAllocation && string(server) != configs.RaftAddress {
+			for server, allocation := range allocations {
+				if allocation < minAllocation && string(server) != configs.RaftAddress {
 					minAllocation = allocation
 					minServer = server
 				}
@@ -103,7 +189,10 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 			return minServer
 		}()
 
-		batchRange := batchRanges[j]
+		batchRange := []interface{}{
+			batchRanges[j][0],
+			batchRanges[j][len(batchRanges[j])-1],
+		}
 
 		d, err := json.Marshal(batchRange)
 		if err != nil {
@@ -128,5 +217,9 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 			}
 			log.Fatalln(af.Error().Error())
 		}
+		allocations[server] += int64(len(batchRange))
+		j++
 	}
+
+	jobQ.allocations = allocations
 }
