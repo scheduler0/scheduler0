@@ -49,7 +49,7 @@ func Start() {
 	ctx := context.Background()
 	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
 
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 
 	dbConnection, sqliteDb := getDBConnection(logger)
 	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
@@ -78,8 +78,8 @@ func Start() {
 	jobController := controllers.NewJoBHTTPController(logger, jobService, projectService)
 	projectController := controllers.NewProjectController(logger, projectService)
 	credentialController := controllers.NewCredentialController(logger, credentialService)
-	healthCheckController := controllers.NewHealthCheckController(logger, fsmStr.Raft)
-	peerController := controllers.NewPeerController(logger, fsmStr.Raft, p)
+	healthCheckController := controllers.NewHealthCheckController(logger, fsmStr)
+	peerController := controllers.NewPeerController(logger, fsmStr, p)
 
 	// Mount middleware
 	middleware := middlewares.NewMiddlewareHandler(logger)
