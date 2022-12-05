@@ -86,7 +86,7 @@ func NewNode(
 	defer logger.SetPrefix(logPrefix)
 	dirPath := fmt.Sprintf("%v", constants.RaftDir)
 	dirPath, exists := utils.MakeDirIfNotExist(logger, dirPath)
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 	dirPath = fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	utils.MakeDirIfNotExist(logger, dirPath)
 	tm, ldb, sdb, fss, err := getLogsAndTransport(logger)
@@ -112,11 +112,53 @@ func NewNode(
 	}
 }
 
-func (p *Node) NewRaft(fsm raft.FSM) *raft.Raft {
+func (p *Node) Boostrap(fsmStr *fsm.Store) {
+	p.State = Bootstrapping
+	if p.ExistingNode {
+		p.logger.Println("discovered existing raft dir")
+		p.recoverRaftState()
+	}
+
+	configs := config.Configurations(p.logger)
+	rft := p.newRaft(fsmStr)
+	if configs.Bootstrap && !p.ExistingNode {
+		p.bootstrapRaftCluster(rft)
+	}
+	fsmStr.Raft = rft
+	p.FsmStore = fsmStr
+	p.jobExecutor.Raft = fsmStr.Raft
+	if p.ExistingNode {
+		p.jobRecovery.Run()
+	}
+	go p.handleLeaderChange()
+	go p.jobExecutor.ListenToChannelsUpdates()
+	p.listenOnInputQueues(fsmStr)
+}
+
+func (p *Node) LogJobsStatePeers(peerAddress string, jobState models.JobStateLog) {
+	if p.FsmStore.Raft == nil {
+		p.logger.Fatalln("raft is not set on job executors")
+	}
+
+	data := []interface{}{jobState}
+
+	_, applyErr := fsm.AppApply(
+		p.logger,
+		p.FsmStore.Raft,
+		jobState.State,
+		peerAddress,
+		data,
+	)
+	if applyErr != nil {
+		p.logger.Fatalln("failed to apply job update states ", applyErr)
+	}
+}
+
+func (p *Node) newRaft(fsm raft.FSM) *raft.Raft {
 	logPrefix := p.logger.Prefix()
 	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node-raft] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
-	configs := config.GetScheduler0Configurations(p.logger)
+	configs := config.Configurations(p.logger)
 
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(configs.NodeId)
@@ -130,19 +172,19 @@ func (p *Node) NewRaft(fsm raft.FSM) *raft.Raft {
 	return r
 }
 
-func (p *Node) BootstrapRaftCluster(r *raft.Raft) {
+func (p *Node) bootstrapRaftCluster(r *raft.Raft) {
 	logPrefix := p.logger.Prefix()
 	p.logger.SetPrefix(fmt.Sprintf("%s[boostraping-raft-cluster] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
 
-	cfg := p.getRaftConfigurationFromConfig(p.logger)
+	cfg := p.authRaftConfiguration(p.logger)
 	f := r.BootstrapCluster(cfg)
 	if err := f.Error(); err != nil {
 		p.logger.Fatalln("failed to bootstrap raft Node", err)
 	}
 }
 
-func (p *Node) RecoverRaftState() {
+func (p *Node) recoverRaftState() raft.Configuration {
 	logPrefix := p.logger.Prefix()
 	p.logger.SetPrefix(fmt.Sprintf("%s[recovering-Node] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
@@ -156,7 +198,7 @@ func (p *Node) RecoverRaftState() {
 		p.logger.Fatalln(err)
 	}
 
-	p.logger.Println("Found ", len(snapshots), " snapshots")
+	p.logger.Println("found", len(snapshots), "snapshots")
 
 	var lastSnapshotBytes []byte
 	for _, snapshot := range snapshots {
@@ -182,21 +224,18 @@ func (p *Node) RecoverRaftState() {
 	}
 	if len(snapshots) > 0 && (snapshotIndex == 0 || snapshotTerm == 0) {
 		p.logger.Println("failed to restore any of the available snapshots")
-		return
 	}
 
 	dir, err := os.Getwd()
 	if err != nil {
-		p.logger.Println(fmt.Errorf("Fatal error getting working dir: %s \n", err))
-		return
+		p.logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
 
 	recoverDbPath := fmt.Sprintf("%s/%s", dir, "recover.db")
 
 	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
 	if err != nil {
-		p.logger.Println(fmt.Errorf("Fatal db file creation error: %s \n", err))
-		return
+		p.logger.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
 	}
 
 	dataStore := db.NewSqliteDbConnection(recoverDbPath)
@@ -207,8 +246,7 @@ func (p *Node) RecoverRaftState() {
 	migrations := db.GetSetupSQL()
 	_, err = dbConnection.Exec(migrations)
 	if err != nil {
-		p.logger.Println(fmt.Errorf("Fatal db file migrations error: %s \n", err))
-		return
+		p.logger.Fatalln(fmt.Errorf("Fatal db file migrations error: %s \n", err))
 	}
 
 	fsmStr := fsm.NewFSMStore(dataStore, dbConnection, p.logger)
@@ -233,53 +271,10 @@ func (p *Node) RecoverRaftState() {
 		lastTerm = entry.Term
 	}
 
-	//---count jobs
-
-	rows, err := dbConnection.Query("select count() from jobs")
-	defer rows.Close()
-	if err != nil {
-		p.logger.Fatalf("failed to read recovery:db: %v", err)
-	}
-	var count int
-	for rows.Next() {
-		err := rows.Scan(&count)
-		if err != nil {
-			p.logger.Fatalf("failed to read recovery:db: %v", err)
-		}
-	}
-	if rows.Err() != nil {
-		if err != nil {
-			p.logger.Fatalf("failed to read recovery:db: %v", err)
-		}
-	}
-
-	p.logger.Println("Wrote number of jobs to recovery db ::", count)
-
-	//---count credentials
-
-	rows, err = dbConnection.Query("select count() from credentials")
-	defer rows.Close()
-	if err != nil {
-		p.logger.Fatalf("failed to read recovery:db: %v", err)
-	}
-	for rows.Next() {
-		err := rows.Scan(&count)
-		if err != nil {
-			p.logger.Fatalf("failed to read recovery:db: %v", err)
-		}
-	}
-	if rows.Err() != nil {
-		if err != nil {
-			p.logger.Fatalf("failed to read recovery:db: %v", err)
-		}
-	}
-
-	p.logger.Println("Wrote number of credentials to recovery db ::", count)
-
-	lastConfiguration := p.getRaftConfigurationFromConfig(p.logger)
+	lastConfiguration := p.getRaftConfiguration(p.logger)
 
 	snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
-	sink, err := p.Fss.Create(1, lastIndex, lastTerm, lastConfiguration, 0, p.Tm)
+	sink, err := p.Fss.Create(1, lastIndex, lastTerm, lastConfiguration, 1, p.Tm)
 	if err != nil {
 		p.logger.Fatalf("failed to create snapshot: %v", err)
 	}
@@ -302,32 +297,14 @@ func (p *Node) RecoverRaftState() {
 	if err != nil {
 		p.logger.Fatalf("failed to delete recovery db: %v", err)
 	}
+
+	return lastConfiguration
 }
 
-func (p *Node) Boostrap(fsmStr *fsm.Store) {
-	configs := config.GetScheduler0Configurations(p.logger)
-	p.State = Bootstrapping
-	if p.ExistingNode {
-		p.logger.Println("discovered existing raft dir")
-		p.RecoverRaftState()
-		p.jobRecovery.Run()
-	}
-	rft := p.NewRaft(fsmStr)
-	if configs.Bootstrap == "true" && !p.ExistingNode {
-		p.BootstrapRaftCluster(rft)
-	}
-	fsmStr.Raft = rft
-	p.FsmStore = fsmStr
-	p.jobExecutor.Raft = fsmStr.Raft
-	go p.HandleLeaderChange()
-	go p.jobExecutor.ListenToChannelsUpdates()
-	p.ListenOnInputQueues(fsmStr)
-}
-
-func (p *Node) AuthenticateWithPeersInConfig(logger *log.Logger) map[string]Status {
+func (p *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]Status {
 	p.logger.Println("Authenticating with node...")
 
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 	var wg sync.WaitGroup
 
 	results := map[string]Status{}
@@ -360,11 +337,10 @@ func (p *Node) AuthenticateWithPeersInConfig(logger *log.Logger) map[string]Stat
 	return results
 }
 
-func (p *Node) HandleLeaderChange() {
+func (p *Node) handleLeaderChange() {
 	select {
 	case <-p.FsmStore.Raft.LeaderCh():
 		p.jobExecutor.StopAll()
-
 		configuration := p.FsmStore.Raft.GetConfiguration().Configuration()
 		servers := configuration.Servers
 		p.jobQueue.RemoveServers(servers)
@@ -386,7 +362,7 @@ func (p *Node) HandleLeaderChange() {
 	}
 }
 
-func (p *Node) ListenOnInputQueues(fsmStr *fsm.Store) {
+func (p *Node) listenOnInputQueues(fsmStr *fsm.Store) {
 	p.logger.Println("begin listening input queues")
 
 	for {
@@ -407,31 +383,12 @@ func (p *Node) ListenOnInputQueues(fsmStr *fsm.Store) {
 	}
 }
 
-func (p *Node) LogJobsStatePeers(peerAddress string, jobState models.JobStateLog) {
-	if p.FsmStore.Raft == nil {
-		p.logger.Fatalln("raft is not set on job executors")
-	}
-
-	data := []interface{}{jobState}
-
-	_, applyErr := fsm.AppApply(
-		p.logger,
-		p.FsmStore.Raft,
-		jobState.State,
-		peerAddress,
-		data,
-	)
-	if applyErr != nil {
-		p.logger.Fatalln("failed to apply job update states ", applyErr)
-	}
-}
-
-func (p *Node) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configuration {
+func (p *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	configs := config.GetScheduler0Configurations(logger)
-	results := p.AuthenticateWithPeersInConfig(p.logger)
+	configs := config.Configurations(logger)
+	results := p.authenticateWithPeersInConfig(p.logger)
 	servers := []raft.Server{
 		{
 			ID:       raft.ServerID(configs.NodeId),
@@ -457,8 +414,38 @@ func (p *Node) getRaftConfigurationFromConfig(logger *log.Logger) raft.Configura
 	return cfg
 }
 
+func (p *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	configs := config.Configurations(logger)
+	servers := []raft.Server{
+		{
+			ID:       raft.ServerID(configs.NodeId),
+			Suffrage: raft.Voter,
+			Address:  raft.ServerAddress(configs.RaftAddress),
+		},
+	}
+
+	for _, replica := range configs.Replicas {
+		if replica.Address != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
+			servers = append(servers, raft.Server{
+				ID:       raft.ServerID(replica.NodeId),
+				Suffrage: raft.Voter,
+				Address:  raft.ServerAddress(replica.RaftAddress),
+			})
+		}
+	}
+
+	cfg := raft.Configuration{
+		Servers: servers,
+	}
+
+	return cfg
+}
+
 func connectNode(logger *log.Logger, rep config.RaftNode) (*Status, error) {
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 	httpClient := http.Client{
 		Timeout: time.Duration(configs.PeerAuthRequestTimeout) * time.Second,
 	}
@@ -541,7 +528,7 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node-essentials] ", logPrefix))
 	defer logger.SetPrefix(logPrefix)
 
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	_, err = strconv.Atoi(configs.RaftSnapshotInterval)
