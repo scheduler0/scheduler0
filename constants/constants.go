@@ -20,4 +20,4 @@ const (
 )
 
 // JobMaxBatchSize exceed this and sql-lite won't be happy
-const JobMaxBatchSize = 166
+const JobMaxBatchSize = 5461
