@@ -22,6 +22,7 @@ type jobRepo struct {
 type Job interface {
 	GetOneByID(jobModel *models.JobModel) *utils.GenericError
 	BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *utils.GenericError)
+	BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([]models.JobModel, *utils.GenericError)
 	GetJobsPaginated(projectID int64, offset int64, limit int64) ([]models.JobModel, int64, *utils.GenericError)
 	GetJobsTotalCountByProjectID(projectID int64) (int64, *utils.GenericError)
 	GetJobsTotalCount() (int64, *utils.GenericError)
@@ -184,6 +185,57 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 		if rows.Err() != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, rows.Err().Error())
 		}
+	}
+
+	return jobs, nil
+}
+
+func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([]models.JobModel, *utils.GenericError) {
+
+	selectBuilder := sq.Select(
+		JobsIdColumn,
+		ProjectIdColumn,
+		SpecColumn,
+		CallbackURLColumn,
+		ExecutionTypeColumn,
+		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
+		DataColumn,
+	).
+		From(JobsTableName).
+		Where(fmt.Sprintf("%s BETWEEN ? and ?", JobsIdColumn), lowerBound, upperBound).
+		RunWith(jobRepo.store.SQLDbConnection)
+
+	rows, err := selectBuilder.Query()
+	if err != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+	defer rows.Close()
+
+	jobs := []models.JobModel{}
+	for rows.Next() {
+		job := models.JobModel{}
+		var dataString string
+		scanErr := rows.Scan(
+			&job.ID,
+			&job.ProjectID,
+			&job.Spec,
+			&job.CallbackUrl,
+			&job.ExecutionType,
+			&dataString,
+			&job.Data,
+		)
+		t, errParse := dateparse.ParseLocal(dataString)
+		if errParse != nil {
+			return nil, utils.HTTPGenericError(500, errParse.Error())
+		}
+		job.DateCreated = t
+		if scanErr != nil {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, scanErr.Error())
+		}
+		jobs = append(jobs, job)
+	}
+	if rows.Err() != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, rows.Err().Error())
 	}
 
 	return jobs, nil
@@ -373,14 +425,14 @@ func (jobRepo *jobRepo) GetJobsPaginated(projectID int64, offset int64, limit in
 }
 
 // BatchInsertJobs inserts n number of jobs
-func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *utils.GenericError) {
+func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]int64, *utils.GenericError) {
 	batches := make([][]models.JobModel, 0)
 
-	if len(jobRepos) > constants.JobMaxBatchSize {
+	if len(jobs) > constants.JobMaxBatchSize {
 		temp := make([]models.JobModel, 0)
 		count := 0
-		for count < len(jobRepos) {
-			temp = append(temp, jobRepos[count])
+		for count < len(jobs) {
+			temp = append(temp, jobs[count])
 			if len(temp) == constants.JobMaxBatchSize {
 				batches = append(batches, temp)
 				temp = make([]models.JobModel, 0)
@@ -392,12 +444,12 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 			temp = make([]models.JobModel, 0)
 		}
 	} else {
-		batches = append(batches, jobRepos)
+		batches = append(batches, jobs)
 	}
 
 	returningIds := []int64{}
 
-	for _, batchRepo := range batches {
+	for _, batch := range batches {
 		query := fmt.Sprintf("INSERT INTO jobs (%s, %s, %s, %s, %s, %s) VALUES ",
 			ProjectIdColumn,
 			SpecColumn,
@@ -409,7 +461,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 		params := []interface{}{}
 		ids := []int64{}
 
-		for i, job := range batchRepo {
+		for i, job := range batch {
 			query += fmt.Sprint("(?, ?, ?, ?, ?, ?)")
 			job.DateCreated = time.Now().UTC()
 			params = append(params,
@@ -421,7 +473,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 				job.Data,
 			)
 
-			if i < len(batchRepo)-1 {
+			if i < len(batch)-1 {
 				query += ","
 			}
 		}
@@ -439,7 +491,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *u
 
 		lastInsertedId := res.Data[0].(int64)
 
-		for i := lastInsertedId - int64(len(batchRepo)) + 1; i <= lastInsertedId; i++ {
+		for i := lastInsertedId - int64(len(batch)) + 1; i <= lastInsertedId; i++ {
 			ids = append(ids, i)
 		}
 
