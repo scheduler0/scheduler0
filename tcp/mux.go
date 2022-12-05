@@ -38,7 +38,6 @@ func (mux *Mux) Serve() error {
 		// If it returns a temporary error then simply retry.
 		// If it returns any other error then exit immediately.
 		conn, err := mux.ln.Accept()
-		mux.logger.Println("Accepted Connection")
 		if err, ok := err.(interface {
 			Temporary() bool
 		}); ok && err.Temporary() {
@@ -47,7 +46,7 @@ func (mux *Mux) Serve() error {
 		if err != nil {
 			// Wait for all connections to be demuxed
 			mux.wg.Wait()
-			mux.logger.Println("Closing connection due to error", err.Error())
+			mux.logger.Println("closing connection due to error", err.Error())
 
 			for _, ln := range mux.m {
 				close(ln.c)
@@ -116,7 +115,7 @@ func (mux *Mux) handleConn(conn net.Conn) {
 	defer mux.wg.Done()
 	// Set a read deadline so connections with no data don't timeout.
 	if err := conn.SetReadDeadline(time.Now().Add(DefaultTimeout)); err != nil {
-		mux.logger.Println("Closing connection due to error", err.Error())
+		mux.logger.Println("closing connection due to error", err.Error())
 		conn.Close()
 		return
 	}
@@ -124,14 +123,14 @@ func (mux *Mux) handleConn(conn net.Conn) {
 	// Read first byte from connection to determine handler.
 	var typ [1]byte
 	if _, err := io.ReadFull(conn, typ[:]); err != nil {
-		mux.logger.Println("Closing connection due to error", err.Error())
+		mux.logger.Println("closing connection due to error", err.Error())
 		conn.Close()
 		return
 	}
 
 	// Reset read deadline and let the listener handle that.
 	if err := conn.SetReadDeadline(time.Time{}); err != nil {
-		mux.logger.Println("Closing connection due to error", err.Error())
+		mux.logger.Println("closing connection due to error", err.Error())
 		conn.Close()
 		return
 	}
@@ -139,12 +138,11 @@ func (mux *Mux) handleConn(conn net.Conn) {
 	// Retrieve handler based on first byte.
 	handler := mux.m[typ[0]]
 	if handler == nil {
-		mux.logger.Println("Closing connection due to error because no handler for ", conn.RemoteAddr().String())
+		mux.logger.Println("closing connection due to error because no handler for ", conn.RemoteAddr().String())
 		conn.Close()
 		return
 	}
 
-	mux.logger.Println("Sending connection to handler")
 	// Send connection to handler.  The handler is responsible for closing the connection.
 	handler.c <- conn
 }
@@ -161,7 +159,6 @@ func (ln *listener) Accept() (c net.Conn, err error) {
 	if !ok {
 		return nil, errors.New("network connection closed")
 	}
-	ln.logger.Println("Accepted Connection")
 	return conn, nil
 }
 
