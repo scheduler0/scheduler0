@@ -1,9 +1,9 @@
 package controllers
 
 import (
-	"github.com/hashicorp/raft"
 	"log"
 	"net/http"
+	"scheduler0/fsm"
 	"scheduler0/utils"
 )
 
@@ -12,8 +12,8 @@ type HealthCheckController interface {
 }
 
 type healthCheckController struct {
-	raft   *raft.Raft
-	logger *log.Logger
+	fsmStore *fsm.Store
+	logger   *log.Logger
 }
 
 type healthCheckRes struct {
@@ -22,19 +22,19 @@ type healthCheckRes struct {
 	RaftStats     map[string]string `json:"raftStats"`
 }
 
-func NewHealthCheckController(logger *log.Logger, rft *raft.Raft) HealthCheckController {
+func NewHealthCheckController(logger *log.Logger, fsmStore *fsm.Store) HealthCheckController {
 	return &healthCheckController{
-		raft:   rft,
-		logger: logger,
+		fsmStore: fsmStore,
+		logger:   logger,
 	}
 }
 
 func (controller *healthCheckController) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	leaderAddress, leaderId := controller.raft.LeaderWithID()
+	leaderAddress, leaderId := controller.fsmStore.Raft.LeaderWithID()
 	res := healthCheckRes{
 		LeaderAddress: string(leaderAddress),
 		LeaderId:      string(leaderId),
-		RaftStats:     controller.raft.Stats(),
+		RaftStats:     controller.fsmStore.Raft.Stats(),
 	}
 	utils.SendJSON(w, res, true, http.StatusOK, nil)
 }

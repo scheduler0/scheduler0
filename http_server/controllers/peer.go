@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"encoding/json"
-	"github.com/hashicorp/raft"
 	"io"
 	"log"
 	"net/http"
 	"scheduler0/config"
+	"scheduler0/fsm"
 	"scheduler0/headers"
 	"scheduler0/models"
 	"scheduler0/node"
@@ -20,20 +20,20 @@ type PeerController interface {
 }
 
 type peerController struct {
-	raft       *raft.Raft
+	fsmStore   *fsm.Store
 	logger     *log.Logger
 	peer       *node.Node
 	Dispatcher *workers.Dispatcher
 }
 
-func NewPeerController(logger *log.Logger, rft *raft.Raft, peer *node.Node) PeerController {
+func NewPeerController(logger *log.Logger, fsmStore *fsm.Store, peer *node.Node) PeerController {
 	controller := peerController{
-		raft:   rft,
-		logger: logger,
-		peer:   peer,
+		fsmStore: fsmStore,
+		logger:   logger,
+		peer:     peer,
 	}
 
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 	controller.Dispatcher = workers.NewDispatcher(
 		int64(configs.IncomingRequestMaxWorkers),
 		int64(configs.IncomingRequestMaxQueue),
@@ -51,10 +51,10 @@ func NewPeerController(logger *log.Logger, rft *raft.Raft, peer *node.Node) Peer
 }
 
 func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Request) {
-	configs := config.GetScheduler0Configurations(controller.logger)
+	configs := config.Configurations(controller.logger)
 
 	res := node.Res{
-		IsLeader: configs.Bootstrap == "true",
+		IsLeader: configs.Bootstrap,
 	}
 
 	utils.SendJSON(w, res, true, http.StatusOK, nil)
