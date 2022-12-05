@@ -1,6 +1,7 @@
 package fsm
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -25,7 +26,7 @@ type Store struct {
 	logger          *log.Logger
 	SQLDbConnection *sql.DB
 	Raft            *raft.Raft
-	PendingJobs     chan []models.JobModel
+	PendingJobs     chan []int64
 	PrepareJobs     chan models.JobStateLog
 	CommitJobs      chan models.JobStateLog
 	ErrorJobs       chan models.JobStateLog
@@ -45,7 +46,7 @@ func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB, logger *log.Logger) *
 	return &Store{
 		SqliteDB:        db,
 		SQLDbConnection: sqlDbConnection,
-		PendingJobs:     make(chan []models.JobModel, 100),
+		PendingJobs:     make(chan []int64, 1),
 		PrepareJobs:     make(chan models.JobStateLog, 1),
 		CommitJobs:      make(chan models.JobStateLog, 1),
 		StopAllJobs:     make(chan bool, 1),
@@ -99,7 +100,7 @@ func ApplyCommand(
 	l *raft.Log,
 	SQLDbConnection *sql.DB,
 	useQueues bool,
-	queue chan []models.JobModel,
+	queue chan []int64,
 	prepareQueue chan models.JobStateLog,
 	commitQueue chan models.JobStateLog,
 	errorQueue chan models.JobStateLog,
@@ -115,11 +116,11 @@ func ApplyCommand(
 
 	command := &protobuffs.Command{}
 
-	err := marsher.UnmarshalCommand(l.Data, command)
-	if err != nil {
-		logger.Fatal("failed to unmarshal command", err.Error())
+	marsherErr := marsher.UnmarshalCommand(l.Data, command)
+	if marsherErr != nil {
+		logger.Fatal("failed to unmarshal command", marsherErr.Error())
 	}
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 
 	switch command.Type {
 	case protobuffs.Command_Type(constants.CommandTypeDbExecute):
@@ -131,9 +132,41 @@ func ApplyCommand(
 				Error: err.Error(),
 			}
 		}
-		exec, err := SQLDbConnection.Exec(command.Sql, params...)
+		ctx := context.Background()
+		tx, err := SQLDbConnection.BeginTx(ctx, nil)
 		if err != nil {
-			logger.Println(err.Error())
+			logger.Println("failed to execute sql command", err.Error())
+			return Response{
+				Data:  nil,
+				Error: err.Error(),
+			}
+		}
+
+		if utils.MonitorMemoryUsage(logger) {
+			return Response{
+				Data:  nil,
+				Error: "out of memory",
+			}
+		}
+
+		exec, err := tx.Exec(command.Sql, params...)
+		if err != nil {
+			logger.Println("failed to execute sql command", err.Error())
+			err := tx.Rollback()
+			if err != nil {
+				return Response{
+					Data:  nil,
+					Error: err.Error(),
+				}
+			}
+			return Response{
+				Data:  nil,
+				Error: err.Error(),
+			}
+		}
+
+		err = tx.Commit()
+		if err != nil {
 			return Response{
 				Data:  nil,
 				Error: err.Error(),
@@ -142,7 +175,14 @@ func ApplyCommand(
 
 		lastInsertedId, err := exec.LastInsertId()
 		if err != nil {
-			logger.Println(err.Error())
+			logger.Println("failed to get last ", err.Error())
+			rollBackErr := tx.Rollback()
+			if rollBackErr != nil {
+				return Response{
+					Data:  nil,
+					Error: rollBackErr.Error(),
+				}
+			}
 			return Response{
 				Data:  nil,
 				Error: err.Error(),
@@ -151,6 +191,13 @@ func ApplyCommand(
 		rowsAffected, err := exec.RowsAffected()
 		if err != nil {
 			logger.Println(err.Error())
+			rollBackErr := tx.Rollback()
+			if rollBackErr != nil {
+				return Response{
+					Data:  nil,
+					Error: rollBackErr.Error(),
+				}
+			}
 			return Response{
 				Data:  nil,
 				Error: err.Error(),
@@ -164,17 +211,18 @@ func ApplyCommand(
 		}
 	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
 		if command.Sql == configs.RaftAddress && useQueues {
-			jobs := []models.JobModel{}
-			err := json.Unmarshal(command.Data, &jobs)
+			jobIds := []interface{}{}
+			err := json.Unmarshal(command.Data, &jobIds)
 			if err != nil {
 				return Response{
 					Data:  nil,
 					Error: err.Error(),
 				}
 			}
-
-			logger.Println(fmt.Sprintf("received %v jobs to queue", len(jobs)))
-			queue <- jobs
+			lowerBound := jobIds[0].(float64)
+			upperBound := jobIds[1].(float64)
+			logger.Println(fmt.Sprintf("received  jobs %v to %v to queue", lowerBound, upperBound))
+			queue <- []int64{int64(lowerBound), int64(upperBound)}
 		}
 		break
 	case protobuffs.Command_Type(constants.CommandTypePrepareJobExecutions):
