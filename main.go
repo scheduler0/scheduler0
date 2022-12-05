@@ -1,10 +1,10 @@
 package main
 
 import (
-	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
 	"scheduler0/cmd"
+	_ "scheduler0/sqlite3"
 )
 
 func main() {
