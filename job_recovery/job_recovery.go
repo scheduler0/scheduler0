@@ -34,7 +34,7 @@ func (jobRecovery *JobRecovery) Run() {
 	defer jobRecovery.mtx.Unlock()
 
 	jobRecovery.logger.Println("recovering jobs.")
-	configs := config.GetScheduler0Configurations(jobRecovery.logger)
+	configs := config.Configurations(jobRecovery.logger)
 	jobsStates := jobRecovery.jobExecutor.GetJobLogsForServer(fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
 
 	jobsIds := []int64{}
@@ -68,7 +68,7 @@ func (jobRecovery *JobRecovery) Run() {
 				jobRecovery.jobExecutor.LogJobExecutionStateOnLeader([]models.JobModel{j}, constants.CommandTypePrepareJobExecutions)
 			}(job, executionTime)
 		} else {
-			jobRecovery.jobExecutor.Run([]models.JobModel{job})
+			jobRecovery.jobExecutor.Schedule([]models.JobModel{job})
 		}
 		jobRecovery.recoveredJobs = append(jobRecovery.recoveredJobs, job)
 	}
@@ -77,10 +77,15 @@ func (jobRecovery *JobRecovery) Run() {
 func (jobRecovery *JobRecovery) HandlePrepare(jobState models.JobStateLog) {
 	jobRecovery.mtx.Lock()
 	defer jobRecovery.mtx.Unlock()
+
+	configs := config.Configurations(jobRecovery.logger)
+	if jobState.ServerAddress != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
+		return
+	}
+
 	for _, job := range jobState.Data {
 		if jobRecovery.IsRecovered(job.ID) {
-			jobProcess := jobRecovery.jobExecutor.AddNewProcess(job)
-			jobRecovery.jobExecutor.ExecutePendingJobs([]*models.JobProcess{jobProcess})
+			jobRecovery.jobExecutor.AddNewProcess(job, jobState.ExecutionTime)
 			jobRecovery.RemoveJobRecovery(job.ID)
 		}
 	}

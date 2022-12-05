@@ -14,6 +14,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"runtime"
 	"scheduler0/config"
 	"unsafe"
 )
@@ -120,7 +121,7 @@ func BytesFromSnapshot(rc io.ReadCloser) ([]byte, error) {
 }
 
 func GetNodeIPWithRaftAddress(logger *log.Logger, raftAddress string) string {
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 
 	for _, replica := range configs.Replicas {
 		if replica.RaftAddress == raftAddress {
@@ -129,4 +130,21 @@ func GetNodeIPWithRaftAddress(logger *log.Logger, raftAddress string) string {
 	}
 
 	return ""
+}
+
+func bToMb(b uint64) uint64 {
+	return b / 1024 / 1024
+}
+
+func MonitorMemoryUsage(logger *log.Logger) bool {
+	configs := config.Configurations(logger)
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	if bToMb(m.TotalAlloc) >= uint64(configs.MaxMemory) {
+		logger.Println("max memory reached cannot schedule jobs ", configs.MaxMemory, " MB, total allocated money", bToMb(m.TotalAlloc), "MB")
+		return true
+	}
+
+	return false
 }

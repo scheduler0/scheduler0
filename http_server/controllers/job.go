@@ -36,7 +36,7 @@ func NewJoBHTTPController(logger *log.Logger, jobService service.Job, projectSer
 		logger:         logger,
 	}
 
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 	controller.Dispatcher = workers.NewDispatcher(
 		int64(configs.IncomingRequestMaxWorkers),
 		int64(configs.IncomingRequestMaxQueue),

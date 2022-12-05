@@ -105,7 +105,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *node.Node) func(nex
 			}
 
 			if !peer.AcceptWrites && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
-				configs := config.GetScheduler0Configurations(m.logger)
+				configs := config.Configurations(m.logger)
 				serverAddr, _ := peer.FsmStore.Raft.LeaderWithID()
 
 				redirectUrl := ""
