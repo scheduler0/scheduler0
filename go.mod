@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/raft v1.3.11
 	github.com/hashicorp/raft-boltdb/v2 v2.2.2
 	github.com/manifoldco/promptui v0.8.0
-	github.com/mattn/go-sqlite3 v2.0.3+incompatible
+	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/robfig/cron v1.2.0
 	github.com/segmentio/ksuid v1.0.3
 	github.com/spf13/afero v1.1.2
