@@ -201,14 +201,28 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]mod
 		return []models.ProjectModel{}, nil
 	}
 
-	projectIdsArgs := []interface{}{projectIds[0]}
+	cachedProjectIds := map[int64]int64{}
+
+	// TODO: batch project ids retrieval
+	for _, projectId := range projectIds {
+		if _, ok := cachedProjectIds[projectId]; !ok {
+			cachedProjectIds[projectId] = projectId
+		}
+	}
+
+	ids := []int64{}
+	for _, projectId := range cachedProjectIds {
+		ids = append(ids, projectId)
+	}
+
+	projectIdsArgs := []interface{}{ids[0]}
 	idParams := "?"
 
 	i := 0
-	for i < len(projectIds)-1 {
+	for i < len(ids)-1 {
 		idParams += ",?"
 		i += 1
-		projectIdsArgs = append(projectIdsArgs, projectIds[i])
+		projectIdsArgs = append(projectIdsArgs, ids[i])
 	}
 
 	selectBuilder := sq.Select(
