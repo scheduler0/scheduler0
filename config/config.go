@@ -28,7 +28,7 @@ type Scheduler0Configurations struct {
 	PeerConnectRetryMax                            int        `json:"peerConnectRetryMax" yaml:"PeerConnectRetryMax"`
 	PeerConnectRetryDelay                          int        `json:"peerConnectRetryDelay" yaml:"PeerConnectRetryDelay"`
 	StableRaftStateTimeout                         int        `json:"stableRaftStateTimeout" yaml:"StableRaftStateTimeout"`
-	Bootstrap                                      string     `json:"bootstrap" yaml:"Bootstrap"`
+	Bootstrap                                      bool       `json:"bootstrap" yaml:"Bootstrap"`
 	NodeId                                         string     `json:"nodeId" yaml:"NodeId"`
 	RaftAddress                                    string     `json:"raftAddress" yaml:"RaftAddress"`
 	RaftTransportMaxPool                           string     `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`
@@ -49,12 +49,14 @@ type Scheduler0Configurations struct {
 	IncomingRequestMaxQueue                        int        `json:"incomingRequestMaxQueue" yaml:"IncomingRequestMaxQueue"`
 	ExecutionRequestMaxWorkers                     int        `json:"executionRequestMaxWorkers" yaml:"ExecutionRequestMaxWorkers"`
 	ExecutionRequestMaxQueue                       int        `json:"executionRequestMaxQueue" yaml:"ExecutionRequestMaxQueue"`
+	JobPrepareDebounceDelay                        int        `json:"jobPrepareDebounceDelay" yaml:"JobPrepareDebounceDelay"`
+	MaxMemory                                      int64      `json:"maxMemory" yaml:"MaxMemory"`
 }
 
 var cachedConfig *Scheduler0Configurations
 
-// GetScheduler0Configurations this will retrieve scheduler0 configurations stored on disk
-func GetScheduler0Configurations(logger *log.Logger) *Scheduler0Configurations {
+// Configurations this will retrieve scheduler0 configurations stored on disk
+func Configurations(logger *log.Logger) *Scheduler0Configurations {
 	if cachedConfig != nil {
 		return cachedConfig
 	}

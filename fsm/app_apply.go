@@ -35,7 +35,7 @@ func AppApply(logger *log.Logger, rft *raft.Raft, commandType constants.Command,
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := config.GetScheduler0Configurations(logger)
+	configs := config.Configurations(logger)
 
 	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
 	if err != nil {
