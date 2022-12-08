@@ -133,7 +133,7 @@ Note that the Port is optional. By default the server will use :9090
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 		logger.Println("Initializing Scheduler0 Configuration")
 
-		config := config.Configurations(logger)
+		config := config.GetConfigurations(logger)
 
 		if config.Port == "" {
 			portPrompt := promptui.Prompt{
@@ -179,7 +179,7 @@ Use the --show-password flag if you want the password to be visible.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
-		configs := config.Configurations(logger)
+		configs := config.GetConfigurations(logger)
 		logger.Println("Configurations:")
 		logger.Println("NodeId:", configs.NodeId)
 		logger.Println("Bootstrap:", configs.Bootstrap)

@@ -49,7 +49,7 @@ func Start() {
 	ctx := context.Background()
 	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
 
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 
 	dbConnection, sqliteDb := getDBConnection(logger)
 	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
@@ -116,7 +116,7 @@ func Start() {
 
 	// Node Endpoints
 	router.HandleFunc("/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
-	router.HandleFunc("/execution-logs", peerController.ExecutionLogs).Methods(http.MethodPost)
+	router.HandleFunc("/execution-logs", peerController.ExecutionLogs).Methods(http.MethodGet)
 
 	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 

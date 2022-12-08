@@ -66,7 +66,7 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, pe
 			batches = append(batches, uJc)
 		}
 
-		configs := config.Configurations(httpExecutor.logger)
+		configs := config.GetConfigurations(httpExecutor.logger)
 
 		for _, batch := range batches {
 			go func(url string, b []models.JobModel) {

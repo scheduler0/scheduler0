@@ -33,7 +33,7 @@ func NewPeerController(logger *log.Logger, fsmStore *fsm.Store, peer *node.Node)
 		peer:     peer,
 	}
 
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 	controller.Dispatcher = workers.NewDispatcher(
 		int64(configs.IncomingRequestMaxWorkers),
 		int64(configs.IncomingRequestMaxQueue),
@@ -51,7 +51,7 @@ func NewPeerController(logger *log.Logger, fsmStore *fsm.Store, peer *node.Node)
 }
 
 func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Request) {
-	configs := config.Configurations(controller.logger)
+	configs := config.GetConfigurations(controller.logger)
 
 	res := node.Res{
 		IsLeader: configs.Bootstrap,

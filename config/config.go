@@ -51,12 +51,15 @@ type Scheduler0Configurations struct {
 	ExecutionRequestMaxQueue                       int        `json:"executionRequestMaxQueue" yaml:"ExecutionRequestMaxQueue"`
 	JobPrepareDebounceDelay                        int        `json:"jobPrepareDebounceDelay" yaml:"JobPrepareDebounceDelay"`
 	MaxMemory                                      int64      `json:"maxMemory" yaml:"MaxMemory"`
+	ExecutionLogFetchFanOut                        int64      `json:"executionLogFetchFanOut" yaml:"ExecutionLogFetchFanOut"`
+	ExecutionLogFetchInterval                      int64      `json:"executionLogFetchInterval" yaml:"ExecutionLogFetchInterval"`
+	JobInvocationDebounceDelay                     int64      `json:"jobInvocationDebounceDelay" yaml:"JobInvocationDebounceDelay"`
 }
 
 var cachedConfig *Scheduler0Configurations
 
-// Configurations this will retrieve scheduler0 configurations stored on disk
-func Configurations(logger *log.Logger) *Scheduler0Configurations {
+// GetConfigurations this will retrieve scheduler0 configurations stored on disk
+func GetConfigurations(logger *log.Logger) *Scheduler0Configurations {
 	if cachedConfig != nil {
 		return cachedConfig
 	}

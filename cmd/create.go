@@ -32,7 +32,7 @@ var credentialCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 
-		configs := config.Configurations(logger)
+		configs := config.GetConfigurations(logger)
 		credentials := secrets.GetSecrets(logger)
 
 		credentialModel := models.CredentialModel{}

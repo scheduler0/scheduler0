@@ -87,8 +87,7 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 		jobQ.minId = jobs[0].ID
 	}
 
-	configs := config.Configurations(jobQ.logger)
-
+	configs := config.GetConfigurations(jobQ.logger)
 	jobQ.threshold = time.Now().Add(time.Duration(configs.JobPrepareDebounceDelay) * time.Second)
 
 	jobQ.once.Do(func() {
@@ -129,12 +128,13 @@ func (jobQ *jobQueue) queue(minId, maxId int64) {
 		return
 	}
 
+	configs := config.GetConfigurations(jobQ.logger)
+
 	if len(jobQ.allocations) == 1 {
-		jobQ.Executor.Run([]int64{minId, maxId})
+		jobQ.Executor.QueueExecutions([]interface{}{configs.RaftAddress, minId, maxId})
 		return
 	}
 
-	configs := config.Configurations(jobQ.logger)
 	batchRanges := [][]int64{}
 
 	numberOfServers := len(jobQ.allocations) - 1
