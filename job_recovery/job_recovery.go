@@ -5,7 +5,6 @@ import (
 	"github.com/robfig/cron"
 	"log"
 	"scheduler0/config"
-	"scheduler0/constants"
 	"scheduler0/job_executor"
 	models "scheduler0/models"
 	"scheduler0/repository"
@@ -34,7 +33,7 @@ func (jobRecovery *JobRecovery) Run() {
 	defer jobRecovery.mtx.Unlock()
 
 	jobRecovery.logger.Println("recovering jobs.")
-	configs := config.Configurations(jobRecovery.logger)
+	configs := config.GetConfigurations(jobRecovery.logger)
 	jobsStates := jobRecovery.jobExecutor.GetJobLogsForServer(fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
 
 	jobsIds := []int64{}
@@ -63,10 +62,7 @@ func (jobRecovery *JobRecovery) Run() {
 		job.LastExecutionDate = jobState.Data[0].LastExecutionDate
 		if now.Before(executionTime) {
 			jobRecovery.logger.Println("quick recovered job", job.ID, job.ExecutionId)
-			go func(j models.JobModel, e time.Time) {
-				time.Sleep(e.Sub(now))
-				jobRecovery.jobExecutor.LogJobExecutionStateOnLeader([]models.JobModel{j}, constants.CommandTypePrepareJobExecutions)
-			}(job, executionTime)
+			jobRecovery.jobExecutor.AddNewProcess(job, executionTime)
 		} else {
 			jobRecovery.jobExecutor.Schedule([]models.JobModel{job})
 		}
@@ -74,25 +70,25 @@ func (jobRecovery *JobRecovery) Run() {
 	}
 }
 
-func (jobRecovery *JobRecovery) HandlePrepare(jobState models.JobStateLog) {
+func (jobRecovery *JobRecovery) RecoverAndScheduleJob(jobState models.JobStateLog) {
 	jobRecovery.mtx.Lock()
 	defer jobRecovery.mtx.Unlock()
 
-	configs := config.Configurations(jobRecovery.logger)
+	configs := config.GetConfigurations(jobRecovery.logger)
 	if jobState.ServerAddress != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
 		return
 	}
 
 	for _, job := range jobState.Data {
-		if jobRecovery.IsRecovered(job.ID) {
+		if jobRecovery.isRecovered(job.ID) {
 			jobRecovery.jobExecutor.AddNewProcess(job, jobState.ExecutionTime)
-			jobRecovery.RemoveJobRecovery(job.ID)
+			jobRecovery.removeJobRecovery(job.ID)
 		}
 	}
 }
 
-// IsRecovered Check if a job is in recovered job queues
-func (jobRecovery *JobRecovery) IsRecovered(jobID int64) bool {
+// isRecovered Check if a job is in recovered job queues
+func (jobRecovery *JobRecovery) isRecovered(jobID int64) bool {
 	for _, recoveredJob := range jobRecovery.recoveredJobs {
 		if recoveredJob.ID == jobID {
 			return true
@@ -102,8 +98,8 @@ func (jobRecovery *JobRecovery) IsRecovered(jobID int64) bool {
 	return false
 }
 
-// GetRecovery Returns recovery object
-func (jobRecovery *JobRecovery) GetRecovery(jobID int64) *models.JobModel {
+// getRecovery Returns recovery object
+func (jobRecovery *JobRecovery) getRecovery(jobID int64) *models.JobModel {
 	for _, recoveredJob := range jobRecovery.recoveredJobs {
 		if recoveredJob.ID == jobID {
 			return &recoveredJob
@@ -113,8 +109,8 @@ func (jobRecovery *JobRecovery) GetRecovery(jobID int64) *models.JobModel {
 	return nil
 }
 
-// RemoveJobRecovery Removes a recovery object
-func (jobRecovery *JobRecovery) RemoveJobRecovery(jobID int64) {
+// removeJobRecovery Removes a recovery object
+func (jobRecovery *JobRecovery) removeJobRecovery(jobID int64) {
 	jobIndex := -1
 
 	for index, recoveredJob := range jobRecovery.recoveredJobs {
