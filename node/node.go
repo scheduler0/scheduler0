@@ -56,22 +56,22 @@ const (
 )
 
 type Node struct {
-	Tm           *raft.NetworkTransport
-	Ldb          *boltdb.BoltStore
-	Sdb          *boltdb.BoltStore
-	Fss          *raft.FileSnapshotStore
-	logger       *log.Logger
-	mtx          sync.Mutex
-	AcceptWrites bool
-	State        State
-	FsmStore     *fsm.Store
-	jobProcessor *job_processor.JobProcessor
-	jobQueue     job_queue.JobQueue
-	jobExecutor  *job_executor.JobExecutor
-	jobRecovery  *job_recovery.JobRecovery
-	jobRepo      repository.Job
-	projectRepo  repository.Project
-	ExistingNode bool
+	Tm             *raft.NetworkTransport
+	Ldb            *boltdb.BoltStore
+	Sdb            *boltdb.BoltStore
+	Fss            *raft.FileSnapshotStore
+	logger         *log.Logger
+	mtx            sync.Mutex
+	AcceptWrites   bool
+	State          State
+	FsmStore       *fsm.Store
+	jobProcessor   *job_processor.JobProcessor
+	jobQueue       job_queue.JobQueue
+	jobExecutor    *job_executor.JobExecutor
+	jobRecovery    *job_recovery.JobRecovery
+	jobRepo        repository.Job
+	projectRepo    repository.Project
+	isExistingNode bool
 }
 
 func NewNode(
@@ -86,7 +86,7 @@ func NewNode(
 	defer logger.SetPrefix(logPrefix)
 	dirPath := fmt.Sprintf("%v", constants.RaftDir)
 	dirPath, exists := utils.MakeDirIfNotExist(logger, dirPath)
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 	dirPath = fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	utils.MakeDirIfNotExist(logger, dirPath)
 	tm, ldb, sdb, fss, err := getLogsAndTransport(logger)
@@ -95,43 +95,40 @@ func NewNode(
 	}
 
 	return &Node{
-		Tm:           tm,
-		Ldb:          ldb,
-		Sdb:          sdb,
-		Fss:          fss,
-		logger:       logger,
-		AcceptWrites: false,
-		State:        Cold,
-		jobProcessor: job_processor.NewJobProcessor(jobRepo, projectRepo, jobQueue, logger),
-		jobQueue:     jobQueue,
-		jobExecutor:  jobExecutor,
-		jobRepo:      jobRepo,
-		projectRepo:  projectRepo,
-		jobRecovery:  job_recovery.NewJobRecovery(logger, jobRepo, jobExecutor),
-		ExistingNode: exists,
+		Tm:             tm,
+		Ldb:            ldb,
+		Sdb:            sdb,
+		Fss:            fss,
+		logger:         logger,
+		AcceptWrites:   false,
+		State:          Cold,
+		jobProcessor:   job_processor.NewJobProcessor(jobRepo, projectRepo, jobQueue, logger),
+		jobQueue:       jobQueue,
+		jobExecutor:    jobExecutor,
+		jobRepo:        jobRepo,
+		projectRepo:    projectRepo,
+		jobRecovery:    job_recovery.NewJobRecovery(logger, jobRepo, jobExecutor),
+		isExistingNode: exists,
 	}
 }
 
 func (p *Node) Boostrap(fsmStr *fsm.Store) {
 	p.State = Bootstrapping
-	if p.ExistingNode {
+	if p.isExistingNode {
 		p.logger.Println("discovered existing raft dir")
 		p.recoverRaftState()
 	}
 
-	configs := config.Configurations(p.logger)
+	configs := config.GetConfigurations(p.logger)
 	rft := p.newRaft(fsmStr)
-	if configs.Bootstrap && !p.ExistingNode {
+	if configs.Bootstrap && !p.isExistingNode {
 		p.bootstrapRaftCluster(rft)
 	}
 	fsmStr.Raft = rft
 	p.FsmStore = fsmStr
 	p.jobExecutor.Raft = fsmStr.Raft
-	if p.ExistingNode {
-		p.jobRecovery.Run()
-	}
 	go p.handleLeaderChange()
-	go p.jobExecutor.ListenToChannelsUpdates()
+	go p.jobExecutor.ListenOnInvocationChannels()
 	p.listenOnInputQueues(fsmStr)
 }
 
@@ -158,7 +155,7 @@ func (p *Node) newRaft(fsm raft.FSM) *raft.Raft {
 	logPrefix := p.logger.Prefix()
 	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node-raft] ", logPrefix))
 	defer p.logger.SetPrefix(logPrefix)
-	configs := config.Configurations(p.logger)
+	configs := config.GetConfigurations(p.logger)
 
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(configs.NodeId)
@@ -304,7 +301,7 @@ func (p *Node) recoverRaftState() raft.Configuration {
 func (p *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]Status {
 	p.logger.Println("Authenticating with node...")
 
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 	var wg sync.WaitGroup
 
 	results := map[string]Status{}
@@ -340,11 +337,7 @@ func (p *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]Stat
 func (p *Node) handleLeaderChange() {
 	select {
 	case <-p.FsmStore.Raft.LeaderCh():
-		p.jobExecutor.StopAll()
-		configuration := p.FsmStore.Raft.GetConfiguration().Configuration()
-		servers := configuration.Servers
-		p.jobQueue.RemoveServers(servers)
-		p.jobQueue.AddServers(servers)
+		p.AcceptWrites = false
 		_, applyErr := fsm.AppApply(
 			p.logger,
 			p.FsmStore.Raft,
@@ -352,11 +345,19 @@ func (p *Node) handleLeaderChange() {
 			"",
 			nil,
 		)
+		configuration := p.FsmStore.Raft.GetConfiguration().Configuration()
+		servers := configuration.Servers
+		p.jobQueue.RemoveServers(servers)
+		p.jobQueue.AddServers(servers)
 		if applyErr != nil {
 			p.logger.Fatalln("failed to apply job update states ", applyErr)
 		}
 		p.logger.Println("starting jobs")
-		p.jobProcessor.StartJobs()
+		if p.isExistingNode && len(servers) == 1 {
+			p.jobRecovery.Run()
+		} else {
+			p.jobProcessor.StartJobs()
+		}
 		p.AcceptWrites = true
 		p.logger.Println("Ready to accept requests")
 	}
@@ -367,18 +368,17 @@ func (p *Node) listenOnInputQueues(fsmStr *fsm.Store) {
 
 	for {
 		select {
-		case pendingJob := <-fsmStr.PendingJobs:
-			p.jobExecutor.Run(pendingJob)
-		case preparedJob := <-fsmStr.PrepareJobs:
-			p.jobExecutor.LogPrepare(preparedJob)
-			p.jobRecovery.HandlePrepare(preparedJob)
-		case commitJob := <-fsmStr.CommitJobs:
-			p.jobExecutor.LogCommit(commitJob)
-		case errorJob := <-fsmStr.ErrorJobs:
-			p.jobExecutor.LogErrors(errorJob)
+		case job := <-fsmStr.QueueJobsChannel:
+			p.jobExecutor.QueueExecutions(job)
+		case job := <-fsmStr.ScheduleJobsChannel:
+			p.jobExecutor.LogJobScheduledExecutions(job, true)
+			p.jobRecovery.RecoverAndScheduleJob(job)
+		case job := <-fsmStr.SuccessfulJobsChannel:
+			p.jobExecutor.LogSuccessfulJobExecutions(job, true)
+		case job := <-fsmStr.FailedJobsChannel:
+			p.jobExecutor.LogFailedJobExecutions(job, true)
 		case _ = <-fsmStr.StopAllJobs:
 			p.jobExecutor.StopAll()
-			p.AcceptWrites = false
 		}
 	}
 }
@@ -387,7 +387,7 @@ func (p *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 	results := p.authenticateWithPeersInConfig(p.logger)
 	servers := []raft.Server{
 		{
@@ -418,7 +418,7 @@ func (p *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 	servers := []raft.Server{
 		{
 			ID:       raft.ServerID(configs.NodeId),
@@ -445,7 +445,7 @@ func (p *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 }
 
 func connectNode(logger *log.Logger, rep config.RaftNode) (*Status, error) {
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 	httpClient := http.Client{
 		Timeout: time.Duration(configs.PeerAuthRequestTimeout) * time.Second,
 	}
@@ -528,7 +528,7 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node-essentials] ", logPrefix))
 	defer logger.SetPrefix(logPrefix)
 
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	_, err = strconv.Atoi(configs.RaftSnapshotInterval)

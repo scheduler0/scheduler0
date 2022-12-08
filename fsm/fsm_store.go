@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/marsher"
@@ -21,16 +20,16 @@ import (
 )
 
 type Store struct {
-	rwMtx           sync.RWMutex
-	SqliteDB        db.DataStore
-	logger          *log.Logger
-	SQLDbConnection *sql.DB
-	Raft            *raft.Raft
-	PendingJobs     chan []int64
-	PrepareJobs     chan models.JobStateLog
-	CommitJobs      chan models.JobStateLog
-	ErrorJobs       chan models.JobStateLog
-	StopAllJobs     chan bool
+	rwMtx                 sync.RWMutex
+	SqliteDB              db.DataStore
+	logger                *log.Logger
+	SQLDbConnection       *sql.DB
+	Raft                  *raft.Raft
+	QueueJobsChannel      chan []interface{}
+	ScheduleJobsChannel   chan models.JobStateLog
+	SuccessfulJobsChannel chan models.JobStateLog
+	FailedJobsChannel     chan models.JobStateLog
+	StopAllJobs           chan bool
 
 	raft.BatchingFSM
 }
@@ -44,13 +43,14 @@ var _ raft.FSM = &Store{}
 
 func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB, logger *log.Logger) *Store {
 	return &Store{
-		SqliteDB:        db,
-		SQLDbConnection: sqlDbConnection,
-		PendingJobs:     make(chan []int64, 1),
-		PrepareJobs:     make(chan models.JobStateLog, 1),
-		CommitJobs:      make(chan models.JobStateLog, 1),
-		StopAllJobs:     make(chan bool, 1),
-		logger:          logger,
+		SqliteDB:              db,
+		SQLDbConnection:       sqlDbConnection,
+		QueueJobsChannel:      make(chan []interface{}, 1),
+		ScheduleJobsChannel:   make(chan models.JobStateLog, 1),
+		SuccessfulJobsChannel: make(chan models.JobStateLog, 1),
+		FailedJobsChannel:     make(chan models.JobStateLog, 1),
+		StopAllJobs:           make(chan bool, 1),
+		logger:                logger,
 	}
 }
 
@@ -63,10 +63,10 @@ func (s *Store) Apply(l *raft.Log) interface{} {
 		l,
 		s.SQLDbConnection,
 		true,
-		s.PendingJobs,
-		s.PrepareJobs,
-		s.CommitJobs,
-		s.ErrorJobs,
+		s.QueueJobsChannel,
+		s.ScheduleJobsChannel,
+		s.SuccessfulJobsChannel,
+		s.FailedJobsChannel,
 		s.StopAllJobs,
 	)
 }
@@ -83,10 +83,10 @@ func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
 			l,
 			s.SQLDbConnection,
 			true,
-			s.PendingJobs,
-			s.PrepareJobs,
-			s.CommitJobs,
-			s.ErrorJobs,
+			s.QueueJobsChannel,
+			s.ScheduleJobsChannel,
+			s.SuccessfulJobsChannel,
+			s.FailedJobsChannel,
 			s.StopAllJobs,
 		)
 		results = append(results, result)
@@ -100,7 +100,7 @@ func ApplyCommand(
 	l *raft.Log,
 	SQLDbConnection *sql.DB,
 	useQueues bool,
-	queue chan []int64,
+	queue chan []interface{},
 	prepareQueue chan models.JobStateLog,
 	commitQueue chan models.JobStateLog,
 	errorQueue chan models.JobStateLog,
@@ -120,8 +120,6 @@ func ApplyCommand(
 	if marsherErr != nil {
 		logger.Fatal("failed to unmarshal command", marsherErr.Error())
 	}
-	configs := config.Configurations(logger)
-
 	switch command.Type {
 	case protobuffs.Command_Type(constants.CommandTypeDbExecute):
 		params := []interface{}{}
@@ -152,16 +150,12 @@ func ApplyCommand(
 		exec, err := tx.Exec(command.Sql, params...)
 		if err != nil {
 			logger.Println("failed to execute sql command", err.Error())
-			err := tx.Rollback()
-			if err != nil {
+			rollBackErr := tx.Rollback()
+			if rollBackErr != nil {
 				return Response{
 					Data:  nil,
 					Error: err.Error(),
 				}
-			}
-			return Response{
-				Data:  nil,
-				Error: err.Error(),
 			}
 		}
 
@@ -210,22 +204,20 @@ func ApplyCommand(
 			Error: "",
 		}
 	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
-		if command.Sql == configs.RaftAddress && useQueues {
-			jobIds := []interface{}{}
-			err := json.Unmarshal(command.Data, &jobIds)
-			if err != nil {
-				return Response{
-					Data:  nil,
-					Error: err.Error(),
-				}
+		jobIds := []interface{}{}
+		err := json.Unmarshal(command.Data, &jobIds)
+		if err != nil {
+			return Response{
+				Data:  nil,
+				Error: err.Error(),
 			}
-			lowerBound := jobIds[0].(float64)
-			upperBound := jobIds[1].(float64)
-			logger.Println(fmt.Sprintf("received  jobs %v to %v to queue", lowerBound, upperBound))
-			queue <- []int64{int64(lowerBound), int64(upperBound)}
 		}
+		lowerBound := jobIds[0].(float64)
+		upperBound := jobIds[1].(float64)
+		logger.Println(fmt.Sprintf("received  jobs %v to %v to queue", lowerBound, upperBound))
+		queue <- []interface{}{command.Sql, int64(lowerBound), int64(upperBound)}
 		break
-	case protobuffs.Command_Type(constants.CommandTypePrepareJobExecutions):
+	case protobuffs.Command_Type(constants.CommandTypeScheduleJobExecutions):
 		if useQueues {
 			jobState := []models.JobStateLog{}
 			err := json.Unmarshal(command.Data, &jobState)
@@ -240,7 +232,7 @@ func ApplyCommand(
 			prepareQueue <- jobState[0]
 		}
 		break
-	case protobuffs.Command_Type(constants.CommandTypeCommitJobExecutions):
+	case protobuffs.Command_Type(constants.CommandTypeSuccessfulJobExecutions):
 		if useQueues {
 			jobState := []models.JobStateLog{}
 			err := json.Unmarshal(command.Data, &jobState)
@@ -255,7 +247,7 @@ func ApplyCommand(
 			commitQueue <- jobState[0]
 		}
 		break
-	case protobuffs.Command_Type(constants.CommandTypeErrorJobExecutions):
+	case protobuffs.Command_Type(constants.CommandTypeFailedJobExecutions):
 		if useQueues {
 			jobState := []models.JobStateLog{}
 			err := json.Unmarshal(command.Data, &jobState)
