@@ -121,7 +121,7 @@ func BytesFromSnapshot(rc io.ReadCloser) ([]byte, error) {
 }
 
 func GetNodeIPWithRaftAddress(logger *log.Logger, raftAddress string) string {
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 
 	for _, replica := range configs.Replicas {
 		if replica.RaftAddress == raftAddress {
@@ -137,7 +137,7 @@ func bToMb(b uint64) uint64 {
 }
 
 func MonitorMemoryUsage(logger *log.Logger) bool {
-	configs := config.Configurations(logger)
+	configs := config.GetConfigurations(logger)
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
