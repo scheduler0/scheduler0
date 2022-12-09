@@ -1,4 +1,4 @@
-package tcp
+package network
 
 import (
 	"github.com/hashicorp/raft"
