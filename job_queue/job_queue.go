@@ -3,13 +3,13 @@ package job_queue
 import (
 	"encoding/json"
 	"github.com/hashicorp/raft"
+	"google.golang.org/protobuf/proto"
 	"log"
 	"math"
 	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/job_executor"
-	"scheduler0/marsher"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
@@ -205,7 +205,7 @@ func (jobQ *jobQueue) queue(minId, maxId int64) {
 			Data: d,
 		}
 
-		createCommandData, err := marsher.MarshalCommand(createCommand)
+		createCommandData, err := proto.Marshal(createCommand)
 		if err != nil {
 			log.Fatalln(err.Error())
 		}
