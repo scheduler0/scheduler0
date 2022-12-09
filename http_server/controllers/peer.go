@@ -7,11 +7,9 @@ import (
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/fsm"
-	"scheduler0/headers"
 	"scheduler0/models"
 	"scheduler0/node"
 	"scheduler0/utils"
-	"scheduler0/workers"
 )
 
 type PeerController interface {
@@ -20,10 +18,9 @@ type PeerController interface {
 }
 
 type peerController struct {
-	fsmStore   *fsm.Store
-	logger     *log.Logger
-	peer       *node.Node
-	Dispatcher *workers.Dispatcher
+	fsmStore *fsm.Store
+	logger   *log.Logger
+	peer     *node.Node
 }
 
 func NewPeerController(logger *log.Logger, fsmStore *fsm.Store, peer *node.Node) PeerController {
@@ -32,21 +29,6 @@ func NewPeerController(logger *log.Logger, fsmStore *fsm.Store, peer *node.Node)
 		logger:   logger,
 		peer:     peer,
 	}
-
-	configs := config.GetConfigurations(logger)
-	controller.Dispatcher = workers.NewDispatcher(
-		int64(configs.IncomingRequestMaxWorkers),
-		int64(configs.IncomingRequestMaxQueue),
-		func(args ...any) {
-			params := args[0].([]interface{})
-			serverAddress := params[0].(string)
-			jobState := params[1].(models.JobStateLog)
-			controller.peer.LogJobsStatePeers(serverAddress, jobState)
-		},
-	)
-
-	controller.Dispatcher.Run()
-
 	return &controller
 }
 
@@ -75,8 +57,6 @@ func (controller *peerController) ExecutionLogs(w http.ResponseWriter, r *http.R
 		utils.SendJSON(w, nil, true, http.StatusUnprocessableEntity, nil)
 		return
 	}
-
-	controller.Dispatcher.InputQueue <- []interface{}{r.Header.Get(headers.PeerAddressHeader), jobsState}
 
 	utils.SendJSON(w, nil, true, http.StatusOK, nil)
 	return
