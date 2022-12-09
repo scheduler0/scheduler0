@@ -23,9 +23,9 @@ import (
 	"scheduler0/job_queue"
 	"scheduler0/job_recovery"
 	"scheduler0/models"
+	"scheduler0/network"
 	"scheduler0/repository"
 	"scheduler0/secrets"
-	tcp2 "scheduler0/tcp"
 	"scheduler0/utils"
 	"strconv"
 	"sync"
@@ -112,95 +112,95 @@ func NewNode(
 	}
 }
 
-func (p *Node) Boostrap(fsmStr *fsm.Store) {
-	p.State = Bootstrapping
-	if p.isExistingNode {
-		p.logger.Println("discovered existing raft dir")
-		p.recoverRaftState()
+func (node *Node) Boostrap(fsmStr *fsm.Store) {
+	node.State = Bootstrapping
+	if node.isExistingNode {
+		node.logger.Println("discovered existing raft dir")
+		node.recoverRaftState()
 	}
 
-	configs := config.GetConfigurations(p.logger)
-	rft := p.newRaft(fsmStr)
-	if configs.Bootstrap && !p.isExistingNode {
-		p.bootstrapRaftCluster(rft)
+	configs := config.GetConfigurations(node.logger)
+	rft := node.newRaft(fsmStr)
+	if configs.Bootstrap && !node.isExistingNode {
+		node.bootstrapRaftCluster(rft)
 	}
 	fsmStr.Raft = rft
-	p.FsmStore = fsmStr
-	p.jobExecutor.Raft = fsmStr.Raft
-	go p.handleLeaderChange()
-	go p.jobExecutor.ListenOnInvocationChannels()
-	p.listenOnInputQueues(fsmStr)
+	node.FsmStore = fsmStr
+	node.jobExecutor.Raft = fsmStr.Raft
+	go node.handleLeaderChange()
+	go node.jobExecutor.ListenOnInvocationChannels()
+	node.listenOnInputQueues(fsmStr)
 }
 
-func (p *Node) LogJobsStatePeers(peerAddress string, jobState models.JobStateLog) {
-	if p.FsmStore.Raft == nil {
-		p.logger.Fatalln("raft is not set on job executors")
+func (node *Node) LogJobsStatePeers(peerAddress string, jobState models.JobStateLog) {
+	if node.FsmStore.Raft == nil {
+		node.logger.Fatalln("raft is not set on job executors")
 	}
 
 	data := []interface{}{jobState}
 
 	_, applyErr := fsm.AppApply(
-		p.logger,
-		p.FsmStore.Raft,
+		node.logger,
+		node.FsmStore.Raft,
 		jobState.State,
 		peerAddress,
 		data,
 	)
 	if applyErr != nil {
-		p.logger.Fatalln("failed to apply job update states ", applyErr)
+		node.logger.Fatalln("failed to apply job update states ", applyErr)
 	}
 }
 
-func (p *Node) newRaft(fsm raft.FSM) *raft.Raft {
-	logPrefix := p.logger.Prefix()
-	p.logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node-raft] ", logPrefix))
-	defer p.logger.SetPrefix(logPrefix)
-	configs := config.GetConfigurations(p.logger)
+func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
+	logPrefix := node.logger.Prefix()
+	node.logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node-raft] ", logPrefix))
+	defer node.logger.SetPrefix(logPrefix)
+	configs := config.GetConfigurations(node.logger)
 
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(configs.NodeId)
 
 	// TODO: Set raft configs in scheduler0 config
 
-	r, err := raft.NewRaft(c, fsm, p.Ldb, p.Sdb, p.Fss, p.Tm)
+	r, err := raft.NewRaft(c, fsm, node.Ldb, node.Sdb, node.Fss, node.Tm)
 	if err != nil {
-		p.logger.Fatalln("failed to create raft object for Node", err)
+		node.logger.Fatalln("failed to create raft object for Node", err)
 	}
 	return r
 }
 
-func (p *Node) bootstrapRaftCluster(r *raft.Raft) {
-	logPrefix := p.logger.Prefix()
-	p.logger.SetPrefix(fmt.Sprintf("%s[boostraping-raft-cluster] ", logPrefix))
-	defer p.logger.SetPrefix(logPrefix)
+func (node *Node) bootstrapRaftCluster(r *raft.Raft) {
+	logPrefix := node.logger.Prefix()
+	node.logger.SetPrefix(fmt.Sprintf("%s[boostraping-raft-cluster] ", logPrefix))
+	defer node.logger.SetPrefix(logPrefix)
 
-	cfg := p.authRaftConfiguration(p.logger)
+	cfg := node.authRaftConfiguration(node.logger)
 	f := r.BootstrapCluster(cfg)
 	if err := f.Error(); err != nil {
-		p.logger.Fatalln("failed to bootstrap raft Node", err)
+		node.logger.Fatalln("failed to bootstrap raft Node", err)
 	}
 }
 
-func (p *Node) recoverRaftState() raft.Configuration {
-	logPrefix := p.logger.Prefix()
-	p.logger.SetPrefix(fmt.Sprintf("%s[recovering-Node] ", logPrefix))
-	defer p.logger.SetPrefix(logPrefix)
+func (node *Node) recoverRaftState() raft.Configuration {
+	logPrefix := node.logger.Prefix()
+	node.logger.SetPrefix(fmt.Sprintf("%s[recovering-Node] ", logPrefix))
+	defer node.logger.SetPrefix(logPrefix)
 
 	var (
 		snapshotIndex  uint64
 		snapshotTerm   uint64
-		snapshots, err = p.Fss.List()
+		snapshots, err = node.Fss.List()
 	)
 	if err != nil {
-		p.logger.Fatalln(err)
+		node.logger.Fatalln(err)
 	}
 
-	p.logger.Println("found", len(snapshots), "snapshots")
+	node.logger.Println("found", len(snapshots), "snapshots")
 
 	var lastSnapshotBytes []byte
 	for _, snapshot := range snapshots {
 		var source io.ReadCloser
-		_, source, err = p.Fss.Open(snapshot.ID)
+		_, source, err = node.Fss.Open(snapshot.ID)
 		if err != nil {
 			// Skip this one and try the next. We will detect if we
 			// couldn't open any snapshots.
@@ -220,19 +220,19 @@ func (p *Node) recoverRaftState() raft.Configuration {
 		break
 	}
 	if len(snapshots) > 0 && (snapshotIndex == 0 || snapshotTerm == 0) {
-		p.logger.Println("failed to restore any of the available snapshots")
+		node.logger.Println("failed to restore any of the available snapshots")
 	}
 
 	dir, err := os.Getwd()
 	if err != nil {
-		p.logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+		node.logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
 
 	recoverDbPath := fmt.Sprintf("%s/%s", dir, "recover.db")
 
 	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
 	if err != nil {
-		p.logger.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
+		node.logger.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
 	}
 
 	dataStore := db.NewSqliteDbConnection(recoverDbPath)
@@ -243,10 +243,10 @@ func (p *Node) recoverRaftState() raft.Configuration {
 	migrations := db.GetSetupSQL()
 	_, err = dbConnection.Exec(migrations)
 	if err != nil {
-		p.logger.Fatalln(fmt.Errorf("Fatal db file migrations error: %s \n", err))
+		node.logger.Fatalln(fmt.Errorf("Fatal db file migrations error: %s \n", err))
 	}
 
-	fsmStr := fsm.NewFSMStore(dataStore, dbConnection, p.logger)
+	fsmStr := fsm.NewFSMStore(dataStore, dbConnection, node.logger)
 
 	// The snapshot information is the best known end point for the data
 	// until we play back the Raft log entries.
@@ -254,52 +254,52 @@ func (p *Node) recoverRaftState() raft.Configuration {
 	lastTerm := snapshotTerm
 
 	// Apply any Raft log entries past the snapshot.
-	lastLogIndex, err := p.Ldb.LastIndex()
+	lastLogIndex, err := node.Ldb.LastIndex()
 	if err != nil {
-		p.logger.Fatalf("failed to find last log: %v", err)
+		node.logger.Fatalf("failed to find last log: %v", err)
 	}
 	for index := snapshotIndex + 1; index <= lastLogIndex; index++ {
 		var entry raft.Log
-		if err = p.Ldb.GetLog(index, &entry); err != nil {
-			p.logger.Fatalf("failed to get log at index %d: %v\n", index, err)
+		if err = node.Ldb.GetLog(index, &entry); err != nil {
+			node.logger.Fatalf("failed to get log at index %d: %v\n", index, err)
 		}
-		fsm.ApplyCommand(p.logger, &entry, dbConnection, false, nil, nil, nil, nil, nil)
+		fsm.ApplyCommand(node.logger, &entry, dbConnection, false, nil, nil, nil, nil, nil)
 		lastIndex = entry.Index
 		lastTerm = entry.Term
 	}
 
-	lastConfiguration := p.getRaftConfiguration(p.logger)
+	lastConfiguration := node.getRaftConfiguration(node.logger)
 
 	snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
-	sink, err := p.Fss.Create(1, lastIndex, lastTerm, lastConfiguration, 1, p.Tm)
+	sink, err := node.Fss.Create(1, lastIndex, lastTerm, lastConfiguration, 1, node.Tm)
 	if err != nil {
-		p.logger.Fatalf("failed to create snapshot: %v", err)
+		node.logger.Fatalf("failed to create snapshot: %v", err)
 	}
 	if err = snapshot.Persist(sink); err != nil {
-		p.logger.Fatalf("failed to persist snapshot: %v", err)
+		node.logger.Fatalf("failed to persist snapshot: %v", err)
 	}
 	if err = sink.Close(); err != nil {
-		p.logger.Fatalf("failed to finalize snapshot: %v", err)
+		node.logger.Fatalf("failed to finalize snapshot: %v", err)
 	}
 
-	firstLogIndex, err := p.Ldb.FirstIndex()
+	firstLogIndex, err := node.Ldb.FirstIndex()
 	if err != nil {
-		p.logger.Fatalf("failed to get first log index: %v", err)
+		node.logger.Fatalf("failed to get first log index: %v", err)
 	}
-	if err := p.Ldb.DeleteRange(firstLogIndex, lastLogIndex); err != nil {
-		p.logger.Fatalf("log compaction failed: %v", err)
+	if err := node.Ldb.DeleteRange(firstLogIndex, lastLogIndex); err != nil {
+		node.logger.Fatalf("log compaction failed: %v", err)
 	}
 
 	err = os.Remove(recoverDbPath)
 	if err != nil {
-		p.logger.Fatalf("failed to delete recovery db: %v", err)
+		node.logger.Fatalf("failed to delete recovery db: %v", err)
 	}
 
 	return lastConfiguration
 }
 
-func (p *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]Status {
-	p.logger.Println("Authenticating with node...")
+func (node *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]Status {
+	node.logger.Println("Authenticating with node...")
 
 	configs := config.GetConfigurations(logger)
 	var wg sync.WaitGroup
@@ -324,7 +324,7 @@ func (p *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]Stat
 				wg.Done()
 				wrlck.Unlock()
 				if err != nil {
-					p.logger.Println("failed to authenticate with peer ", rep.Address, " error:", err)
+					node.logger.Println("failed to authenticate with peer ", rep.Address, " error:", err)
 				}
 			}(replica, results, &wg, &wrlck)
 		}
@@ -334,61 +334,61 @@ func (p *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]Stat
 	return results
 }
 
-func (p *Node) handleLeaderChange() {
+func (node *Node) handleLeaderChange() {
 	select {
-	case <-p.FsmStore.Raft.LeaderCh():
-		p.AcceptWrites = false
+	case <-node.FsmStore.Raft.LeaderCh():
+		node.AcceptWrites = false
 		_, applyErr := fsm.AppApply(
-			p.logger,
-			p.FsmStore.Raft,
+			node.logger,
+			node.FsmStore.Raft,
 			constants.CommandTypeStopJobs,
 			"",
 			nil,
 		)
-		configuration := p.FsmStore.Raft.GetConfiguration().Configuration()
+		configuration := node.FsmStore.Raft.GetConfiguration().Configuration()
 		servers := configuration.Servers
-		p.jobQueue.RemoveServers(servers)
-		p.jobQueue.AddServers(servers)
+		node.jobQueue.RemoveServers(servers)
+		node.jobQueue.AddServers(servers)
 		if applyErr != nil {
-			p.logger.Fatalln("failed to apply job update states ", applyErr)
+			node.logger.Fatalln("failed to apply job update states ", applyErr)
 		}
-		p.logger.Println("starting jobs")
-		if p.isExistingNode && len(servers) == 1 {
-			p.jobRecovery.Run()
+		node.logger.Println("starting jobs")
+		if node.isExistingNode && len(servers) == 1 {
+			node.jobRecovery.Run()
 		} else {
-			p.jobProcessor.StartJobs()
+			node.jobProcessor.StartJobs()
 		}
-		p.AcceptWrites = true
-		p.logger.Println("Ready to accept requests")
+		node.AcceptWrites = true
+		node.logger.Println("Ready to accept requests")
 	}
 }
 
-func (p *Node) listenOnInputQueues(fsmStr *fsm.Store) {
-	p.logger.Println("begin listening input queues")
+func (node *Node) listenOnInputQueues(fsmStr *fsm.Store) {
+	node.logger.Println("begin listening input queues")
 
 	for {
 		select {
 		case job := <-fsmStr.QueueJobsChannel:
-			p.jobExecutor.QueueExecutions(job)
+			node.jobExecutor.QueueExecutions(job)
 		case job := <-fsmStr.ScheduleJobsChannel:
-			p.jobExecutor.LogJobScheduledExecutions(job, true)
-			p.jobRecovery.RecoverAndScheduleJob(job)
+			node.jobExecutor.LogJobScheduledExecutions(job, true)
+			node.jobRecovery.RecoverAndScheduleJob(job)
 		case job := <-fsmStr.SuccessfulJobsChannel:
-			p.jobExecutor.LogSuccessfulJobExecutions(job, true)
+			node.jobExecutor.LogSuccessfulJobExecutions(job, true)
 		case job := <-fsmStr.FailedJobsChannel:
-			p.jobExecutor.LogFailedJobExecutions(job, true)
+			node.jobExecutor.LogFailedJobExecutions(job, true)
 		case _ = <-fsmStr.StopAllJobs:
-			p.jobExecutor.StopAll()
+			node.jobExecutor.StopAll()
 		}
 	}
 }
 
-func (p *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
+func (node *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
+	node.mtx.Lock()
+	defer node.mtx.Unlock()
 
 	configs := config.GetConfigurations(logger)
-	results := p.authenticateWithPeersInConfig(p.logger)
+	results := node.authenticateWithPeersInConfig(node.logger)
 	servers := []raft.Server{
 		{
 			ID:       raft.ServerID(configs.NodeId),
@@ -414,9 +414,9 @@ func (p *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
 	return cfg
 }
 
-func (p *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
+func (node *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
+	node.mtx.Lock()
+	defer node.mtx.Unlock()
 
 	configs := config.GetConfigurations(logger)
 	servers := []raft.Server{
@@ -442,6 +442,10 @@ func (p *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 	}
 
 	return cfg
+}
+
+func (node *Node) fetchUncommittedLogsFromPeers(logger *log.Logger) {
+
 }
 
 func connectNode(logger *log.Logger, rep config.RaftNode) (*Status, error) {
@@ -558,7 +562,7 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 		logger.Fatal("failed to listen to tcp net", err)
 	}
 
-	mux := tcp2.NewMux(logger, ln)
+	mux := network.NewMux(logger, ln)
 
 	go mux.Serve()
 
@@ -574,6 +578,6 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 		logger.Fatal("Failed to convert raft transport timeout to int", err)
 	}
 
-	tm = raft.NewNetworkTransport(tcp2.NewTransport(muxLn), maxPool, time.Second*time.Duration(timeout), nil)
+	tm = raft.NewNetworkTransport(network.NewTransport(muxLn), maxPool, time.Second*time.Duration(timeout), nil)
 	return
 }
