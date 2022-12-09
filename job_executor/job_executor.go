@@ -31,16 +31,19 @@ import (
 )
 
 type JobExecutor struct {
-	context     context.Context
-	mtx         sync.Mutex
-	fileMtx     sync.Mutex
-	Raft        *raft.Raft
-	PendingJobs chan models.JobModel
-	jobRepo     repository.Job
-	logFile     *os.File
-	logger      *log.Logger
-	cancelReq   context.CancelFunc
-	executor    *executors.Service
+	context               context.Context
+	Raft                  *raft.Raft
+	pendingExecutions     chan models.JobModel
+	pendingInvocationJobs []models.JobModel
+	jobRepo               repository.Job
+	logger                *log.Logger
+	cancelReq             context.CancelFunc
+	executor              *executors.Service
+	threshold             time.Time
+	ticker                *time.Ticker
+	mtx                   sync.Mutex
+	invocationLock        sync.Mutex
+	once                  sync.Once
 }
 
 func NewJobExecutor(logger *log.Logger, jobRepository repository.Job) *JobExecutor {
@@ -54,91 +57,131 @@ func NewJobExecutor(logger *log.Logger, jobRepository repository.Job) *JobExecut
 	if !os.IsExist(mkdirErr) && !os.IsNotExist(mkdirErr) && err != nil {
 		logger.Fatalln(fmt.Errorf("failed to create the logs dir %s \n", err))
 	}
-	logFilePath := fmt.Sprintf("%v/executions.txt", dirPath)
-	logFile, err := os.OpenFile(logFilePath, os.O_RDWR, os.ModePerm)
+	logFilePath := fmt.Sprintf("%v/%v", dirPath, constants.ExecutionLogsCommitFile)
 	if os.IsNotExist(err) {
-		file, createErr := os.Create(logFilePath)
+		_, createErr := os.Create(logFilePath)
 		if createErr != nil {
-			logger.Fatalln(fmt.Errorf("failed to create the executions.txt file %s \n", err))
+			logger.Fatalln(fmt.Errorf("failed to create the %s file %s \n", logFilePath, err))
 		}
-		logFile = file
+	}
+	logFilePath = fmt.Sprintf("%v/%v", dirPath, constants.ExecutionLogsUnCommitFile)
+	if os.IsNotExist(err) {
+		_, createErr := os.Create(logFilePath)
+		if createErr != nil {
+			logger.Fatalln(fmt.Errorf("failed to create the %s file %s \n", logFilePath, err))
+		}
+	}
+	if err != nil {
+		logger.Fatalln("logs file close error")
 	}
 	return &JobExecutor{
-		PendingJobs: make(chan models.JobModel, constants.JobMaxBatchSize),
-		jobRepo:     jobRepository,
-		logger:      logger,
-		context:     ctx,
-		cancelReq:   cancel,
-		logFile:     logFile,
-		executor:    executors.NewService(logger),
+		pendingExecutions: make(chan models.JobModel, constants.JobMaxBatchSize),
+		jobRepo:           jobRepository,
+		logger:            logger,
+		context:           ctx,
+		cancelReq:         cancel,
+		executor:          executors.NewService(logger),
 	}
 }
 
-// ExecutePendingJobs executes and http job
-func (jobExecutor *JobExecutor) ExecutePendingJobs(pendingJobs []models.JobModel) {
-	jobIDs := make([]int64, 0)
-	for _, pendingJob := range pendingJobs {
-		jobIDs = append(jobIDs, pendingJob.ID)
-	}
+// invokeJob executes and http job
+func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
+	configs := config.GetConfigurations(jobExecutor.logger)
+	jobExecutor.threshold = time.Now().Add(time.Duration(configs.JobInvocationDebounceDelay) * time.Millisecond)
 
-	jobs, batchGetError := jobExecutor.jobRepo.BatchGetJobsByID(jobIDs)
-	if batchGetError != nil {
-		jobExecutor.logger.Println(fmt.Sprintf("batch query error:: %s", batchGetError.Message))
-		return
-	}
+	jobExecutor.pendingInvocationJobs = append(jobExecutor.pendingInvocationJobs, pendingJob)
 
-	getPendingJob := func(jobID int64) *models.JobModel {
-		for _, pendingJob := range pendingJobs {
-			if pendingJob.ID == jobID {
-				return &pendingJob
+	jobExecutor.once.Do(func() {
+		go func() {
+			defer func() {
+				jobExecutor.invocationLock.Lock()
+				jobExecutor.ticker.Stop()
+				jobExecutor.once = sync.Once{}
+				jobExecutor.invocationLock.Unlock()
+			}()
+
+			jobExecutor.ticker = time.NewTicker(time.Duration(500) * time.Millisecond)
+
+			for {
+				select {
+				case <-jobExecutor.ticker.C:
+					jobExecutor.invocationLock.Lock()
+					if time.Now().After(jobExecutor.threshold) {
+						jobIDs := make([]int64, 0)
+						pendingJobs := jobExecutor.pendingInvocationJobs
+						for _, pendingJobInvocation := range pendingJobs {
+							jobIDs = append(jobIDs, pendingJobInvocation.ID)
+						}
+
+						jobs, batchGetError := jobExecutor.jobRepo.BatchGetJobsByID(jobIDs)
+						if batchGetError != nil {
+							jobExecutor.logger.Println(fmt.Sprintf("batch query error:: %s", batchGetError.Message))
+							return
+						}
+
+						getPendingJob := func(jobID int64) *models.JobModel {
+							for _, pendingJobInvocation := range pendingJobs {
+								if pendingJobInvocation.ID == jobID {
+									return &pendingJobInvocation
+								}
+							}
+							return nil
+						}
+
+						jobExecutor.logger.Println(fmt.Sprintf("batched queried %v", len(jobs)))
+
+						jobsToExecute := make([]models.JobModel, 0)
+
+						for _, job := range jobs {
+							pendingJobInvocation := getPendingJob(job.ID)
+							if pendingJobInvocation != nil {
+								jobsToExecute = append(jobsToExecute, *pendingJobInvocation)
+							}
+						}
+
+						// TODO: execute job based on job execution type
+						if len(jobsToExecute) > 0 {
+							jobExecutor.executor.ExecuteHTTP(
+								jobsToExecute,
+								jobExecutor.context,
+								jobExecutor.handleSuccessJobs,
+								jobExecutor.handleFailedJobs,
+							)
+						}
+						jobExecutor.invocationLock.Unlock()
+						return
+					}
+					jobExecutor.invocationLock.Unlock()
+				case <-jobExecutor.context.Done():
+					return
+				}
 			}
-		}
-		return nil
-	}
-
-	jobExecutor.logger.Println(fmt.Sprintf("batched queried %v", len(jobs)))
-
-	jobsToExecute := make([]models.JobModel, 0)
-
-	for _, job := range jobs {
-		pendingJob := getPendingJob(job.ID)
-		if pendingJob != nil {
-			jobsToExecute = append(jobsToExecute, *pendingJob)
-		}
-	}
-
-	// TODO: execute job based on job execution type
-	if len(jobsToExecute) > 0 {
-		jobExecutor.executor.ExecuteHTTP(
-			jobsToExecute,
-			jobExecutor.context,
-			jobExecutor.HandleSuccessJobs,
-			jobExecutor.HandleFailedJobs,
-		)
-	}
+		}()
+	})
 }
 
-// ListenToChannelsUpdates periodically checks channels for updates
-func (jobExecutor *JobExecutor) ListenToChannelsUpdates() {
-	pendingJobs := make([]models.JobModel, 0)
-	ticker := time.NewTicker(time.Millisecond * 100)
-
-	for {
-		select {
-		case pendingJob := <-jobExecutor.PendingJobs:
-			pendingJobs = append(pendingJobs, pendingJob)
-		case <-ticker.C:
-			if len(pendingJobs) > 0 {
-				jobExecutor.ExecutePendingJobs(pendingJobs[:])
-				jobExecutor.logger.Println(fmt.Sprintf("%v pending jobs to execute", len(pendingJobs[0:])))
-				pendingJobs = pendingJobs[len(pendingJobs):]
+// ListenOnInvocationChannels periodically checks channels for updates
+func (jobExecutor *JobExecutor) ListenOnInvocationChannels() {
+	wg := sync.WaitGroup{}
+	for i := 0; i < constants.JobMaxBatchSize; i++ {
+		wg.Add(i)
+		go func(wg *sync.WaitGroup) {
+			for {
+				select {
+				case pendingJob := <-jobExecutor.pendingExecutions:
+					jobExecutor.invokeJob(pendingJob)
+					jobExecutor.logger.Println(fmt.Sprintf("job %v pending execution", pendingJob.ID))
+				case <-jobExecutor.context.Done():
+					wg.Done()
+				}
 			}
-		}
+		}(&wg)
 	}
+	wg.Wait()
 }
 
 func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []models.JobModel, actionType constants.Command) {
-	configs := config.Configurations(jobExecutor.logger)
+	configs := config.GetConfigurations(jobExecutor.logger)
 	configuration := jobExecutor.Raft.GetConfiguration().Configuration()
 
 	leaderAddress := ""
@@ -226,12 +269,17 @@ func (jobExecutor *JobExecutor) LogJobExecutionStateOnLeader(pendingJobs []model
 	}
 }
 
-func (jobExecutor *JobExecutor) Run(jobsIds []int64) {
-	jobExecutor.mtx.Lock()
-	defer jobExecutor.mtx.Unlock()
+func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
+	configs := config.GetConfigurations(jobExecutor.logger)
 
-	lowerBound := jobsIds[0]
-	upperBound := jobsIds[1]
+	jobExecutor.QueueLogs(jobQueueParams)
+
+	if jobQueueParams[0].(string) != configs.RaftAddress {
+		return
+	}
+
+	lowerBound := jobQueueParams[1].(int64)
+	upperBound := jobQueueParams[2].(int64)
 	if upperBound-lowerBound > constants.JobMaxBatchSize {
 		currentLowerBound := lowerBound
 		currentUpperBound := lowerBound + constants.JobMaxBatchSize
@@ -276,10 +324,13 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 	if len(jobs) < 1 {
 		return
 	}
+
+	js := []models.JobModel{}
+
 	for i, job := range jobs {
-		prepareJobState, prepareFound := jobExecutor.GetJobLastCommandLog("prepare", job.ID)
-		commitJobState, commitFound := jobExecutor.GetJobLastCommandLog("commit", job.ID)
-		errorJobState, errorFound := jobExecutor.GetJobLastCommandLog("error", job.ID)
+		scheduleJobState, prepareFound := jobExecutor.getJobLastStateLogIgnoringQueueState(constants.ScheduledExecutionLogPrefix, job.ID)
+		successJobState, commitFound := jobExecutor.getJobLastStateLogIgnoringQueueState(constants.SuccessfulExecutionLogPrefix, job.ID)
+		failedJobState, errorFound := jobExecutor.getJobLastStateLogIgnoringQueueState(constants.FailedExecutionLogPrefix, job.ID)
 
 		if !prepareFound && !commitFound && !errorFound {
 			executionUUID, err := uuid.GenerateUUID()
@@ -292,29 +343,28 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 		}
 
 		if prepareFound && !commitFound && !errorFound {
-			jobs[i].LastExecutionDate = prepareJobState.Data[0].LastExecutionDate
-			jobs[i].ExecutionId = prepareJobState.Data[0].ExecutionId
+			jobs[i].LastExecutionDate = scheduleJobState.Data[0].LastExecutionDate
+			jobs[i].ExecutionId = scheduleJobState.Data[0].ExecutionId
 		}
 
 		if prepareFound && commitFound && !errorFound {
-			if prepareJobState.ExecutionTime.After(commitJobState.ExecutionTime) {
-				jobs[i].LastExecutionDate = prepareJobState.Data[0].LastExecutionDate
-				jobs[i].ExecutionId = prepareJobState.Data[0].ExecutionId
+			if scheduleJobState.ExecutionTime.After(successJobState.ExecutionTime) {
+				jobs[i].LastExecutionDate = scheduleJobState.Data[0].LastExecutionDate
+				jobs[i].ExecutionId = scheduleJobState.Data[0].ExecutionId
 			} else {
 				executionUUID, err := uuid.GenerateUUID()
 				if err != nil {
 					jobExecutor.logger.Fatalln(fmt.Sprintf("failed to created execution id for job %s", err.Error()))
 				}
-
-				jobs[i].LastExecutionDate = job.DateCreated
+				jobs[i].LastExecutionDate = successJobState.ExecutionTime
 				jobs[i].ExecutionId = executionUUID
 			}
 		}
 
 		if prepareFound && commitFound && errorFound {
-			if prepareJobState.ExecutionTime.After(commitJobState.ExecutionTime) && prepareJobState.ExecutionTime.After(errorJobState.ExecutionTime) {
-				jobs[i].LastExecutionDate = prepareJobState.Data[0].LastExecutionDate
-				jobs[i].ExecutionId = prepareJobState.Data[0].ExecutionId
+			if scheduleJobState.ExecutionTime.After(successJobState.ExecutionTime) && scheduleJobState.ExecutionTime.After(failedJobState.ExecutionTime) {
+				jobs[i].LastExecutionDate = scheduleJobState.Data[0].LastExecutionDate
+				jobs[i].ExecutionId = scheduleJobState.Data[0].ExecutionId
 			} else {
 				executionUUID, err := uuid.GenerateUUID()
 				if err != nil {
@@ -325,60 +375,75 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 				jobs[i].ExecutionId = executionUUID
 			}
 		}
-	}
-	//jobExecutor.LogJobExecutionStateOnLeader(jobs, constants.CommandTypePrepareJobExecutions)
-	for _, job := range jobs {
-		schedule, parseErr := cron.Parse(job.Spec)
+
+		schedule, parseErr := cron.Parse(jobs[i].Spec)
 		if parseErr != nil {
 			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 		}
-		executionTime := schedule.Next(job.LastExecutionDate)
-		jobExecutor.AddNewProcess(job, executionTime)
+		executionTime := schedule.Next(jobs[i].LastExecutionDate)
+		jobExecutor.AddNewProcess(jobs[i], executionTime)
+		js = append(js, jobs[i])
 	}
+	configs := config.GetConfigurations(jobExecutor.logger)
 
+	jobExecutor.LogJobScheduledExecutions(models.JobStateLog{
+		ServerAddress: fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port),
+		State:         constants.CommandTypeScheduleJobExecutions,
+		Data:          js,
+	}, false)
 	jobExecutor.logger.Println("scheduled job", jobs[0].ID, "to", jobs[len(jobs)-1].ID)
 }
 
-func (jobExecutor *JobExecutor) LogPrepare(jobState models.JobStateLog) {
-	jobExecutor.fileMtx.Lock()
-	defer jobExecutor.fileMtx.Unlock()
-	for _, job := range jobState.Data {
-		schedule, parseErr := cron.Parse(job.Spec)
-		if parseErr != nil {
-			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
-		}
-		executionTime := schedule.Next(job.LastExecutionDate)
-		entry := fmt.Sprintf("prepare, %v, %v, %v, %v, %v", jobState.ServerAddress, job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
-		jobExecutor.WriteJobExecutionLog(entry)
-	}
+func (jobExecutor *JobExecutor) QueueLogs(jobQueueParams []interface{}) {
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+	entry := fmt.Sprintf("queue, %v, %v, %v, %v\n", jobQueueParams[0], jobQueueParams[1], jobQueueParams[2], time.Now().UTC())
+	jobExecutor.writeJobExecutionLog(entry, true)
 }
 
-func (jobExecutor *JobExecutor) LogCommit(jobState models.JobStateLog) {
-	jobExecutor.fileMtx.Lock()
-	defer jobExecutor.fileMtx.Unlock()
+func (jobExecutor *JobExecutor) LogJobScheduledExecutions(jobState models.JobStateLog, fromLeader bool) {
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+	entry := ""
 	for _, job := range jobState.Data {
 		schedule, parseErr := cron.Parse(job.Spec)
 		if parseErr != nil {
 			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
-		entry := fmt.Sprintf("commit, %v, %v, %v, %v, %v", jobState.ServerAddress, job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
-		jobExecutor.WriteJobExecutionLog(entry)
+		entry += fmt.Sprintf("%v, %v, %v, %v, %v, %v\n", constants.ScheduledExecutionLogPrefix, jobState.ServerAddress, job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
 	}
+	jobExecutor.writeJobExecutionLog(entry, fromLeader)
 }
 
-func (jobExecutor *JobExecutor) LogErrors(jobState models.JobStateLog) {
-	jobExecutor.fileMtx.Lock()
-	defer jobExecutor.fileMtx.Unlock()
+func (jobExecutor *JobExecutor) LogSuccessfulJobExecutions(jobState models.JobStateLog, fromLeader bool) {
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+	entry := ""
 	for _, job := range jobState.Data {
 		schedule, parseErr := cron.Parse(job.Spec)
 		if parseErr != nil {
 			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
-		entry := fmt.Sprintf("error, %v, %v, %v, %v, %v", jobState.ServerAddress, job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
-		jobExecutor.WriteJobExecutionLog(entry)
+		entry += fmt.Sprintf("%v, %v, %v, %v, %v, %v\n", constants.SuccessfulExecutionLogPrefix, jobState.ServerAddress, job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
 	}
+	jobExecutor.writeJobExecutionLog(entry, fromLeader)
+}
+
+func (jobExecutor *JobExecutor) LogFailedJobExecutions(jobState models.JobStateLog, fromLeader bool) {
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+	entry := ""
+	for _, job := range jobState.Data {
+		schedule, parseErr := cron.Parse(job.Spec)
+		if parseErr != nil {
+			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+		}
+		executionTime := schedule.Next(job.LastExecutionDate)
+		entry += fmt.Sprintf("%v, %v, %v, %v, %v, %v\n", constants.FailedExecutionLogPrefix, jobState.ServerAddress, job.ID, job.ExecutionId, job.LastExecutionDate.String(), executionTime.String())
+	}
+	jobExecutor.writeJobExecutionLog(entry, fromLeader)
 }
 
 func (jobExecutor *JobExecutor) StopAll() {
@@ -386,14 +451,14 @@ func (jobExecutor *JobExecutor) StopAll() {
 	defer jobExecutor.mtx.Unlock()
 
 	jobExecutor.logger.Println("stopped all scheduled job")
-	jobExecutor.PendingJobs = make(chan models.JobModel)
+	jobExecutor.pendingExecutions = make(chan models.JobModel)
 	jobExecutor.cancelReq()
 	ctx, cancel := context.WithCancel(context.Background())
 	jobExecutor.cancelReq = cancel
 	jobExecutor.context = ctx
 }
 
-func (jobExecutor *JobExecutor) HandleSuccessJobs(successfulJobs []models.JobModel) {
+func (jobExecutor *JobExecutor) handleSuccessJobs(successfulJobs []models.JobModel) {
 	for i, successfulJob := range successfulJobs {
 		schedule, parseErr := cron.Parse(successfulJob.Spec)
 		if parseErr != nil {
@@ -402,11 +467,17 @@ func (jobExecutor *JobExecutor) HandleSuccessJobs(successfulJobs []models.JobMod
 		executionTime := schedule.Next(successfulJob.LastExecutionDate)
 		jobExecutor.logger.Println(fmt.Sprintf("executed job %v", successfulJob.ID))
 		successfulJobs[i].LastExecutionDate = executionTime
-		jobExecutor.AddNewProcess(successfulJobs[i], schedule.Next(executionTime))
 	}
+	configs := config.GetConfigurations(jobExecutor.logger)
+	jobExecutor.LogSuccessfulJobExecutions(models.JobStateLog{
+		ServerAddress: fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port),
+		State:         constants.CommandTypeSuccessfulJobExecutions,
+		Data:          successfulJobs,
+	}, false)
+	jobExecutor.Schedule(successfulJobs)
 }
 
-func (jobExecutor *JobExecutor) HandleFailedJobs(erroredJobs []models.JobModel) {
+func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.JobModel) {
 	for i, erroredJob := range erroredJobs {
 		schedule, parseErr := cron.Parse(erroredJob.Spec)
 		if parseErr != nil {
@@ -417,36 +488,69 @@ func (jobExecutor *JobExecutor) HandleFailedJobs(erroredJobs []models.JobModel) 
 		erroredJobs[i].LastExecutionDate = executionTime
 		jobExecutor.AddNewProcess(erroredJobs[i], schedule.Next(executionTime))
 	}
+	configs := config.GetConfigurations(jobExecutor.logger)
+	jobExecutor.LogFailedJobExecutions(models.JobStateLog{
+		ServerAddress: fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port),
+		State:         constants.CommandTypeFailedJobExecutions,
+		Data:          erroredJobs,
+	}, false)
+	// TODO: Reschedule failed jobs
 }
 
-func (jobExecutor *JobExecutor) WriteJobExecutionLog(entry string) {
-	data, err := io.ReadAll(jobExecutor.logFile)
+func (jobExecutor *JobExecutor) writeJobExecutionLog(entry string, commit bool) {
+	dir, err := os.Getwd()
+	if err != nil {
+		jobExecutor.logger.Fatalln(fmt.Errorf("fatal error getting working dir: %s \n", err))
+	}
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.ExecutionLogsDir)
+	fileName := constants.ExecutionLogsUnCommitFile
 
-	logs := []string{}
-	lines := []string{}
-
-	fileData := string(data)
-	if err == nil {
-		lines = strings.Split(fileData, "\n")
+	if commit {
+		fileName = constants.ExecutionLogsUnCommitFile
 	}
 
-	logs = append(logs, entry)
-	logs = append(logs, lines...)
+	logFilePath := fmt.Sprintf("%v/%v", dirPath, fileName)
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		jobExecutor.logger.Println("open lof file error", err)
+	}
+	defer func(logFile *os.File) {
+		err := logFile.Close()
+		if err != nil {
+			log.Fatalln("execution log write error::", err)
+		}
+	}(logFile)
 
-	str := strings.Join(logs, "\n")
-	sliceByte := []byte(str)
-
-	_, writeErr := jobExecutor.logFile.Write(sliceByte)
+	_, writeErr := logFile.WriteString(entry)
 	if writeErr != nil {
 		log.Fatalln("execution log write error::", writeErr)
 	}
 }
 
-func (jobExecutor *JobExecutor) GetJobLastCommandLog(state string, jobId int64) (models.JobStateLog, bool) {
-	data, err := io.ReadAll(jobExecutor.logFile)
+func (jobExecutor *JobExecutor) getJobLastStateLogIgnoringQueueState(state string, jobId int64) (models.JobStateLog, bool) {
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+
+	dir, err := os.Getwd()
+	if err != nil {
+		jobExecutor.logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
+
 	lines := []string{}
 
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.ExecutionLogsDir)
+	uncommittedLogfilePath := fmt.Sprintf("%v/%v", dirPath, constants.ExecutionLogsUnCommitFile)
+	committedLogfilePath := fmt.Sprintf("%v/%v", dirPath, constants.ExecutionLogsCommitFile)
+	logFile, err := os.OpenFile(uncommittedLogfilePath, os.O_RDONLY, os.ModePerm)
+	data, err := io.ReadAll(logFile)
 	fileData := string(data)
+	if err == nil {
+		lines = strings.Split(fileData, "\n")
+	}
+	logFile.Close()
+	logFile, err = os.OpenFile(committedLogfilePath, os.O_RDONLY, os.ModePerm)
+	data, err = io.ReadAll(logFile)
+	fileData = string(data)
 	if err == nil {
 		lines = strings.Split(fileData, "\n")
 	}
@@ -467,6 +571,9 @@ func (jobExecutor *JobExecutor) GetJobLastCommandLog(state string, jobId int64) 
 		}
 		tokens := strings.Split(line, ",")
 		commandToken := strings.Trim(tokens[0], " ")
+		if commandToken == constants.QueueExecutionLogPrefix {
+			continue
+		}
 		serverAddressToken := strings.Trim(tokens[1], " ")
 		jobIdToken := strings.Trim(tokens[2], " ")
 		executionIdToken := strings.Trim(tokens[3], " ")
@@ -487,7 +594,7 @@ func (jobExecutor *JobExecutor) GetJobLastCommandLog(state string, jobId int64) 
 				jobExecutor.logger.Fatalln("failed to convert job id to integer")
 			}
 
-			if executionTime.After(lastJobStatLog.ExecutionTime) {
+			if executionTime.After(lastJobStatLog.ExecutionTime) || lastJobStatLog.ExecutionTime.IsZero() {
 				lastJobStatLog.ExecutionTime = executionTime
 				lastJobStatLog.ServerAddress = serverAddressToken
 				lastJobStatLog.Data[0].LastExecutionDate = lastExecutionTime
@@ -498,14 +605,14 @@ func (jobExecutor *JobExecutor) GetJobLastCommandLog(state string, jobId int64) 
 	}
 
 	switch state {
-	case "prepare":
-		lastJobStatLog.State = constants.CommandTypePrepareJobExecutions
+	case constants.ScheduledExecutionLogPrefix:
+		lastJobStatLog.State = constants.CommandTypeScheduleJobExecutions
 		break
-	case "commit":
-		lastJobStatLog.State = constants.CommandTypeCommitJobExecutions
+	case constants.SuccessfulExecutionLogPrefix:
+		lastJobStatLog.State = constants.CommandTypeSuccessfulJobExecutions
 		break
-	case "error":
-		lastJobStatLog.State = constants.CommandTypeErrorJobExecutions
+	case constants.FailedExecutionLogPrefix:
+		lastJobStatLog.State = constants.CommandTypeFailedJobExecutions
 		break
 	}
 
@@ -513,10 +620,29 @@ func (jobExecutor *JobExecutor) GetJobLastCommandLog(state string, jobId int64) 
 }
 
 func (jobExecutor *JobExecutor) GetJobLogsForServer(serverAddress string) map[int]*models.JobStateLog {
-	data, err := io.ReadAll(jobExecutor.logFile)
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+
+	dir, err := os.Getwd()
+	if err != nil {
+		jobExecutor.logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
 
 	lines := []string{}
+
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.ExecutionLogsDir)
+	uncommittedLogfilePath := fmt.Sprintf("%v/%v", dirPath, constants.ExecutionLogsUnCommitFile)
+	committedLogfilePath := fmt.Sprintf("%v/%v", dirPath, constants.ExecutionLogsCommitFile)
+	logFile, err := os.OpenFile(uncommittedLogfilePath, os.O_RDONLY, os.ModePerm)
+	data, err := io.ReadAll(logFile)
 	fileData := string(data)
+	if err == nil {
+		lines = strings.Split(fileData, "\n")
+	}
+	logFile.Close()
+	logFile, err = os.OpenFile(committedLogfilePath, os.O_RDONLY, os.ModePerm)
+	data, err = io.ReadAll(logFile)
+	fileData = string(data)
 	if err == nil {
 		lines = strings.Split(fileData, "\n")
 	}
@@ -529,6 +655,9 @@ func (jobExecutor *JobExecutor) GetJobLogsForServer(serverAddress string) map[in
 		}
 		tokens := strings.Split(line, ",")
 		stateToken := strings.Trim(tokens[0], " ")
+		if stateToken == constants.QueueExecutionLogPrefix {
+			continue
+		}
 		serverAddressToken := strings.Trim(tokens[1], " ")
 		jobIdToken := strings.Trim(tokens[2], " ")
 		executionIdToken := strings.Trim(tokens[3], " ")
@@ -573,14 +702,14 @@ func (jobExecutor *JobExecutor) GetJobLogsForServer(serverAddress string) map[in
 			jobState.Data[0].LastExecutionDate = lastExecutionTime
 			jobState.Data[0].ExecutionId = executionIdToken
 			switch stateToken {
-			case "prepare":
-				jobState.State = constants.CommandTypePrepareJobExecutions
+			case constants.ScheduledExecutionLogPrefix:
+				jobState.State = constants.CommandTypeScheduleJobExecutions
 				break
-			case "commit":
-				jobState.State = constants.CommandTypeCommitJobExecutions
+			case constants.SuccessfulExecutionLogPrefix:
+				jobState.State = constants.CommandTypeSuccessfulJobExecutions
 				break
-			case "error":
-				jobState.State = constants.CommandTypeErrorJobExecutions
+			case constants.FailedExecutionLogPrefix:
+				jobState.State = constants.CommandTypeFailedJobExecutions
 				break
 			}
 		}
@@ -597,7 +726,7 @@ func (jobExecutor *JobExecutor) AddNewProcess(job models.JobModel, executeTime t
 			select {
 			case <-ticker.C:
 				if time.Now().UTC().After(execTime) {
-					jobExecutor.PendingJobs <- j
+					jobExecutor.pendingExecutions <- j
 					return
 				}
 			case <-jobExecutor.context.Done():
