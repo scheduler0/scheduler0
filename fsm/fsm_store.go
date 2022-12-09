@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/raft"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"scheduler0/constants"
 	"scheduler0/db"
-	"scheduler0/marsher"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
@@ -116,7 +116,7 @@ func ApplyCommand(
 
 	command := &protobuffs.Command{}
 
-	marsherErr := marsher.UnmarshalCommand(l.Data, command)
+	marsherErr := proto.Unmarshal(l.Data, command)
 	if marsherErr != nil {
 		logger.Fatal("failed to unmarshal command", marsherErr.Error())
 	}

@@ -3,11 +3,11 @@ package fsm
 import (
 	"encoding/json"
 	"github.com/hashicorp/raft"
+	"google.golang.org/protobuf/proto"
 	"log"
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/constants"
-	"scheduler0/marsher"
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
 	"strconv"
@@ -30,7 +30,7 @@ func AppApply(logger *log.Logger, rft *raft.Raft, commandType constants.Command,
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	createCommandData, err := marsher.MarshalCommand(createCommand)
+	createCommandData, err := proto.Marshal(createCommand)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
