@@ -1,6 +1,7 @@
 package constants
 
 const SqliteDbFileName = "db.db"
+const RecoveryDbFileName = "recover.db"
 const SecretsFileName = ".scheduler0"
 const RaftDir = "raft_data"
 const RaftLog = "logs.dat"
@@ -13,18 +14,12 @@ const ExecutionLogsUnCommitFile = "uncommitted.log"
 type Command int32
 
 const (
-	CommandTypeDbExecute               Command = 0
-	CommandTypeJobQueue                        = 1
-	CommandTypeScheduleJobExecutions           = 2
-	CommandTypeSuccessfulJobExecutions         = 3
-	CommandTypeFailedJobExecutions             = 4
-	CommandTypeStopJobs                        = 5
+	CommandTypeDbExecute        Command = 0
+	CommandTypeJobQueue         Command = 1
+	CommandTypeJobExecutionLogs Command = 2
+	CommandTypeStopJobs         Command = 3
 )
 
-// JobMaxBatchSize exceed this and sql-lite won't be happy
+// JobMaxBatchSize exceed this and sql-lite won't be happy max variable is 32766
 const JobMaxBatchSize = 5461
-
-const QueueExecutionLogPrefix = "queue"
-const ScheduledExecutionLogPrefix = "schedule"
-const SuccessfulExecutionLogPrefix = "success"
-const FailedExecutionLogPrefix = "failed"
+const JobExecutionLogMaxBatchSize = 4095
