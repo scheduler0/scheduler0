@@ -128,7 +128,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *node.Node) func(nex
 				w.Header().Set("Location", redirectUrl)
 				requester := r.Header.Get(headers.PeerHeader)
 
-				if requester == "cmd" || requester == "node" {
+				if requester == headers.PeerHeaderCMDValue || requester == headers.PeerHeaderValue {
 					m.logger.Println("Redirecting request to leader", redirectUrl)
 					http.Redirect(w, r, redirectUrl, 301)
 				} else {
