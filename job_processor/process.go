@@ -11,12 +11,12 @@ import (
 type JobProcessor struct {
 	jobRepo     repository.Job
 	projectRepo repository.Project
-	jobQueue    job_queue.JobQueue
+	jobQueue    *job_queue.JobQueue
 	logger      *log.Logger
 }
 
 // NewJobProcessor creates a new job processor
-func NewJobProcessor(jobRepo repository.Job, projectRepo repository.Project, jobQueue job_queue.JobQueue, logger *log.Logger) *JobProcessor {
+func NewJobProcessor(jobRepo repository.Job, projectRepo repository.Project, jobQueue *job_queue.JobQueue, logger *log.Logger) *JobProcessor {
 	return &JobProcessor{
 		jobRepo:     jobRepo,
 		projectRepo: projectRepo,
@@ -30,6 +30,8 @@ func (jobProcessor *JobProcessor) StartJobs() {
 	logPrefix := jobProcessor.logger.Prefix()
 	jobProcessor.logger.SetPrefix(fmt.Sprintf("%s[job-processor] ", logPrefix))
 	defer jobProcessor.logger.SetPrefix(logPrefix)
+
+	jobProcessor.jobQueue.IncrementQueueVersion()
 
 	totalProjectCount, countErr := jobProcessor.projectRepo.Count()
 	if countErr != nil {
