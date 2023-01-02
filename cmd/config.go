@@ -45,11 +45,7 @@ func runMigration(fs afero.Fs, dir string) {
 	}
 
 	datastore := db.NewSqliteDbConnection(dbFilePath)
-
-	conn, openDBConnErr := datastore.OpenConnection()
-	if openDBConnErr != nil {
-		log.Fatalln(fmt.Errorf("Fatal open db connection: %s \n", openDBConnErr))
-	}
+	conn := datastore.OpenConnection()
 
 	dbConnection := conn.(*sql.DB)
 
