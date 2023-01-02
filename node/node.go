@@ -1,14 +1,17 @@
 package node
 
 import (
+	"context"
 	"database/sql"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -24,10 +27,10 @@ import (
 	"scheduler0/job_recovery"
 	"scheduler0/models"
 	"scheduler0/network"
+	"scheduler0/protobuffs"
 	"scheduler0/repository"
 	"scheduler0/secrets"
 	"scheduler0/utils"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -48,6 +51,11 @@ type Response struct {
 	Success bool `json:"success"`
 }
 
+type LogsFetchResponse struct {
+	Data    []byte `json:"data"`
+	Success bool   `json:"success"`
+}
+
 type State int
 
 const (
@@ -66,20 +74,24 @@ type Node struct {
 	State          State
 	FsmStore       *fsm.Store
 	jobProcessor   *job_processor.JobProcessor
-	jobQueue       job_queue.JobQueue
+	jobQueue       *job_queue.JobQueue
 	jobExecutor    *job_executor.JobExecutor
 	jobRecovery    *job_recovery.JobRecovery
+	jobQueuesRepo  repository.JobQueuesRepo
 	jobRepo        repository.Job
 	projectRepo    repository.Project
 	isExistingNode bool
+	SingleNodeMode bool
 }
 
 func NewNode(
 	logger *log.Logger,
 	jobExecutor *job_executor.JobExecutor,
-	jobQueue job_queue.JobQueue,
+	jobQueue *job_queue.JobQueue,
 	jobRepo repository.Job,
 	projectRepo repository.Project,
+	executionsRepo repository.ExecutionsRepo,
+	jobQueueRepo repository.JobQueuesRepo,
 ) *Node {
 	logPrefix := logger.Prefix()
 	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node] ", logPrefix))
@@ -107,13 +119,14 @@ func NewNode(
 		jobExecutor:    jobExecutor,
 		jobRepo:        jobRepo,
 		projectRepo:    projectRepo,
-		jobRecovery:    job_recovery.NewJobRecovery(logger, jobRepo, jobExecutor),
+		jobRecovery:    job_recovery.NewJobRecovery(logger, jobRepo, jobExecutor, executionsRepo, jobQueueRepo),
 		isExistingNode: exists,
 	}
 }
 
 func (node *Node) Boostrap(fsmStr *fsm.Store) {
 	node.State = Bootstrapping
+
 	if node.isExistingNode {
 		node.logger.Println("discovered existing raft dir")
 		node.recoverRaftState()
@@ -128,27 +141,50 @@ func (node *Node) Boostrap(fsmStr *fsm.Store) {
 	node.FsmStore = fsmStr
 	node.jobExecutor.Raft = fsmStr.Raft
 	go node.handleLeaderChange()
-	go node.jobExecutor.ListenOnInvocationChannels()
+	//go node.jobExecutor.ListenOnInvocationChannels()
+
+	if node.isExistingNode &&
+		!node.SingleNodeMode && rft.State().String() == "Follower" {
+		node.jobRecovery.Run()
+	}
+
 	node.listenOnInputQueues(fsmStr)
 }
 
-func (node *Node) LogJobsStatePeers(peerAddress string, jobState models.JobStateLog) {
+func (node *Node) commitJobLogState(peerAddress string, jobState []models.JobExecutionLog) {
 	if node.FsmStore.Raft == nil {
 		node.logger.Fatalln("raft is not set on job executors")
 	}
 
-	data := []interface{}{jobState}
-
-	_, applyErr := fsm.AppApply(
-		node.logger,
-		node.FsmStore.Raft,
-		jobState.State,
-		peerAddress,
-		data,
-	)
-	if applyErr != nil {
-		node.logger.Fatalln("failed to apply job update states ", applyErr)
+	params := models.CommitJobStateLog{
+		Address: peerAddress,
+		Logs:    jobState,
 	}
+
+	data, err := json.Marshal(params)
+	if err != nil {
+		node.logger.Fatalln("failed to marshal json")
+	}
+
+	createCommand := &protobuffs.Command{
+		Type:         protobuffs.Command_Type(constants.CommandTypeJobExecutionLogs),
+		Sql:          peerAddress,
+		Data:         data,
+		ActionTarget: peerAddress,
+	}
+
+	createCommandData, err := proto.Marshal(createCommand)
+	if err != nil {
+		node.logger.Fatalln("failed to marshal json")
+	}
+
+	configs := config.GetConfigurations(node.logger)
+
+	_ = node.FsmStore.Raft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
+}
+
+func (node *Node) ReturnUncommittedLogs() []byte {
+	return node.jobExecutor.GetUncommittedLogs()
 }
 
 func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
@@ -158,7 +194,7 @@ func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
 	configs := config.GetConfigurations(node.logger)
 
 	c := raft.DefaultConfig()
-	c.LocalID = raft.ServerID(configs.NodeId)
+	c.LocalID = raft.ServerID(rune(configs.NodeId))
 
 	// TODO: Set raft configs in scheduler0 config
 
@@ -228,16 +264,82 @@ func (node *Node) recoverRaftState() raft.Configuration {
 		node.logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
 
-	recoverDbPath := fmt.Sprintf("%s/%s", dir, "recover.db")
+	executionLogs := []models.JobExecutionLog{}
+
+	configs := config.GetConfigurations(node.logger)
+
+	mainDbPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDbFileName)
+	dataStore := db.NewSqliteDbConnection(mainDbPath)
+	conn := dataStore.OpenConnection()
+	dbConnection := conn.(*sql.DB)
+
+	rows, err := dbConnection.Query(fmt.Sprintf(
+		"select count(*) from %s",
+		fsm.ExecutionsUnCommittedTableName,
+	), configs.NodeId, false)
+	if err != nil {
+		node.logger.Fatalln("failed to query for the count of uncommitted logs", err.Error())
+	}
+	var count int64 = 0
+	for rows.Next() {
+		scanErr := rows.Scan(&count)
+		if scanErr != nil {
+			node.logger.Fatalln("failed to scan count value", scanErr.Error())
+		}
+	}
+	if rows.Err() != nil {
+		node.logger.Fatalln("rows error", rows.Err())
+	}
+
+	fmt.Printf("found %d uncommited jobs \n", count)
+
+	if count > 0 {
+		rows, err = dbConnection.Query(fmt.Sprintf(
+			"select  %s, %s, %s, %s, %s, %s, %s from %s",
+			fsm.ExecutionsUniqueIdColumn,
+			fsm.ExecutionsStateColumn,
+			fsm.ExecutionsNodeIdColumn,
+			fsm.ExecutionsLastExecutionTimeColumn,
+			fsm.ExecutionsNextExecutionTime,
+			fsm.ExecutionsJobIdColumn,
+			fsm.ExecutionsDateCreatedColumn,
+			fsm.ExecutionsUnCommittedTableName,
+		))
+		if err != nil {
+			node.logger.Fatalln("failed to query for the count of uncommitted logs", err.Error())
+		}
+		for rows.Next() {
+			var jobExecutionLog models.JobExecutionLog
+			scanErr := rows.Scan(
+				&jobExecutionLog.UniqueId,
+				&jobExecutionLog.State,
+				&jobExecutionLog.NodeId,
+				&jobExecutionLog.LastExecutionDatetime,
+				&jobExecutionLog.NextExecutionDatetime,
+				&jobExecutionLog.JobId,
+				&jobExecutionLog.DataCreated,
+			)
+			if scanErr != nil {
+				node.logger.Fatalln("failed to scan job execution columns", scanErr.Error())
+			}
+			executionLogs = append(executionLogs, jobExecutionLog)
+		}
+	}
+	err = dbConnection.Close()
+	if err != nil {
+		node.logger.Fatalln("failed to close database connection", err.Error())
+	}
+
+	recoverDbPath := fmt.Sprintf("%s/%s", dir, constants.RecoveryDbFileName)
 
 	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
 	if err != nil {
 		node.logger.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
 	}
 
-	dataStore := db.NewSqliteDbConnection(recoverDbPath)
-	conn, err := dataStore.OpenConnection()
-	dbConnection := conn.(*sql.DB)
+	dataStore = db.NewSqliteDbConnection(recoverDbPath)
+	conn = dataStore.OpenConnection()
+	dbConnection = conn.(*sql.DB)
 	defer dbConnection.Close()
 
 	migrations := db.GetSetupSQL()
@@ -246,7 +348,7 @@ func (node *Node) recoverRaftState() raft.Configuration {
 		node.logger.Fatalln(fmt.Errorf("Fatal db file migrations error: %s \n", err))
 	}
 
-	fsmStr := fsm.NewFSMStore(dataStore, dbConnection, node.logger)
+	fsmStr := fsm.NewFSMStore(dataStore, node.logger)
 
 	// The snapshot information is the best known end point for the data
 	// until we play back the Raft log entries.
@@ -263,14 +365,77 @@ func (node *Node) recoverRaftState() raft.Configuration {
 		if err = node.Ldb.GetLog(index, &entry); err != nil {
 			node.logger.Fatalf("failed to get log at index %d: %v\n", index, err)
 		}
-		fsm.ApplyCommand(node.logger, &entry, dbConnection, false, nil, nil, nil, nil, nil)
+		fsm.ApplyCommand(node.logger, &entry, dataStore, false, nil, nil)
 		lastIndex = entry.Index
 		lastTerm = entry.Term
 	}
 
+	if len(executionLogs) > 0 {
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
+			fsm.ExecutionsUnCommittedTableName,
+			fsm.ExecutionsUniqueIdColumn,
+			fsm.ExecutionsStateColumn,
+			fsm.ExecutionsNodeIdColumn,
+			fsm.ExecutionsLastExecutionTimeColumn,
+			fsm.ExecutionsNextExecutionTime,
+			fsm.ExecutionsJobIdColumn,
+			fsm.ExecutionsDateCreatedColumn,
+			fsm.ExecutionsJobQueueVersion,
+			fsm.ExecutionsVersion,
+		)
+
+		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		params := []interface{}{
+			executionLogs[0].UniqueId,
+			executionLogs[0].State,
+			executionLogs[0].NodeId,
+			executionLogs[0].LastExecutionDatetime,
+			executionLogs[0].NextExecutionDatetime,
+			executionLogs[0].JobId,
+			executionLogs[0].DataCreated,
+			executionLogs[0].JobQueueVersion,
+			executionLogs[0].ExecutionVersion,
+		}
+
+		for _, executionLog := range executionLogs[1:] {
+			params = append(params,
+				executionLog.UniqueId,
+				executionLog.State,
+				executionLog.NodeId,
+				executionLog.LastExecutionDatetime,
+				executionLog.NextExecutionDatetime,
+				executionLog.JobId,
+				executionLog.DataCreated,
+				executionLog.JobQueueVersion,
+				executionLog.ExecutionVersion,
+			)
+			query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		}
+
+		query += ";"
+
+		ctx := context.Background()
+		tx, err := dbConnection.BeginTx(ctx, nil)
+		if err != nil {
+			node.logger.Fatalln("failed to create transaction for batch insertion", err)
+		}
+		_, err = tx.Exec(query, params...)
+		if err != nil {
+			trxErr := tx.Rollback()
+			if trxErr != nil {
+				node.logger.Fatalln("failed to rollback update transition", trxErr)
+			}
+			node.logger.Fatalln("failed to insert un committed executions to recovery db", err)
+		}
+		err = tx.Commit()
+		if err != nil {
+			node.logger.Fatalln("failed to commit transition", err)
+		}
+	}
+
 	lastConfiguration := node.getRaftConfiguration(node.logger)
 
-	snapshot := fsm.NewFSMSnapshot(fsmStr.SqliteDB)
+	snapshot := fsm.NewFSMSnapshot(fsmStr.DataStore)
 	sink, err := node.Fss.Create(1, lastIndex, lastTerm, lastConfiguration, 1, node.Tm)
 	if err != nil {
 		node.logger.Fatalf("failed to create snapshot: %v", err)
@@ -308,7 +473,7 @@ func (node *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]S
 	wrlck := sync.Mutex{}
 
 	for _, replica := range configs.Replicas {
-		if replica.Address != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
+		if replica.Address != utils.GetServerHTTPAddress(node.logger) {
 			wg.Add(1)
 			go func(rep config.RaftNode, res map[string]Status, wg *sync.WaitGroup, wrlck *sync.Mutex) {
 				wrlck.Lock()
@@ -320,7 +485,7 @@ func (node *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]S
 					}
 
 					return nil
-				}, configs.PeerConnectRetryMax, configs.PeerConnectRetryDelay)
+				}, configs.PeerConnectRetryMax, configs.PeerConnectRetryDelaySeconds)
 				wg.Done()
 				wrlck.Unlock()
 				if err != nil {
@@ -349,16 +514,38 @@ func (node *Node) handleLeaderChange() {
 		servers := configuration.Servers
 		node.jobQueue.RemoveServers(servers)
 		node.jobQueue.AddServers(servers)
+		node.jobQueue.SingleNodeMode = len(servers) == 1
+		node.jobExecutor.SingleNodeMode = node.jobQueue.SingleNodeMode
+		node.SingleNodeMode = node.jobQueue.SingleNodeMode
 		if applyErr != nil {
 			node.logger.Fatalln("failed to apply job update states ", applyErr)
 		}
-		node.logger.Println("starting jobs")
-		if node.isExistingNode && len(servers) == 1 {
-			node.jobRecovery.Run()
+		if !node.SingleNodeMode {
+			compressedLogs := node.jobExecutor.GetUncommittedLogs()
+			uncompressedLogs, err := utils.GzUncompress(compressedLogs)
+			if err != nil {
+				node.logger.Println("failed to uncompress gzipped logs fetch response data", err.Error())
+			}
+
+			jobStateLogs := []models.JobExecutionLog{}
+			err = json.Unmarshal(uncompressedLogs, &jobStateLogs)
+			if err != nil {
+				node.logger.Println("failed to unmarshal uncompressed logs to jobStateLogs instance", err.Error())
+			}
+
+			if len(jobStateLogs) > 0 {
+				node.commitJobLogState(utils.GetServerHTTPAddress(node.logger), jobStateLogs)
+			}
+
+			go node.fetchUncommittedLogsFromPeers()
 		} else {
-			node.jobProcessor.StartJobs()
+			if node.isExistingNode {
+				node.jobRecovery.Run()
+			} else {
+				node.jobProcessor.StartJobs()
+			}
+			node.AcceptWrites = true
 		}
-		node.AcceptWrites = true
 		node.logger.Println("Ready to accept requests")
 	}
 }
@@ -370,13 +557,6 @@ func (node *Node) listenOnInputQueues(fsmStr *fsm.Store) {
 		select {
 		case job := <-fsmStr.QueueJobsChannel:
 			node.jobExecutor.QueueExecutions(job)
-		case job := <-fsmStr.ScheduleJobsChannel:
-			node.jobExecutor.LogJobScheduledExecutions(job, true)
-			node.jobRecovery.RecoverAndScheduleJob(job)
-		case job := <-fsmStr.SuccessfulJobsChannel:
-			node.jobExecutor.LogSuccessfulJobExecutions(job, true)
-		case job := <-fsmStr.FailedJobsChannel:
-			node.jobExecutor.LogFailedJobExecutions(job, true)
 		case _ = <-fsmStr.StopAllJobs:
 			node.jobExecutor.StopAll()
 		}
@@ -391,7 +571,7 @@ func (node *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
 	results := node.authenticateWithPeersInConfig(node.logger)
 	servers := []raft.Server{
 		{
-			ID:       raft.ServerID(configs.NodeId),
+			ID:       raft.ServerID(rune(configs.NodeId)),
 			Suffrage: raft.Voter,
 			Address:  raft.ServerAddress(configs.RaftAddress),
 		},
@@ -421,14 +601,14 @@ func (node *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 	configs := config.GetConfigurations(logger)
 	servers := []raft.Server{
 		{
-			ID:       raft.ServerID(configs.NodeId),
+			ID:       raft.ServerID(rune(configs.NodeId)),
 			Suffrage: raft.Voter,
 			Address:  raft.ServerAddress(configs.RaftAddress),
 		},
 	}
 
 	for _, replica := range configs.Replicas {
-		if replica.Address != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
+		if replica.Address != utils.GetServerHTTPAddress(node.logger) {
 			servers = append(servers, raft.Server{
 				ID:       raft.ServerID(replica.NodeId),
 				Suffrage: raft.Voter,
@@ -444,22 +624,199 @@ func (node *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 	return cfg
 }
 
-func (node *Node) fetchUncommittedLogsFromPeers(logger *log.Logger) {
+func (node *Node) getHTTPAddressOfServersToFetchFrom() []string {
+	configs := config.GetConfigurations(node.logger)
+	servers := []raft.ServerAddress{}
+	httpAddresses := []string{}
 
+	for _, server := range node.FsmStore.Raft.GetConfiguration().Configuration().Servers {
+		if string(server.Address) != configs.RaftAddress {
+			servers = append(servers, server.Address)
+		}
+	}
+
+	if int64(len(servers)) < configs.ExecutionLogFetchFanIn {
+		for _, server := range servers {
+			httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(node.logger, server))
+		}
+	} else {
+		shuffledServers := servers
+		copy(shuffledServers, servers)
+		lastIndex := len(shuffledServers) - 1
+
+		for lastIndex > 0 {
+			randInt := rand.Intn(lastIndex)
+			temp := shuffledServers[lastIndex]
+			shuffledServers[lastIndex] = shuffledServers[randInt]
+			shuffledServers[randInt] = temp
+			lastIndex -= 1
+		}
+
+		for i := 0; i < len(shuffledServers); i++ {
+			httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(node.logger, shuffledServers[i]))
+		}
+	}
+
+	return httpAddresses
+}
+
+func (node *Node) fetchUncommittedLogsFromPeers() {
+	configs := config.GetConfigurations(node.logger)
+	uncommittedLogs := make(chan []interface{}, configs.ExecutionLogFetchFanIn)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	ticker := time.NewTicker(time.Duration(configs.ExecutionLogFetchIntervalSeconds) * time.Second)
+	fetchStatus := map[string]bool{}
+	pendingFetches := 0
+	mtx := sync.Mutex{}
+	completedFirstRound := map[string]bool{}
+	startedJobs := false
+
+	for {
+		select {
+		case <-ticker.C:
+			mtx.Lock()
+
+			if pendingFetches > 0 {
+				cancelFunc()
+				ctx, cancelFunc = context.WithCancel(context.Background())
+			}
+
+			serversNotFetched := []string{}
+			for server, status := range fetchStatus {
+				if !status {
+					serversNotFetched = append(serversNotFetched, server)
+				}
+			}
+
+			if len(completedFirstRound) < 1 {
+				httpAddresses := node.getHTTPAddressOfServersToFetchFrom()
+				for i := 0; i < len(httpAddresses); i++ {
+					completedFirstRound[httpAddresses[i]] = false
+				}
+			}
+
+			notCompletedFirstRound := []string{}
+			for server, status := range completedFirstRound {
+				if !status {
+					notCompletedFirstRound = append(notCompletedFirstRound, server)
+				}
+			}
+
+			if len(notCompletedFirstRound) == 0 && !startedJobs {
+				startedJobs = true
+				node.AcceptWrites = true
+				go node.jobProcessor.StartJobs()
+			}
+
+			if len(serversNotFetched) < 1 {
+				httpAddresses := node.getHTTPAddressOfServersToFetchFrom()
+				fetchStatus = map[string]bool{}
+				for i := 0; i < len(httpAddresses); i++ {
+					fetchStatus[httpAddresses[i]] = false
+				}
+				serversNotFetched = httpAddresses
+			}
+
+			if int64(len(serversNotFetched)) > configs.ExecutionLogFetchFanIn {
+				fetchUncommittedLogsFromPeers(ctx, node.logger, serversNotFetched[:configs.ExecutionLogFetchFanIn], uncommittedLogs)
+				pendingFetches += len(serversNotFetched[:configs.ExecutionLogFetchFanIn])
+			} else {
+				fetchUncommittedLogsFromPeers(ctx, node.logger, serversNotFetched, uncommittedLogs)
+				pendingFetches += len(serversNotFetched)
+			}
+			mtx.Unlock()
+		case results := <-uncommittedLogs:
+			serverAddress := results[0].(string)
+			executionLogs := results[1].([]byte)
+			logsFetchResponse := LogsFetchResponse{}
+			err := json.Unmarshal(executionLogs, &logsFetchResponse)
+			if err != nil {
+				node.logger.Println("failed to json unmarshal logs fetch response", err.Error())
+			}
+
+			uncompressedLogs, err := utils.GzUncompress(logsFetchResponse.Data)
+			if err != nil {
+				node.logger.Println("failed to uncompress gzipped logs fetch response data", err.Error())
+			}
+
+			jobStateLogs := []models.JobExecutionLog{}
+			err = json.Unmarshal(uncompressedLogs, &jobStateLogs)
+			if err != nil {
+				node.logger.Println("failed to unmarshal uncompressed logs to jobStateLogs instance", err.Error())
+			}
+
+			if len(jobStateLogs) > 0 {
+				node.commitJobLogState(serverAddress, jobStateLogs)
+			}
+
+			mtx.Lock()
+			pendingFetches -= 1
+			fetchStatus[serverAddress] = true
+			completedFirstRound[serverAddress] = true
+			mtx.Unlock()
+		}
+	}
+}
+
+func fetchUncommittedLogsFromPeers(ctx context.Context, logger *log.Logger, peerAddresses []string, uncommittedLogs chan []interface{}) {
+	configs := config.GetConfigurations(logger)
+
+	httpClient := &http.Client{
+		Timeout: time.Duration(configs.UncommittedExecutionLogsFetchTimeout) * time.Millisecond,
+	}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(len(peerAddresses))
+
+	for _, peerAddress := range peerAddresses {
+		go func(address string, wg *sync.WaitGroup, client *http.Client, results chan []interface{}) {
+			httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/execution-logs", address), nil)
+			if reqErr != nil {
+				logger.Println("failed to create request to execution logs from", address, "error", reqErr.Error())
+				wg.Done()
+				return
+			}
+			httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
+			httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress(logger))
+			credentials := secrets.GetSecrets(logger)
+			httpRequest.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+			res, err := httpClient.Do(httpRequest)
+			if err != nil {
+				wg.Done()
+				logger.Println("failed to get uncommitted execution logs from", address, "error", err.Error())
+				return
+			}
+			if res.StatusCode == http.StatusOK {
+				data, readErr := io.ReadAll(res.Body)
+				if readErr != nil {
+					logger.Println("failed to read uncommitted execution logs from", address, "error", err.Error())
+					wg.Done()
+					return
+				}
+				results <- []interface{}{address, data}
+				res.Body.Close()
+				logger.Println("successfully fetch execution logs from", address)
+				wg.Done()
+			} else {
+				logger.Println("failed to get uncommitted execution logs from", address, "state code", res.StatusCode)
+				wg.Done()
+			}
+		}(peerAddress, wg, httpClient, uncommittedLogs)
+	}
 }
 
 func connectNode(logger *log.Logger, rep config.RaftNode) (*Status, error) {
 	configs := config.GetConfigurations(logger)
 	httpClient := http.Client{
-		Timeout: time.Duration(configs.PeerAuthRequestTimeout) * time.Second,
+		Timeout: time.Duration(configs.PeerAuthRequestTimeoutMs) * time.Millisecond,
 	}
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/peer-handshake", rep.Address), nil)
 	if err != nil {
 		logger.Println("failed to create request ", err)
 		return nil, err
 	}
-	req.Header.Set(headers.PeerHeader, "peer")
-	req.Header.Set(headers.PeerAddressHeader, fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
+	req.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
+	req.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress(logger))
 	credentials := secrets.GetSecrets(logger)
 	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
 
@@ -535,15 +892,6 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 	configs := config.GetConfigurations(logger)
 
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
-	_, err = strconv.Atoi(configs.RaftSnapshotInterval)
-	if err != nil {
-		logger.Fatal("Failed to convert raft snapshot interval to int", err)
-	}
-
-	_, err = strconv.Atoi(configs.RaftSnapshotThreshold)
-	if err != nil {
-		logger.Fatal("Failed to convert raft snapshot threshold to int", err)
-	}
 
 	ldb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
 	if err != nil {
@@ -568,16 +916,6 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 
 	muxLn := mux.Listen(1)
 
-	maxPool, err := strconv.Atoi(configs.RaftTransportMaxPool)
-	if err != nil {
-		logger.Fatal("Failed to convert raft transport max pool to int", err)
-	}
-
-	timeout, err := strconv.Atoi(configs.RaftTransportTimeout)
-	if err != nil {
-		logger.Fatal("Failed to convert raft transport timeout to int", err)
-	}
-
-	tm = raft.NewNetworkTransport(network.NewTransport(muxLn), maxPool, time.Second*time.Duration(timeout), nil)
+	tm = raft.NewNetworkTransport(network.NewTransport(muxLn), configs.RaftTransportMaxPool, time.Second*time.Duration(configs.RaftTransportTimeout), nil)
 	return
 }
