@@ -7,6 +7,12 @@ import (
 
 type JobPriorityLevel int
 
+type ExecutionTypes string
+
+const (
+	ExecutionTypeHTTP ExecutionTypes = "http"
+)
+
 // JobModel job model
 type JobModel struct {
 	ID                int64     `json:"id,omitempty"`
