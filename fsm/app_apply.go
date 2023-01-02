@@ -10,7 +10,6 @@ import (
 	"scheduler0/constants"
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
-	"strconv"
 	"time"
 )
 
@@ -37,12 +36,7 @@ func AppApply(logger *log.Logger, rft *raft.Raft, commandType constants.Command,
 
 	configs := config.GetConfigurations(logger)
 
-	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-	}
-
-	af := rft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
+	af := rft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 	if af.Error() != nil {
 		if af.Error() == raft.ErrNotLeader {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "server not raft leader")

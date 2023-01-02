@@ -8,55 +8,47 @@ import (
 	"os"
 	"path"
 	"scheduler0/constants"
+	"sync"
 )
 
 type RaftNode struct {
 	Address     string `json:"address" yaml:"Address"`
 	RaftAddress string `json:"raft_address" yaml:"RaftAddress"`
-	NodeId      string `json:"nodeId" yaml:"NodeId"`
+	NodeId      int    `json:"nodeId" yaml:"NodeId"`
 }
 
 // Scheduler0Configurations global configurations
 type Scheduler0Configurations struct {
-	Protocol                                       string     `json:"protocol" yaml:"Protocol"`
-	Host                                           string     `json:"host" yaml:"Host"`
-	Port                                           string     `json:"port" yaml:"Port"`
-	Replicas                                       []RaftNode `json:"replicas" yaml:"Replicas"`
-	PeerCronJobCheckInterval                       int        `json:"PeerCronJobCheckInterval" yaml:"PeerCronJobCheckInterval"`
-	PeerAuthRequestTimeout                         int        `json:"PeerAuthRequestTimeout" yaml:"PeerAuthRequestTimeout"`
-	MonitorRaftStateInterval                       int        `json:"monitorRaftStateInterval" yaml:"MonitorRaftStateInterval"`
-	PeerConnectRetryMax                            int        `json:"peerConnectRetryMax" yaml:"PeerConnectRetryMax"`
-	PeerConnectRetryDelay                          int        `json:"peerConnectRetryDelay" yaml:"PeerConnectRetryDelay"`
-	StableRaftStateTimeout                         int        `json:"stableRaftStateTimeout" yaml:"StableRaftStateTimeout"`
-	Bootstrap                                      bool       `json:"bootstrap" yaml:"Bootstrap"`
-	NodeId                                         string     `json:"nodeId" yaml:"NodeId"`
-	RaftAddress                                    string     `json:"raftAddress" yaml:"RaftAddress"`
-	RaftTransportMaxPool                           string     `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`
-	RaftTransportTimeout                           string     `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`
-	RaftApplyTimeout                               string     `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`
-	RaftSnapshotInterval                           string     `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`
-	RaftSnapshotThreshold                          string     `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`
-	JobExecutionTimeout                            int        `json:"jobExecutionTimeout" yaml:"JobExecutionTimeout"`
-	JobExecutionLogBackupSizeKb                    int        `json:"jobExecutionLogBackupSizeKb" yaml:"JobExecutionLogBackupSizeKb"`
-	RequireNetworkTimeProtocol                     bool       `json:"requireNetworkTimeProtocol" yaml:"RequireNetworkTimeProtocol"`
-	NetworkTimeProtocolHost                        string     `json:"networkTimeProtocolHost" yaml:"NetworkTimeProtocolHost"`
-	JobExecutionRetryDelay                         int        `json:"jobExecutionRetryDelay" yaml:"JobExecutionRetryDelay"`
-	JobExecutionRetryMax                           int        `json:"jobExecutionRetryMax" yaml:"JobExecutionRetryMax"`
-	JobExecutionStateLogRetryDelay                 int        `json:"jobExecutionStateLogRetryDelay" yaml:"JobExecutionStateLogRetryDelay"`
-	JobExecutionStateLogRetryMax                   int        `json:"jobExecutionStateLogRetryMax" yaml:"JobExecutionStateLogRetryMax"`
-	InActiveFollowerTimeoutToRequestJobsFromLeader int        `json:"inActiveFollowerTimeoutToRequestJobsFromLeader" yaml:"InActiveFollowerTimeoutToRequestJobsFromLeader"`
-	IncomingRequestMaxWorkers                      int        `json:"incomingRequestMaxWorkers" yaml:"IncomingRequestMaxWorkers"`
-	IncomingRequestMaxQueue                        int        `json:"incomingRequestMaxQueue" yaml:"IncomingRequestMaxQueue"`
-	ExecutionRequestMaxWorkers                     int        `json:"executionRequestMaxWorkers" yaml:"ExecutionRequestMaxWorkers"`
-	ExecutionRequestMaxQueue                       int        `json:"executionRequestMaxQueue" yaml:"ExecutionRequestMaxQueue"`
-	JobPrepareDebounceDelay                        int        `json:"jobPrepareDebounceDelay" yaml:"JobPrepareDebounceDelay"`
-	MaxMemory                                      int64      `json:"maxMemory" yaml:"MaxMemory"`
-	ExecutionLogFetchFanOut                        int64      `json:"executionLogFetchFanOut" yaml:"ExecutionLogFetchFanOut"`
-	ExecutionLogFetchInterval                      int64      `json:"executionLogFetchInterval" yaml:"ExecutionLogFetchInterval"`
-	JobInvocationDebounceDelay                     int64      `json:"jobInvocationDebounceDelay" yaml:"JobInvocationDebounceDelay"`
+	Protocol                             string     `json:"protocol" yaml:"Protocol"`
+	Host                                 string     `json:"host" yaml:"Host"`
+	Port                                 string     `json:"port" yaml:"Port"`
+	Replicas                             []RaftNode `json:"replicas" yaml:"Replicas"`
+	PeerAuthRequestTimeoutMs             int        `json:"PeerAuthRequestTimeoutMs" yaml:"PeerAuthRequestTimeoutMs"`
+	PeerConnectRetryMax                  int        `json:"peerConnectRetryMax" yaml:"PeerConnectRetryMax"`
+	PeerConnectRetryDelaySeconds         int        `json:"peerConnectRetryDelay" yaml:"PeerConnectRetryDelaySeconds"`
+	Bootstrap                            bool       `json:"bootstrap" yaml:"Bootstrap"`
+	NodeId                               int        `json:"nodeId" yaml:"NodeId"`
+	RaftAddress                          string     `json:"raftAddress" yaml:"RaftAddress"`
+	RaftTransportMaxPool                 int        `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`
+	RaftTransportTimeout                 int        `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`
+	RaftApplyTimeout                     int        `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`
+	RaftSnapshotInterval                 int        `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`
+	RaftSnapshotThreshold                int        `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`
+	JobExecutionTimeout                  int        `json:"jobExecutionTimeout" yaml:"JobExecutionTimeout"`
+	JobExecutionRetryDelay               int        `json:"jobExecutionRetryDelay" yaml:"JobExecutionRetryDelay"`
+	JobExecutionRetryMax                 int        `json:"jobExecutionRetryMax" yaml:"JobExecutionRetryMax"`
+	UncommittedExecutionLogsFetchTimeout int        `json:"uncommittedExecutionLogsFetchTimeout" yaml:"UncommittedExecutionLogsFetchTimeout"`
+	IncomingRequestMaxWorkers            int        `json:"incomingRequestMaxWorkers" yaml:"IncomingRequestMaxWorkers"`
+	IncomingRequestMaxQueue              int        `json:"incomingRequestMaxQueue" yaml:"IncomingRequestMaxQueue"`
+	JobQueueDebounceDelay                int        `json:"jobQueueDebounceDelay" yaml:"JobQueueDebounceDelay"`
+	MaxMemory                            int64      `json:"maxMemory" yaml:"MaxMemory"`
+	ExecutionLogFetchFanIn               int64      `json:"executionLogFetchFanIn" yaml:"ExecutionLogFetchFanIn"`
+	ExecutionLogFetchIntervalSeconds     int64      `json:"executionLogFetchIntervalSeconds" yaml:"ExecutionLogFetchIntervalSeconds"`
+	JobInvocationDebounceDelay           int64      `json:"jobInvocationDebounceDelay" yaml:"JobInvocationDebounceDelay"`
 }
 
 var cachedConfig *Scheduler0Configurations
+var once sync.Once
 
 // GetConfigurations this will retrieve scheduler0 configurations stored on disk
 func GetConfigurations(logger *log.Logger) *Scheduler0Configurations {
@@ -64,18 +56,20 @@ func GetConfigurations(logger *log.Logger) *Scheduler0Configurations {
 		return cachedConfig
 	}
 
-	binPath := GetBinPath(logger)
+	once.Do(func() {
+		binPath := GetBinPath(logger)
 
-	fs := afero.NewOsFs()
-	data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
-	utils.CheckErr(err)
+		fs := afero.NewOsFs()
+		data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
+		utils.CheckErr(err)
 
-	config := Scheduler0Configurations{}
+		config := Scheduler0Configurations{}
 
-	err = yaml.Unmarshal(data, &config)
-	utils.CheckErr(err)
+		err = yaml.Unmarshal(data, &config)
+		utils.CheckErr(err)
 
-	cachedConfig = &config
+		cachedConfig = &config
+	})
 
 	return cachedConfig
 }

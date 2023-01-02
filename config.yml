@@ -1,7 +1,7 @@
 Protocol: http
 Host: 127.0.0.1
 Port: 9090
-MaxMemory: 500
+MaxMemory: 5000
 MaxCPU: 50
 Bootstrap: true
 NodeId: 1
@@ -13,27 +13,17 @@ RaftSnapshotInterval: 1
 RaftSnapshotThreshold: 1
 PeerConnectRetryMax: 2
 PeerConnectRetryDelay: 1
-PeerCronJobCheckInterval: 500
-MonitorRaftStateInterval: 500
-PeerAuthRequestTimeout: 2
-StableRaftStateTimeout: 5
-JobExecutionTimeout: 5
-JobExecutionLogBackupSizeKb: 2
-RequireNetworkTimeProtocol: false
-NetworkTimeProtocolHost: 0.beevik-ntp.pool.ntp.org
+PeerAuthRequestTimeoutMs: 2
+JobExecutionTimeout: 30
 JobExecutionRetryDelay: 1
 JobExecutionRetryMax: 10
-JobExecutionStateLogRetryDelay: 1
-JobExecutionStateLogRetryMax: 10
 JobInvocationDebounceDelay: 100
-InActiveFollowerTimeoutToRequestJobsFromLeader: 10
 IncomingRequestMaxWorkers: 1
 IncomingRequestMaxQueue: 1
-ExecutionRequestMaxWorkers: 99
-ExecutionRequestMaxQueue: 99
-JobPrepareDebounceDelay: 1
-ExecutionLogFetchFanOut: 2
+JobQueueDebounceDelay: 1
+ExecutionLogFetchFanIn: 2
 ExecutionLogFetchInterval: 2
 Replicas:
   - Address: http://127.0.0.1:9090
     RaftAddress: 127.0.0.1:7070
+    NodeId: 1
