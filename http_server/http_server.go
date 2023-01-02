@@ -3,6 +3,7 @@ package http_server
 import (
 	"database/sql"
 	"fmt"
+	httpLogger "github.com/go-http-utils/logger"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
 	"golang.org/x/net/context"
@@ -22,7 +23,7 @@ import (
 	"scheduler0/service"
 )
 
-func getDBConnection(logger *log.Logger) (*sql.DB, db.DataStore) {
+func getDBConnection(logger *log.Logger) *db.DataStore {
 	dir, err := os.Getwd()
 	if err != nil {
 		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
@@ -30,10 +31,7 @@ func getDBConnection(logger *log.Logger) (*sql.DB, db.DataStore) {
 	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
 
 	sqliteDb := db.NewSqliteDbConnection(dbFilePath)
-	conn, err := sqliteDb.OpenConnection()
-	if err != nil {
-		logger.Fatal("Failed to open connection", err)
-	}
+	conn := sqliteDb.OpenConnection()
 
 	dbConnection := conn.(*sql.DB)
 	err = dbConnection.Ping()
@@ -41,7 +39,7 @@ func getDBConnection(logger *log.Logger) (*sql.DB, db.DataStore) {
 		logger.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
 	}
 
-	return dbConnection, sqliteDb
+	return sqliteDb
 }
 
 // Start this will start the http server
@@ -51,17 +49,19 @@ func Start() {
 
 	configs := config.GetConfigurations(logger)
 
-	dbConnection, sqliteDb := getDBConnection(logger)
-	fsmStr := fsm.NewFSMStore(sqliteDb, dbConnection, logger)
+	sqliteDb := getDBConnection(logger)
+	fsmStr := fsm.NewFSMStore(sqliteDb, logger)
 
 	//repository
 	credentialRepo := repository.NewCredentialRepo(logger, fsmStr)
 	jobRepo := repository.NewJobRepo(logger, fsmStr)
 	projectRepo := repository.NewProjectRepo(logger, fsmStr, jobRepo)
+	executionsRepo := repository.NewExecutionsRepo(logger, fsmStr)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmStr)
 
-	jobExecutor := job_executor.NewJobExecutor(logger, jobRepo)
-	jobQueue := job_queue.NewJobQueue(logger, fsmStr, jobExecutor)
-	p := node.NewNode(logger, jobExecutor, jobQueue, jobRepo, projectRepo)
+	jobExecutor := job_executor.NewJobExecutor(logger, jobRepo, executionsRepo, jobQueueRepo)
+	jobQueue := job_queue.NewJobQueue(logger, fsmStr, jobExecutor, jobQueueRepo)
+	p := node.NewNode(logger, jobExecutor, jobQueue, jobRepo, projectRepo, executionsRepo, jobQueueRepo)
 
 	//services
 	credentialService := service.NewCredentialService(logger, credentialRepo, ctx)
@@ -122,7 +122,7 @@ func Start() {
 
 	logger.Println("Server is running on port", configs.Port)
 	go func() {
-		err := http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), router)
+		err := http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), httpLogger.Handler(router, os.Stderr, httpLogger.CombineLoggerType))
 		if err != nil {
 			logger.Fatal("failed to start http-server", err)
 		}
