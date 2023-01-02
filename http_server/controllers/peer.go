@@ -1,13 +1,10 @@
 package controllers
 
 import (
-	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/fsm"
-	"scheduler0/models"
 	"scheduler0/node"
 	"scheduler0/utils"
 )
@@ -43,21 +40,7 @@ func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Reque
 }
 
 func (controller *peerController) ExecutionLogs(w http.ResponseWriter, r *http.Request) {
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		controller.logger.Println("failed to read data from execution logs request", err)
-		utils.SendJSON(w, nil, true, http.StatusBadRequest, nil)
-		return
-	}
-
-	jobsState := models.JobStateLog{}
-	err = json.Unmarshal(data, &jobsState)
-	if err != nil {
-		controller.logger.Println("failed to read data from execution logs request", err)
-		utils.SendJSON(w, nil, true, http.StatusUnprocessableEntity, nil)
-		return
-	}
-
-	utils.SendJSON(w, nil, true, http.StatusOK, nil)
+	bLogs := controller.peer.ReturnUncommittedLogs()
+	utils.SendJSON(w, bLogs, true, http.StatusOK, nil)
 	return
 }
