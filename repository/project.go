@@ -26,9 +26,9 @@ type Project interface {
 }
 
 type projectRepo struct {
-	store   *fsm.Store
-	jobRepo Job
-	logger  *log.Logger
+	fsmStore *fsm.Store
+	jobRepo  Job
+	logger   *log.Logger
 }
 
 const (
@@ -41,9 +41,9 @@ const (
 
 func NewProjectRepo(logger *log.Logger, store *fsm.Store, jobRepo Job) Project {
 	return &projectRepo{
-		store:   store,
-		jobRepo: jobRepo,
-		logger:  logger,
+		fsmStore: store,
+		jobRepo:  jobRepo,
+		logger:   logger,
 	}
 }
 
@@ -82,7 +82,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (int64, 
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.logger, projectRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(projectRepo.logger, projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if applyErr != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -105,6 +105,9 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (int64, 
 
 // GetOneByName returns a project with a matching name
 func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *utils.GenericError {
+	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+
 	selectBuilder := sq.Select(
 		ProjectsIdColumn,
 		NameColumn,
@@ -113,7 +116,7 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s = ?", NameColumn), project.Name).
-		RunWith(projectRepo.store.SQLDbConnection)
+		RunWith(projectRepo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -151,6 +154,9 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 
 // GetOneByID returns a project that matches the uuid
 func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.GenericError {
+	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+
 	selectBuilder := sq.Select(
 		ProjectsIdColumn,
 		NameColumn,
@@ -159,7 +165,7 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID).
-		RunWith(projectRepo.store.SQLDbConnection)
+		RunWith(projectRepo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -196,6 +202,8 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 }
 
 func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]models.ProjectModel, *utils.GenericError) {
+	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
 	if len(projectIds) < 1 {
 		return []models.ProjectModel{}, nil
@@ -203,7 +211,6 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]mod
 
 	cachedProjectIds := map[int64]int64{}
 
-	// TODO: batch project ids retrieval
 	for _, projectId := range projectIds {
 		if _, ok := cachedProjectIds[projectId]; !ok {
 			cachedProjectIds[projectId] = projectId
@@ -233,7 +240,7 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]mod
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s in (%s)", ProjectsIdColumn, idParams), projectIdsArgs...).
-		RunWith(projectRepo.store.SQLDbConnection)
+		RunWith(projectRepo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -271,6 +278,9 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]mod
 
 // List returns a paginated set of results
 func (projectRepo *projectRepo) List(offset int64, limit int64) ([]models.ProjectModel, *utils.GenericError) {
+	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+
 	selectBuilder := sq.Select(
 		ProjectsIdColumn,
 		NameColumn,
@@ -280,7 +290,7 @@ func (projectRepo *projectRepo) List(offset int64, limit int64) ([]models.Projec
 		From(ProjectsTableName).
 		Offset(uint64(offset)).
 		Limit(uint64(limit)).
-		RunWith(projectRepo.store.SQLDbConnection)
+		RunWith(projectRepo.fsmStore.DataStore.Connection)
 
 	projects := []models.ProjectModel{}
 	rows, err := selectBuilder.Query()
@@ -316,7 +326,10 @@ func (projectRepo *projectRepo) List(offset int64, limit int64) ([]models.Projec
 
 // Count return the number of projects
 func (projectRepo *projectRepo) Count() (int64, *utils.GenericError) {
-	countQuery := sq.Select("count(*)").From(ProjectsTableName).RunWith(projectRepo.store.SQLDbConnection)
+	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+
+	countQuery := sq.Select("count(*)").From(ProjectsTableName).RunWith(projectRepo.fsmStore.DataStore.Connection)
 	rows, err := countQuery.Query()
 	if err != nil {
 		return 0, utils.HTTPGenericError(500, err.Error())
@@ -349,7 +362,7 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (int6
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.logger, projectRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(projectRepo.logger, projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -382,7 +395,7 @@ func (projectRepo *projectRepo) DeleteOneByID(project models.ProjectModel) (int6
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, deleteErr.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.logger, projectRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(projectRepo.logger, projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if applyErr != nil {
 		return -1, applyErr
 	}

@@ -15,8 +15,8 @@ import (
 
 // JobRepo job table manager
 type jobRepo struct {
-	store  *fsm.Store
-	logger *log.Logger
+	fsmStore *fsm.Store
+	logger   *log.Logger
 }
 
 type Job interface {
@@ -48,13 +48,16 @@ const (
 
 func NewJobRepo(logger *log.Logger, store *fsm.Store) Job {
 	return &jobRepo{
-		store:  store,
-		logger: logger,
+		fsmStore: store,
+		logger:   logger,
 	}
 }
 
 // GetOneByID returns a single job that matches uuid
 func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericError {
+	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+
 	selectBuilder := sq.Select(
 		JobsIdColumn,
 		ProjectIdColumn,
@@ -66,7 +69,7 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 	).
 		From(JobsTableName).
 		Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID).
-		RunWith(jobRepo.store.SQLDbConnection)
+		RunWith(jobRepo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -104,6 +107,9 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 
 // BatchGetJobsByID returns jobs where uuid in jobUUIDs
 func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *utils.GenericError) {
+	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+
 	jobs := []models.JobModel{}
 	batches := [][]int64{}
 
@@ -153,7 +159,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 		).
 			From(JobsTableName).
 			Where(fmt.Sprintf("%s IN (%s)", JobsIdColumn, paramsPlaceholder), ids...).
-			RunWith(jobRepo.store.SQLDbConnection)
+			RunWith(jobRepo.fsmStore.DataStore.Connection)
 
 		rows, err := selectBuilder.Query()
 		if err != nil {
@@ -191,6 +197,8 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 }
 
 func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([]models.JobModel, *utils.GenericError) {
+	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
 	selectBuilder := sq.Select(
 		JobsIdColumn,
@@ -203,7 +211,7 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([
 	).
 		From(JobsTableName).
 		Where(fmt.Sprintf("%s BETWEEN ? and ?", JobsIdColumn), lowerBound, upperBound).
-		RunWith(jobRepo.store.SQLDbConnection)
+		RunWith(jobRepo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -243,6 +251,9 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([
 
 // GetAllByProjectID returns paginated set of jobs that are not archived
 func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit int64, orderBy string) ([]models.JobModel, *utils.GenericError) {
+	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+
 	jobs := []models.JobModel{}
 
 	selectBuilder := sq.Select(
@@ -259,7 +270,7 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit i
 		Limit(uint64(limit)).
 		OrderBy(orderBy).
 		Where(fmt.Sprintf("%s = ?", ProjectIdColumn), projectID).
-		RunWith(jobRepo.store.SQLDbConnection)
+		RunWith(jobRepo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -320,7 +331,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (int64, *utils.G
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return -1, applyErr
 	}
@@ -343,7 +354,7 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (int64, *utils.G
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return -1, applyErr
 	}
@@ -359,7 +370,10 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (int64, *utils.G
 
 // GetJobsTotalCount returns total number of jobs
 func (jobRepo *jobRepo) GetJobsTotalCount() (int64, *utils.GenericError) {
-	countQuery := sq.Select("count(*)").From(JobsTableName).RunWith(jobRepo.store.SQLDbConnection)
+	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+
+	countQuery := sq.Select("count(*)").From(JobsTableName).RunWith(jobRepo.fsmStore.DataStore.Connection)
 	rows, err := countQuery.Query()
 	if err != nil {
 		return 0, utils.HTTPGenericError(500, err.Error())
@@ -383,10 +397,13 @@ func (jobRepo *jobRepo) GetJobsTotalCount() (int64, *utils.GenericError) {
 
 // GetJobsTotalCountByProjectID returns the number of jobs for project with uuid
 func (jobRepo *jobRepo) GetJobsTotalCountByProjectID(projectID int64) (int64, *utils.GenericError) {
+	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+
 	countQuery := sq.Select("count(*)").
 		From(JobsTableName).
 		Where(fmt.Sprintf("%s = ?", ProjectIdColumn), projectID).
-		RunWith(jobRepo.store.SQLDbConnection)
+		RunWith(jobRepo.fsmStore.DataStore.Connection)
 	rows, queryErr := countQuery.Query()
 	if queryErr != nil {
 		return 0, utils.HTTPGenericError(500, queryErr.Error())
@@ -480,7 +497,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]int64, *utils
 
 		query += ";"
 
-		res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.store.Raft, constants.CommandTypeDbExecute, query, params)
+		res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 		if res == nil {
 			return nil, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 		}

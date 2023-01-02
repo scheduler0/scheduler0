@@ -11,10 +11,10 @@ import (
 //	db.TeardownTestDB()
 //	db.PrepareTestDB()
 //	dbConn := db.GetTestDBConnection()
-//	store := store2.Store{
-//		SqliteDB: dbConn,
+//	fsmStore := store2.Store{
+//		DataStore: dbConn,
 //	}
-//	credentialRepo := repository2.NewCredentialRepo(&store)
+//	credentialRepo := repository2.NewCredentialRepo(&fsmStore)
 //
 //	forceDelete := func(credentialRepo *models.CredentialModel) {
 //		dbConn := db.GetTestDBConnection()
