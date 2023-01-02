@@ -6,13 +6,12 @@ message Command {
   enum Type {
     COMMAND_TYPE_DB_EXECUTE = 0;
     COMMAND_TYPE_JOB_QUEUE = 1;
-    COMMAND_TYPE_PREPARE_JOB_EXECUTIONS = 2;
-    COMMAND_TYPE_COMMIT_JOB_EXECUTIONS = 3;
-    COMMAND_TYPE_ERROR_Job_EXECUTIONS = 4;
-    COMMAND_TYPE_STOP_JOBS = 5;
+    COMMAND_TYPE_JOB_EXECUTION_LOGS = 2;
+    COMMAND_TYPE_STOP_JOBS = 3;
   }
   Type type = 1;
   string sql = 2;
   bytes args = 3;
   bytes data = 4;
+  string action_target = 5;
 }
