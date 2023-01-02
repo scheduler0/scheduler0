@@ -30,7 +30,7 @@ var credentialCmd = &cobra.Command{
 	Short: "Creates a new credential",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
+		logger := log.New(os.Stdout, "[cmd] ", log.LstdFlags)
 
 		configs := config.GetConfigurations(logger)
 		credentials := secrets.GetSecrets(logger)
@@ -48,11 +48,11 @@ var credentialCmd = &cobra.Command{
 				rc := ioutil.NopCloser(body)
 				req.Body = rc
 				req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
-				req.Header.Add(headers.PeerHeader, "cmd")
+				req.Header.Add(headers.PeerHeader, headers.PeerHeaderCMDValue)
 				req.Header.Add("Content-Type", "application/json")
 
 				if len(via) > 5 {
-					logger.Fatalln("Too many redirects")
+					logger.Fatalln("too many redirects")
 				}
 
 				return nil
@@ -65,7 +65,7 @@ var credentialCmd = &cobra.Command{
 		)
 
 		req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
-		req.Header.Add(headers.PeerHeader, "cmd")
+		req.Header.Add(headers.PeerHeader, headers.PeerHeaderCMDValue)
 		req.Header.Add("Content-Type", "application/json")
 		res, err := client.Do(req)
 		if err != nil {
@@ -81,7 +81,7 @@ var credentialCmd = &cobra.Command{
 		if res.StatusCode != http.StatusCreated {
 			logger.Fatalln("failed to create new credential:error:", string(body))
 		} else {
-			logger.Println("successfully created a credential ", string(body))
+			fmt.Println(string(body))
 		}
 	},
 }
