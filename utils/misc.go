@@ -6,7 +6,9 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"github.com/hashicorp/raft"
 	"github.com/segmentio/ksuid"
 	"github.com/spf13/afero"
 	"io"
@@ -120,16 +122,40 @@ func BytesFromSnapshot(rc io.ReadCloser) ([]byte, error) {
 	return database, nil
 }
 
-func GetNodeIPWithRaftAddress(logger *log.Logger, raftAddress string) string {
+func GetNodeServerAddressWithRaftAddress(logger *log.Logger, raftAddress raft.ServerAddress) string {
 	configs := config.GetConfigurations(logger)
 
 	for _, replica := range configs.Replicas {
-		if replica.RaftAddress == raftAddress {
+		if replica.RaftAddress == string(raftAddress) {
 			return replica.Address
 		}
 	}
 
 	return ""
+}
+
+func GetNodeIdWithRaftAddress(logger *log.Logger, raftAddress raft.ServerAddress) (int, error) {
+	configs := config.GetConfigurations(logger)
+
+	for _, replica := range configs.Replicas {
+		if replica.RaftAddress == string(raftAddress) {
+			return replica.NodeId, nil
+		}
+	}
+
+	return -1, errors.New("cannot find node with raft address")
+}
+
+func GetNodeIdWithServerAddress(logger *log.Logger, serverAddress string) (int, error) {
+	configs := config.GetConfigurations(logger)
+
+	for _, replica := range configs.Replicas {
+		if replica.Address == serverAddress {
+			return replica.NodeId, nil
+		}
+	}
+
+	return -1, errors.New("cannot find node with server address")
 }
 
 func bToMb(b uint64) uint64 {
@@ -180,4 +206,9 @@ func GzUncompress(b []byte) ([]byte, error) {
 		return nil, fmt.Errorf("unmarshal gzip Close: %s", err)
 	}
 	return ub, nil
+}
+
+func GetServerHTTPAddress(logger *log.Logger) string {
+	configs := config.GetConfigurations(logger)
+	return fmt.Sprintf("%v://%v:%v", configs.Protocol, configs.Host, configs.Port)
 }
