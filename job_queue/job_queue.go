@@ -2,6 +2,7 @@ package job_queue
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
 	"log"
@@ -12,8 +13,8 @@ import (
 	"scheduler0/job_executor"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
+	"scheduler0/repository"
 	"scheduler0/utils"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -23,49 +24,46 @@ type JobQueueCommand struct {
 	serverId string
 }
 
-type jobQueue struct {
-	Executor    *job_executor.JobExecutor
-	fsm         *fsm.Store
-	logger      *log.Logger
-	allocations map[raft.ServerAddress]int64
-	minId       int64
-	maxId       int64
-	threshold   time.Time
-	ticker      *time.Ticker
-	mtx         sync.Mutex
-	once        sync.Once
+type JobQueue struct {
+	Executor       *job_executor.JobExecutor
+	jobsQueueRepo  repository.JobQueuesRepo
+	fsm            *fsm.Store
+	logger         *log.Logger
+	allocations    map[raft.ServerAddress]int64
+	minId          int64
+	maxId          int64
+	threshold      time.Time
+	ticker         *time.Ticker
+	mtx            sync.Mutex
+	once           sync.Once
+	SingleNodeMode bool
 }
 
-type JobQueue interface {
-	Queue(jobs []models.JobModel)
-	AddServers(serverAddresses []raft.Server)
-	RemoveServers(serverAddresses []raft.Server)
-}
-
-func NewJobQueue(logger *log.Logger, fsm *fsm.Store, Executor *job_executor.JobExecutor) *jobQueue {
-	return &jobQueue{
-		Executor:    Executor,
-		fsm:         fsm,
-		logger:      logger,
-		minId:       math.MaxInt64,
-		maxId:       math.MinInt16,
-		allocations: map[raft.ServerAddress]int64{},
+func NewJobQueue(logger *log.Logger, fsm *fsm.Store, Executor *job_executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
+	return &JobQueue{
+		Executor:      Executor,
+		jobsQueueRepo: jobsQueueRepo,
+		fsm:           fsm,
+		logger:        logger,
+		minId:         math.MaxInt64,
+		maxId:         math.MinInt16,
+		allocations:   map[raft.ServerAddress]int64{},
 	}
 }
 
-func (jobQ *jobQueue) AddServers(serverAddresses []raft.Server) {
+func (jobQ *JobQueue) AddServers(serverAddresses []raft.Server) {
 	for _, serverAddress := range serverAddresses {
 		jobQ.allocations[serverAddress.Address] = 0
 	}
 }
 
-func (jobQ *jobQueue) RemoveServers(serverAddresses []raft.Server) {
+func (jobQ *JobQueue) RemoveServers(serverAddresses []raft.Server) {
 	for _, serverAddress := range serverAddresses {
 		delete(jobQ.allocations, serverAddress.Address)
 	}
 }
 
-func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
+func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
 	jobQ.mtx.Lock()
 	defer jobQ.mtx.Unlock()
 
@@ -73,22 +71,17 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 		return
 	}
 
-	if len(jobs) > 1 {
-		for _, job := range jobs {
-			if jobQ.maxId < job.ID {
-				jobQ.maxId = job.ID
-			}
-			if jobQ.minId > job.ID {
-				jobQ.minId = job.ID
-			}
+	for _, job := range jobs {
+		if jobQ.maxId < job.ID {
+			jobQ.maxId = job.ID
 		}
-	} else {
-		jobQ.maxId = jobs[0].ID
-		jobQ.minId = jobs[0].ID
+		if jobQ.minId > job.ID {
+			jobQ.minId = job.ID
+		}
 	}
 
 	configs := config.GetConfigurations(jobQ.logger)
-	jobQ.threshold = time.Now().Add(time.Duration(configs.JobPrepareDebounceDelay) * time.Second)
+	jobQ.threshold = time.Now().Add(time.Duration(configs.JobQueueDebounceDelay) * time.Second)
 
 	jobQ.once.Do(func() {
 		go func() {
@@ -121,7 +114,7 @@ func (jobQ *jobQueue) Queue(jobs []models.JobModel) {
 	})
 }
 
-func (jobQ *jobQueue) queue(minId, maxId int64) {
+func (jobQ *JobQueue) queue(minId, maxId int64) {
 	f := jobQ.fsm.Raft.VerifyLeader()
 	if f.Error() != nil {
 		jobQ.logger.Println("skipping job queueing as node is not the leader")
@@ -130,11 +123,6 @@ func (jobQ *jobQueue) queue(minId, maxId int64) {
 
 	configs := config.GetConfigurations(jobQ.logger)
 
-	if len(jobQ.allocations) == 1 {
-		jobQ.Executor.QueueExecutions([]interface{}{configs.RaftAddress, minId, maxId})
-		return
-	}
-
 	batchRanges := [][]int64{}
 
 	numberOfServers := len(jobQ.allocations) - 1
@@ -142,44 +130,51 @@ func (jobQ *jobQueue) queue(minId, maxId int64) {
 		batchRanges = append(batchRanges, []int64{})
 	}
 
-	currentServer := 0
-	cycle := int64(math.Ceil(float64((maxId - minId) / int64(numberOfServers))))
-	epoc := minId
-	for epoc < maxId {
-		lowerBound := epoc
-		upperBound := epoc + cycle
+	if numberOfServers > 0 {
+		currentServer := 0
+		cycle := int64(math.Ceil(float64((maxId - minId) / int64(numberOfServers))))
+		epoc := minId
+		for epoc < maxId {
+			lowerBound := epoc
+			upperBound := epoc + cycle
 
-		batchRanges[currentServer] = append(batchRanges[currentServer], lowerBound)
-		batchRanges[currentServer] = append(batchRanges[currentServer], upperBound)
+			batchRanges[currentServer] = append(batchRanges[currentServer], lowerBound)
+			batchRanges[currentServer] = append(batchRanges[currentServer], upperBound)
 
-		epoc = upperBound + 1
+			epoc = upperBound + 1
 
-		if maxId-upperBound < cycle {
-			upperBound = maxId
+			if maxId-upperBound < cycle {
+				upperBound = maxId
+			}
+
+			currentServer += 1
+			if currentServer == numberOfServers {
+				currentServer = 0
+			}
 		}
-
-		currentServer += 1
-		if currentServer == numberOfServers {
-			currentServer = 0
-		}
-	}
-
-	timeout, err := strconv.Atoi(configs.RaftApplyTimeout)
-	if err != nil {
-		jobQ.logger.Fatalln(err.Error())
+	} else {
+		batchRanges = append(batchRanges, []int64{minId, maxId})
 	}
 
 	allocations := jobQ.allocations
 
+	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
+
 	j := 0
 	for j < len(batchRanges) {
-		if utils.MonitorMemoryUsage(jobQueue{}.logger) {
+		if utils.MonitorMemoryUsage(JobQueue{}.logger) {
 			return
 		}
 
 		server := func() raft.ServerAddress {
 			var minAllocation int64 = math.MaxInt64
 			var minServer raft.ServerAddress
+
+			// Edge case for single node mode
+			if jobQ.SingleNodeMode {
+				return raft.ServerAddress(configs.RaftAddress)
+			}
+
 			for server, allocation := range allocations {
 				if allocation < minAllocation && string(server) != configs.RaftAddress {
 					minAllocation = allocation
@@ -192,6 +187,7 @@ func (jobQ *jobQueue) queue(minId, maxId int64) {
 		batchRange := []interface{}{
 			batchRanges[j][0],
 			batchRanges[j][len(batchRanges[j])-1],
+			lastVersion,
 		}
 
 		d, err := json.Marshal(batchRange)
@@ -200,9 +196,10 @@ func (jobQ *jobQueue) queue(minId, maxId int64) {
 		}
 
 		createCommand := &protobuffs.Command{
-			Type: protobuffs.Command_Type(constants.CommandTypeJobQueue),
-			Sql:  string(server),
-			Data: d,
+			Type:         protobuffs.Command_Type(constants.CommandTypeJobQueue),
+			Sql:          string(server),
+			Data:         d,
+			ActionTarget: string(server),
 		}
 
 		createCommandData, err := proto.Marshal(createCommand)
@@ -210,7 +207,7 @@ func (jobQ *jobQueue) queue(minId, maxId int64) {
 			log.Fatalln(err.Error())
 		}
 
-		af := jobQ.fsm.Raft.Apply(createCommandData, time.Second*time.Duration(timeout)).(raft.ApplyFuture)
+		af := jobQ.fsm.Raft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 		if af.Error() != nil {
 			if af.Error() == raft.ErrNotLeader {
 				log.Fatalln("raft leader not found")
@@ -222,4 +219,20 @@ func (jobQ *jobQueue) queue(minId, maxId int64) {
 	}
 
 	jobQ.allocations = allocations
+}
+
+func (jobQ *JobQueue) IncrementQueueVersion() {
+	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
+	_, err := fsm.AppApply(
+		jobQ.logger,
+		jobQ.fsm.Raft,
+		constants.CommandTypeDbExecute,
+		fmt.Sprintf("insert into %s (%s, %s) values (?, ?)",
+			repository.JobQueuesVersionTableName,
+			repository.JobQueueVersion,
+			repository.JobNumberOfActiveNodesVersion,
+		), []interface{}{lastVersion + 1, len(jobQ.allocations)})
+	if err != nil {
+		log.Fatalln("failed to increment job queue version", err)
+	}
 }
