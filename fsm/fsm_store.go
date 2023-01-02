@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
 	"io"
@@ -17,19 +18,17 @@ import (
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
 	"sync"
+	"time"
 )
 
 type Store struct {
-	rwMtx                 sync.RWMutex
-	SqliteDB              db.DataStore
-	logger                *log.Logger
-	SQLDbConnection       *sql.DB
-	Raft                  *raft.Raft
-	QueueJobsChannel      chan []interface{}
-	ScheduleJobsChannel   chan models.JobStateLog
-	SuccessfulJobsChannel chan models.JobStateLog
-	FailedJobsChannel     chan models.JobStateLog
-	StopAllJobs           chan bool
+	rwMtx                   sync.RWMutex
+	DataStore               *db.DataStore
+	logger                  *log.Logger
+	Raft                    *raft.Raft
+	QueueJobsChannel        chan []interface{}
+	JobExecutionLogsChannel chan models.CommitJobStateLog
+	StopAllJobs             chan bool
 
 	raft.BatchingFSM
 }
@@ -39,18 +38,41 @@ type Response struct {
 	Error string
 }
 
+const (
+	JobQueuesTableName        = "job_queues"
+	JobQueueIdColumn          = "id"
+	JobQueueNodeIdColumn      = "node_id"
+	JobQueueLowerBoundJobId   = "lower_bound_job_id"
+	JobQueueUpperBound        = "upper_bound_job_id"
+	JobQueueDateCreatedColumn = "date_created"
+	JobQueueVersion           = "version"
+
+	ExecutionsUnCommittedTableName    = "job_executions_uncommitted"
+	ExecutionsTableName               = "job_executions_committed"
+	ExecutionsIdColumn                = "id"
+	ExecutionsUniqueIdColumn          = "unique_id"
+	ExecutionsStateColumn             = "state"
+	ExecutionsNodeIdColumn            = "node_id"
+	ExecutionsLastExecutionTimeColumn = "last_execution_time"
+	ExecutionsNextExecutionTime       = "next_execution_time"
+	ExecutionsJobIdColumn             = "job_id"
+	ExecutionsDateCreatedColumn       = "date_created"
+	ExecutionsJobQueueVersion         = "job_queue_version"
+	ExecutionsVersion                 = "execution_version"
+
+	JobQueuesVersionTableName     = "job_queue_versions"
+	JobNumberOfActiveNodesVersion = "number_of_active_nodes"
+)
+
 var _ raft.FSM = &Store{}
 
-func NewFSMStore(db db.DataStore, sqlDbConnection *sql.DB, logger *log.Logger) *Store {
+func NewFSMStore(db *db.DataStore, logger *log.Logger) *Store {
 	return &Store{
-		SqliteDB:              db,
-		SQLDbConnection:       sqlDbConnection,
-		QueueJobsChannel:      make(chan []interface{}, 1),
-		ScheduleJobsChannel:   make(chan models.JobStateLog, 1),
-		SuccessfulJobsChannel: make(chan models.JobStateLog, 1),
-		FailedJobsChannel:     make(chan models.JobStateLog, 1),
-		StopAllJobs:           make(chan bool, 1),
-		logger:                logger,
+		DataStore:               db,
+		QueueJobsChannel:        make(chan []interface{}, 1),
+		JobExecutionLogsChannel: make(chan models.CommitJobStateLog, 1),
+		StopAllJobs:             make(chan bool, 1),
+		logger:                  logger,
 	}
 }
 
@@ -61,12 +83,9 @@ func (s *Store) Apply(l *raft.Log) interface{} {
 	return ApplyCommand(
 		s.logger,
 		l,
-		s.SQLDbConnection,
+		s.DataStore,
 		true,
 		s.QueueJobsChannel,
-		s.ScheduleJobsChannel,
-		s.SuccessfulJobsChannel,
-		s.FailedJobsChannel,
 		s.StopAllJobs,
 	)
 }
@@ -81,12 +100,9 @@ func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
 		result := ApplyCommand(
 			s.logger,
 			l,
-			s.SQLDbConnection,
+			s.DataStore,
 			true,
 			s.QueueJobsChannel,
-			s.ScheduleJobsChannel,
-			s.SuccessfulJobsChannel,
-			s.FailedJobsChannel,
 			s.StopAllJobs,
 		)
 		results = append(results, result)
@@ -98,12 +114,9 @@ func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
 func ApplyCommand(
 	logger *log.Logger,
 	l *raft.Log,
-	SQLDbConnection *sql.DB,
+	db *db.DataStore,
 	useQueues bool,
 	queue chan []interface{},
-	prepareQueue chan models.JobStateLog,
-	commitQueue chan models.JobStateLog,
-	errorQueue chan models.JobStateLog,
 	stopAllJobsQueue chan bool) interface{} {
 
 	logPrefix := logger.Prefix()
@@ -131,7 +144,10 @@ func ApplyCommand(
 			}
 		}
 		ctx := context.Background()
-		tx, err := SQLDbConnection.BeginTx(ctx, nil)
+
+		db.ConnectionLock.Lock()
+
+		tx, err := db.Connection.BeginTx(ctx, nil)
 		if err != nil {
 			logger.Println("failed to execute sql command", err.Error())
 			return Response{
@@ -166,6 +182,7 @@ func ApplyCommand(
 				Error: err.Error(),
 			}
 		}
+		db.ConnectionLock.Unlock()
 
 		lastInsertedId, err := exec.LastInsertId()
 		if err != nil {
@@ -214,53 +231,155 @@ func ApplyCommand(
 		}
 		lowerBound := jobIds[0].(float64)
 		upperBound := jobIds[1].(float64)
-		logger.Println(fmt.Sprintf("received  jobs %v to %v to queue", lowerBound, upperBound))
-		queue <- []interface{}{command.Sql, int64(lowerBound), int64(upperBound)}
-		break
-	case protobuffs.Command_Type(constants.CommandTypeScheduleJobExecutions):
-		if useQueues {
-			jobState := []models.JobStateLog{}
-			err := json.Unmarshal(command.Data, &jobState)
-			if err != nil {
-				return Response{
-					Data:  nil,
-					Error: err.Error(),
-				}
-			}
+		lastVersion := jobIds[2].(float64)
 
-			logger.Println(fmt.Sprintf("received %v jobs from %s to log prepare", len(jobState[0].Data), jobState[0].ServerAddress))
-			prepareQueue <- jobState[0]
+		serverNodeId, err := utils.GetNodeIdWithRaftAddress(logger, raft.ServerAddress(command.ActionTarget))
+
+		db.ConnectionLock.Lock()
+
+		insertBuilder := sq.Insert(JobQueuesTableName).Columns(
+			JobQueueNodeIdColumn,
+			JobQueueLowerBoundJobId,
+			JobQueueUpperBound,
+			JobQueueVersion,
+			JobQueueDateCreatedColumn,
+		).Values(
+			serverNodeId,
+			lowerBound,
+			upperBound,
+			lastVersion,
+			time.Now().UTC(),
+		).RunWith(db.Connection)
+
+		_, err = insertBuilder.Exec()
+		if err != nil {
+			logger.Fatalln("failed to insert new job queues", err.Error())
+		}
+		db.ConnectionLock.Unlock()
+		if useQueues {
+			queue <- []interface{}{command.Sql, int64(lowerBound), int64(upperBound)}
 		}
 		break
-	case protobuffs.Command_Type(constants.CommandTypeSuccessfulJobExecutions):
-		if useQueues {
-			jobState := []models.JobStateLog{}
-			err := json.Unmarshal(command.Data, &jobState)
-			if err != nil {
-				return Response{
-					Data:  nil,
-					Error: err.Error(),
-				}
+	case protobuffs.Command_Type(constants.CommandTypeJobExecutionLogs):
+		jobState := models.CommitJobStateLog{}
+		err := json.Unmarshal(command.Data, &jobState)
+		if err != nil {
+			return Response{
+				Data:  nil,
+				Error: err.Error(),
+			}
+		}
+
+		if len(jobState.Logs) < 1 {
+			return Response{
+				Data: nil,
+			}
+		}
+
+		db.ConnectionLock.Lock()
+
+		batchInsert := func(jobExecutionLogs []models.JobExecutionLog) {
+			query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
+				ExecutionsTableName,
+				ExecutionsUniqueIdColumn,
+				ExecutionsStateColumn,
+				ExecutionsNodeIdColumn,
+				ExecutionsLastExecutionTimeColumn,
+				ExecutionsNextExecutionTime,
+				ExecutionsJobIdColumn,
+				ExecutionsDateCreatedColumn,
+				ExecutionsJobQueueVersion,
+				ExecutionsVersion,
+			)
+
+			query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+			params := []interface{}{
+				jobExecutionLogs[0].UniqueId,
+				jobExecutionLogs[0].State,
+				jobExecutionLogs[0].NodeId,
+				jobExecutionLogs[0].LastExecutionDatetime,
+				jobExecutionLogs[0].NextExecutionDatetime,
+				jobExecutionLogs[0].JobId,
+				jobExecutionLogs[0].DataCreated,
+				jobExecutionLogs[0].JobQueueVersion,
+				jobExecutionLogs[0].ExecutionVersion,
 			}
 
-			logger.Println(fmt.Sprintf("received %v jobs from %s to log commit", len(jobState[0].Data), jobState[0].ServerAddress))
-			commitQueue <- jobState[0]
+			for _, executionLog := range jobExecutionLogs[1:] {
+				params = append(params,
+					executionLog.UniqueId,
+					executionLog.State,
+					executionLog.NodeId,
+					executionLog.LastExecutionDatetime,
+					executionLog.NextExecutionDatetime,
+					executionLog.JobId,
+					executionLog.DataCreated,
+					executionLog.JobQueueVersion,
+					executionLog.ExecutionVersion,
+				)
+				query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+			}
+
+			query += ";"
+
+			ctx := context.Background()
+			tx, err := db.Connection.BeginTx(ctx, nil)
+			if err != nil {
+				logger.Fatalln("failed to create transaction for batch insertion", err)
+			}
+
+			_, err = tx.Exec(query, params...)
+			if err != nil {
+				trxErr := tx.Rollback()
+				if trxErr != nil {
+					logger.Fatalln("failed to rollback update transition", trxErr)
+				}
+				logger.Fatalln("failed to update committed status of executions", err)
+			}
+			err = tx.Commit()
+			if err != nil {
+				logger.Fatalln("failed to commit transition", err)
+			}
 		}
+
+		batchDelete := func(jobExecutionLogs []models.JobExecutionLog) {
+			paramPlaceholder := "?"
+			params := []interface{}{
+				jobExecutionLogs[0].UniqueId,
+			}
+
+			for _, jobExecutionLog := range jobExecutionLogs[1:] {
+				paramPlaceholder += ",?"
+				params = append(params, jobExecutionLog.UniqueId)
+			}
+
+			ctx := context.Background()
+			tx, err := db.Connection.BeginTx(ctx, nil)
+			if err != nil {
+				logger.Fatalln("failed to create transaction for batch insertion", err)
+			}
+			query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", ExecutionsUnCommittedTableName, ExecutionsUniqueIdColumn, paramPlaceholder)
+			_, err = tx.Exec(query, params...)
+			if err != nil {
+				trxErr := tx.Rollback()
+				if trxErr != nil {
+					logger.Fatalln("failed to rollback update transition", trxErr)
+				}
+				logger.Fatalln("failed to update committed status of executions", err)
+			}
+			err = tx.Commit()
+			if err != nil {
+				logger.Fatalln("failed to commit transition", err)
+			}
+		}
+
+		batchInsert(jobState.Logs)
+		batchDelete(jobState.Logs)
+
+		db.ConnectionLock.Unlock()
+
+		//logger.Println(fmt.Sprintf("received %v jobs execution logs from %s", len(jobState.Logs), jobState.Address))
 		break
-	case protobuffs.Command_Type(constants.CommandTypeFailedJobExecutions):
-		if useQueues {
-			jobState := []models.JobStateLog{}
-			err := json.Unmarshal(command.Data, &jobState)
-			if err != nil {
-				return Response{
-					Data:  nil,
-					Error: err.Error(),
-				}
-			}
-
-			logger.Println(fmt.Sprintf("received %v jobs from %s to log prepare", len(jobState[0].Data), jobState[0].ServerAddress))
-			errorQueue <- jobState[0]
-		}
 	case protobuffs.Command_Type(constants.CommandTypeStopJobs):
 		if useQueues {
 			stopAllJobsQueue <- true
@@ -274,7 +393,7 @@ func (s *Store) Snapshot() (raft.FSMSnapshot, error) {
 	logPrefix := s.logger.Prefix()
 	s.logger.SetPrefix(fmt.Sprintf("%s[snapshot-fsm] ", logPrefix))
 	defer s.logger.SetPrefix(logPrefix)
-	fmsSnapshot := NewFSMSnapshot(s.SqliteDB)
+	fmsSnapshot := NewFSMSnapshot(s.DataStore)
 	s.logger.Println("took snapshot")
 	return fmsSnapshot, nil
 }
@@ -313,7 +432,9 @@ func (s *Store) Restore(r io.ReadCloser) error {
 		return fmt.Errorf("ping error: restore failed to create db: %v", err)
 	}
 
-	s.SQLDbConnection = db
+	s.DataStore.ConnectionLock.Lock()
+	s.DataStore.Connection = db
+	s.DataStore.ConnectionLock.Unlock()
 
 	return nil
 }
