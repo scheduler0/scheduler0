@@ -13,18 +13,28 @@ import (
 )
 
 type JobRecovery struct {
-	jobExecutor   *job_executor.JobExecutor
-	jobRepo       repository.Job
-	logger        *log.Logger
-	recoveredJobs []models.JobModel
-	mtx           sync.Mutex
+	jobExecutor         *job_executor.JobExecutor
+	jobRepo             repository.Job
+	jobExecutionLogRepo repository.ExecutionsRepo
+	jobQueuesRepo       repository.JobQueuesRepo
+	logger              *log.Logger
+	recoveredJobs       []models.JobModel
+	mtx                 sync.Mutex
 }
 
-func NewJobRecovery(logger *log.Logger, jobRepo repository.Job, jobExecutor *job_executor.JobExecutor) *JobRecovery {
+func NewJobRecovery(
+	logger *log.Logger,
+	jobRepo repository.Job,
+	jobExecutor *job_executor.JobExecutor,
+	jobExecutionLogRepo repository.ExecutionsRepo,
+	jobQueuesRepo repository.JobQueuesRepo,
+) *JobRecovery {
 	return &JobRecovery{
-		jobExecutor: jobExecutor,
-		logger:      logger,
-		jobRepo:     jobRepo,
+		jobExecutor:         jobExecutor,
+		logger:              logger,
+		jobRepo:             jobRepo,
+		jobExecutionLogRepo: jobExecutionLogRepo,
+		jobQueuesRepo:       jobQueuesRepo,
 	}
 }
 
@@ -33,56 +43,78 @@ func (jobRecovery *JobRecovery) Run() {
 	defer jobRecovery.mtx.Unlock()
 
 	jobRecovery.logger.Println("recovering jobs.")
-	configs := config.GetConfigurations(jobRecovery.logger)
-	jobsStates := jobRecovery.jobExecutor.GetJobLogsForServer(fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port))
-
-	jobsIds := []int64{}
-
-	for _, jobsState := range jobsStates {
-		jobsIds = append(jobsIds, jobsState.Data[0].ID)
-	}
-
-	jobsFromDb, err := jobRecovery.jobRepo.BatchGetJobsByID(jobsIds)
-	if err != nil {
-		jobRecovery.logger.Fatalln("failed to retrieve jobs from db")
-	}
-
-	jobRecovery.logger.Println("recovered ", len(jobsFromDb), " jobs")
-
-	for _, job := range jobsFromDb {
-		schedule, parseErr := cron.Parse(job.Spec)
-		if parseErr != nil {
-			jobRecovery.logger.Fatalln(fmt.Sprintf("failed to parse spec %v", parseErr.Error()))
-		}
-		jobState := jobsStates[int(job.ID)]
-
-		now := time.Now().UTC()
-		executionTime := schedule.Next(jobState.ExecutionTime)
-		job.ExecutionId = jobState.Data[0].ExecutionId
-		job.LastExecutionDate = jobState.Data[0].LastExecutionDate
-		if now.Before(executionTime) {
-			jobRecovery.logger.Println("quick recovered job", job.ID, job.ExecutionId)
-			jobRecovery.jobExecutor.AddNewProcess(job, executionTime)
-		} else {
-			jobRecovery.jobExecutor.Schedule([]models.JobModel{job})
-		}
-		jobRecovery.recoveredJobs = append(jobRecovery.recoveredJobs, job)
-	}
-}
-
-func (jobRecovery *JobRecovery) RecoverAndScheduleJob(jobState models.JobStateLog) {
-	jobRecovery.mtx.Lock()
-	defer jobRecovery.mtx.Unlock()
 
 	configs := config.GetConfigurations(jobRecovery.logger)
-	if jobState.ServerAddress != fmt.Sprintf("%s://%s:%s", configs.Protocol, configs.Host, configs.Port) {
+
+	lastVersion := jobRecovery.jobQueuesRepo.GetLastVersion()
+
+	lastJobQueueLogs := jobRecovery.jobQueuesRepo.GetLastJobQueueLogForNode(configs.NodeId, lastVersion)
+	if len(lastJobQueueLogs) < 1 {
+		jobRecovery.logger.Println("no existing job queues for node")
 		return
 	}
 
-	for _, job := range jobState.Data {
-		if jobRecovery.isRecovered(job.ID) {
-			jobRecovery.jobExecutor.AddNewProcess(job, jobState.ExecutionTime)
-			jobRecovery.removeJobRecovery(job.ID)
+	for _, lastJobQueueLog := range lastJobQueueLogs {
+		expandedJobIds := []int64{}
+		for i := lastJobQueueLog.LowerBoundJobId; i <= lastJobQueueLog.UpperBoundJobId; i++ {
+			expandedJobIds = append(expandedJobIds, int64(i))
+		}
+
+		jobsStates := jobRecovery.jobExecutionLogRepo.GetLastExecutionLogForJobIds(expandedJobIds)
+
+		jobsFromDb, err := jobRecovery.jobRepo.BatchGetJobsByID(expandedJobIds)
+		if err != nil {
+			jobRecovery.logger.Fatalln("failed to retrieve jobs from db")
+		}
+
+		jobRecovery.logger.Println("recovered ", len(jobsFromDb), " jobs")
+
+		jobsToSchedule := []models.JobModel{}
+
+		for _, job := range jobsFromDb {
+			var lastJobState models.JobExecutionLog
+
+			if _, ok := jobsStates[job.ID]; ok {
+				lastJobState = jobsStates[job.ID]
+			} else {
+				jobsToSchedule = append(jobsToSchedule, job)
+			}
+
+			if lastJobState.NodeId != uint64(configs.NodeId) &&
+				lastJobState.JobQueueVersion != lastJobQueueLog.Version {
+				continue
+			}
+
+			schedule, parseErr := cron.Parse(job.Spec)
+			if parseErr != nil {
+				jobRecovery.logger.Fatalln(fmt.Sprintf("failed to parse spec %v", parseErr.Error()))
+			}
+
+			now := time.Now().UTC()
+
+			executionTime := schedule.Next(lastJobState.LastExecutionDatetime)
+			job.ExecutionId = lastJobState.UniqueId
+			job.LastExecutionDate = lastJobState.LastExecutionDatetime
+
+			// This is a comparison with the absolute time of the node
+			// which may be false compared to time on other nodes.
+			// To prevent this bug leaders can veto scheduled by
+			// comparing the execution time on the schedule by recalculating it against it's time.
+			// Time clocks are sources of distributed systems errors and a monotonic clock should always be preferred.
+			// While 60 minutes is quite an unlike delay in a close it's not impossible
+			//fmt.Println("lastJobState", lastJobState, executionTime)
+
+			if now.Before(executionTime) && lastJobState.State == uint64(models.ExecutionLogScheduleState) {
+				jobRecovery.logger.Println("quick recovered job", job.ID)
+				jobRecovery.jobExecutor.AddNewProcess(job, executionTime)
+			} else {
+				jobsToSchedule = append(jobsToSchedule, job)
+			}
+			jobRecovery.recoveredJobs = append(jobRecovery.recoveredJobs, job)
+		}
+
+		if len(jobsToSchedule) > 1 {
+			jobRecovery.jobExecutor.Schedule(jobsToSchedule)
 		}
 	}
 }
