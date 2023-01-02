@@ -9,33 +9,46 @@ import (
 	"sync"
 )
 
-type sqlLiteDb struct {
+type DataStore struct {
 	dbFilePath string
-	rwMux      sync.RWMutex
+	fileLock   sync.Mutex
+
+	ConnectionLock sync.Mutex
+	Connection     *sql.DB
 }
 
-type DataStore interface {
-	OpenConnection() (io.Closer, error)
-	Serialize() []byte
-}
-
-func NewSqliteDbConnection(dbFilePath string) DataStore {
-	return &sqlLiteDb{
+func NewSqliteDbConnection(dbFilePath string) *DataStore {
+	return &DataStore{
 		dbFilePath: dbFilePath,
 	}
 }
 
 // OpenConnection opens a database connection with one pool
-func (db *sqlLiteDb) OpenConnection() (io.Closer, error) {
-	db.rwMux.Lock()
-	defer db.rwMux.Unlock()
+func (db *DataStore) OpenConnection() io.Closer {
+	db.fileLock.Lock()
+	defer db.fileLock.Unlock()
 
-	return sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", db.dbFilePath))
+	if db.Connection != nil {
+		return db.Connection
+	}
+
+	once := sync.Once{}
+
+	once.Do(func() {
+		connection, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", db.dbFilePath))
+		if err != nil {
+			log.Fatalln("failed to open db")
+		}
+
+		db.Connection = connection
+	})
+
+	return db.Connection
 }
 
-func (db *sqlLiteDb) Serialize() []byte {
-	db.rwMux.Lock()
-	defer db.rwMux.Unlock()
+func (db *DataStore) Serialize() []byte {
+	db.fileLock.Lock()
+	defer db.fileLock.Unlock()
 
 	data, err := os.ReadFile(db.dbFilePath)
 	if err != nil {
@@ -71,11 +84,62 @@ CREATE TABLE IF NOT EXISTS jobs
     spec           TEXT      NOT NULL,
     data           TEXT,
     callback_url   TEXT      NOT NULL,
-    execution_type TEXT      NOT NULL,
+    execution_type TEXT      NOT NULL DEFAULT "http",
     date_created   datetime NOT NULL,
     FOREIGN KEY (project_id)
         REFERENCES projects (id)
         ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS job_executions_committed
+(
+	id						INTEGER PRIMARY KEY AUTOINCREMENT,
+	unique_id 				TEXT,
+	state					INTEGER NOT NULL,
+	node_id					INTEGER NOT NULL,
+	last_execution_time   	datetime NOT NULL,
+	next_execution_time   	datetime NOT NULL,
+	job_id					INTEGER NOT NULL,
+    date_created   			datetime NOT NULL,
+	job_queue_version 		INTEGER NOT NULL,
+	execution_version 		INTEGER NOT NULL,
+    FOREIGN KEY (job_id)
+        REFERENCES jobs (id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS job_executions_uncommitted
+(
+	id						INTEGER PRIMARY KEY AUTOINCREMENT,
+	unique_id 				TEXT,
+	state					INTEGER NOT NULL,
+	node_id					INTEGER NOT NULL,
+	last_execution_time   	datetime NOT NULL,
+	next_execution_time   	datetime NOT NULL,
+	job_id					INTEGER NOT NULL,
+    date_created   			datetime NOT NULL,
+	job_queue_version 		INTEGER NOT NULL,
+	execution_version 		INTEGER NOT NULL,
+    FOREIGN KEY (job_id)
+        REFERENCES jobs (id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS job_queues
+(
+	id						INTEGER PRIMARY KEY AUTOINCREMENT,
+	node_id					INTEGER NOT NULL,
+	lower_bound_job_id		INTEGER NOT NULL,
+	upper_bound_job_id		INTEGER NOT NULL,
+	version 				INTEGER NOT NULL,
+    date_created  		 	datetime NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS job_queue_versions
+(
+	id						INTEGER PRIMARY KEY AUTOINCREMENT,
+	version 				INTEGER NOT NULL,
+	number_of_active_nodes  INTEGER NOT NULL
 );
 `
 }
