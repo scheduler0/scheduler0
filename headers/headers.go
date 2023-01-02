@@ -6,3 +6,8 @@ const (
 	PeerHeader        = "x-peer"
 	PeerAddressHeader = "peer-address"
 )
+
+const (
+	PeerHeaderValue    = "peer"
+	PeerHeaderCMDValue = "cmd"
+)
