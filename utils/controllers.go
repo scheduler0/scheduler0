@@ -41,7 +41,7 @@ func SendJSON(w http.ResponseWriter, data interface{}, success bool, status int,
 	if status != http.StatusNoContent {
 		_, err := w.Write(resObj.ToJSON())
 		if err != nil {
-			panic(err)
+			log.Println("failed to respond to client request", err.Error())
 		}
 	}
 }
