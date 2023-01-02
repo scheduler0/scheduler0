@@ -28,6 +28,7 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/fatih/color v1.12.0 // indirect
+	github.com/go-http-utils/logger v0.0.0-20161128092850-f3a42dcdeae6 // indirect
 	github.com/hashicorp/go-hclog v0.16.2 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
 	github.com/hashicorp/go-msgpack v1.1.5 // indirect
