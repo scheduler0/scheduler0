@@ -10,6 +10,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	"scheduler0/utils"
 	"time"
 )
 
@@ -60,27 +61,7 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 		return
 	}
 
-	batches := make([][]models.JobModel, 0)
-
-	if len(jobs) > constants.JobExecutionLogMaxBatchSize {
-		temp := make([]models.JobModel, 0)
-		count := 0
-		for count < len(jobs) {
-			temp = append(temp, jobs[count])
-			if len(temp) == constants.JobExecutionLogMaxBatchSize {
-				batches = append(batches, temp)
-				temp = make([]models.JobModel, 0)
-			}
-			count += 1
-		}
-		if len(temp) > 0 {
-			batches = append(batches, temp)
-			temp = make([]models.JobModel, 0)
-		}
-	} else {
-		batches = append(batches, jobs)
-	}
-
+	batches := utils.Batch[models.JobModel](jobs, 9)
 	returningIds := []int64{}
 
 	for _, batch := range batches {
@@ -177,103 +158,107 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []int64) []model
 		return results
 	}
 
-	paramsPlaceholder := "?"
-	params := []interface{}{jobIds[0]}
+	batches := utils.Batch[int64](jobIds, 1)
 
-	for _, jobId := range jobIds[1:] {
-		paramsPlaceholder += ",?"
-		params = append(params, jobId)
-	}
+	for _, batch := range batches {
+		paramsPlaceholder := "?"
+		params := []interface{}{batch[0]}
 
-	query := fmt.Sprintf(
-		"select %s, %s, %s, %s, %s, %s, %s, %s, %s, %s from (select %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, row_number() over (partition by job_id order by execution_version desc, state desc) rowNum from (select %s, %s, %s, %s, %s, %s, %s, %s, %s, %s from job_executions_committed union all select %s, %s, %s, %s, %s, %s, %s, %s, %s, %s from job_executions_uncommitted) where %s in (%s)) t where t.rowNum = 1",
-		ExecutionsVersion,
-		ExecutionsStateColumn,
-		ExecutionsIdColumn,
-		ExecutionsUniqueIdColumn,
-		ExecutionsNodeIdColumn,
-		ExecutionsLastExecutionTimeColumn,
-		ExecutionsNextExecutionTime,
-		ExecutionsJobIdColumn,
-		ExecutionsDateCreatedColumn,
-		ExecutionsJobQueueVersion,
-		ExecutionsVersion,
-		ExecutionsStateColumn,
-		ExecutionsIdColumn,
-		ExecutionsUniqueIdColumn,
-		ExecutionsNodeIdColumn,
-		ExecutionsLastExecutionTimeColumn,
-		ExecutionsNextExecutionTime,
-		ExecutionsJobIdColumn,
-		ExecutionsDateCreatedColumn,
-		ExecutionsJobQueueVersion,
-		ExecutionsVersion,
-		ExecutionsStateColumn,
-		ExecutionsIdColumn,
-		ExecutionsUniqueIdColumn,
-		ExecutionsNodeIdColumn,
-		ExecutionsLastExecutionTimeColumn,
-		ExecutionsNextExecutionTime,
-		ExecutionsJobIdColumn,
-		ExecutionsDateCreatedColumn,
-		ExecutionsJobQueueVersion,
-		ExecutionsVersion,
-		ExecutionsStateColumn,
-		ExecutionsIdColumn,
-		ExecutionsUniqueIdColumn,
-		ExecutionsNodeIdColumn,
-		ExecutionsLastExecutionTimeColumn,
-		ExecutionsNextExecutionTime,
-		ExecutionsJobIdColumn,
-		ExecutionsDateCreatedColumn,
-		ExecutionsJobQueueVersion,
-		ExecutionsJobIdColumn,
-		paramsPlaceholder,
-	)
+		for _, jobId := range batch[1:] {
+			paramsPlaceholder += ",?"
+			params = append(params, jobId)
+		}
 
-	rows, err := repo.fsmStore.DataStore.Connection.Query(query, params...)
-	if err != nil {
-		repo.logger.Fatalln("failed to select last execution log", err)
-	}
-	for rows.Next() {
-		lastExecutionLog := models.JobExecutionLog{}
-		var dateCreatedStr string
-		var nextExecutionDTStr string
-		var lastExecutionDTStr string
-		err := rows.Scan(
-			&lastExecutionLog.ExecutionVersion,
-			&lastExecutionLog.State,
-			&lastExecutionLog.Id,
-			&lastExecutionLog.UniqueId,
-			&lastExecutionLog.NodeId,
-			&lastExecutionDTStr,
-			&nextExecutionDTStr,
-			&lastExecutionLog.JobId,
-			&dateCreatedStr,
-			&lastExecutionLog.JobQueueVersion,
+		query := fmt.Sprintf(
+			"select %s, %s, %s, %s, %s, %s, %s, %s, %s, %s from (select %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, row_number() over (partition by job_id order by execution_version desc, state desc) rowNum from (select %s, %s, %s, %s, %s, %s, %s, %s, %s, %s from job_executions_committed union all select %s, %s, %s, %s, %s, %s, %s, %s, %s, %s from job_executions_uncommitted) where %s in (%s)) t where t.rowNum = 1",
+			ExecutionsVersion,
+			ExecutionsStateColumn,
+			ExecutionsIdColumn,
+			ExecutionsUniqueIdColumn,
+			ExecutionsNodeIdColumn,
+			ExecutionsLastExecutionTimeColumn,
+			ExecutionsNextExecutionTime,
+			ExecutionsJobIdColumn,
+			ExecutionsDateCreatedColumn,
+			ExecutionsJobQueueVersion,
+			ExecutionsVersion,
+			ExecutionsStateColumn,
+			ExecutionsIdColumn,
+			ExecutionsUniqueIdColumn,
+			ExecutionsNodeIdColumn,
+			ExecutionsLastExecutionTimeColumn,
+			ExecutionsNextExecutionTime,
+			ExecutionsJobIdColumn,
+			ExecutionsDateCreatedColumn,
+			ExecutionsJobQueueVersion,
+			ExecutionsVersion,
+			ExecutionsStateColumn,
+			ExecutionsIdColumn,
+			ExecutionsUniqueIdColumn,
+			ExecutionsNodeIdColumn,
+			ExecutionsLastExecutionTimeColumn,
+			ExecutionsNextExecutionTime,
+			ExecutionsJobIdColumn,
+			ExecutionsDateCreatedColumn,
+			ExecutionsJobQueueVersion,
+			ExecutionsVersion,
+			ExecutionsStateColumn,
+			ExecutionsIdColumn,
+			ExecutionsUniqueIdColumn,
+			ExecutionsNodeIdColumn,
+			ExecutionsLastExecutionTimeColumn,
+			ExecutionsNextExecutionTime,
+			ExecutionsJobIdColumn,
+			ExecutionsDateCreatedColumn,
+			ExecutionsJobQueueVersion,
+			ExecutionsJobIdColumn,
+			paramsPlaceholder,
 		)
-		t, errParse := dateparse.ParseLocal(dateCreatedStr)
-		if errParse != nil {
-			repo.logger.Fatalln("failed to parse date created string", errParse)
-		}
-		lastExecutionLog.DataCreated = t
-		t, errParse = dateparse.ParseLocal(nextExecutionDTStr)
-		if errParse != nil {
-			repo.logger.Fatalln("failed to parse next execution date time string", errParse)
-		}
-		lastExecutionLog.NextExecutionDatetime = t
-		t, errParse = dateparse.ParseLocal(lastExecutionDTStr)
-		if errParse != nil {
-			repo.logger.Fatalln("failed to last execution date time string", errParse)
-		}
-		lastExecutionLog.LastExecutionDatetime = t
+
+		rows, err := repo.fsmStore.DataStore.Connection.Query(query, params...)
 		if err != nil {
-			repo.logger.Fatalln("failed to scan rows", errParse)
+			repo.logger.Fatalln("failed to select last execution log", err)
 		}
-		results = append(results, lastExecutionLog)
-	}
-	if rows.Err() != nil {
-		repo.logger.Fatalln("failed to select last execution log rows error", rows.Err())
+		for rows.Next() {
+			lastExecutionLog := models.JobExecutionLog{}
+			var dateCreatedStr string
+			var nextExecutionDTStr string
+			var lastExecutionDTStr string
+			err := rows.Scan(
+				&lastExecutionLog.ExecutionVersion,
+				&lastExecutionLog.State,
+				&lastExecutionLog.Id,
+				&lastExecutionLog.UniqueId,
+				&lastExecutionLog.NodeId,
+				&lastExecutionDTStr,
+				&nextExecutionDTStr,
+				&lastExecutionLog.JobId,
+				&dateCreatedStr,
+				&lastExecutionLog.JobQueueVersion,
+			)
+			t, errParse := dateparse.ParseLocal(dateCreatedStr)
+			if errParse != nil {
+				repo.logger.Fatalln("failed to parse date created string", errParse)
+			}
+			lastExecutionLog.DataCreated = t
+			t, errParse = dateparse.ParseLocal(nextExecutionDTStr)
+			if errParse != nil {
+				repo.logger.Fatalln("failed to parse next execution date time string", errParse)
+			}
+			lastExecutionLog.NextExecutionDatetime = t
+			t, errParse = dateparse.ParseLocal(lastExecutionDTStr)
+			if errParse != nil {
+				repo.logger.Fatalln("failed to last execution date time string", errParse)
+			}
+			lastExecutionLog.LastExecutionDatetime = t
+			if err != nil {
+				repo.logger.Fatalln("failed to scan rows", errParse)
+			}
+			results = append(results, lastExecutionLog)
+		}
+		if rows.Err() != nil {
+			repo.logger.Fatalln("failed to select last execution log rows error", rows.Err())
+		}
 	}
 
 	return results
@@ -332,41 +317,45 @@ func (repo *executionsRepo) GetLastExecutionVersionForJobIds(jobIds []int64, com
 		predicateIds = append(predicateIds, jobId)
 	}
 
+	batches := utils.Batch[interface{}](predicateIds, 1)
+
 	tableName := ExecutionsUnCommittedTableName
 
 	if committed {
 		tableName = ExecutionsCommittedTableName
 	}
 
-	query := fmt.Sprintf(
-		"select %s, %s, %s from (select %s, %s, %s, row_number() over (partition by job_id order by execution_version desc, state desc) rowNum from %s where %s in (%s)) t where t.rowNum = 1",
-		ExecutionsVersion,
-		ExecutionsStateColumn,
-		ExecutionsJobIdColumn,
-		ExecutionsVersion,
-		ExecutionsStateColumn,
-		ExecutionsJobIdColumn,
-		tableName,
-		ExecutionsJobIdColumn,
-		paramsPlaceholder,
-	)
+	for _, batch := range batches {
+		query := fmt.Sprintf(
+			"select %s, %s, %s from (select %s, %s, %s, row_number() over (partition by job_id order by execution_version desc, state desc) rowNum from %s where %s in (%s)) t where t.rowNum = 1",
+			ExecutionsVersion,
+			ExecutionsStateColumn,
+			ExecutionsJobIdColumn,
+			ExecutionsVersion,
+			ExecutionsStateColumn,
+			ExecutionsJobIdColumn,
+			tableName,
+			ExecutionsJobIdColumn,
+			paramsPlaceholder,
+		)
 
-	rows, err := repo.fsmStore.DataStore.Connection.Query(query, predicateIds...)
-	if err != nil {
-		repo.logger.Fatalln("failed to select last execution version", err)
-	}
-	for rows.Next() {
-		var version uint64 = 0
-		var state uint64 = 0
-		var jobId int64 = 0
-		scanErr := rows.Scan(&version, &state, &jobId)
-		if scanErr != nil {
-			repo.logger.Fatalln("failed to select last execution version, scan error", scanErr)
+		rows, err := repo.fsmStore.DataStore.Connection.Query(query, batch...)
+		if err != nil {
+			repo.logger.Fatalln("failed to select last execution version", err)
 		}
-		results[jobId] = version
-	}
-	if rows.Err() != nil {
-		repo.logger.Fatalln("failed to select last execution version rows error", rows.Err())
+		for rows.Next() {
+			var version uint64 = 0
+			var state uint64 = 0
+			var jobId int64 = 0
+			scanErr := rows.Scan(&version, &state, &jobId)
+			if scanErr != nil {
+				repo.logger.Fatalln("failed to select last execution version, scan error", scanErr)
+			}
+			results[jobId] = version
+		}
+		if rows.Err() != nil {
+			repo.logger.Fatalln("failed to select last execution version rows error", rows.Err())
+		}
 	}
 
 	return results

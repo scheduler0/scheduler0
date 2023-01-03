@@ -21,5 +21,6 @@ const (
 )
 
 // JobMaxBatchSize exceed this and sql-lite won't be happy max variable is 32766
+const DBMaxVariableSize = 32766
 const JobMaxBatchSize = 5461
 const JobExecutionLogMaxBatchSize = 4095

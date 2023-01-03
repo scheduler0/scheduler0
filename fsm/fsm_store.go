@@ -156,13 +156,6 @@ func ApplyCommand(
 			}
 		}
 
-		if utils.MonitorMemoryUsage(logger) {
-			return Response{
-				Data:  nil,
-				Error: "out of memory",
-			}
-		}
-
 		exec, err := tx.Exec(command.Sql, params...)
 		if err != nil {
 			logger.Println("failed to execute sql command", err.Error())
@@ -279,97 +272,105 @@ func ApplyCommand(
 		db.ConnectionLock.Lock()
 
 		batchInsert := func(jobExecutionLogs []models.JobExecutionLog) {
-			query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
-				ExecutionsTableName,
-				ExecutionsUniqueIdColumn,
-				ExecutionsStateColumn,
-				ExecutionsNodeIdColumn,
-				ExecutionsLastExecutionTimeColumn,
-				ExecutionsNextExecutionTime,
-				ExecutionsJobIdColumn,
-				ExecutionsDateCreatedColumn,
-				ExecutionsJobQueueVersion,
-				ExecutionsVersion,
-			)
+			batches := utils.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
 
-			query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-			params := []interface{}{
-				jobExecutionLogs[0].UniqueId,
-				jobExecutionLogs[0].State,
-				jobExecutionLogs[0].NodeId,
-				jobExecutionLogs[0].LastExecutionDatetime,
-				jobExecutionLogs[0].NextExecutionDatetime,
-				jobExecutionLogs[0].JobId,
-				jobExecutionLogs[0].DataCreated,
-				jobExecutionLogs[0].JobQueueVersion,
-				jobExecutionLogs[0].ExecutionVersion,
-			}
-
-			for _, executionLog := range jobExecutionLogs[1:] {
-				params = append(params,
-					executionLog.UniqueId,
-					executionLog.State,
-					executionLog.NodeId,
-					executionLog.LastExecutionDatetime,
-					executionLog.NextExecutionDatetime,
-					executionLog.JobId,
-					executionLog.DataCreated,
-					executionLog.JobQueueVersion,
-					executionLog.ExecutionVersion,
+			for _, batch := range batches {
+				query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
+					ExecutionsTableName,
+					ExecutionsUniqueIdColumn,
+					ExecutionsStateColumn,
+					ExecutionsNodeIdColumn,
+					ExecutionsLastExecutionTimeColumn,
+					ExecutionsNextExecutionTime,
+					ExecutionsJobIdColumn,
+					ExecutionsDateCreatedColumn,
+					ExecutionsJobQueueVersion,
+					ExecutionsVersion,
 				)
-				query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-			}
 
-			query += ";"
-
-			ctx := context.Background()
-			tx, err := db.Connection.BeginTx(ctx, nil)
-			if err != nil {
-				logger.Fatalln("failed to create transaction for batch insertion", err)
-			}
-
-			_, err = tx.Exec(query, params...)
-			if err != nil {
-				trxErr := tx.Rollback()
-				if trxErr != nil {
-					logger.Fatalln("failed to rollback update transition", trxErr)
+				query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+				params := []interface{}{
+					batch[0].UniqueId,
+					batch[0].State,
+					batch[0].NodeId,
+					batch[0].LastExecutionDatetime,
+					batch[0].NextExecutionDatetime,
+					batch[0].JobId,
+					batch[0].DataCreated,
+					batch[0].JobQueueVersion,
+					batch[0].ExecutionVersion,
 				}
-				logger.Fatalln("failed to update committed status of executions", err)
-			}
-			err = tx.Commit()
-			if err != nil {
-				logger.Fatalln("failed to commit transition", err)
+
+				for _, executionLog := range batch[1:] {
+					params = append(params,
+						executionLog.UniqueId,
+						executionLog.State,
+						executionLog.NodeId,
+						executionLog.LastExecutionDatetime,
+						executionLog.NextExecutionDatetime,
+						executionLog.JobId,
+						executionLog.DataCreated,
+						executionLog.JobQueueVersion,
+						executionLog.ExecutionVersion,
+					)
+					query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+				}
+
+				query += ";"
+
+				ctx := context.Background()
+				tx, err := db.Connection.BeginTx(ctx, nil)
+				if err != nil {
+					logger.Fatalln("failed to create transaction for batch insertion", err)
+				}
+
+				_, err = tx.Exec(query, params...)
+				if err != nil {
+					trxErr := tx.Rollback()
+					if trxErr != nil {
+						logger.Fatalln("failed to rollback update transition", trxErr)
+					}
+					logger.Fatalln("failed to update committed status of executions", err)
+				}
+				err = tx.Commit()
+				if err != nil {
+					logger.Fatalln("failed to commit transition", err)
+				}
 			}
 		}
 
 		batchDelete := func(jobExecutionLogs []models.JobExecutionLog) {
-			paramPlaceholder := "?"
-			params := []interface{}{
-				jobExecutionLogs[0].UniqueId,
-			}
+			batches := utils.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
 
-			for _, jobExecutionLog := range jobExecutionLogs[1:] {
-				paramPlaceholder += ",?"
-				params = append(params, jobExecutionLog.UniqueId)
-			}
-
-			ctx := context.Background()
-			tx, err := db.Connection.BeginTx(ctx, nil)
-			if err != nil {
-				logger.Fatalln("failed to create transaction for batch insertion", err)
-			}
-			query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", ExecutionsUnCommittedTableName, ExecutionsUniqueIdColumn, paramPlaceholder)
-			_, err = tx.Exec(query, params...)
-			if err != nil {
-				trxErr := tx.Rollback()
-				if trxErr != nil {
-					logger.Fatalln("failed to rollback update transition", trxErr)
+			for _, batch := range batches {
+				paramPlaceholder := "?"
+				params := []interface{}{
+					batch[0].UniqueId,
 				}
-				logger.Fatalln("failed to update committed status of executions", err)
-			}
-			err = tx.Commit()
-			if err != nil {
-				logger.Fatalln("failed to commit transition", err)
+
+				for _, jobExecutionLog := range batch[1:] {
+					paramPlaceholder += ",?"
+					params = append(params, jobExecutionLog.UniqueId)
+				}
+
+				ctx := context.Background()
+				tx, err := db.Connection.BeginTx(ctx, nil)
+				if err != nil {
+					logger.Fatalln("failed to create transaction for batch insertion", err)
+				}
+				query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", ExecutionsUnCommittedTableName, ExecutionsUniqueIdColumn, paramPlaceholder)
+				_, err = tx.Exec(query, params...)
+				if err != nil {
+					trxErr := tx.Rollback()
+					if trxErr != nil {
+						logger.Fatalln("failed to rollback update transition", trxErr)
+					}
+					logger.Fatalln("failed to update committed status of executions", err)
+				}
+				err = tx.Commit()
+				if err != nil {
+					logger.Fatalln("failed to commit transition", err)
+				}
 			}
 		}
 
