@@ -96,10 +96,6 @@ func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 
 		for currentLowerBound < upperBound {
 
-			if utils.MonitorMemoryUsage(jobExecutor.logger) {
-				return
-			}
-
 			jobExecutor.logger.Println("fetching batching", currentLowerBound, "between", currentUpperBound)
 			jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(currentLowerBound, currentUpperBound)
 

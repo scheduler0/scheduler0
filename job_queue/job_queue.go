@@ -14,7 +14,6 @@ import (
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/repository"
-	"scheduler0/utils"
 	"sync"
 	"time"
 )
@@ -162,10 +161,6 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 
 	j := 0
 	for j < len(batchRanges) {
-		if utils.MonitorMemoryUsage(JobQueue{}.logger) {
-			return
-		}
-
 		server := func() raft.ServerAddress {
 			var minAllocation int64 = math.MaxInt64
 			var minServer raft.ServerAddress
