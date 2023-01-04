@@ -3,8 +3,8 @@ package job_processor
 import (
 	"fmt"
 	"log"
-	"scheduler0/job_queue"
 	"scheduler0/repository"
+	"scheduler0/service/job_queue"
 )
 
 // JobProcessor handles executions of jobs

@@ -6,9 +6,9 @@ import (
 	"github.com/robfig/cron"
 	"log"
 	"net/http"
-	"scheduler0/job_queue"
 	"scheduler0/models"
 	"scheduler0/repository"
+	"scheduler0/service/job_queue"
 	"scheduler0/utils"
 	"time"
 )

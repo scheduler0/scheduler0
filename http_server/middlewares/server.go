@@ -2,7 +2,7 @@ package middlewares
 
 import (
 	"net/http"
-	"scheduler0/headers"
+	"scheduler0/constants/headers"
 	"scheduler0/service"
 	"scheduler0/utils"
 )

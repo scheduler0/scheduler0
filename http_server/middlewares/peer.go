@@ -5,7 +5,7 @@ import (
 	"crypto/subtle"
 	"log"
 	"net/http"
-	"scheduler0/headers"
+	"scheduler0/constants/headers"
 	"scheduler0/secrets"
 )
 

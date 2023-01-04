@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 	"scheduler0/config"
-	"scheduler0/headers"
+	"scheduler0/constants/headers"
 	"scheduler0/models"
 	"scheduler0/secrets"
 )

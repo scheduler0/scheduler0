@@ -9,7 +9,7 @@ import (
 	"scheduler0/models"
 	"scheduler0/service"
 	"scheduler0/utils"
-	"scheduler0/workers"
+	"scheduler0/utils/workers"
 	"strconv"
 )
 

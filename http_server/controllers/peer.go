@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/fsm"
-	"scheduler0/node"
+	"scheduler0/service/node"
 	"scheduler0/utils"
 )
 
