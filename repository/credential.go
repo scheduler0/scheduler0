@@ -3,7 +3,6 @@ package repository
 import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/araddon/dateparse"
 	"log"
 	"net/http"
 	"scheduler0/constants"
@@ -48,7 +47,10 @@ func NewCredentialRepo(logger *log.Logger, store *fsm.Store) Credential {
 
 // CreateOne creates a single credential and returns the uuid
 func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialModel) (int64, *utils.GenericError) {
-	credential.DateCreated = time.Now().UTC()
+	schedulerTime := utils.GetSchedulerTime()
+	now := schedulerTime.GetTime(time.Now())
+
+	credential.DateCreated = now
 	insertBuilder := sq.Insert(CredentialTableName).
 		Columns(
 			ArchivedColumn,
@@ -60,7 +62,7 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 			credential.Archived,
 			credential.ApiKey,
 			credential.ApiSecret,
-			credential.DateCreated.String(),
+			credential.DateCreated,
 		)
 
 	query, params, err := insertBuilder.ToSql()
@@ -109,20 +111,13 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var dt string
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
 			&credential.ApiKey,
 			&credential.ApiSecret,
-			&dt,
+			&credential.DateCreated,
 		)
-
-		t, errParse := dateparse.ParseLocal(dt)
-		credential.DateCreated = t
-		if errParse != nil {
-			return utils.HTTPGenericError(500, errParse.Error())
-		}
 	}
 	if rows.Err() != nil {
 		return err
@@ -140,7 +135,7 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 		ArchivedColumn,
 		ApiKeyColumn,
 		ApiSecretColumn,
-		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
+		JobsDateCreatedColumn,
 	).
 		From(CredentialTableName).
 		Where(fmt.Sprintf("%s = ?", ApiKeyColumn), credential.ApiKey).
@@ -152,19 +147,13 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 	}
 	defer rows.Close()
 	for rows.Next() {
-		dataString := ""
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
 			&credential.ApiKey,
 			&credential.ApiSecret,
-			&dataString,
+			&credential.DateCreated,
 		)
-		t, errParse := dateparse.ParseLocal(dataString)
-		if errParse != nil {
-			return utils.HTTPGenericError(500, errParse.Error())
-		}
-		credential.DateCreated = t
 		if err != nil {
 			return utils.HTTPGenericError(500, err.Error())
 		}
@@ -212,7 +201,7 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 		ArchivedColumn,
 		ApiKeyColumn,
 		ApiSecretColumn,
-		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
+		JobsDateCreatedColumn,
 	).
 		From(CredentialTableName).
 		Offset(uint64(offset)).
@@ -228,19 +217,13 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 	defer rows.Close()
 	for rows.Next() {
 		credential := models.CredentialModel{}
-		var dataString string
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
 			&credential.ApiKey,
 			&credential.ApiSecret,
-			&dataString,
+			&credential.DateCreated,
 		)
-		t, errParse := dateparse.ParseLocal(dataString)
-		if errParse != nil {
-			return nil, utils.HTTPGenericError(500, errParse.Error())
-		}
-		credential.DateCreated = t
 		if err != nil {
 			return nil, utils.HTTPGenericError(500, err.Error())
 		}
