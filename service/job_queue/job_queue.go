@@ -10,10 +10,10 @@ import (
 	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/fsm"
-	"scheduler0/job_executor"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/repository"
+	"scheduler0/service/job_executor"
 	"sync"
 	"time"
 )

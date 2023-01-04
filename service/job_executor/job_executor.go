@@ -10,13 +10,12 @@ import (
 	"google.golang.org/protobuf/proto"
 	"log"
 	"math"
-	"os"
 	"scheduler0/config"
 	"scheduler0/constants"
-	"scheduler0/job_executor/executors"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/repository"
+	"scheduler0/service/job_executor/executors"
 	"scheduler0/utils"
 	"sync"
 	"time"
@@ -44,28 +43,6 @@ type JobExecutor struct {
 
 func NewJobExecutor(logger *log.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobExecutor {
 	ctx, cancel := context.WithCancel(context.Background())
-	dir, err := os.Getwd()
-	if err != nil {
-		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
-	}
-	dirPath := fmt.Sprintf("%v/%v", dir, constants.ExecutionLogsDir)
-	mkdirErr := os.Mkdir(dirPath, os.ModePerm)
-	if !os.IsExist(mkdirErr) && !os.IsNotExist(mkdirErr) && err != nil {
-		logger.Fatalln(fmt.Errorf("failed to create the logs dir %s \n", err))
-	}
-	logFilePath := fmt.Sprintf("%v/%v", dirPath, constants.ExecutionLogsCommitFile)
-	_, createErr := os.Create(logFilePath)
-	if createErr != nil {
-		logger.Fatalln(fmt.Errorf("failed to create the %s file %s \n", logFilePath, err))
-	}
-	logFilePath = fmt.Sprintf("%v/%v", dirPath, constants.ExecutionLogsUnCommitFile)
-	_, createErr = os.Create(logFilePath)
-	if createErr != nil {
-		logger.Fatalln(fmt.Errorf("failed to create the %s file %s \n", logFilePath, err))
-	}
-	if err != nil {
-		logger.Fatalln("logs file close error")
-	}
 	return &JobExecutor{
 		pendingJobInvocations: []models.JobModel{},
 		jobRepo:               jobRepository,
@@ -138,88 +115,129 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 	}
 
 	executionLogsMap := jobExecutor.jobExecutionsRepo.GetLastExecutionLogForJobIds(jobIds)
+	sha := sha1.New()
+
+	fmt.Println("executionLogsMap", executionLogsMap)
 
 	for i, job := range jobs {
-		if jobLastLog, ok := executionLogsMap[job.ID]; !ok {
+		schedule, parseErr := cron.Parse(jobs[i].Spec)
+		if parseErr != nil {
+			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+		}
+		if _, ok := executionLogsMap[job.ID]; !ok {
+			fmt.Println("aa", job.DateCreated)
+			fmt.Println("bb", jobs[i].LastExecutionDate)
 			jobs[i].LastExecutionDate = job.DateCreated
-			sha := sha1.New()
-			schedule, parseErr := cron.Parse(jobs[i].Spec)
-			if parseErr != nil {
-				jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
-			}
+			fmt.Println("cc", jobs[i].LastExecutionDate)
 			executionTime := schedule.Next(jobs[i].LastExecutionDate)
 			uniqueId := fmt.Sprintf(
 				"%v-%v-%v-%v",
 				job.ProjectID,
 				job.ID,
 				job.LastExecutionDate.String(),
-				executionTime.UTC().String(),
+				executionTime.String(),
 			)
 			jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
 			jobExecutor.AddNewProcess(jobs[i], executionTime)
-		} else {
-			if jobLastLog.State == uint64(models.ExecutionLogScheduleState) {
+
+			jobExecutor.executions[job.ID] = models.MemJobExecution{
+				ExecutionVersion:      1,
+				FailCount:             0,
+				LastState:             models.ExecutionLogScheduleState,
+				LastExecutionDatetime: job.DateCreated,
+				NextExecutionDatetime: executionTime,
+			}
+			continue
+		}
+
+		jobLastLog := executionLogsMap[job.ID]
+
+		if jobLastLog.State == uint64(models.ExecutionLogScheduleState) {
+			jobs[i].LastExecutionDate = jobLastLog.LastExecutionDatetime
+			jobs[i].ExecutionId = jobLastLog.UniqueId
+
+			schedulerTime := utils.GetSchedulerTime()
+			now := schedulerTime.GetTime(time.Now())
+
+			executionTime := schedule.Next(jobLastLog.LastExecutionDatetime)
+			if now.Before(executionTime) {
+				jobExecutor.AddNewProcess(jobs[i], executionTime)
+			} else {
+				jobExecutor.AddNewProcess(jobs[i], jobLastLog.NextExecutionDatetime)
+			}
+
+			jobExecutor.executions[job.ID] = models.MemJobExecution{
+				ExecutionVersion:      jobLastLog.ExecutionVersion,
+				FailCount:             0,
+				LastState:             models.ExecutionLogScheduleState,
+				LastExecutionDatetime: job.LastExecutionDate,
+				NextExecutionDatetime: executionTime,
+			}
+		}
+
+		if jobLastLog.State == uint64(models.ExecutionLogSuccessState) {
+			jobs[i].LastExecutionDate = jobLastLog.NextExecutionDatetime
+			executionTime := schedule.Next(jobLastLog.NextExecutionDatetime)
+			uniqueId := fmt.Sprintf(
+				"%v-%v-%v-%v",
+				job.ProjectID,
+				job.ID,
+				jobLastLog.NextExecutionDatetime.String(),
+				executionTime.String(),
+			)
+			jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
+			jobExecutor.AddNewProcess(jobs[i], executionTime)
+			jobExecutor.executions[job.ID] = models.MemJobExecution{
+				ExecutionVersion:      jobLastLog.ExecutionVersion,
+				FailCount:             0,
+				LastState:             models.ExecutionLogSuccessState,
+				LastExecutionDatetime: jobLastLog.NextExecutionDatetime,
+				NextExecutionDatetime: executionTime,
+			}
+		}
+
+		if jobLastLog.State == uint64(models.ExecutionLogFailedState) {
+			failCounts := jobExecutor.jobExecutionsRepo.CountLastFailedExecutionLogs(job.ID, configs.NodeId, jobLastLog.ExecutionVersion)
+			fmt.Println("failCounts", failCounts, job.ID, configs.NodeId, jobLastLog.ExecutionVersion)
+			if failCounts < uint64(configs.JobExecutionRetryMax) {
 				jobs[i].LastExecutionDate = jobLastLog.LastExecutionDatetime
 				jobs[i].ExecutionId = jobLastLog.UniqueId
-				schedule, parseErr := cron.Parse(job.Spec)
-				if parseErr != nil {
-					jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse spec %v", parseErr.Error()))
+				jobExecutor.executions[job.ID] = models.MemJobExecution{
+					ExecutionVersion:      jobLastLog.ExecutionVersion,
+					FailCount:             failCounts,
+					LastState:             models.ExecutionLogFailedState,
+					LastExecutionDatetime: jobLastLog.LastExecutionDatetime,
+					NextExecutionDatetime: jobLastLog.NextExecutionDatetime,
 				}
-				now := time.Now().UTC()
-				executionTime := schedule.Next(jobLastLog.LastExecutionDatetime)
-				if now.Before(executionTime) {
-					jobExecutor.AddNewProcess(jobs[i], executionTime)
-				} else {
+				schedulerTime := utils.GetSchedulerTime()
+				now := schedulerTime.GetTime(time.Now())
+
+				if now.Before(jobLastLog.NextExecutionDatetime) {
+					fmt.Println("hereh a")
 					jobExecutor.AddNewProcess(jobs[i], jobLastLog.NextExecutionDatetime)
+					continue
 				}
+				fmt.Println("hereh 1")
 			}
 
-			if jobLastLog.State == uint64(models.ExecutionLogSuccessState) {
-				jobs[i].LastExecutionDate = jobLastLog.NextExecutionDatetime
-
-				sha := sha1.New()
-				schedule, parseErr := cron.Parse(jobs[i].Spec)
-				if parseErr != nil {
-					jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
-				}
-				executionTime := schedule.Next(jobs[i].LastExecutionDate)
-				uniqueId := fmt.Sprintf(
-					"%v-%v-%v-%v",
-					job.ProjectID,
-					job.ID,
-					jobLastLog.LastExecutionDatetime.String(),
-					executionTime.UTC().String(),
-				)
-
-				jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-				jobExecutor.AddNewProcess(jobs[i], executionTime)
-			}
-
-			if jobLastLog.State == uint64(models.ExecutionLogFailedState) {
-				failCounts := jobExecutor.jobExecutionsRepo.CountLastFailedExecutionLogs(job.ID, configs.NodeId, true)
-				if failCounts < uint64(configs.JobExecutionRetryMax) {
-					jobs[i].LastExecutionDate = jobLastLog.LastExecutionDatetime
-					jobs[i].ExecutionId = jobLastLog.UniqueId
-				} else {
-					jobs[i].LastExecutionDate = jobLastLog.NextExecutionDatetime
-
-					sha := sha1.New()
-					schedule, parseErr := cron.Parse(jobs[i].Spec)
-					if parseErr != nil {
-						jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
-					}
-					executionTime := schedule.Next(jobs[i].LastExecutionDate)
-					uniqueId := fmt.Sprintf(
-						"%v-%v-%v-%v",
-						job.ProjectID,
-						job.ID,
-						jobLastLog.LastExecutionDatetime.String(),
-						executionTime.UTC().String(),
-					)
-
-					jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-					jobExecutor.AddNewProcess(jobs[i], executionTime)
-				}
+			fmt.Println("hereh 2")
+			jobs[i].LastExecutionDate = jobLastLog.NextExecutionDatetime
+			executionTime := schedule.Next(jobLastLog.NextExecutionDatetime)
+			uniqueId := fmt.Sprintf(
+				"%v-%v-%v-%v",
+				job.ProjectID,
+				job.ID,
+				jobLastLog.LastExecutionDatetime.String(),
+				executionTime.String(),
+			)
+			jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
+			jobExecutor.AddNewProcess(jobs[i], executionTime)
+			jobExecutor.executions[job.ID] = models.MemJobExecution{
+				ExecutionVersion:      jobLastLog.ExecutionVersion,
+				FailCount:             0,
+				LastState:             models.ExecutionLogFailedState,
+				LastExecutionDatetime: jobLastLog.NextExecutionDatetime,
+				NextExecutionDatetime: executionTime,
 			}
 		}
 	}
@@ -230,19 +248,20 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 	for _, job := range jobs {
 		if _, ok := lastExecutionVersions[job.ID]; !ok {
 			if _, ok := executionLogsMap[job.ID]; ok {
-
-				if executionLogsMap[job.ID].State == models.ExecutionLogSuccessState {
+				if executionLogsMap[job.ID].State == models.ExecutionLogSuccessState ||
+					(jobExecutor.executions[job.ID].FailCount == 0 &&
+						jobExecutor.executions[job.ID].LastState == models.ExecutionLogFailedState) {
 					lastExecutionVersions[job.ID] = executionLogsMap[job.ID].ExecutionVersion + 1
 				} else {
 					lastExecutionVersions[job.ID] = executionLogsMap[job.ID].ExecutionVersion
 				}
-
 			} else {
 				lastExecutionVersions[job.ID] = 1
 			}
 		}
 	}
 
+	fmt.Println("jobs", jobs)
 	jobExecutor.jobExecutionsRepo.BatchInsert(jobs, uint64(configs.NodeId), models.ExecutionLogScheduleState, lastVersion, lastExecutionVersions)
 
 	if jobExecutor.SingleNodeMode {
@@ -265,12 +284,19 @@ func (jobExecutor *JobExecutor) StopAll() {
 
 func (jobExecutor *JobExecutor) AddNewProcess(job models.JobModel, executeTime time.Time) {
 	go func(j models.JobModel, e time.Time) {
-		execTime := time.Now().UTC().Add(e.Sub(j.LastExecutionDate))
+		schedulerTime := utils.GetSchedulerTime()
+		now := schedulerTime.GetTime(time.Now())
+
+		execTime := now.Add(e.Sub(j.LastExecutionDate))
+
+		fmt.Println(now, j.LastExecutionDate, execTime)
 		ticker := time.NewTicker(time.Duration(1) * time.Second)
 		for {
 			select {
 			case <-ticker.C:
-				if time.Now().UTC().After(execTime) {
+				currentTime := schedulerTime.GetTime(time.Now())
+				if currentTime.After(execTime) {
+					fmt.Println("called invoke")
 					jobExecutor.invokeJob(j)
 					return
 				}
@@ -305,8 +331,116 @@ func (jobExecutor *JobExecutor) GetUncommittedLogs() []byte {
 	return compressedByte
 }
 
+func (jobExecutor *JobExecutor) reschedule(jobs []models.JobModel, newState models.JobExecutionLogState) {
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+
+	configs := config.GetConfigurations(jobExecutor.logger)
+
+	jobsToReschedule := []models.JobModel{}
+
+	for i, job := range jobs {
+		lastExecution := jobExecutor.executions[job.ID]
+
+		failCounts := lastExecution.FailCount
+		executionVersion := lastExecution.ExecutionVersion
+
+		if newState == models.ExecutionLogFailedState &&
+			failCounts < uint64(configs.JobExecutionRetryMax) {
+			fmt.Println("failCounts", failCounts, configs.JobExecutionRetryMax)
+
+			failCounts += 1
+			jobExecutor.executions[job.ID] = models.MemJobExecution{
+				ExecutionVersion:      executionVersion,
+				FailCount:             failCounts,
+				LastState:             newState,
+				LastExecutionDatetime: lastExecution.LastExecutionDatetime,
+				NextExecutionDatetime: lastExecution.NextExecutionDatetime,
+			}
+			continue
+		} else {
+			executionVersion += 1
+		}
+
+		sha := sha1.New()
+		schedule, parseErr := cron.Parse(job.Spec)
+		if parseErr != nil {
+			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+		}
+		executionTime := schedule.Next(lastExecution.NextExecutionDatetime)
+		uniqueId := fmt.Sprintf(
+			"%v-%v-%v-%v",
+			job.ProjectID,
+			job.ID,
+			lastExecution.NextExecutionDatetime.String(),
+			executionTime.String(),
+		)
+		jobs[i].LastExecutionDate = lastExecution.NextExecutionDatetime
+		jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
+		jobExecutor.AddNewProcess(jobs[i], executionTime)
+		jobExecutor.executions[job.ID] = models.MemJobExecution{
+			ExecutionVersion:      executionVersion,
+			FailCount:             0,
+			LastState:             newState,
+			LastExecutionDatetime: lastExecution.NextExecutionDatetime,
+			NextExecutionDatetime: executionTime,
+		}
+		jobsToReschedule = append(jobsToReschedule, jobs[i])
+	}
+
+	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
+	lastExecutionVersions := map[int64]uint64{}
+
+	for _, job := range jobsToReschedule {
+		if _, ok := lastExecutionVersions[job.ID]; !ok {
+			lastExecutionVersions[job.ID] = jobExecutor.executions[job.ID].ExecutionVersion
+		}
+	}
+
+	fmt.Println("jobsToReschedule", jobsToReschedule)
+	jobExecutor.jobExecutionsRepo.BatchInsert(jobsToReschedule, uint64(configs.NodeId), models.ExecutionLogScheduleState, lastVersion, lastExecutionVersions)
+	if jobExecutor.SingleNodeMode {
+		jobExecutor.logJobExecutionStateInRaft(jobsToReschedule, models.ExecutionLogScheduleState, lastExecutionVersions)
+	}
+}
+
+func (jobExecutor *JobExecutor) createInMemExecutionsForJobsIfNotExist(jobs []models.JobModel) {
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+
+	jobsNotInExecution := []int64{}
+
+	for _, job := range jobs {
+		if _, ok := jobExecutor.executions[job.ID]; !ok {
+			jobsNotInExecution = append(jobsNotInExecution, job.ID)
+		}
+	}
+
+	lastExecutionVersionsForNewJobs := jobExecutor.jobExecutionsRepo.GetLastExecutionLogForJobIds(jobsNotInExecution)
+
+	configs := config.GetConfigurations(jobExecutor.logger)
+
+	for _, jobId := range jobsNotInExecution {
+		failCounts := 0
+		if lastExecutionVersionsForNewJobs[jobId].State == models.ExecutionLogFailedState {
+			failCounts = int(jobExecutor.jobExecutionsRepo.CountLastFailedExecutionLogs(jobId, configs.NodeId, lastExecutionVersionsForNewJobs[jobId].ExecutionVersion))
+		}
+
+		jobExecutor.executions[jobId] = models.MemJobExecution{
+			ExecutionVersion:      lastExecutionVersionsForNewJobs[jobId].ExecutionVersion,
+			FailCount:             uint64(failCounts),
+			LastState:             models.JobExecutionLogState(lastExecutionVersionsForNewJobs[jobId].State),
+			LastExecutionDatetime: lastExecutionVersionsForNewJobs[jobId].LastExecutionDatetime,
+			NextExecutionDatetime: lastExecutionVersionsForNewJobs[jobId].NextExecutionDatetime,
+		}
+	}
+}
+
 func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 	configs := config.GetConfigurations(jobExecutor.logger)
+
+	fmt.Println("invokeJob")
+
 	jobExecutor.threshold = time.Now().Add(time.Duration(configs.JobInvocationDebounceDelay) * time.Millisecond)
 
 	jobExecutor.pendingJobInvocationLock.Lock()
@@ -404,13 +538,21 @@ func (jobExecutor *JobExecutor) handleSuccessJobs(successfulJobs []models.JobMod
 	for _, successfulJob := range successfulJobs {
 		jobIds = append(jobIds, successfulJob.ID)
 	}
-	lastExecutionVersions := jobExecutor.jobExecutionsRepo.GetLastExecutionVersionForJobIds(jobIds, true)
+	lastExecutionVersions := map[int64]uint64{}
+
+	jobExecutor.createInMemExecutionsForJobsIfNotExist(successfulJobs)
+
+	jobExecutor.mtx.Lock()
+	for _, successfulJob := range successfulJobs {
+		lastExecutionVersions[successfulJob.ID] = jobExecutor.executions[successfulJob.ID].ExecutionVersion
+	}
+	jobExecutor.mtx.Unlock()
 
 	jobExecutor.jobExecutionsRepo.BatchInsert(successfulJobs, uint64(configs.NodeId), models.ExecutionLogSuccessState, lastVersion, lastExecutionVersions)
 	if jobExecutor.SingleNodeMode {
 		jobExecutor.logJobExecutionStateInRaft(successfulJobs, models.ExecutionLogSuccessState, lastExecutionVersions)
 	}
-	jobExecutor.Schedule(successfulJobs)
+	jobExecutor.reschedule(successfulJobs, models.ExecutionLogSuccessState)
 }
 
 func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.JobModel) {
@@ -423,13 +565,21 @@ func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.JobModel) 
 	for _, erroredJob := range erroredJobs {
 		jobIds = append(jobIds, erroredJob.ID)
 	}
-	lastExecutionVersions := jobExecutor.jobExecutionsRepo.GetLastExecutionVersionForJobIds(jobIds, true)
+	lastExecutionVersions := map[int64]uint64{}
+
+	jobExecutor.createInMemExecutionsForJobsIfNotExist(erroredJobs)
+
+	jobExecutor.mtx.Lock()
+	for _, erroredJob := range erroredJobs {
+		lastExecutionVersions[erroredJob.ID] = jobExecutor.executions[erroredJob.ID].ExecutionVersion
+	}
+	jobExecutor.mtx.Unlock()
 
 	jobExecutor.jobExecutionsRepo.BatchInsert(erroredJobs, uint64(configs.NodeId), models.ExecutionLogFailedState, lastVersion, lastExecutionVersions)
 	if jobExecutor.SingleNodeMode {
 		jobExecutor.logJobExecutionStateInRaft(erroredJobs, models.ExecutionLogFailedState, lastExecutionVersions)
 	}
-	jobExecutor.Schedule(erroredJobs)
+	jobExecutor.reschedule(erroredJobs, models.ExecutionLogFailedState)
 }
 
 func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobModel, state models.JobExecutionLogState, executionVersions map[int64]uint64) {
@@ -444,7 +594,8 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
-
+		schedulerTime := utils.GetSchedulerTime()
+		now := schedulerTime.GetTime(time.Now())
 		executionLogs = append(executionLogs, models.JobExecutionLog{
 			JobId:                 job.ID,
 			UniqueId:              job.ExecutionId,
@@ -453,7 +604,7 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 			LastExecutionDatetime: job.LastExecutionDate,
 			NextExecutionDatetime: executionTime,
 			JobQueueVersion:       lastVersion,
-			DataCreated:           time.Now().UTC(),
+			DataCreated:           now,
 			ExecutionVersion:      executionVersions[job.ID],
 		})
 	}
