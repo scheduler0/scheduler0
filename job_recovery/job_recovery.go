@@ -8,6 +8,7 @@ import (
 	"scheduler0/job_executor"
 	models "scheduler0/models"
 	"scheduler0/repository"
+	"scheduler0/utils"
 	"sync"
 	"time"
 )
@@ -64,7 +65,7 @@ func (jobRecovery *JobRecovery) Run() {
 
 		jobsFromDb, err := jobRecovery.jobRepo.BatchGetJobsByID(expandedJobIds)
 		if err != nil {
-			jobRecovery.logger.Fatalln("failed to retrieve jobs from db")
+			jobRecovery.logger.Fatalln("failed to retrieve jobs from db", err)
 		}
 
 		jobRecovery.logger.Println("recovered ", len(jobsFromDb), " jobs")
@@ -90,7 +91,8 @@ func (jobRecovery *JobRecovery) Run() {
 				jobRecovery.logger.Fatalln(fmt.Sprintf("failed to parse spec %v", parseErr.Error()))
 			}
 
-			now := time.Now().UTC()
+			schedulerTime := utils.GetSchedulerTime()
+			now := schedulerTime.GetTime(time.Now())
 
 			executionTime := schedule.Next(lastJobState.LastExecutionDatetime)
 			job.ExecutionId = lastJobState.UniqueId
@@ -113,7 +115,7 @@ func (jobRecovery *JobRecovery) Run() {
 			jobRecovery.recoveredJobs = append(jobRecovery.recoveredJobs, job)
 		}
 
-		if len(jobsToSchedule) > 1 {
+		if len(jobsToSchedule) > 0 {
 			jobRecovery.jobExecutor.Schedule(jobsToSchedule)
 		}
 	}
