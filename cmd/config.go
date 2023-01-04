@@ -97,20 +97,6 @@ func recreateRaftDir(fs afero.Fs, dir string) {
 	}
 }
 
-func recreateExecutionLogs(fs afero.Fs, dir string) {
-	dirPath := fmt.Sprintf("%v/%v", dir, constants.ExecutionLogsDir)
-	exists, err := afero.DirExists(fs, dirPath)
-	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
-	}
-	if exists {
-		err := fs.RemoveAll(dirPath)
-		if err != nil {
-			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
-		}
-	}
-}
-
 // InitCmd initializes scheduler0 configuration
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -153,7 +139,6 @@ Note that the Port is optional. By default the server will use :9090
 
 		recreateDb(fs, dir)
 		recreateRaftDir(fs, dir)
-		recreateExecutionLogs(fs, dir)
 		runMigration(fs, dir)
 
 		logger.Println("Scheduler0 Initialized")
