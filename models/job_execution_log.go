@@ -29,6 +29,7 @@ type CommitJobStateLog struct {
 }
 
 type MemJobExecution struct {
+	ExecutionVersion      uint64
 	FailCount             uint64
 	LastState             JobExecutionLogState
 	LastExecutionDatetime time.Time `json:"lastExecutionDatetime"`
