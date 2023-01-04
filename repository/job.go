@@ -3,7 +3,6 @@ package repository
 import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/araddon/dateparse"
 	"log"
 	"net/http"
 	"scheduler0/constants"
@@ -64,7 +63,7 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 		SpecColumn,
 		CallbackURLColumn,
 		ExecutionTypeColumn,
-		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
+		JobsDateCreatedColumn,
 		DataColumn,
 	).
 		From(JobsTableName).
@@ -78,24 +77,23 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 	defer rows.Close()
 	count := 0
 	for rows.Next() {
-		var dataString string
 		err = rows.Scan(
 			&jobModel.ID,
 			&jobModel.ProjectID,
 			&jobModel.Spec,
 			&jobModel.CallbackUrl,
 			&jobModel.ExecutionType,
-			&dataString,
+			&jobModel.DateCreated,
 			&jobModel.Data,
 		)
-		t, errParse := dateparse.ParseLocal(dataString)
-		if errParse != nil {
-			return utils.HTTPGenericError(500, errParse.Error())
-		}
-		jobModel.DateCreated = t
-		if err != nil {
-			return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-		}
+		//t, errParse := dateparse.ParseLocal(dataString)
+		//if errParse != nil {
+		//	return utils.HTTPGenericError(500, errParse.Error())
+		//}
+		//jobModel.DateCreated = t
+		//if err != nil {
+		//	return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		//}
 		count += 1
 	}
 	if rows.Err() != nil {
@@ -111,37 +109,16 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
 	jobs := []models.JobModel{}
-	batches := [][]int64{}
+	batches := utils.Batch[int64](jobIDs, 1)
 
-	if len(jobIDs) > constants.JobMaxBatchSize {
-		temp := []int64{}
-		count := 0
-
-		for count < len(jobIDs) {
-			temp = append(temp, jobIDs[count])
-			if len(temp) == constants.JobMaxBatchSize {
-				batches = append(batches, temp)
-				temp = []int64{}
-			}
-			count += 1
-		}
-
-		if len(temp) > 0 {
-			batches = append(batches, temp)
-			temp = []int64{}
-		}
-	} else {
-		batches = append(batches, jobIDs)
-	}
-
-	for _, jobIDs := range batches {
+	for _, batch := range batches {
 		paramsPlaceholder := ""
 		ids := []interface{}{}
 
-		for i, id := range jobIDs {
+		for i, id := range batch {
 			paramsPlaceholder += "?"
 
-			if i < len(jobIDs)-1 {
+			if i < len(batch)-1 {
 				paramsPlaceholder += ","
 			}
 
@@ -154,7 +131,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 			SpecColumn,
 			CallbackURLColumn,
 			ExecutionTypeColumn,
-			fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
+			JobsDateCreatedColumn,
 			DataColumn,
 		).
 			From(JobsTableName).
@@ -165,24 +142,17 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 		if err != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
-		defer rows.Close()
 		for rows.Next() {
 			job := models.JobModel{}
-			var dataString string
 			scanErr := rows.Scan(
 				&job.ID,
 				&job.ProjectID,
 				&job.Spec,
 				&job.CallbackUrl,
 				&job.ExecutionType,
-				&dataString,
+				&job.DateCreated,
 				&job.Data,
 			)
-			t, errParse := dateparse.ParseLocal(dataString)
-			if errParse != nil {
-				return nil, utils.HTTPGenericError(500, errParse.Error())
-			}
-			job.DateCreated = t
 			if scanErr != nil {
 				return nil, utils.HTTPGenericError(http.StatusInternalServerError, scanErr.Error())
 			}
@@ -191,6 +161,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 		if rows.Err() != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, rows.Err().Error())
 		}
+		rows.Close()
 	}
 
 	return jobs, nil
@@ -206,7 +177,7 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([
 		SpecColumn,
 		CallbackURLColumn,
 		ExecutionTypeColumn,
-		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
+		JobsDateCreatedColumn,
 		DataColumn,
 	).
 		From(JobsTableName).
@@ -222,21 +193,15 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([
 	jobs := []models.JobModel{}
 	for rows.Next() {
 		job := models.JobModel{}
-		var dataString string
 		scanErr := rows.Scan(
 			&job.ID,
 			&job.ProjectID,
 			&job.Spec,
 			&job.CallbackUrl,
 			&job.ExecutionType,
-			&dataString,
+			&job.DateCreated,
 			&job.Data,
 		)
-		t, errParse := dateparse.ParseLocal(dataString)
-		if errParse != nil {
-			return nil, utils.HTTPGenericError(500, errParse.Error())
-		}
-		job.DateCreated = t
 		if scanErr != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, scanErr.Error())
 		}
@@ -262,7 +227,7 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit i
 		SpecColumn,
 		CallbackURLColumn,
 		ExecutionTypeColumn,
-		fmt.Sprintf("cast(\"%s\" as text)", JobsDateCreatedColumn),
+		JobsDateCreatedColumn,
 		DataColumn,
 	).
 		From(JobsTableName).
@@ -279,21 +244,15 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit i
 	defer rows.Close()
 	for rows.Next() {
 		job := models.JobModel{}
-		var dateString string
 		err = rows.Scan(
 			&job.ID,
 			&job.ProjectID,
 			&job.Spec,
 			&job.CallbackUrl,
 			&job.ExecutionType,
-			&dateString,
+			&job.DateCreated,
 			&job.Data,
 		)
-		t, errParse := dateparse.ParseLocal(dateString)
-		if errParse != nil {
-			return nil, utils.HTTPGenericError(500, errParse.Error())
-		}
-		job.DateCreated = t
 		if err != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
@@ -443,28 +402,12 @@ func (jobRepo *jobRepo) GetJobsPaginated(projectID int64, offset int64, limit in
 
 // BatchInsertJobs inserts n number of jobs
 func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]int64, *utils.GenericError) {
-	batches := make([][]models.JobModel, 0)
-
-	if len(jobs) > constants.JobMaxBatchSize {
-		temp := make([]models.JobModel, 0)
-		count := 0
-		for count < len(jobs) {
-			temp = append(temp, jobs[count])
-			if len(temp) == constants.JobMaxBatchSize {
-				batches = append(batches, temp)
-				temp = make([]models.JobModel, 0)
-			}
-			count += 1
-		}
-		if len(temp) > 0 {
-			batches = append(batches, temp)
-			temp = make([]models.JobModel, 0)
-		}
-	} else {
-		batches = append(batches, jobs)
-	}
+	batches := utils.Batch[models.JobModel](jobs, 6)
 
 	returningIds := []int64{}
+
+	schedulerTime := utils.GetSchedulerTime()
+	now := schedulerTime.GetTime(time.Now())
 
 	for _, batch := range batches {
 		query := fmt.Sprintf("INSERT INTO jobs (%s, %s, %s, %s, %s, %s) VALUES ",
@@ -480,7 +423,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]int64, *utils
 
 		for i, job := range batch {
 			query += fmt.Sprint("(?, ?, ?, ?, ?, ?)")
-			job.DateCreated = time.Now().UTC()
+			job.DateCreated = now
 			params = append(params,
 				job.ProjectID,
 				job.Spec,
