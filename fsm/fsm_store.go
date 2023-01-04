@@ -230,6 +230,9 @@ func ApplyCommand(
 
 		db.ConnectionLock.Lock()
 
+		schedulerTime := utils.GetSchedulerTime()
+		now := schedulerTime.GetTime(time.Now())
+
 		insertBuilder := sq.Insert(JobQueuesTableName).Columns(
 			JobQueueNodeIdColumn,
 			JobQueueLowerBoundJobId,
@@ -241,7 +244,7 @@ func ApplyCommand(
 			lowerBound,
 			upperBound,
 			lastVersion,
-			time.Now().UTC(),
+			now,
 		).RunWith(db.Connection)
 
 		_, err = insertBuilder.Exec()
