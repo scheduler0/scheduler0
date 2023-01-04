@@ -16,11 +16,11 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/http_server/controllers"
 	"scheduler0/http_server/middlewares"
-	"scheduler0/job_executor"
-	"scheduler0/job_queue"
-	"scheduler0/node"
 	"scheduler0/repository"
 	"scheduler0/service"
+	"scheduler0/service/job_executor"
+	"scheduler0/service/job_queue"
+	"scheduler0/service/node"
 	"scheduler0/utils"
 )
 
