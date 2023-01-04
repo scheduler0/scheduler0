@@ -123,10 +123,13 @@ func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message))
 	}
 
+	schedulerTime := utils.GetSchedulerTime()
+	now := schedulerTime.GetTime(time.Now())
+
 	for i, insertedId := range insertedIds {
 		jobs[i].ID = insertedId
-		jobs[i].DateCreated = time.Now().UTC()
-		jobs[i].LastExecutionDate = time.Now().UTC()
+		jobs[i].DateCreated = now
+		jobs[i].LastExecutionDate = now
 	}
 
 	jobService.QueueJobs(jobs)
