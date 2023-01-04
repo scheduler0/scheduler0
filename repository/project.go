@@ -4,7 +4,6 @@ import (
 	_ "errors"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/araddon/dateparse"
 	"log"
 	"net/http"
 	"scheduler0/constants"
@@ -66,6 +65,8 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (int64, 
 	if projectWithName.ID > 0 {
 		return -1, utils.HTTPGenericError(http.StatusBadRequest, fmt.Sprintf("another project exist with the same name, project with id %v has the same name", projectWithName.ID))
 	}
+	schedulerTime := utils.GetSchedulerTime()
+	now := schedulerTime.GetTime(time.Now())
 
 	query, params, err := sq.Insert(ProjectsTableName).
 		Columns(
@@ -76,7 +77,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (int64, 
 		Values(
 			project.Name,
 			project.Description,
-			time.Now().UTC(),
+			now,
 		).ToSql()
 	if err != nil {
 		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -112,7 +113,7 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 		ProjectsIdColumn,
 		NameColumn,
 		DescriptionColumn,
-		fmt.Sprintf("cast(\"%s\" as text)", ProjectsDateCreatedColumn),
+		ProjectsDateCreatedColumn,
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s = ?", NameColumn), project.Name).
@@ -125,18 +126,12 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 	defer rows.Close()
 	count := 0
 	for rows.Next() {
-		var dateString string
 		err = rows.Scan(
 			&project.ID,
 			&project.Name,
 			&project.Description,
-			&dateString,
+			&project.DateCreated,
 		)
-		t, errParse := dateparse.ParseLocal(dateString)
-		if errParse != nil {
-			return utils.HTTPGenericError(500, fmt.Sprintf("%s dataString: %s", errParse.Error(), dateString))
-		}
-		project.DateCreated = t
 		if err != nil {
 			return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
@@ -161,7 +156,7 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 		ProjectsIdColumn,
 		NameColumn,
 		DescriptionColumn,
-		fmt.Sprintf("cast(\"%s\" as text)", ProjectsDateCreatedColumn),
+		ProjectsDateCreatedColumn,
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID).
@@ -174,18 +169,12 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 	defer rows.Close()
 	count := 0
 	for rows.Next() {
-		var dateString string
 		err = rows.Scan(
 			&project.ID,
 			&project.Name,
 			&project.Description,
-			&dateString,
+			&project.DateCreated,
 		)
-		t, errParse := dateparse.ParseLocal(dateString)
-		if errParse != nil {
-			return utils.HTTPGenericError(500, fmt.Sprintf("%s dataString: %s", errParse.Error(), dateString))
-		}
-		project.DateCreated = t
 		if err != nil {
 			return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
@@ -236,7 +225,7 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]mod
 		ProjectsIdColumn,
 		NameColumn,
 		DescriptionColumn,
-		fmt.Sprintf("cast(\"%s\" as text)", ProjectsDateCreatedColumn),
+		ProjectsDateCreatedColumn,
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s in (%s)", ProjectsIdColumn, idParams), projectIdsArgs...).
@@ -251,18 +240,12 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []int64) ([]mod
 	projects := []models.ProjectModel{}
 	for rows.Next() {
 		project := models.ProjectModel{}
-		var dateString string
 		err = rows.Scan(
 			&project.ID,
 			&project.Name,
 			&project.Description,
-			&dateString,
+			&project.DateCreated,
 		)
-		t, errParse := dateparse.ParseLocal(dateString)
-		if errParse != nil {
-			return nil, utils.HTTPGenericError(500, fmt.Sprintf("%s dataString: %s", errParse.Error(), dateString))
-		}
-		project.DateCreated = t
 		if err != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
@@ -300,18 +283,12 @@ func (projectRepo *projectRepo) List(offset int64, limit int64) ([]models.Projec
 	defer rows.Close()
 	for rows.Next() {
 		project := models.ProjectModel{}
-		var dateString string
 		err = rows.Scan(
 			&project.ID,
 			&project.Name,
 			&project.Description,
-			&dateString,
+			&project.DateCreated,
 		)
-		t, errParse := dateparse.ParseLocal(dateString)
-		if errParse != nil {
-			return nil, utils.HTTPGenericError(500, fmt.Sprintf("%s dataString: %s", errParse.Error(), dateString))
-		}
-		project.DateCreated = t
 		if err != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
