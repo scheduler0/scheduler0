@@ -7,9 +7,6 @@ const RaftDir = "raft_data"
 const RaftLog = "logs.dat"
 const RaftStableLog = "stable.dat"
 const ConfigFileName = "config.yml"
-const ExecutionLogsDir = "logs"
-const ExecutionLogsCommitFile = "committed.log"
-const ExecutionLogsUnCommitFile = "uncommitted.log"
 
 type Command int32
 
