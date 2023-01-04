@@ -21,6 +21,7 @@ import (
 	"scheduler0/node"
 	"scheduler0/repository"
 	"scheduler0/service"
+	"scheduler0/utils"
 )
 
 func getDBConnection(logger *log.Logger) *db.DataStore {
@@ -46,6 +47,12 @@ func getDBConnection(logger *log.Logger) *db.DataStore {
 func Start() {
 	ctx := context.Background()
 	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
+
+	schedulerTime := utils.GetSchedulerTime()
+	err := schedulerTime.SetTimezone("UTC")
+	if err != nil {
+		logger.Fatalln("failed to set timezone for s")
+	}
 
 	configs := config.GetConfigurations(logger)
 
