@@ -45,6 +45,7 @@ type Scheduler0Configurations struct {
 	ExecutionLogFetchFanIn               int64      `json:"executionLogFetchFanIn" yaml:"ExecutionLogFetchFanIn"`
 	ExecutionLogFetchIntervalSeconds     int64      `json:"executionLogFetchIntervalSeconds" yaml:"ExecutionLogFetchIntervalSeconds"`
 	JobInvocationDebounceDelay           int64      `json:"jobInvocationDebounceDelay" yaml:"JobInvocationDebounceDelay"`
+	HTTPExecutorPayloadMaxSizeMb         int64      `json:"httpExecutorPayloadMaxSizeMb" yaml:"HTTPExecutorPayloadMaxSizeMb"`
 }
 
 var cachedConfig *Scheduler0Configurations
