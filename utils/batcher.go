@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"encoding/json"
+	"log"
 	"math"
 	"scheduler0/constants"
 )
@@ -32,4 +34,46 @@ func Batch[T any](ids []T, numberOfColumns int64) [][]T {
 	}
 
 	return batches
+}
+
+func BatchByBytes[T any](data []T, maxChunkSize int) [][]byte {
+	collection := []T{data[0]}
+	collectionSmall, err := json.Marshal(collection)
+	if err != nil {
+		log.Fatal("failed to convert json to byte", err)
+	}
+
+	unitSize := float64(len(collectionSmall)) / 1000000
+	itemsPerBatch := int(math.Floor((float64(maxChunkSize) - (unitSize * 10)) / unitSize))
+	var results = [][]byte{}
+
+	i := 0
+
+	currentCollection := []T{}
+	for i < len(data) {
+
+		if (i%itemsPerBatch) == 0 && i > 0 {
+			currentCollectionBytes, err := json.Marshal(currentCollection)
+			if err != nil {
+				log.Fatal("failed to convert json to byte", err)
+			}
+			results = append(results, currentCollectionBytes)
+			currentCollection = []T{}
+		}
+
+		currentCollection = append(currentCollection, data[i])
+
+		i++
+	}
+
+	if len(currentCollection) > 0 {
+		currentCollectionBytes, err := json.Marshal(currentCollection)
+		if err != nil {
+			log.Fatal("failed to convert json to byte", err)
+		}
+		results = append(results, currentCollectionBytes)
+		currentCollection = []T{}
+	}
+
+	return results
 }
