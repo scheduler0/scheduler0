@@ -333,7 +333,7 @@ func ApplyCommand(
 					if trxErr != nil {
 						logger.Fatalln("failed to rollback update transition", trxErr)
 					}
-					logger.Fatalln("failed to update committed status of executions", err)
+					logger.Fatalln("batch insert failed to update committed status of executions", err)
 				}
 				err = tx.Commit()
 				if err != nil {
@@ -368,7 +368,7 @@ func ApplyCommand(
 					if trxErr != nil {
 						logger.Fatalln("failed to rollback update transition", trxErr)
 					}
-					logger.Fatalln("failed to update committed status of executions", err)
+					logger.Fatalln("batch delete failed to update committed status of executions", err)
 				}
 				err = tx.Commit()
 				if err != nil {
