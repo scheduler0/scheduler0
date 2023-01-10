@@ -45,71 +45,54 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, pe
 
 	for rurl, uJc := range urlJobCache {
 
-		batches := make([][]models.JobModel, 0)
-
-		if len(uJc) > 100 {
-			temp := make([]models.JobModel, 0)
-			count := 0
-			for count < len(uJc) {
-				temp = append(temp, uJc[count])
-				if len(temp) == 100 {
-					batches = append(batches, temp)
-					temp = make([]models.JobModel, 0)
-				}
-				count += 1
-			}
-			if len(temp) > 0 {
-				batches = append(batches, temp)
-				temp = make([]models.JobModel, 0)
-			}
-		} else {
-			batches = append(batches, uJc)
-		}
-
 		configs := config.GetConfigurations(httpExecutor.logger)
+		batches := utils.BatchByBytes(uJc, int(configs.HTTPExecutorPayloadMaxSizeMb))
 
-		for _, batch := range batches {
-			go func(url string, b []models.JobModel) {
+		for i, batch := range batches {
+			go func(url string, b []byte, chunkId int) {
 				utils.RetryOnError(func() error {
-					by, err := json.Marshal(b)
-					if err != nil {
-						httpExecutor.logger.Println("failed to create request payload: ", err.Error())
-						onFailure(b)
-						return err
-					}
-
 					httpExecutor.logger.Println(fmt.Sprintf("running job execution for job callback url = %v", url))
-
 					httpClient := http.Client{
 						Timeout: time.Duration(configs.JobExecutionTimeout) * time.Second,
 					}
 
-					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(by))
+					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
 					req.Header.Set("Content-Type", "application/json")
+					//req.Header.Set("x-payload-chunk-id", string(rune(chunkId)))
 					if err != nil {
 						httpExecutor.logger.Println("failed to create request: ", err.Error())
-						onFailure(b)
+						onFailure(httpExecutor.unwrapBatch(b))
 						return err
 					}
 
 					res, err := httpClient.Do(req)
 					if err != nil {
 						httpExecutor.logger.Println("request error: ", err.Error())
-						onFailure(b)
+						onFailure(httpExecutor.unwrapBatch(b))
 						return err
 					}
 
 					if res.StatusCode >= 200 || res.StatusCode <= 299 {
-						onSuccess(b)
+						onSuccess(httpExecutor.unwrapBatch(b))
 						return nil
 					}
 
-					onFailure(b)
+					onFailure(httpExecutor.unwrapBatch(b))
+
 					return errors.New(fmt.Sprintf("subscriber failed to fully requests status code: %v", res.StatusCode))
 				}, configs.JobExecutionRetryMax, configs.JobExecutionRetryDelay)
-			}(rurl, batch)
+			}(rurl, batch, i)
 		}
 	}
 
 	return successJobs, failedJobs
+}
+
+func (httpExecutor *HTTPExecutionHandler) unwrapBatch(data []byte) []models.JobModel {
+	fj := []models.JobModel{}
+	err := json.Unmarshal(data, &fj)
+	if err != nil {
+		httpExecutor.logger.Fatalln("failed to marshal failed jobs: ", err.Error())
+	}
+	return fj
 }
