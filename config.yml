@@ -16,13 +16,14 @@ PeerConnectRetryDelay: 1
 PeerAuthRequestTimeoutMs: 2
 JobExecutionTimeout: 30
 JobExecutionRetryDelay: 1
-JobExecutionRetryMax: 10
+JobExecutionRetryMax: 20
 JobInvocationDebounceDelay: 100
 IncomingRequestMaxWorkers: 1
 IncomingRequestMaxQueue: 1
 JobQueueDebounceDelay: 1
 ExecutionLogFetchFanIn: 2
 ExecutionLogFetchInterval: 2
+HTTPExecutorPayloadMaxSizeMb: 2
 Replicas:
   - Address: http://127.0.0.1:9090
     RaftAddress: 127.0.0.1:7070
