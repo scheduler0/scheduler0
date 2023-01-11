@@ -7,6 +7,8 @@ import (
 	"scheduler0/constants"
 )
 
+// Batch returns a slice containing slices with a
+//size that's optimized to not trigger a sqlite "too much variable" error
 func Batch[T any](ids []T, numberOfColumns int64) [][]T {
 	maxVar := int64(math.Floor(float64(constants.DBMaxVariableSize / numberOfColumns)))
 
@@ -36,7 +38,8 @@ func Batch[T any](ids []T, numberOfColumns int64) [][]T {
 	return batches
 }
 
-func BatchByBytes[T any](data []T, maxChunkSize int) [][]byte {
+// BatchByBytes returns a slice of bytes in which each byte is less than the max batch size
+func BatchByBytes[T any](data []T, maxBatchSizeMb int) [][]byte {
 	collection := []T{data[0]}
 	collectionSmall, err := json.Marshal(collection)
 	if err != nil {
@@ -44,7 +47,7 @@ func BatchByBytes[T any](data []T, maxChunkSize int) [][]byte {
 	}
 
 	unitSize := float64(len(collectionSmall)) / 1000000
-	itemsPerBatch := int(math.Floor((float64(maxChunkSize) - (unitSize * 10)) / unitSize))
+	itemsPerBatch := int(math.Floor((float64(maxBatchSizeMb) - (unitSize * 10)) / unitSize))
 	var results = [][]byte{}
 
 	i := 0
