@@ -2,11 +2,11 @@ package repository_test
 
 //var _ = Describe("Project Repo", func() {
 //	pool := db.GetTestDBConnection()
-//	store := store2.Store{
-//		SqliteDB: pool,
+//	fsmStore := store2.Store{
+//		DataStore: pool,
 //	}
-//	jobRepo := repository2.NewJobRepo(&store)
-//	projectRepo := repository2.NewProjectRepo(&store, jobRepo)
+//	jobRepo := repository2.NewJobRepo(&fsmStore)
+//	projectRepo := repository2.NewProjectRepo(&fsmStore, jobRepo)
 //
 //	BeforeEach(func() {
 //		db.TeardownTestDB()

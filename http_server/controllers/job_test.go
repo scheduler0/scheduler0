@@ -51,7 +51,7 @@ package controllers_test
 //
 //		It("Respond with status 400 if request body does not contain required values", func() {
 //			jobFixture := fixtures2.JobFixture{}
-//			jobTransformers := jobFixture.CreateNJobTransformers(1)
+//			jobTransformers := jobFixture.CreateNJobModels(1)
 //			jobByte, err := jobTransformers[0].ToJSON()
 //			utils.CheckErr(err)
 //			jobStr := string(jobByte)
@@ -72,7 +72,7 @@ package controllers_test
 //			projectRepo.CreateOne(projectManager)
 //
 //			jobFixture := fixtures2.JobFixture{}
-//			jobTransformers := jobFixture.CreateNJobTransformers(1)
+//			jobTransformers := jobFixture.CreateNJobModels(1)
 //			jobTransformers[0].ProjectID = projectManager.ID
 //			jobByte, err := jobTransformers[0].ToJSON()
 //
@@ -122,7 +122,7 @@ package controllers_test
 //			n := 5
 //
 //			jobFixture := fixtures2.JobFixture{}
-//			jobTransformers := jobFixture.CreateNJobTransformers(n)
+//			jobTransformers := jobFixture.CreateNJobModels(n)
 //
 //			for i := 0; i < n; i++ {
 //				jobTransformers[i].ProjectID = projectTransformers.ID
@@ -237,7 +237,7 @@ package controllers_test
 //	projectRepo.CreateOne(projectManager)
 //
 //	jobFixture := fixtures2.JobFixture{}
-//	jobTransformers := jobFixture.CreateNJobTransformers(5)
+//	jobTransformers := jobFixture.CreateNJobModels(5)
 //
 //	if data, err := json.Marshal(jobTransformers); err != nil {
 //		utils.Error("Failed to json marshal job transformers")

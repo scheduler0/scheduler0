@@ -14,7 +14,7 @@ package fixtures
 //	}
 //
 //	jobFixture := fixtures2.JobFixture{}
-//	jobTransformers := jobFixture.CreateNJobTransformers(1)
+//	jobTransformers := jobFixture.CreateNJobModels(1)
 //	jobTransformer := jobTransformers[0]
 //	jobTransformer.ProjectID = projectManager.ID
 //	_, createJobError := jobRepo.CreateOne(jobTransformer)

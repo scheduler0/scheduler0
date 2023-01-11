@@ -16,7 +16,7 @@ package repository_test
 //	Context("JobRepo.CreateOne", func() {
 //		It("Creating job returns error if required inbound fields are nil", func() {
 //			jobFixture := fixtures2.JobFixture{}
-//			jobTransformers := jobFixture.CreateNJobTransformers(1)
+//			jobTransformers := jobFixture.CreateNJobModels(1)
 //
 //			uuid, err := jobRepo.CreateOne(jobTransformers[0])
 //			if err == nil {
@@ -28,7 +28,7 @@ package repository_test
 //
 //		It("Creating job returns new id", func() {
 //			jobFixture := fixtures2.JobFixture{}
-//			jobTransformers := jobFixture.CreateNJobTransformers(1)
+//			jobTransformers := jobFixture.CreateNJobModels(1)
 //			projectTransformer := fixtures2.CreateProjectTransformerFixture()
 //			_, createOneProjectError := projectRepo.CreateOne(projectTransformer)
 //			if createOneProjectError != nil {
@@ -51,7 +51,7 @@ package repository_test
 //	Context("JobRepo.UpdateOneByID", func() {
 //		It("Cannot update cron spec on job", func() {
 //			jobFixture := fixtures2.JobFixture{}
-//			jobTransformers := jobFixture.CreateNJobTransformers(1)
+//			jobTransformers := jobFixture.CreateNJobModels(1)
 //			projectTransformer := fixtures2.CreateProjectTransformerFixture()
 //			_, createOneProjectError := projectRepo.CreateOne(projectTransformer)
 //			if createOneProjectError != nil {
@@ -82,7 +82,7 @@ package repository_test
 //	Context("JobRepo.DeleteOneByID", func() {
 //		It("Delete jobs", func() {
 //			jobFixture := fixtures2.JobFixture{}
-//			jobTransformers := jobFixture.CreateNJobTransformers(1)
+//			jobTransformers := jobFixture.CreateNJobModels(1)
 //			projectTransformer := fixtures2.CreateProjectTransformerFixture()
 //			_, createOneProjectError := projectRepo.CreateOne(projectTransformer)
 //			if createOneProjectError != nil {
@@ -101,7 +101,7 @@ package repository_test
 //
 //	It("JobRepo.ListByJobID", func() {
 //		jobFixture := fixtures2.JobFixture{}
-//		jobTransformers := jobFixture.CreateNJobTransformers(5)
+//		jobTransformers := jobFixture.CreateNJobModels(5)
 //
 //		projectTransformer := fixtures2.CreateProjectTransformerFixture()
 //		_, createOneProjectError := projectRepo.CreateOne(projectTransformer)
@@ -127,7 +127,7 @@ package repository_test
 //
 //	It("JobRepo.GetOneID", func() {
 //		jobFixture := fixtures2.JobFixture{}
-//		jobTransformers := jobFixture.CreateNJobTransformers(1)
+//		jobTransformers := jobFixture.CreateNJobModels(1)
 //		projectTransformer := fixtures2.CreateProjectTransformerFixture()
 //		_, createOneProjectError := projectRepo.CreateOne(projectTransformer)
 //		if createOneProjectError != nil {
@@ -145,7 +145,7 @@ package repository_test
 //
 //	It("JobRepo.BatchGet", func() {
 //		jobFixture := fixtures2.JobFixture{}
-//		jobTransformers := jobFixture.CreateNJobTransformers(5)
+//		jobTransformers := jobFixture.CreateNJobModels(5)
 //
 //		projectTransformer := fixtures2.CreateProjectTransformerFixture()
 //
@@ -171,7 +171,7 @@ package repository_test
 //
 //	It("Batch Insertion", func() {
 //		jobFixture := fixtures2.JobFixture{}
-//		jobTransformers := jobFixture.CreateNJobTransformers(5)
+//		jobTransformers := jobFixture.CreateNJobModels(5)
 //
 //		projectTransformer := fixtures2.CreateProjectTransformerFixture()
 //

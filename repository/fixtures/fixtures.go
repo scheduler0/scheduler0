@@ -23,7 +23,7 @@ package fixtures
 //	}
 //
 //	jobFixture := JobFixture{}
-//	jobTransformers := jobFixture.CreateNJobTransformers(1)
+//	jobTransformers := jobFixture.CreateNJobModels(1)
 //	jobTransformers[0].ProjectID = projectModel.ID
 //
 //	_, createJobManagerError := jobRepo.CreateOne(jobTransformers[0])

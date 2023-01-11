@@ -1,5 +1,11 @@
 package fixtures
 
+import (
+	"github.com/bxcodec/faker/v3"
+	"log"
+	"scheduler0/models"
+)
+
 // JobFixture job fixture for testing
 type JobFixture struct {
 	UUID        string `faker:"uuid_hyphenated"`
@@ -13,20 +19,22 @@ type JobFixture struct {
 	EndDate     string `faker:"timestamp"`
 }
 
-// CreateNJobTransformers create n number of job transformer fixtures for testing
-//func (jobFixture *JobFixture) CreateNJobTransformers(n int) []models.JobModel {
-//	jobTransformers := []models.JobModel{}
-//
-//	for i := 0; i < n; i++ {
-//		err := faker.FakeData(&jobFixture)
-//		utils.CheckErr(err)
-//
-//		jobTransformers = append(jobTransformers, models.JobModel{
-//			Spec:        "* * * * 1",
-//			Data:        jobFixture.Data,
-//			CallbackUrl: jobFixture.CallbackUrl,
-//		})
-//	}
-//
-//	return jobTransformers
-//}
+// CreateNJobModels create n number of job transformer fixtures for testing
+func (jobFixture *JobFixture) CreateNJobModels(n int) []models.JobModel {
+	jobModels := []models.JobModel{}
+
+	for i := 0; i < n; i++ {
+		err := faker.FakeData(&jobFixture)
+		if err != nil {
+			log.Fatal("failed to create faker", err)
+		}
+
+		jobModels = append(jobModels, models.JobModel{
+			Spec:        "* * * * 1",
+			Data:        jobFixture.Data,
+			CallbackUrl: jobFixture.CallbackUrl,
+		})
+	}
+
+	return jobModels
+}
