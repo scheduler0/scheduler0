@@ -104,7 +104,6 @@ func (jobRecovery *JobRecovery) Run() {
 			// comparing the execution time on the schedule by recalculating it against it's time.
 			// Time clocks are sources of distributed systems errors and a monotonic clock should always be preferred.
 			// While 60 minutes is quite an unlike delay in a close it's not impossible
-			//fmt.Println("lastJobState", lastJobState, executionTime)
 
 			if now.Before(executionTime) && lastJobState.State == uint64(models.ExecutionLogScheduleState) {
 				jobRecovery.logger.Println("quick recovered job", job.ID)
