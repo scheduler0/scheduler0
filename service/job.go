@@ -30,7 +30,7 @@ type Job interface {
 	QueueJobs(jobs []models.JobModel)
 }
 
-func NewJobService(logger *log.Logger, jobRepo repository.Job, queue *queue.JobQueue, projectRepo repository.Project, context context.Context) Job {
+func NewJobService(context context.Context, logger *log.Logger, jobRepo repository.Job, queue *queue.JobQueue, projectRepo repository.Project) Job {
 	service := &jobService{
 		jobRepo:     jobRepo,
 		projectRepo: projectRepo,

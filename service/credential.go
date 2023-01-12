@@ -1,8 +1,8 @@
 package service
 
 import (
+	"context"
 	"errors"
-	"golang.org/x/net/context"
 	"log"
 	"net/http"
 	"scheduler0/models"
@@ -21,7 +21,7 @@ type Credential interface {
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 }
 
-func NewCredentialService(logger *log.Logger, repo repository.Credential, Ctx context.Context) Credential {
+func NewCredentialService(Ctx context.Context, logger *log.Logger, repo repository.Credential) Credential {
 	return &credentialService{
 		CredentialRepo: repo,
 		Ctx:            Ctx,

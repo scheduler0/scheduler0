@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"context"
 	"fmt"
 	"github.com/robfig/cron"
 	"log"
@@ -24,10 +25,11 @@ type JobProcessor struct {
 	jobExecutor         *executor.JobExecutor
 	logger              *log.Logger
 	mtx                 sync.Mutex
+	ctx                 context.Context
 }
 
 // NewJobProcessor creates a new job processor
-func NewJobProcessor(logger *log.Logger, jobRepo repository.Job, projectRepo repository.Project, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
+func NewJobProcessor(ctx context.Context, logger *log.Logger, jobRepo repository.Job, projectRepo repository.Project, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
 	return &JobProcessor{
 		jobRepo:             jobRepo,
 		projectRepo:         projectRepo,
@@ -36,6 +38,7 @@ func NewJobProcessor(logger *log.Logger, jobRepo repository.Job, projectRepo rep
 		jobExecutionLogRepo: jobExecutionLogRepo,
 		jobQueuesRepo:       jobQueuesRepo,
 		jobExecutor:         jobExecutor,
+		ctx:                 ctx,
 	}
 }
 

@@ -1,11 +1,11 @@
 package http_server
 
 import (
+	"context"
 	"fmt"
 	httpLogger "github.com/go-http-utils/logger"
 	"github.com/gorilla/mux"
 	"github.com/unrolled/secure"
-	"golang.org/x/net/context"
 	"log"
 	"net/http"
 	"os"
@@ -47,11 +47,11 @@ func Start() {
 
 	jobExecutor := executor.NewJobExecutor(ctx, logger, jobRepo, executionsRepo, jobQueueRepo)
 	jobQueue := queue.NewJobQueue(ctx, logger, fsmStr, jobExecutor, jobQueueRepo)
-	p := node.NewNode(logger, jobExecutor, jobQueue, jobRepo, projectRepo, executionsRepo, jobQueueRepo)
+	p := node.NewNode(ctx, logger, jobExecutor, jobQueue, jobRepo, projectRepo, executionsRepo, jobQueueRepo)
 
 	//services
-	credentialService := service.NewCredentialService(logger, credentialRepo, ctx)
-	jobService := service.NewJobService(logger, jobRepo, jobQueue, projectRepo, ctx)
+	credentialService := service.NewCredentialService(ctx, logger, credentialRepo)
+	jobService := service.NewJobService(ctx, logger, jobRepo, jobQueue, projectRepo)
 	projectService := service.NewProjectService(logger, projectRepo)
 
 	// HTTP router setup

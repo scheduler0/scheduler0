@@ -63,26 +63,28 @@ const (
 )
 
 type Node struct {
-	Tm             *raft.NetworkTransport
-	Ldb            *boltdb.BoltStore
-	Sdb            *boltdb.BoltStore
-	Fss            *raft.FileSnapshotStore
-	logger         *log.Logger
-	mtx            sync.Mutex
-	AcceptWrites   bool
-	State          State
-	FsmStore       *fsm.Store
-	jobProcessor   *processor.JobProcessor
-	jobQueue       *queue.JobQueue
-	jobExecutor    *executor.JobExecutor
-	jobQueuesRepo  repository.JobQueuesRepo
-	jobRepo        repository.Job
-	projectRepo    repository.Project
-	isExistingNode bool
-	SingleNodeMode bool
+	TransportManager *raft.NetworkTransport
+	LogDb            *boltdb.BoltStore
+	StoreDb          *boltdb.BoltStore
+	FileSnapShot     *raft.FileSnapshotStore
+	AcceptWrites     bool
+	State            State
+	FsmStore         *fsm.Store
+	SingleNodeMode   bool
+	ctx              context.Context
+	logger           *log.Logger
+	mtx              sync.Mutex
+	jobProcessor     *processor.JobProcessor
+	jobQueue         *queue.JobQueue
+	jobExecutor      *executor.JobExecutor
+	jobQueuesRepo    repository.JobQueuesRepo
+	jobRepo          repository.Job
+	projectRepo      repository.Project
+	isExistingNode   bool
 }
 
 func NewNode(
+	ctx context.Context,
 	logger *log.Logger,
 	jobExecutor *executor.JobExecutor,
 	jobQueue *queue.JobQueue,
@@ -105,19 +107,20 @@ func NewNode(
 	}
 
 	return &Node{
-		Tm:             tm,
-		Ldb:            ldb,
-		Sdb:            sdb,
-		Fss:            fss,
-		logger:         logger,
-		AcceptWrites:   false,
-		State:          Cold,
-		jobProcessor:   processor.NewJobProcessor(logger, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
-		jobQueue:       jobQueue,
-		jobExecutor:    jobExecutor,
-		jobRepo:        jobRepo,
-		projectRepo:    projectRepo,
-		isExistingNode: exists,
+		TransportManager: tm,
+		LogDb:            ldb,
+		StoreDb:          sdb,
+		FileSnapShot:     fss,
+		logger:           logger,
+		AcceptWrites:     false,
+		State:            Cold,
+		ctx:              ctx,
+		jobProcessor:     processor.NewJobProcessor(ctx, logger, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
+		jobQueue:         jobQueue,
+		jobExecutor:      jobExecutor,
+		jobRepo:          jobRepo,
+		projectRepo:      projectRepo,
+		isExistingNode:   exists,
 	}
 }
 
@@ -195,7 +198,7 @@ func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
 
 	// TODO: Set raft configs in scheduler0 config
 
-	r, err := raft.NewRaft(c, fsm, node.Ldb, node.Sdb, node.Fss, node.Tm)
+	r, err := raft.NewRaft(c, fsm, node.LogDb, node.StoreDb, node.FileSnapShot, node.TransportManager)
 	if err != nil {
 		node.logger.Fatalln("failed to create raft object for Node", err)
 	}
@@ -222,7 +225,7 @@ func (node *Node) recoverRaftState() raft.Configuration {
 	var (
 		snapshotIndex  uint64
 		snapshotTerm   uint64
-		snapshots, err = node.Fss.List()
+		snapshots, err = node.FileSnapShot.List()
 	)
 	if err != nil {
 		node.logger.Fatalln(err)
@@ -233,7 +236,7 @@ func (node *Node) recoverRaftState() raft.Configuration {
 	var lastSnapshotBytes []byte
 	for _, snapshot := range snapshots {
 		var source io.ReadCloser
-		_, source, err = node.Fss.Open(snapshot.ID)
+		_, source, err = node.FileSnapShot.Open(snapshot.ID)
 		if err != nil {
 			// Skip this one and try the next. We will detect if we
 			// couldn't open any snapshots.
@@ -353,13 +356,13 @@ func (node *Node) recoverRaftState() raft.Configuration {
 	lastTerm := snapshotTerm
 
 	// Apply any Raft log entries past the snapshot.
-	lastLogIndex, err := node.Ldb.LastIndex()
+	lastLogIndex, err := node.LogDb.LastIndex()
 	if err != nil {
 		node.logger.Fatalf("failed to find last log: %v", err)
 	}
 	for index := snapshotIndex + 1; index <= lastLogIndex; index++ {
 		var entry raft.Log
-		if err = node.Ldb.GetLog(index, &entry); err != nil {
+		if err = node.LogDb.GetLog(index, &entry); err != nil {
 			node.logger.Fatalf("failed to get log at index %d: %v\n", index, err)
 		}
 		fsm.ApplyCommand(node.logger, &entry, dataStore, false, nil, nil)
@@ -433,7 +436,7 @@ func (node *Node) recoverRaftState() raft.Configuration {
 	lastConfiguration := node.getRaftConfiguration(node.logger)
 
 	snapshot := fsm.NewFSMSnapshot(fsmStr.DataStore)
-	sink, err := node.Fss.Create(1, lastIndex, lastTerm, lastConfiguration, 1, node.Tm)
+	sink, err := node.FileSnapShot.Create(1, lastIndex, lastTerm, lastConfiguration, 1, node.TransportManager)
 	if err != nil {
 		node.logger.Fatalf("failed to create snapshot: %v", err)
 	}
@@ -444,11 +447,11 @@ func (node *Node) recoverRaftState() raft.Configuration {
 		node.logger.Fatalf("failed to finalize snapshot: %v", err)
 	}
 
-	firstLogIndex, err := node.Ldb.FirstIndex()
+	firstLogIndex, err := node.LogDb.FirstIndex()
 	if err != nil {
 		node.logger.Fatalf("failed to get first log index: %v", err)
 	}
-	if err := node.Ldb.DeleteRange(firstLogIndex, lastLogIndex); err != nil {
+	if err := node.LogDb.DeleteRange(firstLogIndex, lastLogIndex); err != nil {
 		node.logger.Fatalf("log compaction failed: %v", err)
 	}
 
@@ -660,7 +663,7 @@ func (node *Node) getHTTPAddressOfServersToFetchFrom() []string {
 func (node *Node) fetchUncommittedLogsFromPeers() {
 	configs := config.GetConfigurations(node.logger)
 	uncommittedLogs := make(chan []interface{}, configs.ExecutionLogFetchFanIn)
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(node.ctx)
 	ticker := time.NewTicker(time.Duration(configs.ExecutionLogFetchIntervalSeconds) * time.Second)
 	fetchStatus := map[string]bool{}
 	pendingFetches := 0
