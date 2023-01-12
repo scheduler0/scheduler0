@@ -40,7 +40,7 @@ type Scheduler0Configurations struct {
 	UncommittedExecutionLogsFetchTimeout int        `json:"uncommittedExecutionLogsFetchTimeout" yaml:"UncommittedExecutionLogsFetchTimeout"`
 	IncomingRequestMaxWorkers            int        `json:"incomingRequestMaxWorkers" yaml:"IncomingRequestMaxWorkers"`
 	IncomingRequestMaxQueue              int        `json:"incomingRequestMaxQueue" yaml:"IncomingRequestMaxQueue"`
-	JobQueueDebounceDelay                int        `json:"jobQueueDebounceDelay" yaml:"JobQueueDebounceDelay"`
+	JobQueueDebounceDelay                int64      `json:"jobQueueDebounceDelay" yaml:"JobQueueDebounceDelay"`
 	MaxMemory                            int64      `json:"maxMemory" yaml:"MaxMemory"`
 	ExecutionLogFetchFanIn               int64      `json:"executionLogFetchFanIn" yaml:"ExecutionLogFetchFanIn"`
 	ExecutionLogFetchIntervalSeconds     int64      `json:"executionLogFetchIntervalSeconds" yaml:"ExecutionLogFetchIntervalSeconds"`
