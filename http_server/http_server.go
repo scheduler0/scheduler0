@@ -1,7 +1,6 @@
 package http_server
 
 import (
-	"database/sql"
 	"fmt"
 	httpLogger "github.com/go-http-utils/logger"
 	"github.com/gorilla/mux"
@@ -11,37 +10,17 @@ import (
 	"net/http"
 	"os"
 	"scheduler0/config"
-	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/http_server/controllers"
 	"scheduler0/http_server/middlewares"
 	"scheduler0/repository"
 	"scheduler0/service"
-	"scheduler0/service/job_executor"
-	"scheduler0/service/job_queue"
+	"scheduler0/service/executor"
 	"scheduler0/service/node"
+	"scheduler0/service/queue"
 	"scheduler0/utils"
 )
-
-func getDBConnection(logger *log.Logger) *db.DataStore {
-	dir, err := os.Getwd()
-	if err != nil {
-		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
-	}
-	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
-
-	sqliteDb := db.NewSqliteDbConnection(dbFilePath)
-	conn := sqliteDb.OpenConnection()
-
-	dbConnection := conn.(*sql.DB)
-	err = dbConnection.Ping()
-	if err != nil {
-		logger.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
-	}
-
-	return sqliteDb
-}
 
 // Start this will start the http server
 func Start() {
@@ -56,7 +35,7 @@ func Start() {
 
 	configs := config.GetConfigurations(logger)
 
-	sqliteDb := getDBConnection(logger)
+	sqliteDb := db.GetDBConnection(logger)
 	fsmStr := fsm.NewFSMStore(sqliteDb, logger)
 
 	//repository
@@ -66,8 +45,8 @@ func Start() {
 	executionsRepo := repository.NewExecutionsRepo(logger, fsmStr)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmStr)
 
-	jobExecutor := job_executor.NewJobExecutor(logger, jobRepo, executionsRepo, jobQueueRepo)
-	jobQueue := job_queue.NewJobQueue(logger, fsmStr, jobExecutor, jobQueueRepo)
+	jobExecutor := executor.NewJobExecutor(ctx, logger, jobRepo, executionsRepo, jobQueueRepo)
+	jobQueue := queue.NewJobQueue(ctx, logger, fsmStr, jobExecutor, jobQueueRepo)
 	p := node.NewNode(logger, jobExecutor, jobQueue, jobRepo, projectRepo, executionsRepo, jobQueueRepo)
 
 	//services
