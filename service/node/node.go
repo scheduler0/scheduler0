@@ -26,10 +26,9 @@ import (
 	"scheduler0/protobuffs"
 	"scheduler0/repository"
 	"scheduler0/secrets"
-	"scheduler0/service/job_executor"
-	"scheduler0/service/job_processor"
-	"scheduler0/service/job_queue"
-	"scheduler0/service/job_recovery"
+	"scheduler0/service/executor"
+	"scheduler0/service/processor"
+	"scheduler0/service/queue"
 	"scheduler0/utils"
 	"sync"
 	"time"
@@ -73,10 +72,9 @@ type Node struct {
 	AcceptWrites   bool
 	State          State
 	FsmStore       *fsm.Store
-	jobProcessor   *job_processor.JobProcessor
-	jobQueue       *job_queue.JobQueue
-	jobExecutor    *job_executor.JobExecutor
-	jobRecovery    *job_recovery.JobRecovery
+	jobProcessor   *processor.JobProcessor
+	jobQueue       *queue.JobQueue
+	jobExecutor    *executor.JobExecutor
 	jobQueuesRepo  repository.JobQueuesRepo
 	jobRepo        repository.Job
 	projectRepo    repository.Project
@@ -86,8 +84,8 @@ type Node struct {
 
 func NewNode(
 	logger *log.Logger,
-	jobExecutor *job_executor.JobExecutor,
-	jobQueue *job_queue.JobQueue,
+	jobExecutor *executor.JobExecutor,
+	jobQueue *queue.JobQueue,
 	jobRepo repository.Job,
 	projectRepo repository.Project,
 	executionsRepo repository.ExecutionsRepo,
@@ -114,12 +112,11 @@ func NewNode(
 		logger:         logger,
 		AcceptWrites:   false,
 		State:          Cold,
-		jobProcessor:   job_processor.NewJobProcessor(jobRepo, projectRepo, jobQueue, logger),
+		jobProcessor:   processor.NewJobProcessor(logger, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
 		jobQueue:       jobQueue,
 		jobExecutor:    jobExecutor,
 		jobRepo:        jobRepo,
 		projectRepo:    projectRepo,
-		jobRecovery:    job_recovery.NewJobRecovery(logger, jobRepo, jobExecutor, executionsRepo, jobQueueRepo),
 		isExistingNode: exists,
 	}
 }
@@ -145,7 +142,7 @@ func (node *Node) Boostrap(fsmStr *fsm.Store) {
 
 	if node.isExistingNode &&
 		!node.SingleNodeMode && rft.State().String() == "Follower" {
-		node.jobRecovery.Run()
+		node.jobProcessor.RecoverJobs()
 	}
 
 	node.listenOnInputQueues(fsmStr)
@@ -540,7 +537,7 @@ func (node *Node) handleLeaderChange() {
 			go node.fetchUncommittedLogsFromPeers()
 		} else {
 			if node.isExistingNode {
-				node.jobRecovery.Run()
+				node.jobProcessor.RecoverJobs()
 			} else {
 				node.jobProcessor.StartJobs()
 			}

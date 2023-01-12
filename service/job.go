@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
-	"scheduler0/service/job_queue"
+	"scheduler0/service/queue"
 	"scheduler0/utils"
 	"time"
 )
@@ -16,7 +16,7 @@ import (
 type jobService struct {
 	jobRepo     repository.Job
 	projectRepo repository.Project
-	Queue       *job_queue.JobQueue
+	Queue       *queue.JobQueue
 	Ctx         context.Context
 	logger      *log.Logger
 }
@@ -30,7 +30,7 @@ type Job interface {
 	QueueJobs(jobs []models.JobModel)
 }
 
-func NewJobService(logger *log.Logger, jobRepo repository.Job, queue *job_queue.JobQueue, projectRepo repository.Project, context context.Context) Job {
+func NewJobService(logger *log.Logger, jobRepo repository.Job, queue *queue.JobQueue, projectRepo repository.Project, context context.Context) Job {
 	service := &jobService{
 		jobRepo:     jobRepo,
 		projectRepo: projectRepo,

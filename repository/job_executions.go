@@ -10,6 +10,7 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/models"
 	"scheduler0/utils"
+	"scheduler0/utils/batcher"
 	"time"
 )
 
@@ -59,7 +60,7 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 		return
 	}
 
-	batches := utils.Batch[models.JobModel](jobs, 9)
+	batches := batcher.Batch[models.JobModel](jobs, 9)
 	returningIds := []int64{}
 
 	for _, batch := range batches {
@@ -158,7 +159,7 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []int64) []model
 		return results
 	}
 
-	batches := utils.Batch[int64](jobIds, 1)
+	batches := batcher.Batch[int64](jobIds, 1)
 
 	for _, batch := range batches {
 		paramsPlaceholder := "?"

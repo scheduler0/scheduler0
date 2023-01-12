@@ -146,6 +146,7 @@ func (credentialController *credentialController) ListCredentials(w http.Respons
 	offset := 0
 	limit := 50
 
+	// TODO: use constants for ASC and DESC
 	orderBy := "date_created DESC"
 
 	limitParam, err := utils.ValidateQueryString("limit", r)
