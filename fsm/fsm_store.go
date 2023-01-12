@@ -17,6 +17,7 @@ import (
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
+	"scheduler0/utils/batcher"
 	"sync"
 	"time"
 )
@@ -275,7 +276,7 @@ func ApplyCommand(
 		db.ConnectionLock.Lock()
 
 		batchInsert := func(jobExecutionLogs []models.JobExecutionLog) {
-			batches := utils.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
+			batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
 
 			for _, batch := range batches {
 				query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
@@ -343,7 +344,7 @@ func ApplyCommand(
 		}
 
 		batchDelete := func(jobExecutionLogs []models.JobExecutionLog) {
-			batches := utils.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
+			batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
 
 			for _, batch := range batches {
 				paramPlaceholder := "?"
