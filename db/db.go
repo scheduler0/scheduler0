@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"scheduler0/constants"
 	"sync"
 )
 
@@ -56,6 +57,25 @@ func (db *DataStore) Serialize() []byte {
 	}
 
 	return data
+}
+
+func GetDBConnection(logger *log.Logger) *DataStore {
+	dir, err := os.Getwd()
+	if err != nil {
+		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
+	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+
+	sqliteDb := NewSqliteDbConnection(dbFilePath)
+	conn := sqliteDb.OpenConnection()
+
+	dbConnection := conn.(*sql.DB)
+	err = dbConnection.Ping()
+	if err != nil {
+		logger.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
+	}
+
+	return sqliteDb
 }
 
 func GetSetupSQL() string {
