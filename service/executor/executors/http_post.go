@@ -2,15 +2,16 @@ package executors
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/net/context"
 	"log"
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/models"
 	"scheduler0/utils"
+	"scheduler0/utils/batcher"
 	"time"
 )
 
@@ -46,7 +47,7 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, pe
 	for rurl, uJc := range urlJobCache {
 
 		configs := config.GetConfigurations(httpExecutor.logger)
-		batches := utils.BatchByBytes(uJc, int(configs.HTTPExecutorPayloadMaxSizeMb))
+		batches := batcher.BatchByBytes(uJc, int(configs.HTTPExecutorPayloadMaxSizeMb))
 
 		for i, batch := range batches {
 			go func(url string, b []byte, chunkId int) {
