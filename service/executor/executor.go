@@ -22,21 +22,19 @@ import (
 )
 
 type JobExecutor struct {
-	Raft                     *raft.Raft
-	SingleNodeMode           bool
-	context                  context.Context
-	pendingJobInvocations    []models.JobModel
-	jobRepo                  repository.Job
-	jobExecutionsRepo        repository.ExecutionsRepo
-	jobQueuesRepo            repository.JobQueuesRepo
-	logger                   *log.Logger
-	cancelReq                context.CancelFunc
-	httpExecutionHandler     *executors.HTTPExecutionHandler
-	mtx                      sync.Mutex
-	invocationLock           sync.Mutex
-	pendingJobInvocationLock sync.Mutex
-	executions               map[int64]models.MemJobExecution
-	debounce                 utils.Debounce
+	Raft                  *raft.Raft
+	SingleNodeMode        bool
+	context               context.Context
+	pendingJobInvocations []models.JobModel
+	jobRepo               repository.Job
+	jobExecutionsRepo     repository.ExecutionsRepo
+	jobQueuesRepo         repository.JobQueuesRepo
+	logger                *log.Logger
+	cancelReq             context.CancelFunc
+	httpExecutionHandler  *executors.HTTPExecutionHandler
+	mtx                   sync.Mutex
+	executions            map[int64]models.MemJobExecution
+	debounce              *utils.Debounce
 }
 
 func NewJobExecutor(ctx context.Context, logger *log.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobExecutor {
@@ -79,7 +77,7 @@ func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 				jobExecutor.logger.Fatalln("failed to batch get job by ranges ids ", getErr)
 			}
 
-			jobExecutor.Schedule(jobs)
+			jobExecutor.ScheduleJobs(jobs)
 
 			if upperBound-currentUpperBound < constants.JobMaxBatchSize {
 				currentLowerBound = currentUpperBound + 1
@@ -97,11 +95,11 @@ func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 		if getErr != nil {
 			jobExecutor.logger.Fatalln("failed to batch get job by ranges ids ", getErr)
 		}
-		jobExecutor.Schedule(jobs)
+		jobExecutor.ScheduleJobs(jobs)
 	}
 }
 
-func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
+func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.JobModel) {
 	if len(jobs) < 1 {
 		return
 	}
@@ -132,7 +130,7 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 				executionTime.String(),
 			)
 			jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-			jobExecutor.AddNewProcess(jobs[i], executionTime)
+			jobExecutor.ScheduleProcess(jobs[i], executionTime)
 
 			jobExecutor.executions[job.ID] = models.MemJobExecution{
 				ExecutionVersion:      1,
@@ -155,9 +153,9 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 
 			executionTime := schedule.Next(jobLastLog.LastExecutionDatetime)
 			if now.Before(executionTime) {
-				jobExecutor.AddNewProcess(jobs[i], executionTime)
+				jobExecutor.ScheduleProcess(jobs[i], executionTime)
 			} else {
-				jobExecutor.AddNewProcess(jobs[i], jobLastLog.NextExecutionDatetime)
+				jobExecutor.ScheduleProcess(jobs[i], jobLastLog.NextExecutionDatetime)
 			}
 
 			jobExecutor.executions[job.ID] = models.MemJobExecution{
@@ -180,7 +178,7 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 				executionTime.String(),
 			)
 			jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-			jobExecutor.AddNewProcess(jobs[i], executionTime)
+			jobExecutor.ScheduleProcess(jobs[i], executionTime)
 			jobExecutor.executions[job.ID] = models.MemJobExecution{
 				ExecutionVersion:      jobLastLog.ExecutionVersion,
 				FailCount:             0,
@@ -206,7 +204,7 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 				now := schedulerTime.GetTime(time.Now())
 
 				if now.Before(jobLastLog.NextExecutionDatetime) {
-					jobExecutor.AddNewProcess(jobs[i], jobLastLog.NextExecutionDatetime)
+					jobExecutor.ScheduleProcess(jobs[i], jobLastLog.NextExecutionDatetime)
 					continue
 				}
 			}
@@ -221,7 +219,7 @@ func (jobExecutor *JobExecutor) Schedule(jobs []models.JobModel) {
 				executionTime.String(),
 			)
 			jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-			jobExecutor.AddNewProcess(jobs[i], executionTime)
+			jobExecutor.ScheduleProcess(jobs[i], executionTime)
 			jobExecutor.executions[job.ID] = models.MemJobExecution{
 				ExecutionVersion:      jobLastLog.ExecutionVersion,
 				FailCount:             0,
@@ -271,7 +269,7 @@ func (jobExecutor *JobExecutor) StopAll() {
 	jobExecutor.context = ctx
 }
 
-func (jobExecutor *JobExecutor) AddNewProcess(job models.JobModel, executeTime time.Time) {
+func (jobExecutor *JobExecutor) ScheduleProcess(job models.JobModel, executeTime time.Time) {
 	go func(j models.JobModel, e time.Time) {
 		schedulerTime := utils.GetSchedulerTime()
 		now := schedulerTime.GetTime(time.Now())
@@ -316,6 +314,12 @@ func (jobExecutor *JobExecutor) GetUncommittedLogs() []byte {
 	}
 
 	return compressedByte
+}
+
+func (jobExecutor *JobExecutor) ExecuteHTTP(pj []models.JobModel, ctx context.Context, onSuccess func(pj []models.JobModel), onFailure func(pj []models.JobModel)) {
+	go func(pjs []models.JobModel) {
+		jobExecutor.httpExecutionHandler.ExecuteHTTPJob(ctx, pjs, onSuccess, onFailure)
+	}(pj)
 }
 
 func (jobExecutor *JobExecutor) reschedule(jobs []models.JobModel, newState models.JobExecutionLogState) {
@@ -363,7 +367,7 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.JobModel, newState mode
 		)
 		jobs[i].LastExecutionDate = lastExecution.NextExecutionDatetime
 		jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-		jobExecutor.AddNewProcess(jobs[i], executionTime)
+		jobExecutor.ScheduleProcess(jobs[i], executionTime)
 		jobExecutor.executions[job.ID] = models.MemJobExecution{
 			ExecutionVersion:      executionVersion,
 			FailCount:             0,
@@ -422,17 +426,16 @@ func (jobExecutor *JobExecutor) createInMemExecutionsForJobsIfNotExist(jobs []mo
 }
 
 func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
+	jobExecutor.mtx.Lock()
+	defer jobExecutor.mtx.Unlock()
+
 	configs := config.GetConfigurations(jobExecutor.logger)
 
-	jobExecutor.pendingJobInvocationLock.Lock()
 	jobExecutor.pendingJobInvocations = append(jobExecutor.pendingJobInvocations, pendingJob)
-	jobExecutor.pendingJobInvocationLock.Unlock()
 
 	jobExecutor.debounce.Debounce(jobExecutor.context, configs.JobInvocationDebounceDelay, func() {
-		jobExecutor.pendingJobInvocationLock.Lock()
-		jobExecutor.invocationLock.Lock()
-		defer jobExecutor.invocationLock.Unlock()
-		defer jobExecutor.pendingJobInvocationLock.Unlock()
+		jobExecutor.mtx.Lock()
+		defer jobExecutor.mtx.Unlock()
 
 		jobIDs := make([]int64, 0)
 		pendingJobs := jobExecutor.pendingJobInvocations
@@ -593,10 +596,4 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 	}
 
 	_ = jobExecutor.Raft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
-}
-
-func (jobExecutor *JobExecutor) ExecuteHTTP(pj []models.JobModel, ctx context.Context, onSuccess func(pj []models.JobModel), onFailure func(pj []models.JobModel)) {
-	go func(pjs []models.JobModel) {
-		jobExecutor.httpExecutionHandler.ExecuteHTTPJob(ctx, pjs, onSuccess, onFailure)
-	}(pj)
 }

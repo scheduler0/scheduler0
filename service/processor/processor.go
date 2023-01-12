@@ -153,14 +153,14 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 			// While 60 minutes is quite an unlike delay in a close it's not impossible
 			if now.Before(executionTime) && lastJobState.State == uint64(models.ExecutionLogScheduleState) {
 				jobProcessor.logger.Println("quick recovered job", job.ID)
-				jobProcessor.jobExecutor.AddNewProcess(job, executionTime)
+				jobProcessor.jobExecutor.ScheduleProcess(job, executionTime)
 			} else {
 				jobsToSchedule = append(jobsToSchedule, job)
 			}
 		}
 
 		if len(jobsToSchedule) > 0 {
-			jobProcessor.jobExecutor.Schedule(jobsToSchedule)
+			jobProcessor.jobExecutor.ScheduleJobs(jobsToSchedule)
 		}
 	}
 }

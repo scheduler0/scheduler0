@@ -36,7 +36,7 @@ type JobQueue struct {
 	maxId          int64
 	mtx            sync.Mutex
 	once           sync.Once
-	debounce       utils.Debounce
+	debounce       *utils.Debounce
 	context        context.Context
 }
 
@@ -50,6 +50,7 @@ func NewJobQueue(ctx context.Context, logger *log.Logger, fsm *fsm.Store, Execut
 		minId:         math.MaxInt64,
 		maxId:         math.MinInt16,
 		allocations:   map[raft.ServerAddress]int64{},
+		debounce:      utils.NewDebounce(),
 	}
 }
 
@@ -84,6 +85,9 @@ func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
 
 	configs := config.GetConfigurations(jobQ.logger)
 	jobQ.debounce.Debounce(jobQ.context, configs.JobQueueDebounceDelay, func() {
+		jobQ.mtx.Lock()
+		defer jobQ.mtx.Unlock()
+
 		jobQ.queue(jobQ.minId, jobQ.maxId)
 		jobQ.minId = math.MaxInt64
 		jobQ.maxId = math.MinInt16
