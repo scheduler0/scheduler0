@@ -1,6 +1,7 @@
-package job_queue
+package queue
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/raft"
@@ -13,7 +14,8 @@ import (
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/repository"
-	"scheduler0/service/job_executor"
+	"scheduler0/service/executor"
+	"scheduler0/utils"
 	"sync"
 	"time"
 )
@@ -24,24 +26,25 @@ type JobQueueCommand struct {
 }
 
 type JobQueue struct {
-	Executor       *job_executor.JobExecutor
+	Executor       *executor.JobExecutor
+	SingleNodeMode bool
 	jobsQueueRepo  repository.JobQueuesRepo
 	fsm            *fsm.Store
 	logger         *log.Logger
 	allocations    map[raft.ServerAddress]int64
 	minId          int64
 	maxId          int64
-	threshold      time.Time
-	ticker         *time.Ticker
 	mtx            sync.Mutex
 	once           sync.Once
-	SingleNodeMode bool
+	debounce       utils.Debounce
+	context        context.Context
 }
 
-func NewJobQueue(logger *log.Logger, fsm *fsm.Store, Executor *job_executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
+func NewJobQueue(ctx context.Context, logger *log.Logger, fsm *fsm.Store, Executor *executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
 	return &JobQueue{
 		Executor:      Executor,
 		jobsQueueRepo: jobsQueueRepo,
+		context:       ctx,
 		fsm:           fsm,
 		logger:        logger,
 		minId:         math.MaxInt64,
@@ -80,36 +83,10 @@ func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
 	}
 
 	configs := config.GetConfigurations(jobQ.logger)
-	jobQ.threshold = time.Now().Add(time.Duration(configs.JobQueueDebounceDelay) * time.Second)
-
-	jobQ.once.Do(func() {
-		go func() {
-			defer func() {
-				jobQ.mtx.Lock()
-				jobQ.ticker.Stop()
-				jobQ.once = sync.Once{}
-				jobQ.minId = math.MaxInt64
-				jobQ.maxId = math.MinInt16
-				jobQ.mtx.Unlock()
-			}()
-
-			jobQ.ticker = time.NewTicker(time.Duration(500) * time.Millisecond)
-
-			for {
-				select {
-				case <-jobQ.ticker.C:
-					jobQ.mtx.Lock()
-					if time.Now().After(jobQ.threshold) {
-						jobQ.queue(jobQ.minId, jobQ.maxId)
-						jobQ.minId = math.MaxInt64
-						jobQ.maxId = math.MinInt16
-						jobQ.mtx.Unlock()
-						return
-					}
-					jobQ.mtx.Unlock()
-				}
-			}
-		}()
+	jobQ.debounce.Debounce(jobQ.context, configs.JobQueueDebounceDelay, func() {
+		jobQ.queue(jobQ.minId, jobQ.maxId)
+		jobQ.minId = math.MaxInt64
+		jobQ.maxId = math.MinInt16
 	})
 }
 
