@@ -1,4 +1,4 @@
-package job_executor
+package executor
 
 import (
 	"context"
@@ -15,44 +15,43 @@ import (
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/repository"
-	"scheduler0/service/job_executor/executors"
+	"scheduler0/service/executor/executors"
 	"scheduler0/utils"
 	"sync"
 	"time"
 )
 
 type JobExecutor struct {
-	context                  context.Context
 	Raft                     *raft.Raft
+	SingleNodeMode           bool
+	context                  context.Context
 	pendingJobInvocations    []models.JobModel
 	jobRepo                  repository.Job
 	jobExecutionsRepo        repository.ExecutionsRepo
 	jobQueuesRepo            repository.JobQueuesRepo
 	logger                   *log.Logger
 	cancelReq                context.CancelFunc
-	executor                 *executors.Service
-	threshold                time.Time
-	ticker                   *time.Ticker
+	httpExecutionHandler     *executors.HTTPExecutionHandler
 	mtx                      sync.Mutex
 	invocationLock           sync.Mutex
-	once                     sync.Once
-	SingleNodeMode           bool
 	pendingJobInvocationLock sync.Mutex
 	executions               map[int64]models.MemJobExecution
+	debounce                 utils.Debounce
 }
 
-func NewJobExecutor(logger *log.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobExecutor {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewJobExecutor(ctx context.Context, logger *log.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobExecutor {
+	reCtx, cancel := context.WithCancel(ctx)
 	return &JobExecutor{
 		pendingJobInvocations: []models.JobModel{},
 		jobRepo:               jobRepository,
 		jobExecutionsRepo:     executionsRepo,
 		jobQueuesRepo:         jobQueuesRepo,
 		logger:                logger,
-		context:               ctx,
+		context:               reCtx,
 		cancelReq:             cancel,
-		executor:              executors.NewService(logger),
+		httpExecutionHandler:  executors.NewHTTTPExecutor(logger),
 		executions:            map[int64]models.MemJobExecution{},
+		debounce:              utils.NewDebounce(),
 	}
 }
 
@@ -425,93 +424,70 @@ func (jobExecutor *JobExecutor) createInMemExecutionsForJobsIfNotExist(jobs []mo
 func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 	configs := config.GetConfigurations(jobExecutor.logger)
 
-	jobExecutor.threshold = time.Now().Add(time.Duration(configs.JobInvocationDebounceDelay) * time.Millisecond)
-
 	jobExecutor.pendingJobInvocationLock.Lock()
 	jobExecutor.pendingJobInvocations = append(jobExecutor.pendingJobInvocations, pendingJob)
 	jobExecutor.pendingJobInvocationLock.Unlock()
 
-	jobExecutor.once.Do(func() {
-		go func() {
-			defer func() {
-				jobExecutor.invocationLock.Lock()
-				jobExecutor.ticker.Stop()
-				jobExecutor.once = sync.Once{}
-				jobExecutor.invocationLock.Unlock()
-			}()
+	jobExecutor.debounce.Debounce(jobExecutor.context, configs.JobInvocationDebounceDelay, func() {
+		jobExecutor.pendingJobInvocationLock.Lock()
+		jobExecutor.invocationLock.Lock()
+		defer jobExecutor.invocationLock.Unlock()
+		defer jobExecutor.pendingJobInvocationLock.Unlock()
 
-			jobExecutor.ticker = time.NewTicker(time.Duration(500) * time.Millisecond)
+		jobIDs := make([]int64, 0)
+		pendingJobs := jobExecutor.pendingJobInvocations
 
-			for {
-				select {
-				case <-jobExecutor.ticker.C:
-					if time.Now().After(jobExecutor.threshold) {
-						jobExecutor.pendingJobInvocationLock.Lock()
-						jobExecutor.invocationLock.Lock()
+		for _, pendingJobInvocation := range pendingJobs {
+			jobIDs = append(jobIDs, pendingJobInvocation.ID)
+		}
 
-						jobIDs := make([]int64, 0)
-						pendingJobs := jobExecutor.pendingJobInvocations
+		jobs, batchGetError := jobExecutor.jobRepo.BatchGetJobsByID(jobIDs)
+		if batchGetError != nil {
+			jobExecutor.logger.Println(fmt.Sprintf("batch query error:: %s", batchGetError.Message))
+			return
+		}
 
-						for _, pendingJobInvocation := range pendingJobs {
-							jobIDs = append(jobIDs, pendingJobInvocation.ID)
-						}
-
-						jobs, batchGetError := jobExecutor.jobRepo.BatchGetJobsByID(jobIDs)
-						if batchGetError != nil {
-							jobExecutor.logger.Println(fmt.Sprintf("batch query error:: %s", batchGetError.Message))
-							return
-						}
-
-						getPendingJob := func(jobID int64) *models.JobModel {
-							for _, pendingJobInvocation := range pendingJobs {
-								if pendingJobInvocation.ID == jobID {
-									return &pendingJobInvocation
-								}
-							}
-							return nil
-						}
-
-						//jobExecutor.logger.Println(fmt.Sprintf("batched queried %v", len(jobs)))
-
-						jobsToExecute := make([]models.JobModel, 0)
-
-						for _, job := range jobs {
-							pendingJobInvocation := getPendingJob(job.ID)
-							if pendingJobInvocation != nil {
-								jobsToExecute = append(jobsToExecute, *pendingJobInvocation)
-							}
-						}
-
-						jobsByType := make(map[string][]models.JobModel)
-
-						for _, job := range jobsToExecute {
-							jobsByType[job.ExecutionType] = append(jobsByType[job.ExecutionType], job)
-						}
-
-						for executionType, jobs := range jobsByType {
-							switch executionType {
-							case string(models.ExecutionTypeHTTP):
-								jobExecutor.executor.ExecuteHTTP(
-									jobs,
-									jobExecutor.context,
-									jobExecutor.handleSuccessJobs,
-									jobExecutor.handleFailedJobs,
-								)
-							default:
-								jobExecutor.logger.Println(fmt.Sprintf("unrecognized execution %s", executionType))
-							}
-						}
-
-						jobExecutor.pendingJobInvocations = []models.JobModel{}
-						jobExecutor.invocationLock.Unlock()
-						jobExecutor.pendingJobInvocationLock.Unlock()
-						return
-					}
-				case <-jobExecutor.context.Done():
-					return
+		getPendingJob := func(jobID int64) *models.JobModel {
+			for _, pendingJobInvocation := range pendingJobs {
+				if pendingJobInvocation.ID == jobID {
+					return &pendingJobInvocation
 				}
 			}
-		}()
+			return nil
+		}
+
+		//jobExecutor.logger.Println(fmt.Sprintf("batched queried %v", len(jobs)))
+
+		jobsToExecute := make([]models.JobModel, 0)
+
+		for _, job := range jobs {
+			pendingJobInvocation := getPendingJob(job.ID)
+			if pendingJobInvocation != nil {
+				jobsToExecute = append(jobsToExecute, *pendingJobInvocation)
+			}
+		}
+
+		jobsByType := make(map[string][]models.JobModel)
+
+		for _, job := range jobsToExecute {
+			jobsByType[job.ExecutionType] = append(jobsByType[job.ExecutionType], job)
+		}
+
+		for executionType, jobs := range jobsByType {
+			switch executionType {
+			case string(models.ExecutionTypeHTTP):
+				jobExecutor.ExecuteHTTP(
+					jobs,
+					jobExecutor.context,
+					jobExecutor.handleSuccessJobs,
+					jobExecutor.handleFailedJobs,
+				)
+			default:
+				jobExecutor.logger.Println(fmt.Sprintf("unrecognized execution %s", executionType))
+			}
+		}
+
+		jobExecutor.pendingJobInvocations = []models.JobModel{}
 	})
 }
 
@@ -617,4 +593,10 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 	}
 
 	_ = jobExecutor.Raft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
+}
+
+func (jobExecutor *JobExecutor) ExecuteHTTP(pj []models.JobModel, ctx context.Context, onSuccess func(pj []models.JobModel), onFailure func(pj []models.JobModel)) {
+	go func(pjs []models.JobModel) {
+		jobExecutor.httpExecutionHandler.ExecuteHTTPJob(ctx, pjs, onSuccess, onFailure)
+	}(pj)
 }
