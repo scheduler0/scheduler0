@@ -129,7 +129,7 @@ func NewNode(
 	}
 }
 
-func (node *Node) Boostrap(fsmStr *fsm.Store) {
+func (node *Node) Boostrap() {
 	node.State = Bootstrapping
 
 	if node.isExistingNode {
@@ -138,13 +138,11 @@ func (node *Node) Boostrap(fsmStr *fsm.Store) {
 	}
 
 	configs := config.GetConfigurations(node.logger)
-	rft := node.newRaft(fsmStr)
+	rft := node.newRaft(node.FsmStore)
 	if configs.Bootstrap && !node.isExistingNode {
 		node.bootstrapRaftCluster(rft)
 	}
-	fsmStr.Raft = rft
-	node.FsmStore = fsmStr
-	node.jobExecutor.Raft = fsmStr.Raft
+	node.jobExecutor.Raft = node.FsmStore.Raft
 	go node.handleLeaderChange()
 	//go node.jobExecutor.ListenOnInvocationChannels()
 
@@ -162,7 +160,7 @@ func (node *Node) Boostrap(fsmStr *fsm.Store) {
 	rft.RegisterObserver(myObserver)
 	go node.listenToObserverChannel()
 
-	node.listenOnInputQueues(fsmStr)
+	node.listenOnInputQueues(node.FsmStore)
 }
 
 func (node *Node) commitJobLogState(peerAddress string, jobState []models.JobExecutionLog) {
