@@ -161,5 +161,15 @@ CREATE TABLE IF NOT EXISTS job_queue_versions
 	version 				INTEGER NOT NULL,
 	number_of_active_nodes  INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS async_tasks
+(
+	id						INTEGER PRIMARY KEY AUTOINCREMENT,
+	request_id 				TEXT,
+	input  					TEXT NOT NULL,
+	output  				TEXT,
+	state					INTEGER NOT NULL,
+    date_created  		 	datetime NOT NULL
+);
 `
 }
