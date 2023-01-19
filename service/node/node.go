@@ -30,6 +30,7 @@ import (
 	"scheduler0/service/processor"
 	"scheduler0/service/queue"
 	"scheduler0/utils"
+	"scheduler0/utils/batcher"
 	"sync"
 	"time"
 )
@@ -63,24 +64,25 @@ const (
 )
 
 type Node struct {
-	TransportManager *raft.NetworkTransport
-	LogDb            *boltdb.BoltStore
-	StoreDb          *boltdb.BoltStore
-	FileSnapShot     *raft.FileSnapshotStore
-	AcceptWrites     bool
-	State            State
-	FsmStore         *fsm.Store
-	SingleNodeMode   bool
-	ctx              context.Context
-	logger           *log.Logger
-	mtx              sync.Mutex
-	jobProcessor     *processor.JobProcessor
-	jobQueue         *queue.JobQueue
-	jobExecutor      *executor.JobExecutor
-	jobQueuesRepo    repository.JobQueuesRepo
-	jobRepo          repository.Job
-	projectRepo      repository.Project
-	isExistingNode   bool
+	TransportManager     *raft.NetworkTransport
+	LogDb                *boltdb.BoltStore
+	StoreDb              *boltdb.BoltStore
+	FileSnapShot         *raft.FileSnapshotStore
+	AcceptWrites         bool
+	State                State
+	FsmStore             *fsm.Store
+	SingleNodeMode       bool
+	ctx                  context.Context
+	logger               *log.Logger
+	mtx                  sync.Mutex
+	jobProcessor         *processor.JobProcessor
+	jobQueue             *queue.JobQueue
+	jobExecutor          *executor.JobExecutor
+	jobQueuesRepo        repository.JobQueuesRepo
+	jobRepo              repository.Job
+	projectRepo          repository.Project
+	isExistingNode       bool
+	peerObserverChannels chan raft.Observation
 }
 
 func NewNode(
@@ -106,21 +108,24 @@ func NewNode(
 		logger.Fatal("failed essentials for Node", err)
 	}
 
+	numReplicas := len(configs.Replicas)
+
 	return &Node{
-		TransportManager: tm,
-		LogDb:            ldb,
-		StoreDb:          sdb,
-		FileSnapShot:     fss,
-		logger:           logger,
-		AcceptWrites:     false,
-		State:            Cold,
-		ctx:              ctx,
-		jobProcessor:     processor.NewJobProcessor(ctx, logger, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
-		jobQueue:         jobQueue,
-		jobExecutor:      jobExecutor,
-		jobRepo:          jobRepo,
-		projectRepo:      projectRepo,
-		isExistingNode:   exists,
+		TransportManager:     tm,
+		LogDb:                ldb,
+		StoreDb:              sdb,
+		FileSnapShot:         fss,
+		logger:               logger,
+		AcceptWrites:         false,
+		State:                Cold,
+		ctx:                  ctx,
+		jobProcessor:         processor.NewJobProcessor(ctx, logger, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
+		jobQueue:             jobQueue,
+		jobExecutor:          jobExecutor,
+		jobRepo:              jobRepo,
+		projectRepo:          projectRepo,
+		isExistingNode:       exists,
+		peerObserverChannels: make(chan raft.Observation, numReplicas),
 	}
 }
 
@@ -147,6 +152,15 @@ func (node *Node) Boostrap(fsmStr *fsm.Store) {
 		!node.SingleNodeMode && rft.State().String() == "Follower" {
 		node.jobProcessor.RecoverJobs()
 	}
+
+	myObserver := raft.NewObserver(node.peerObserverChannels, true, func(o *raft.Observation) bool {
+		_, peerObservation := o.Data.(raft.PeerObservation)
+		_, resumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
+		return peerObservation || resumedHeartbeatObservation
+	})
+
+	rft.RegisterObserver(myObserver)
+	go node.listenToObserverChannel()
 
 	node.listenOnInputQueues(fsmStr)
 }
@@ -217,6 +231,201 @@ func (node *Node) bootstrapRaftCluster(r *raft.Raft) {
 	}
 }
 
+func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
+	executionLogs := []models.JobExecutionLog{}
+
+	configs := config.GetConfigurations(node.logger)
+
+	dir, err := os.Getwd()
+	if err != nil {
+		node.logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
+
+	mainDbPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDbFileName)
+	dataStore := db.NewSqliteDbConnection(mainDbPath)
+	conn := dataStore.OpenConnection()
+	dbConnection := conn.(*sql.DB)
+
+	rows, err := dbConnection.Query(fmt.Sprintf(
+		"select count(*) from %s",
+		fsm.ExecutionsUnCommittedTableName,
+	), configs.NodeId, false)
+	if err != nil {
+		node.logger.Fatalln("failed to query for the count of uncommitted logs", err.Error())
+	}
+	var count int64 = 0
+	for rows.Next() {
+		scanErr := rows.Scan(&count)
+		if scanErr != nil {
+			node.logger.Fatalln("failed to scan count value", scanErr.Error())
+		}
+	}
+	if rows.Err() != nil {
+		node.logger.Fatalln("rows error", rows.Err())
+	}
+	err = rows.Close()
+	if err != nil {
+		node.logger.Fatalln("failed to close rows", err)
+	}
+
+	rows, err = dbConnection.Query(fmt.Sprintf(
+		"select max(id) as maxId, min(id) as minId from %s",
+		fsm.ExecutionsUnCommittedTableName,
+	), configs.NodeId, false)
+	if err != nil {
+		node.logger.Fatalln("failed to query for max and min id in uncommitted logs", err.Error())
+	}
+
+	node.logger.Println("found", count, "uncommitted logs")
+
+	if count < 1 {
+		return executionLogs
+	}
+
+	var maxId int64 = 0
+	var minId int64 = 0
+	for rows.Next() {
+		scanErr := rows.Scan(&maxId, &minId)
+		if scanErr != nil {
+			node.logger.Fatalln("failed to scan max and min id  on uncommitted logs", scanErr.Error())
+		}
+	}
+	if rows.Err() != nil {
+		node.logger.Fatalln("rows error", rows.Err())
+	}
+	err = rows.Close()
+	if err != nil {
+		node.logger.Fatalln("failed to close rows", err)
+	}
+	fmt.Printf("found max id %d and min id %d in uncommited jobs \n", maxId, minId)
+
+	ids := []int64{}
+	for i := minId; i <= maxId; i++ {
+		ids = append(ids, i)
+	}
+
+	batches := batcher.Batch[int64](ids, 7)
+
+	for _, batch := range batches {
+		batchIds := []interface{}{batch[0]}
+		params := "?"
+
+		for _, id := range batch[1:] {
+			batchIds = append(batchIds, id)
+			params += ",?"
+		}
+
+		rows, err = dbConnection.Query(fmt.Sprintf(
+			"select  %s, %s, %s, %s, %s, %s, %s from %s where id in (%s)",
+			fsm.ExecutionsUniqueIdColumn,
+			fsm.ExecutionsStateColumn,
+			fsm.ExecutionsNodeIdColumn,
+			fsm.ExecutionsLastExecutionTimeColumn,
+			fsm.ExecutionsNextExecutionTime,
+			fsm.ExecutionsJobIdColumn,
+			fsm.ExecutionsDateCreatedColumn,
+			fsm.ExecutionsUnCommittedTableName,
+			params,
+		), batchIds...)
+		if err != nil {
+			node.logger.Fatalln("failed to query for the uncommitted logs", err.Error())
+		}
+		for rows.Next() {
+			var jobExecutionLog models.JobExecutionLog
+			scanErr := rows.Scan(
+				&jobExecutionLog.UniqueId,
+				&jobExecutionLog.State,
+				&jobExecutionLog.NodeId,
+				&jobExecutionLog.LastExecutionDatetime,
+				&jobExecutionLog.NextExecutionDatetime,
+				&jobExecutionLog.JobId,
+				&jobExecutionLog.DataCreated,
+			)
+			if scanErr != nil {
+				node.logger.Fatalln("failed to scan job execution columns", scanErr.Error())
+			}
+			executionLogs = append(executionLogs, jobExecutionLog)
+		}
+		err = rows.Close()
+		if err != nil {
+			node.logger.Fatalln("failed to close rows", err)
+		}
+	}
+	err = dbConnection.Close()
+	if err != nil {
+		node.logger.Fatalln("failed to close database connection", err.Error())
+	}
+
+	return executionLogs
+}
+
+func (node *Node) insertUncommittedLogsIntoRecoverDb(executionLogs []models.JobExecutionLog, dbConnection *sql.DB) {
+	executionLogsBatches := batcher.Batch[models.JobExecutionLog](executionLogs, 9)
+
+	for _, executionLogsBatch := range executionLogsBatches {
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
+			fsm.ExecutionsUnCommittedTableName,
+			fsm.ExecutionsUniqueIdColumn,
+			fsm.ExecutionsStateColumn,
+			fsm.ExecutionsNodeIdColumn,
+			fsm.ExecutionsLastExecutionTimeColumn,
+			fsm.ExecutionsNextExecutionTime,
+			fsm.ExecutionsJobIdColumn,
+			fsm.ExecutionsDateCreatedColumn,
+			fsm.ExecutionsJobQueueVersion,
+			fsm.ExecutionsVersion,
+		)
+
+		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		params := []interface{}{
+			executionLogsBatch[0].UniqueId,
+			executionLogsBatch[0].State,
+			executionLogsBatch[0].NodeId,
+			executionLogsBatch[0].LastExecutionDatetime,
+			executionLogsBatch[0].NextExecutionDatetime,
+			executionLogsBatch[0].JobId,
+			executionLogsBatch[0].DataCreated,
+			executionLogsBatch[0].JobQueueVersion,
+			executionLogsBatch[0].ExecutionVersion,
+		}
+
+		for _, executionLog := range executionLogsBatch[1:] {
+			params = append(params,
+				executionLog.UniqueId,
+				executionLog.State,
+				executionLog.NodeId,
+				executionLog.LastExecutionDatetime,
+				executionLog.NextExecutionDatetime,
+				executionLog.JobId,
+				executionLog.DataCreated,
+				executionLog.JobQueueVersion,
+				executionLog.ExecutionVersion,
+			)
+			query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		}
+
+		query += ";"
+
+		ctx := context.Background()
+		tx, err := dbConnection.BeginTx(ctx, nil)
+		if err != nil {
+			node.logger.Fatalln("failed to create transaction for batch insertion", err)
+		}
+		_, err = tx.Exec(query, params...)
+		if err != nil {
+			trxErr := tx.Rollback()
+			if trxErr != nil {
+				node.logger.Fatalln("failed to rollback update transition", trxErr)
+			}
+			node.logger.Fatalln("failed to insert un committed executions to recovery db", err)
+		}
+		err = tx.Commit()
+		if err != nil {
+			node.logger.Fatalln("failed to commit transition", err)
+		}
+	}
+}
+
 func (node *Node) recoverRaftState() raft.Configuration {
 	logPrefix := node.logger.Prefix()
 	node.logger.SetPrefix(fmt.Sprintf("%s[recovering-Node] ", logPrefix))
@@ -264,72 +473,7 @@ func (node *Node) recoverRaftState() raft.Configuration {
 		node.logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
 
-	executionLogs := []models.JobExecutionLog{}
-
-	configs := config.GetConfigurations(node.logger)
-
-	mainDbPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDbFileName)
-	dataStore := db.NewSqliteDbConnection(mainDbPath)
-	conn := dataStore.OpenConnection()
-	dbConnection := conn.(*sql.DB)
-
-	rows, err := dbConnection.Query(fmt.Sprintf(
-		"select count(*) from %s",
-		fsm.ExecutionsUnCommittedTableName,
-	), configs.NodeId, false)
-	if err != nil {
-		node.logger.Fatalln("failed to query for the count of uncommitted logs", err.Error())
-	}
-	var count int64 = 0
-	for rows.Next() {
-		scanErr := rows.Scan(&count)
-		if scanErr != nil {
-			node.logger.Fatalln("failed to scan count value", scanErr.Error())
-		}
-	}
-	if rows.Err() != nil {
-		node.logger.Fatalln("rows error", rows.Err())
-	}
-
-	fmt.Printf("found %d uncommited jobs \n", count)
-
-	if count > 0 {
-		rows, err = dbConnection.Query(fmt.Sprintf(
-			"select  %s, %s, %s, %s, %s, %s, %s from %s",
-			fsm.ExecutionsUniqueIdColumn,
-			fsm.ExecutionsStateColumn,
-			fsm.ExecutionsNodeIdColumn,
-			fsm.ExecutionsLastExecutionTimeColumn,
-			fsm.ExecutionsNextExecutionTime,
-			fsm.ExecutionsJobIdColumn,
-			fsm.ExecutionsDateCreatedColumn,
-			fsm.ExecutionsUnCommittedTableName,
-		))
-		if err != nil {
-			node.logger.Fatalln("failed to query for the count of uncommitted logs", err.Error())
-		}
-		for rows.Next() {
-			var jobExecutionLog models.JobExecutionLog
-			scanErr := rows.Scan(
-				&jobExecutionLog.UniqueId,
-				&jobExecutionLog.State,
-				&jobExecutionLog.NodeId,
-				&jobExecutionLog.LastExecutionDatetime,
-				&jobExecutionLog.NextExecutionDatetime,
-				&jobExecutionLog.JobId,
-				&jobExecutionLog.DataCreated,
-			)
-			if scanErr != nil {
-				node.logger.Fatalln("failed to scan job execution columns", scanErr.Error())
-			}
-			executionLogs = append(executionLogs, jobExecutionLog)
-		}
-	}
-	err = dbConnection.Close()
-	if err != nil {
-		node.logger.Fatalln("failed to close database connection", err.Error())
-	}
-
+	executionLogs := node.getUncommittedLogs()
 	recoverDbPath := fmt.Sprintf("%s/%s", dir, constants.RecoveryDbFileName)
 
 	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
@@ -337,9 +481,9 @@ func (node *Node) recoverRaftState() raft.Configuration {
 		node.logger.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
 	}
 
-	dataStore = db.NewSqliteDbConnection(recoverDbPath)
-	conn = dataStore.OpenConnection()
-	dbConnection = conn.(*sql.DB)
+	dataStore := db.NewSqliteDbConnection(recoverDbPath)
+	conn := dataStore.OpenConnection()
+	dbConnection := conn.(*sql.DB)
 	defer dbConnection.Close()
 
 	migrations := db.GetSetupSQL()
@@ -371,66 +515,7 @@ func (node *Node) recoverRaftState() raft.Configuration {
 	}
 
 	if len(executionLogs) > 0 {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
-			fsm.ExecutionsUnCommittedTableName,
-			fsm.ExecutionsUniqueIdColumn,
-			fsm.ExecutionsStateColumn,
-			fsm.ExecutionsNodeIdColumn,
-			fsm.ExecutionsLastExecutionTimeColumn,
-			fsm.ExecutionsNextExecutionTime,
-			fsm.ExecutionsJobIdColumn,
-			fsm.ExecutionsDateCreatedColumn,
-			fsm.ExecutionsJobQueueVersion,
-			fsm.ExecutionsVersion,
-		)
-
-		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-		params := []interface{}{
-			executionLogs[0].UniqueId,
-			executionLogs[0].State,
-			executionLogs[0].NodeId,
-			executionLogs[0].LastExecutionDatetime,
-			executionLogs[0].NextExecutionDatetime,
-			executionLogs[0].JobId,
-			executionLogs[0].DataCreated,
-			executionLogs[0].JobQueueVersion,
-			executionLogs[0].ExecutionVersion,
-		}
-
-		for _, executionLog := range executionLogs[1:] {
-			params = append(params,
-				executionLog.UniqueId,
-				executionLog.State,
-				executionLog.NodeId,
-				executionLog.LastExecutionDatetime,
-				executionLog.NextExecutionDatetime,
-				executionLog.JobId,
-				executionLog.DataCreated,
-				executionLog.JobQueueVersion,
-				executionLog.ExecutionVersion,
-			)
-			query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-		}
-
-		query += ";"
-
-		ctx := context.Background()
-		tx, err := dbConnection.BeginTx(ctx, nil)
-		if err != nil {
-			node.logger.Fatalln("failed to create transaction for batch insertion", err)
-		}
-		_, err = tx.Exec(query, params...)
-		if err != nil {
-			trxErr := tx.Rollback()
-			if trxErr != nil {
-				node.logger.Fatalln("failed to rollback update transition", trxErr)
-			}
-			node.logger.Fatalln("failed to insert un committed executions to recovery db", err)
-		}
-		err = tx.Commit()
-		if err != nil {
-			node.logger.Fatalln("failed to commit transition", err)
-		}
+		node.insertUncommittedLogsIntoRecoverDb(executionLogs, dbConnection)
 	}
 
 	lastConfiguration := node.getRaftConfiguration(node.logger)
@@ -601,7 +686,7 @@ func (node *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 	configs := config.GetConfigurations(logger)
 	servers := []raft.Server{
 		{
-			ID:       raft.ServerID(rune(configs.NodeId)),
+			ID:       raft.ServerID(fmt.Sprintf("%d", configs.NodeId)),
 			Suffrage: raft.Voter,
 			Address:  raft.ServerAddress(configs.RaftAddress),
 		},
@@ -635,7 +720,7 @@ func (node *Node) getHTTPAddressOfServersToFetchFrom() []string {
 		}
 	}
 
-	if int64(len(servers)) < configs.ExecutionLogFetchFanIn {
+	if uint64(len(servers)) < configs.ExecutionLogFetchFanIn {
 		for _, server := range servers {
 			httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(node.logger, server))
 		}
@@ -717,7 +802,7 @@ func (node *Node) fetchUncommittedLogsFromPeers() {
 				serversNotFetched = httpAddresses
 			}
 
-			if int64(len(serversNotFetched)) > configs.ExecutionLogFetchFanIn {
+			if uint64(len(serversNotFetched)) > configs.ExecutionLogFetchFanIn {
 				fetchUncommittedLogsFromPeers(ctx, node.logger, serversNotFetched[:configs.ExecutionLogFetchFanIn], uncommittedLogs)
 				pendingFetches += len(serversNotFetched[:configs.ExecutionLogFetchFanIn])
 			} else {
@@ -754,6 +839,27 @@ func (node *Node) fetchUncommittedLogsFromPeers() {
 			fetchStatus[serverAddress] = true
 			completedFirstRound[serverAddress] = true
 			mtx.Unlock()
+		}
+	}
+}
+
+func (node *Node) listenToObserverChannel() {
+	for {
+		select {
+		case o := <-node.peerObserverChannels:
+			peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
+			resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
+
+			if isPeerObservation && !peerObservation.Removed {
+				node.logger.Println("A new node joined the cluster")
+			}
+			if isPeerObservation && peerObservation.Removed {
+				node.logger.Println("A node got removed from the cluster")
+			}
+			if isResumedHeartbeatObservation {
+				fmt.Println("resumedHeartbeatObservation.PeerID", resumedHeartbeatObservation.PeerID)
+				node.logger.Println(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
+			}
 		}
 	}
 }
@@ -916,6 +1022,6 @@ func getLogsAndTransport(logger *log.Logger) (tm *raft.NetworkTransport, ldb *bo
 
 	muxLn := mux.Listen(1)
 
-	tm = raft.NewNetworkTransport(network.NewTransport(muxLn), configs.RaftTransportMaxPool, time.Second*time.Duration(configs.RaftTransportTimeout), nil)
+	tm = raft.NewNetworkTransport(network.NewTransport(muxLn), int(configs.RaftTransportMaxPool), time.Second*time.Duration(configs.RaftTransportTimeout), nil)
 	return
 }
