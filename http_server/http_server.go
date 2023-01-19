@@ -10,49 +10,18 @@ import (
 	"net/http"
 	"os"
 	"scheduler0/config"
-	"scheduler0/db"
-	"scheduler0/fsm"
 	"scheduler0/http_server/controllers"
 	"scheduler0/http_server/middlewares"
-	"scheduler0/repository"
 	"scheduler0/service"
-	"scheduler0/service/executor"
-	"scheduler0/service/node"
-	"scheduler0/service/queue"
-	"scheduler0/utils"
 )
 
 // Start this will start the http server
 func Start() {
 	ctx := context.Background()
 	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
-
-	schedulerTime := utils.GetSchedulerTime()
-	err := schedulerTime.SetTimezone("UTC")
-	if err != nil {
-		logger.Fatalln("failed to set timezone for s")
-	}
-
 	configs := config.GetConfigurations(logger)
 
-	sqliteDb := db.GetDBConnection(logger)
-	fsmStr := fsm.NewFSMStore(sqliteDb, logger)
-
-	//repository
-	credentialRepo := repository.NewCredentialRepo(logger, fsmStr)
-	jobRepo := repository.NewJobRepo(logger, fsmStr)
-	projectRepo := repository.NewProjectRepo(logger, fsmStr, jobRepo)
-	executionsRepo := repository.NewExecutionsRepo(logger, fsmStr)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmStr)
-
-	jobExecutor := executor.NewJobExecutor(ctx, logger, jobRepo, executionsRepo, jobQueueRepo)
-	jobQueue := queue.NewJobQueue(ctx, logger, fsmStr, jobExecutor, jobQueueRepo)
-	p := node.NewNode(ctx, logger, jobExecutor, jobQueue, jobRepo, projectRepo, executionsRepo, jobQueueRepo)
-
-	//services
-	credentialService := service.NewCredentialService(ctx, logger, credentialRepo)
-	jobService := service.NewJobService(ctx, logger, jobRepo, jobQueue, projectRepo)
-	projectService := service.NewProjectService(logger, projectRepo)
+	serv := service.NewService(ctx, logger)
 
 	// HTTP router setup
 	router := mux.NewRouter()
@@ -61,11 +30,11 @@ func Start() {
 	secureMiddleware := secure.New(secure.Options{FrameDeny: true})
 
 	// Initialize controllers
-	jobController := controllers.NewJoBHTTPController(logger, jobService, projectService)
-	projectController := controllers.NewProjectController(logger, projectService)
-	credentialController := controllers.NewCredentialController(logger, credentialService)
-	healthCheckController := controllers.NewHealthCheckController(logger, fsmStr)
-	peerController := controllers.NewPeerController(logger, fsmStr, p)
+	jobController := controllers.NewJoBHTTPController(logger, serv.JobService, serv.ProjectService)
+	projectController := controllers.NewProjectController(logger, serv.ProjectService)
+	credentialController := controllers.NewCredentialController(logger, serv.CredentialService)
+	healthCheckController := controllers.NewHealthCheckController(logger, serv.NodeService.FsmStore)
+	peerController := controllers.NewPeerController(logger, serv.NodeService.FsmStore, serv.NodeService)
 
 	// Mount middleware
 	middleware := middlewares.NewMiddlewareHandler(logger)
@@ -73,8 +42,8 @@ func Start() {
 	router.Use(secureMiddleware.Handler)
 	router.Use(mux.CORSMethodMiddleware(router))
 	router.Use(middleware.ContextMiddleware)
-	router.Use(middleware.AuthMiddleware(credentialService))
-	router.Use(middleware.EnsureRaftLeaderMiddleware(p))
+	router.Use(middleware.AuthMiddleware(serv.CredentialService))
+	router.Use(middleware.EnsureRaftLeaderMiddleware(serv.NodeService))
 
 	// Credentials Endpoint
 	router.HandleFunc("/credentials", credentialController.CreateOneCredential).Methods(http.MethodPost)
@@ -114,5 +83,5 @@ func Start() {
 		}
 	}()
 
-	p.Boostrap(fsmStr)
+	serv.NodeService.Boostrap()
 }
