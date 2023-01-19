@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type JobPriorityLevel int
+type JobPriorityLevel uint64
 
 type ExecutionTypes string
 
@@ -15,8 +15,8 @@ const (
 
 // JobModel job model
 type JobModel struct {
-	ID                int64     `json:"id,omitempty"`
-	ProjectID         int64     `json:"project_id,omitempty"`
+	ID                uint64    `json:"id,omitempty"`
+	ProjectID         uint64    `json:"project_id,omitempty"`
 	Spec              string    `json:"spec,omitempty"`
 	CallbackUrl       string    `json:"callback_url,omitempty"`
 	Data              string    `json:"data,omitempty"`
@@ -28,9 +28,9 @@ type JobModel struct {
 
 // PaginatedJob paginated container of job transformer
 type PaginatedJob struct {
-	Total  int64      `json:"total,omitempty"`
-	Offset int64      `json:"offset,omitempty"`
-	Limit  int64      `json:"limit,omitempty"`
+	Total  uint64     `json:"total,omitempty"`
+	Offset uint64     `json:"offset,omitempty"`
+	Limit  uint64     `json:"limit,omitempty"`
 	Data   []JobModel `json:"jobs,omitempty"`
 }
 

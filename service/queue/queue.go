@@ -31,7 +31,7 @@ type JobQueue struct {
 	jobsQueueRepo  repository.JobQueuesRepo
 	fsm            *fsm.Store
 	logger         *log.Logger
-	allocations    map[raft.ServerAddress]int64
+	allocations    map[raft.ServerAddress]uint64
 	minId          int64
 	maxId          int64
 	mtx            sync.Mutex
@@ -48,8 +48,8 @@ func NewJobQueue(ctx context.Context, logger *log.Logger, fsm *fsm.Store, Execut
 		fsm:           fsm,
 		logger:        logger,
 		minId:         math.MaxInt64,
-		maxId:         math.MinInt16,
-		allocations:   map[raft.ServerAddress]int64{},
+		maxId:         math.MinInt64,
+		allocations:   map[raft.ServerAddress]uint64{},
 		debounce:      utils.NewDebounce(),
 	}
 }
@@ -75,11 +75,11 @@ func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
 	}
 
 	for _, job := range jobs {
-		if jobQ.maxId < job.ID {
-			jobQ.maxId = job.ID
+		if jobQ.maxId < int64(job.ID) {
+			jobQ.maxId = int64(job.ID)
 		}
-		if jobQ.minId > job.ID {
-			jobQ.minId = job.ID
+		if jobQ.minId > int64(job.ID) {
+			jobQ.minId = int64(job.ID)
 		}
 	}
 
@@ -103,11 +103,11 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 
 	configs := config.GetConfigurations(jobQ.logger)
 
-	batchRanges := [][]int64{}
+	batchRanges := [][]uint64{}
 
 	numberOfServers := len(jobQ.allocations) - 1
 	for i := 0; i < numberOfServers; i++ {
-		batchRanges = append(batchRanges, []int64{})
+		batchRanges = append(batchRanges, []uint64{})
 	}
 
 	if numberOfServers > 0 {
@@ -118,8 +118,8 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 			lowerBound := epoc
 			upperBound := epoc + cycle
 
-			batchRanges[currentServer] = append(batchRanges[currentServer], lowerBound)
-			batchRanges[currentServer] = append(batchRanges[currentServer], upperBound)
+			batchRanges[currentServer] = append(batchRanges[currentServer], uint64(lowerBound))
+			batchRanges[currentServer] = append(batchRanges[currentServer], uint64(upperBound))
 
 			epoc = upperBound + 1
 
@@ -133,7 +133,7 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 			}
 		}
 	} else {
-		batchRanges = append(batchRanges, []int64{minId, maxId})
+		batchRanges = append(batchRanges, []uint64{uint64(minId), uint64(maxId)})
 	}
 
 	allocations := jobQ.allocations
@@ -143,7 +143,7 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 	j := 0
 	for j < len(batchRanges) {
 		server := func() raft.ServerAddress {
-			var minAllocation int64 = math.MaxInt64
+			var minAllocation uint64 = math.MaxInt64
 			var minServer raft.ServerAddress
 
 			// Edge case for single node mode
@@ -190,7 +190,7 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 			}
 			log.Fatalln(af.Error().Error())
 		}
-		allocations[server] += int64(len(batchRange))
+		allocations[server] += uint64(len(batchRange))
 		j++
 	}
 

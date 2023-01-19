@@ -13,11 +13,11 @@ import (
 
 // Credential service layer for credentials
 type Credential interface {
-	CreateNewCredential(credentialTransformer models.CredentialModel) (int64, *utils.GenericError)
-	FindOneCredentialByID(id int64) (*models.CredentialModel, error)
+	CreateNewCredential(credentialTransformer models.CredentialModel) (uint64, *utils.GenericError)
+	FindOneCredentialByID(id uint64) (*models.CredentialModel, error)
 	UpdateOneCredential(credentialTransformer models.CredentialModel) (*models.CredentialModel, error)
-	DeleteOneCredential(id int64) (*models.CredentialModel, error)
-	ListCredentials(offset int64, limit int64, orderBy string) (*models.PaginatedCredential, *utils.GenericError)
+	DeleteOneCredential(id uint64) (*models.CredentialModel, error)
+	ListCredentials(offset uint64, limit uint64, orderBy string) (*models.PaginatedCredential, *utils.GenericError)
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 }
 
@@ -36,7 +36,7 @@ type credentialService struct {
 }
 
 // CreateNewCredential creates a new credentials
-func (credentialService *credentialService) CreateNewCredential(credentialTransformer models.CredentialModel) (int64, *utils.GenericError) {
+func (credentialService *credentialService) CreateNewCredential(credentialTransformer models.CredentialModel) (uint64, *utils.GenericError) {
 	credentials := secrets.GetSecrets(credentialService.logger)
 
 	apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
@@ -45,14 +45,14 @@ func (credentialService *credentialService) CreateNewCredential(credentialTransf
 
 	newCredentialId, err := credentialService.CredentialRepo.CreateOne(credentialTransformer)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	return newCredentialId, nil
 }
 
 // FindOneCredentialByID searches for credential by uuid
-func (credentialService *credentialService) FindOneCredentialByID(id int64) (*models.CredentialModel, error) {
+func (credentialService *credentialService) FindOneCredentialByID(id uint64) (*models.CredentialModel, error) {
 	credentialDto := models.CredentialModel{ID: id}
 	if err := credentialService.CredentialRepo.GetOneID(&credentialDto); err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func (credentialService *credentialService) UpdateOneCredential(credential model
 }
 
 // DeleteOneCredential deletes a single credential
-func (credentialService *credentialService) DeleteOneCredential(id int64) (*models.CredentialModel, error) {
+func (credentialService *credentialService) DeleteOneCredential(id uint64) (*models.CredentialModel, error) {
 	credentialDto := models.CredentialModel{ID: id}
 	if _, err := credentialService.CredentialRepo.DeleteOneByID(credentialDto); err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (credentialService *credentialService) DeleteOneCredential(id int64) (*mode
 }
 
 // ListCredentials returns paginated list of credentials
-func (credentialService *credentialService) ListCredentials(offset int64, limit int64, orderBy string) (*models.PaginatedCredential, *utils.GenericError) {
+func (credentialService *credentialService) ListCredentials(offset uint64, limit uint64, orderBy string) (*models.PaginatedCredential, *utils.GenericError) {
 	total, err := credentialService.CredentialRepo.Count()
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func (credentialService *credentialService) ListCredentials(offset int64, limit 
 	} else {
 		return &models.PaginatedCredential{
 			Data:   credentialManagers,
-			Total:  int64(total),
+			Total:  total,
 			Offset: offset,
 			Limit:  limit,
 		}, nil

@@ -92,7 +92,7 @@ func (jobController *jobHTTPController) ListJobs(w http.ResponseWriter, r *http.
 		return
 	}
 
-	jobs, getJobsByProjectIDError := jobController.jobService.GetJobsByProjectID(int64(projectID), int64(offset), int64(limit), "date_created")
+	jobs, getJobsByProjectIDError := jobController.jobService.GetJobsByProjectID(uint64(projectID), uint64(offset), uint64(limit), "date_created")
 	if getJobsByProjectIDError != nil {
 		utils.SendJSON(w, getJobsByProjectIDError.Message, false, getJobsByProjectIDError.Type, nil)
 		return
@@ -132,7 +132,7 @@ func (jobController *jobHTTPController) GetOneJob(w http.ResponseWriter, r *http
 	}
 
 	job := models.JobModel{
-		ID: int64(jobID),
+		ID: uint64(jobID),
 	}
 
 	jobT, getOneJobError := jobController.jobService.GetJob(job)
@@ -158,7 +158,7 @@ func (jobController *jobHTTPController) UpdateOneJob(w http.ResponseWriter, r *h
 		return
 	}
 
-	jobBody.ID = int64(jobID)
+	jobBody.ID = uint64(jobID)
 
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
@@ -185,7 +185,7 @@ func (jobController *jobHTTPController) DeleteOneJob(w http.ResponseWriter, r *h
 	}
 
 	job := models.JobModel{
-		ID: int64(jobID),
+		ID: uint64(jobID),
 	}
 
 	deleteOneJobError := jobController.jobService.DeleteJob(job)

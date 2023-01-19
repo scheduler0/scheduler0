@@ -21,8 +21,8 @@ type Project interface {
 	GetOneByID(project *models.ProjectModel) *utils.GenericError
 	GetOneByName(project *models.ProjectModel) *utils.GenericError
 	DeleteOneByID(project models.ProjectModel) *utils.GenericError
-	List(offset int64, limit int64) (*models.PaginatedProject, *utils.GenericError)
-	BatchGetProjects(projectIds []int64) ([]models.ProjectModel, *utils.GenericError)
+	List(offset uint64, limit uint64) (*models.PaginatedProject, *utils.GenericError)
+	BatchGetProjects(projectIds []uint64) ([]models.ProjectModel, *utils.GenericError)
 }
 
 func NewProjectService(logger *log.Logger, projectRepo repository.Project) Project {
@@ -96,7 +96,7 @@ func (projectService *projectService) DeleteOneByID(project models.ProjectModel)
 }
 
 // List return a paginated list of projects
-func (projectService *projectService) List(offset int64, limit int64) (*models.PaginatedProject, *utils.GenericError) {
+func (projectService *projectService) List(offset uint64, limit uint64) (*models.PaginatedProject, *utils.GenericError) {
 	projects, err := projectService.projectRepo.List(offset, limit)
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (projectService *projectService) List(offset int64, limit int64) (*models.P
 	return &paginatedProjects, nil
 }
 
-func (projectService *projectService) BatchGetProjects(projectIds []int64) ([]models.ProjectModel, *utils.GenericError) {
+func (projectService *projectService) BatchGetProjects(projectIds []uint64) ([]models.ProjectModel, *utils.GenericError) {
 	if len(projectIds) < 1 {
 		return []models.ProjectModel{}, nil
 	}

@@ -103,9 +103,9 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 	}
 
 	for _, lastJobQueueLog := range lastJobQueueLogs {
-		expandedJobIds := []int64{}
+		expandedJobIds := []uint64{}
 		for i := lastJobQueueLog.LowerBoundJobId; i <= lastJobQueueLog.UpperBoundJobId; i++ {
-			expandedJobIds = append(expandedJobIds, int64(i))
+			expandedJobIds = append(expandedJobIds, i)
 		}
 
 		jobsStates := jobProcessor.jobExecutionLogRepo.GetLastExecutionLogForJobIds(expandedJobIds)

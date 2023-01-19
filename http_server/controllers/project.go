@@ -64,7 +64,7 @@ func (controller *projectController) GetOneProject(w http.ResponseWriter, r *htt
 	}
 
 	project := models.ProjectModel{
-		ID: int64(projectId),
+		ID: uint64(projectId),
 	}
 
 	err := controller.projectService.GetOneByID(&project)
@@ -101,7 +101,7 @@ func (controller *projectController) ListProjects(w http.ResponseWriter, r *http
 		return
 	}
 
-	projects, listError := controller.projectService.List(int64(offset), int64(limit))
+	projects, listError := controller.projectService.List(uint64(offset), uint64(limit))
 	if listError != nil {
 		utils.SendJSON(w, listError.Message, false, listError.Type, nil)
 		return
@@ -120,7 +120,7 @@ func (controller *projectController) DeleteOneProject(w http.ResponseWriter, r *
 	}
 
 	project := models.ProjectModel{
-		ID: int64(projectId),
+		ID: uint64(projectId),
 	}
 
 	err := controller.projectService.DeleteOneByID(project)
@@ -153,7 +153,7 @@ func (controller *projectController) UpdateOneProject(w http.ResponseWriter, r *
 		return
 	}
 
-	project.ID = int64(projectId)
+	project.ID = uint64(projectId)
 
 	updateError := controller.projectService.UpdateOneByID(&project)
 	if updateError != nil {

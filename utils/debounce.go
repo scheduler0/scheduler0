@@ -19,7 +19,7 @@ func NewDebounce() *Debounce {
 	}
 }
 
-func (d *Debounce) Debounce(ctx context.Context, delay int64, effector func()) {
+func (d *Debounce) Debounce(ctx context.Context, delay uint64, effector func()) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 

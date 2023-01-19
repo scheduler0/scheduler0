@@ -21,15 +21,15 @@ type jobRepo struct {
 
 type Job interface {
 	GetOneByID(jobModel *models.JobModel) *utils.GenericError
-	BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *utils.GenericError)
-	BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([]models.JobModel, *utils.GenericError)
-	GetJobsPaginated(projectID int64, offset int64, limit int64) ([]models.JobModel, int64, *utils.GenericError)
-	GetJobsTotalCountByProjectID(projectID int64) (int64, *utils.GenericError)
-	GetJobsTotalCount() (int64, *utils.GenericError)
-	DeleteOneByID(jobModel models.JobModel) (int64, *utils.GenericError)
-	UpdateOneByID(jobModel models.JobModel) (int64, *utils.GenericError)
-	GetAllByProjectID(projectID int64, offset int64, limit int64, orderBy string) ([]models.JobModel, *utils.GenericError)
-	BatchInsertJobs(jobRepos []models.JobModel) ([]int64, *utils.GenericError)
+	BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *utils.GenericError)
+	BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.JobModel, *utils.GenericError)
+	GetJobsPaginated(projectID uint64, offset uint64, limit uint64) ([]models.JobModel, uint64, *utils.GenericError)
+	GetJobsTotalCountByProjectID(projectID uint64) (uint64, *utils.GenericError)
+	GetJobsTotalCount() (uint64, *utils.GenericError)
+	DeleteOneByID(jobModel models.JobModel) (uint64, *utils.GenericError)
+	UpdateOneByID(jobModel models.JobModel) (uint64, *utils.GenericError)
+	GetAllByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) ([]models.JobModel, *utils.GenericError)
+	BatchInsertJobs(jobRepos []models.JobModel) ([]uint64, *utils.GenericError)
 }
 
 const (
@@ -105,12 +105,12 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 }
 
 // BatchGetJobsByID returns jobs where uuid in jobUUIDs
-func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *utils.GenericError) {
+func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *utils.GenericError) {
 	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
 	jobs := []models.JobModel{}
-	batches := batcher.Batch[int64](jobIDs, 1)
+	batches := batcher.Batch[uint64](jobIDs, 1)
 
 	for _, batch := range batches {
 		paramsPlaceholder := ""
@@ -168,7 +168,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []int64) ([]models.JobModel, *ut
 	return jobs, nil
 }
 
-func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([]models.JobModel, *utils.GenericError) {
+func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.JobModel, *utils.GenericError) {
 	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -216,7 +216,7 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([
 }
 
 // GetAllByProjectID returns paginated set of jobs that are not archived
-func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit int64, orderBy string) ([]models.JobModel, *utils.GenericError) {
+func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) ([]models.JobModel, *utils.GenericError) {
 	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -232,8 +232,8 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit i
 		DataColumn,
 	).
 		From(JobsTableName).
-		Offset(uint64(offset)).
-		Limit(uint64(limit)).
+		Offset(offset).
+		Limit(limit).
 		OrderBy(orderBy).
 		Where(fmt.Sprintf("%s = ?", ProjectIdColumn), projectID).
 		RunWith(jobRepo.fsmStore.DataStore.Connection)
@@ -267,7 +267,7 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID int64, offset int64, limit i
 }
 
 // UpdateOneByID updates a job and returns number of affected rows
-func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (int64, *utils.GenericError) {
+func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (uint64, *utils.GenericError) {
 	jobPlaceholder := models.JobModel{
 		ID: jobModel.ID,
 	}
@@ -288,48 +288,48 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (int64, *utils.G
 
 	query, params, err := updateQuery.ToSql()
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
-		return -1, applyErr
+		return 0, applyErr
 	}
 
 	if res == nil {
-		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
 	count := res.Data[1].(int64)
 
-	return count, nil
+	return uint64(count), nil
 }
 
 // DeleteOneByID deletes a job with uuid and returns number of affected row
-func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (int64, *utils.GenericError) {
+func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (uint64, *utils.GenericError) {
 	deleteQuery := sq.Delete(JobsTableName).Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID)
 
 	query, params, err := deleteQuery.ToSql()
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
-		return -1, applyErr
+		return 0, applyErr
 	}
 
 	if res == nil {
-		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
 	count := res.Data[1].(int64)
 
-	return count, nil
+	return uint64(count), nil
 }
 
 // GetJobsTotalCount returns total number of jobs
-func (jobRepo *jobRepo) GetJobsTotalCount() (int64, *utils.GenericError) {
+func (jobRepo *jobRepo) GetJobsTotalCount() (uint64, *utils.GenericError) {
 	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -349,14 +349,14 @@ func (jobRepo *jobRepo) GetJobsTotalCount() (int64, *utils.GenericError) {
 		}
 	}
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	return int64(count), nil
+	return uint64(count), nil
 }
 
 // GetJobsTotalCountByProjectID returns the number of jobs for project with uuid
-func (jobRepo *jobRepo) GetJobsTotalCountByProjectID(projectID int64) (int64, *utils.GenericError) {
+func (jobRepo *jobRepo) GetJobsTotalCountByProjectID(projectID uint64) (uint64, *utils.GenericError) {
 	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -379,14 +379,14 @@ func (jobRepo *jobRepo) GetJobsTotalCountByProjectID(projectID int64) (int64, *u
 		}
 	}
 	if rows.Err() != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, rows.Err().Error())
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, rows.Err().Error())
 	}
 
-	return int64(count), nil
+	return uint64(count), nil
 }
 
 // GetJobsPaginated returns a set of jobs starting at offset with the limit
-func (jobRepo *jobRepo) GetJobsPaginated(projectID int64, offset int64, limit int64) ([]models.JobModel, int64, *utils.GenericError) {
+func (jobRepo *jobRepo) GetJobsPaginated(projectID uint64, offset uint64, limit uint64) ([]models.JobModel, uint64, *utils.GenericError) {
 	total, err := jobRepo.GetJobsTotalCountByProjectID(projectID)
 
 	if err != nil {
@@ -398,14 +398,14 @@ func (jobRepo *jobRepo) GetJobsPaginated(projectID int64, offset int64, limit in
 		return nil, total, err
 	}
 
-	return jobRepos, int64(len(jobRepos)), nil
+	return jobRepos, uint64(len(jobRepos)), nil
 }
 
 // BatchInsertJobs inserts n number of jobs
-func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]int64, *utils.GenericError) {
+func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]uint64, *utils.GenericError) {
 	batches := batcher.Batch[models.JobModel](jobs, 6)
 
-	returningIds := []int64{}
+	returningIds := []uint64{}
 
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
@@ -420,7 +420,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]int64, *utils
 			DataColumn,
 		)
 		params := []interface{}{}
-		ids := []int64{}
+		ids := []uint64{}
 
 		for i, job := range batch {
 			query += fmt.Sprint("(?, ?, ?, ?, ?, ?)")
@@ -450,9 +450,9 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]int64, *utils
 			return nil, applyErr
 		}
 
-		lastInsertedId := res.Data[0].(int64)
+		lastInsertedId := uint64(res.Data[0].(int64))
 
-		for i := lastInsertedId - int64(len(batch)) + 1; i <= lastInsertedId; i++ {
+		for i := lastInsertedId - uint64(len(batch)) + 1; i <= lastInsertedId; i++ {
 			ids = append(ids, i)
 		}
 

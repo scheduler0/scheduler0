@@ -22,7 +22,7 @@ type jobService struct {
 }
 
 type Job interface {
-	GetJobsByProjectID(projectID int64, offset int64, limit int64, orderBy string) (*models.PaginatedJob, *utils.GenericError)
+	GetJobsByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) (*models.PaginatedJob, *utils.GenericError)
 	GetJob(job models.JobModel) (*models.JobModel, *utils.GenericError)
 	BatchInsertJobs(jobs []models.JobModel) ([]models.JobModel, *utils.GenericError)
 	UpdateJob(job models.JobModel) (*models.JobModel, *utils.GenericError)
@@ -43,14 +43,14 @@ func NewJobService(context context.Context, logger *log.Logger, jobRepo reposito
 }
 
 // GetJobsByProjectID returns a paginated set of jobs for a project
-func (jobService *jobService) GetJobsByProjectID(projectID int64, offset int64, limit int64, orderBy string) (*models.PaginatedJob, *utils.GenericError) {
+func (jobService *jobService) GetJobsByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) (*models.PaginatedJob, *utils.GenericError) {
 	count, getCountError := jobService.jobRepo.GetJobsTotalCountByProjectID(projectID)
 	if getCountError != nil {
 		return nil, getCountError
 	}
 
-	if count < offset {
-		offset = count
+	if uint64(count) < offset {
+		offset = uint64(count)
 	}
 
 	jobManagers, err := jobService.jobRepo.GetAllByProjectID(projectID, offset, limit, orderBy)
@@ -94,7 +94,7 @@ func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.
 		}
 	}
 
-	projectIds := []int64{}
+	projectIds := []uint64{}
 
 	for _, job := range jobs {
 		projectIds = append(projectIds, job.ProjectID)

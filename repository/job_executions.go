@@ -33,11 +33,11 @@ const (
 )
 
 type ExecutionsRepo interface {
-	BatchInsert(jobs []models.JobModel, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, executionVersions map[int64]uint64)
-	CountLastFailedExecutionLogs(jobId int64, nodeId int, executionVersion uint64) uint64
+	BatchInsert(jobs []models.JobModel, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, executionVersions map[uint64]uint64)
+	CountLastFailedExecutionLogs(jobId uint64, nodeId uint64, executionVersion uint64) uint64
 	CountExecutionLogs(committed bool) uint64
-	GetUncommittedExecutionsLogForNode(nodeId int) []models.JobExecutionLog
-	GetLastExecutionLogForJobIds(jobIds []int64) map[int64]models.JobExecutionLog
+	GetUncommittedExecutionsLogForNode(nodeId uint64) []models.JobExecutionLog
+	GetLastExecutionLogForJobIds(jobIds []uint64) map[uint64]models.JobExecutionLog
 }
 
 type executionsRepo struct {
@@ -52,7 +52,7 @@ func NewExecutionsRepo(logger *log.Logger, store *fsm.Store) *executionsRepo {
 	}
 }
 
-func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, jobExecutionVersions map[int64]uint64) {
+func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, jobExecutionVersions map[uint64]uint64) {
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -61,7 +61,7 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 	}
 
 	batches := batcher.Batch[models.JobModel](jobs, 9)
-	returningIds := []int64{}
+	returningIds := []uint64{}
 
 	for _, batch := range batches {
 		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s , %s, %s) VALUES ",
@@ -77,12 +77,12 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 			ExecutionsVersion,
 		)
 		params := []interface{}{}
-		ids := []int64{}
+		ids := []uint64{}
 
 		for i, job := range batch {
 			executionVersion := 0
 
-			if jobExecutionVersion, ok := jobExecutionVersions[job.ID]; ok {
+			if jobExecutionVersion, ok := jobExecutionVersions[uint64(job.ID)]; ok {
 				executionVersion = int(jobExecutionVersion)
 			}
 
@@ -142,14 +142,14 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 		}
 
 		for i := lastInsertedId - int64(len(batch)) + 1; i <= lastInsertedId; i++ {
-			ids = append(ids, i)
+			ids = append(ids, uint64(i))
 		}
 
 		returningIds = append(returningIds, ids...)
 	}
 }
 
-func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []int64) []models.JobExecutionLog {
+func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []uint64) []models.JobExecutionLog {
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -159,7 +159,7 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []int64) []model
 		return results
 	}
 
-	batches := batcher.Batch[int64](jobIds, 1)
+	batches := batcher.Batch[uint64](jobIds, 1)
 
 	for _, batch := range batches {
 		paramsPlaceholder := "?"
@@ -247,14 +247,14 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []int64) []model
 	return results
 }
 
-func (repo *executionsRepo) GetLastExecutionLogForJobIds(jobIds []int64) map[int64]models.JobExecutionLog {
+func (repo *executionsRepo) GetLastExecutionLogForJobIds(jobIds []uint64) map[uint64]models.JobExecutionLog {
 	lastCommittedExecutionLogs := repo.getLastExecutionLogForJobIds(jobIds)
 
-	executionLogsMap := map[int64]models.JobExecutionLog{}
+	executionLogsMap := map[uint64]models.JobExecutionLog{}
 
 	for _, jobId := range jobIds {
 		for _, lastCommittedExecutionLog := range lastCommittedExecutionLogs {
-			if lastCommittedExecutionLog.JobId == jobId {
+			if uint64(lastCommittedExecutionLog.JobId) == jobId {
 				if lastKnownExecutionLog, ok := executionLogsMap[jobId]; !ok {
 					executionLogsMap[jobId] = lastCommittedExecutionLog
 				} else {
@@ -262,7 +262,7 @@ func (repo *executionsRepo) GetLastExecutionLogForJobIds(jobIds []int64) map[int
 						executionLogsMap[jobId] = lastCommittedExecutionLog
 					} else {
 						if lastKnownExecutionLog.State < lastCommittedExecutionLog.State {
-							executionLogsMap[jobId] = lastCommittedExecutionLog
+							executionLogsMap[uint64(int64(jobId))] = lastCommittedExecutionLog
 						}
 					}
 				}
@@ -274,7 +274,7 @@ func (repo *executionsRepo) GetLastExecutionLogForJobIds(jobIds []int64) map[int
 	return executionLogsMap
 }
 
-func (repo *executionsRepo) CountLastFailedExecutionLogs(jobId int64, nodeId int, executionVersion uint64) uint64 {
+func (repo *executionsRepo) CountLastFailedExecutionLogs(jobId uint64, nodeId uint64, executionVersion uint64) uint64 {
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -336,7 +336,7 @@ func (repo *executionsRepo) CountExecutionLogs(committed bool) uint64 {
 	return count
 }
 
-func (repo *executionsRepo) GetUncommittedExecutionsLogForNode(nodeId int) []models.JobExecutionLog {
+func (repo *executionsRepo) GetUncommittedExecutionsLogForNode(nodeId uint64) []models.JobExecutionLog {
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 

@@ -7,7 +7,7 @@ import (
 
 // ProjectModel project model
 type ProjectModel struct {
-	ID          int64     `json:"id,omitempty"`
+	ID          uint64    `json:"id,omitempty"`
 	Name        string    `json:"name,omitempty"`
 	Description string    `json:"description,omitempty"`
 	DateCreated time.Time `json:"date_created,omitempty"`
@@ -15,9 +15,9 @@ type ProjectModel struct {
 
 // PaginatedProject paginated container of project transformer
 type PaginatedProject struct {
-	Total  int64          `json:"total,omitempty"`
-	Offset int64          `json:"offset,omitempty"`
-	Limit  int64          `json:"limit,omitempty"`
+	Total  uint64         `json:"total,omitempty"`
+	Offset uint64         `json:"offset,omitempty"`
+	Limit  uint64         `json:"limit,omitempty"`
 	Data   []ProjectModel `json:"projects,omitempty"`
 }
 

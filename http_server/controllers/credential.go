@@ -74,7 +74,7 @@ func (credentialController *credentialController) GetOneCredential(w http.Respon
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
 	}
-	credential, err := credentialService.FindOneCredentialByID(int64(credentialId))
+	credential, err := credentialService.FindOneCredentialByID(uint64(credentialId))
 
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
@@ -101,7 +101,7 @@ func (credentialController *credentialController) UpdateOneCredential(w http.Res
 		return
 	}
 	credentialBody := models.CredentialModel{
-		ID: int64(credentialId),
+		ID: uint64(credentialId),
 	}
 
 	err = credentialBody.FromJSON(body)
@@ -129,7 +129,7 @@ func (credentialController *credentialController) DeleteOneCredential(w http.Res
 		utils.SendJSON(w, convertErr.Error(), false, http.StatusBadRequest, nil)
 		return
 	}
-	_, err := credentialService.DeleteOneCredential(int64(credentialId))
+	_, err := credentialService.DeleteOneCredential(uint64(credentialId))
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
@@ -173,7 +173,7 @@ func (credentialController *credentialController) ListCredentials(w http.Respons
 		return
 	}
 
-	credentials, listCredentialError := credentialService.ListCredentials(int64(offset), int64(limit), orderBy)
+	credentials, listCredentialError := credentialService.ListCredentials(uint64(offset), uint64(limit), orderBy)
 
 	if listCredentialError != nil {
 		utils.SendJSON(w, listCredentialError.Message, false, listCredentialError.Type, nil)

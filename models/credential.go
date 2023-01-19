@@ -7,7 +7,7 @@ import (
 
 // CredentialModel credential model
 type CredentialModel struct {
-	ID          int64     `json:"id,omitempty"`
+	ID          uint64    `json:"id,omitempty"`
 	Archived    bool      `json:"archived,omitempty"`
 	ApiKey      string    `json:"api_key,omitempty"`
 	ApiSecret   string    `json:"api_secret,omitempty"`
@@ -16,9 +16,9 @@ type CredentialModel struct {
 
 // PaginatedCredential paginated container of credential transformer
 type PaginatedCredential struct {
-	Total  int64             `json:"total,omitempty"`
-	Offset int64             `json:"offset,omitempty"`
-	Limit  int64             `json:"limit,omitempty"`
+	Total  uint64            `json:"total,omitempty"`
+	Offset uint64            `json:"offset,omitempty"`
+	Limit  uint64            `json:"limit,omitempty"`
 	Data   []CredentialModel `json:"credentials,omitempty"`
 }
 

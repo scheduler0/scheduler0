@@ -29,7 +29,7 @@ type jobQueues struct {
 }
 
 type JobQueuesRepo interface {
-	GetLastJobQueueLogForNode(nodeId int, version uint64) []models.JobQueueLog
+	GetLastJobQueueLogForNode(nodeId uint64, version uint64) []models.JobQueueLog
 	GetLastVersion() uint64
 }
 
@@ -40,7 +40,7 @@ func NewJobQueuesRepo(logger *log.Logger, store *fsm.Store) *jobQueues {
 	}
 }
 
-func (repo *jobQueues) GetLastJobQueueLogForNode(nodeId int, version uint64) []models.JobQueueLog {
+func (repo *jobQueues) GetLastJobQueueLogForNode(nodeId uint64, version uint64) []models.JobQueueLog {
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 

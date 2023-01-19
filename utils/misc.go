@@ -134,24 +134,24 @@ func GetNodeServerAddressWithRaftAddress(logger *log.Logger, raftAddress raft.Se
 	return ""
 }
 
-func GetNodeIdWithRaftAddress(logger *log.Logger, raftAddress raft.ServerAddress) (int, error) {
+func GetNodeIdWithRaftAddress(logger *log.Logger, raftAddress raft.ServerAddress) (int64, error) {
 	configs := config.GetConfigurations(logger)
 
 	for _, replica := range configs.Replicas {
 		if replica.RaftAddress == string(raftAddress) {
-			return replica.NodeId, nil
+			return int64(replica.NodeId), nil
 		}
 	}
 
 	return -1, errors.New("cannot find node with raft address")
 }
 
-func GetNodeIdWithServerAddress(logger *log.Logger, serverAddress string) (int, error) {
+func GetNodeIdWithServerAddress(logger *log.Logger, serverAddress string) (int64, error) {
 	configs := config.GetConfigurations(logger)
 
 	for _, replica := range configs.Replicas {
 		if replica.Address == serverAddress {
-			return replica.NodeId, nil
+			return int64(replica.NodeId), nil
 		}
 	}
 

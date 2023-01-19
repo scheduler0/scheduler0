@@ -75,7 +75,7 @@ func ExtractBody(w http.ResponseWriter, r *http.Request) []byte {
 }
 
 // RetryOnError retries callback function
-func RetryOnError(callback func() error, maxRetry int, delay int) error {
+func RetryOnError(callback func() error, maxRetry uint64, delay uint64) error {
 	lastKnowError := callback()
 	numberOfRetriesLeft := maxRetry
 	if lastKnowError != nil {

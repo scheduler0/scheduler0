@@ -13,13 +13,13 @@ import (
 )
 
 type Credential interface {
-	CreateOne(credential models.CredentialModel) (int64, *utils.GenericError)
+	CreateOne(credential models.CredentialModel) (uint64, *utils.GenericError)
 	GetOneID(credential *models.CredentialModel) error
 	GetByAPIKey(credential *models.CredentialModel) *utils.GenericError
-	Count() (int, *utils.GenericError)
-	List(offset int64, limit int64, orderBy string) ([]models.CredentialModel, *utils.GenericError)
-	UpdateOneByID(credential models.CredentialModel) (int64, *utils.GenericError)
-	DeleteOneByID(credential models.CredentialModel) (int64, *utils.GenericError)
+	Count() (uint64, *utils.GenericError)
+	List(offset uint64, limit uint64, orderBy string) ([]models.CredentialModel, *utils.GenericError)
+	UpdateOneByID(credential models.CredentialModel) (uint64, *utils.GenericError)
+	DeleteOneByID(credential models.CredentialModel) (uint64, *utils.GenericError)
 }
 
 // CredentialRepo Credential
@@ -46,7 +46,7 @@ func NewCredentialRepo(logger *log.Logger, store *fsm.Store) Credential {
 }
 
 // CreateOne creates a single credential and returns the uuid
-func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialModel) (int64, *utils.GenericError) {
+func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialModel) (uint64, *utils.GenericError) {
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
@@ -67,19 +67,19 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 
 	query, params, err := insertBuilder.ToSql()
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	res, applyErr := fsm.AppApply(credentialRepo.logger, credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
-		return -1, applyErr
+		return 0, applyErr
 	}
 
 	if res == nil {
-		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	credential.ID = res.Data[0].(int64)
+	credential.ID = uint64(res.Data[0].(int64))
 
 	return credential.ID, nil
 }
@@ -165,7 +165,7 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 }
 
 // Count returns total number of credential
-func (credentialRepo *credentialRepo) Count() (int, *utils.GenericError) {
+func (credentialRepo *credentialRepo) Count() (uint64, *utils.GenericError) {
 	credentialRepo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer credentialRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -185,14 +185,14 @@ func (credentialRepo *credentialRepo) Count() (int, *utils.GenericError) {
 		}
 	}
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	return count, nil
+	return uint64(count), nil
 }
 
 // List returns a paginated set of credentials
-func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy string) ([]models.CredentialModel, *utils.GenericError) {
+func (credentialRepo *credentialRepo) List(offset uint64, limit uint64, orderBy string) ([]models.CredentialModel, *utils.GenericError) {
 	credentialRepo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer credentialRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -204,8 +204,8 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 		JobsDateCreatedColumn,
 	).
 		From(CredentialTableName).
-		Offset(uint64(offset)).
-		Limit(uint64(limit)).
+		Offset(offset).
+		Limit(limit).
 		OrderBy(orderBy).
 		RunWith(credentialRepo.fsmStore.DataStore.Connection)
 
@@ -236,7 +236,7 @@ func (credentialRepo *credentialRepo) List(offset int64, limit int64, orderBy st
 }
 
 // UpdateOneByID updates a single credential
-func (credentialRepo *credentialRepo) UpdateOneByID(credential models.CredentialModel) (int64, *utils.GenericError) {
+func (credentialRepo *credentialRepo) UpdateOneByID(credential models.CredentialModel) (uint64, *utils.GenericError) {
 	updateQuery := sq.Update(CredentialTableName).
 		Set(ArchivedColumn, credential.Archived).
 		Set(ApiKeyColumn, credential.ApiKey).
@@ -245,41 +245,41 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 
 	query, params, err := updateQuery.ToSql()
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	res, applyErr := fsm.AppApply(credentialRepo.logger, credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
-		return -1, applyErr
+		return 0, applyErr
 	}
 
 	if res == nil {
-		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(int64)
+	count := res.Data[1].(uint64)
 	return count, nil
 }
 
 // DeleteOneByID deletes a single credential
-func (credentialRepo *credentialRepo) DeleteOneByID(credential models.CredentialModel) (int64, *utils.GenericError) {
+func (credentialRepo *credentialRepo) DeleteOneByID(credential models.CredentialModel) (uint64, *utils.GenericError) {
 	deleteQuery := sq.Delete(CredentialTableName).Where(fmt.Sprintf("%s = ?", JobsIdColumn), credential.ID)
 
 	query, params, err := deleteQuery.ToSql()
 	if err != nil {
-		return -1, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	res, applyErr := fsm.AppApply(credentialRepo.logger, credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
-		return -1, applyErr
+		return 0, applyErr
 	}
 
 	if res == nil {
-		return -1, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(int64)
+	count := res.Data[1].(uint64)
 
 	return count, nil
 }
