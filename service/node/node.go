@@ -31,6 +31,7 @@ import (
 	"scheduler0/service/queue"
 	"scheduler0/utils"
 	"scheduler0/utils/batcher"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -207,7 +208,7 @@ func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
 	configs := config.GetConfigurations(node.logger)
 
 	c := raft.DefaultConfig()
-	c.LocalID = raft.ServerID(rune(configs.NodeId))
+	c.LocalID = raft.ServerID(strconv.FormatUint(configs.NodeId, 10))
 
 	// TODO: Set raft configs in scheduler0 config
 
@@ -655,7 +656,7 @@ func (node *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
 	results := node.authenticateWithPeersInConfig(node.logger)
 	servers := []raft.Server{
 		{
-			ID:       raft.ServerID(rune(configs.NodeId)),
+			ID:       raft.ServerID(strconv.FormatUint(configs.NodeId, 10)),
 			Suffrage: raft.Voter,
 			Address:  raft.ServerAddress(configs.RaftAddress),
 		},
@@ -664,12 +665,14 @@ func (node *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
 	for _, replica := range configs.Replicas {
 		if repStatus, ok := results[replica.Address]; ok && repStatus.IsAlive && repStatus.IsAuth {
 			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(rune(configs.NodeId)),
+				ID:       raft.ServerID(strconv.FormatUint(replica.NodeId, 10)),
 				Suffrage: raft.Voter,
 				Address:  raft.ServerAddress(replica.RaftAddress),
 			})
 		}
 	}
+
+	fmt.Println("servers", servers)
 
 	cfg := raft.Configuration{
 		Servers: servers,
@@ -685,7 +688,7 @@ func (node *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 	configs := config.GetConfigurations(logger)
 	servers := []raft.Server{
 		{
-			ID:       raft.ServerID(rune(configs.NodeId)),
+			ID:       raft.ServerID(strconv.FormatUint(configs.NodeId, 10)),
 			Suffrage: raft.Voter,
 			Address:  raft.ServerAddress(configs.RaftAddress),
 		},
@@ -694,7 +697,7 @@ func (node *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 	for _, replica := range configs.Replicas {
 		if replica.Address != utils.GetServerHTTPAddress(node.logger) {
 			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(rune(configs.NodeId)),
+				ID:       raft.ServerID(strconv.FormatUint(replica.NodeId, 10)),
 				Suffrage: raft.Voter,
 				Address:  raft.ServerAddress(replica.RaftAddress),
 			})
