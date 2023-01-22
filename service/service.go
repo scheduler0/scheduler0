@@ -35,6 +35,14 @@ func NewService(ctx context.Context, logger *log.Logger) *Service {
 	sqliteDb := db.GetDBConnection(logger)
 	fsmStr := fsm.NewFSMStore(sqliteDb, logger)
 
+	dispatcher := workers.NewDispatcher(
+		int64(configs.IncomingRequestMaxWorkers),
+		int64(configs.IncomingRequestMaxQueue),
+		func(effector func(successChannel, errorChannel chan any), successChannel, errorChannel chan any) {
+			effector(successChannel, errorChannel)
+		},
+	)
+
 	//repository
 	credentialRepo := repository.NewCredentialRepo(logger, fsmStr)
 	jobRepo := repository.NewJobRepo(logger, fsmStr)
@@ -42,14 +50,14 @@ func NewService(ctx context.Context, logger *log.Logger) *Service {
 	executionsRepo := repository.NewExecutionsRepo(logger, fsmStr)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmStr)
 
-	jobExecutor := executor.NewJobExecutor(ctx, logger, jobRepo, executionsRepo, jobQueueRepo)
+	jobExecutor := executor.NewJobExecutor(ctx, logger, jobRepo, executionsRepo, jobQueueRepo, dispatcher)
 	jobQueue := queue.NewJobQueue(ctx, logger, fsmStr, jobExecutor, jobQueueRepo)
 	nodeService := node.NewNode(ctx, logger, jobExecutor, jobQueue, jobRepo, projectRepo, executionsRepo, jobQueueRepo)
 
 	nodeService.FsmStore = fsmStr
 
 	service := Service{
-		JobService:         NewJobService(ctx, logger, jobRepo, jobQueue, projectRepo),
+		JobService:         NewJobService(ctx, logger, jobRepo, jobQueue, projectRepo, dispatcher),
 		ProjectService:     NewProjectService(logger, projectRepo),
 		CredentialService:  NewCredentialService(ctx, logger, credentialRepo),
 		JobExecutorService: jobExecutor,
@@ -57,14 +65,7 @@ func NewService(ctx context.Context, logger *log.Logger) *Service {
 		JobQueueService:    jobQueue,
 	}
 
-	service.Dispatcher = workers.NewDispatcher(
-		int64(configs.IncomingRequestMaxWorkers),
-		int64(configs.IncomingRequestMaxQueue),
-		func(args ...any) {
-			//requests := args[0].([]models.ServiceRequest)
-			// TODO: Pass request to appropriate service
-		},
-	)
+	service.Dispatcher = dispatcher
 
 	service.Dispatcher.Run()
 

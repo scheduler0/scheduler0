@@ -17,6 +17,7 @@ import (
 	"scheduler0/repository"
 	"scheduler0/service/executor/executors"
 	"scheduler0/utils"
+	"scheduler0/utils/workers"
 	"sync"
 	"time"
 )
@@ -35,9 +36,10 @@ type JobExecutor struct {
 	mtx                   sync.Mutex
 	executions            sync.Map
 	debounce              *utils.Debounce
+	dispatcher            *workers.Dispatcher
 }
 
-func NewJobExecutor(ctx context.Context, logger *log.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobExecutor {
+func NewJobExecutor(ctx context.Context, logger *log.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo, dispatcher *workers.Dispatcher) *JobExecutor {
 	reCtx, cancel := context.WithCancel(ctx)
 	return &JobExecutor{
 		pendingJobInvocations: []models.JobModel{},
@@ -50,6 +52,7 @@ func NewJobExecutor(ctx context.Context, logger *log.Logger, jobRepository repos
 		httpExecutionHandler:  executors.NewHTTTPExecutor(logger),
 		executions:            sync.Map{},
 		debounce:              utils.NewDebounce(),
+		dispatcher:            dispatcher,
 	}
 }
 

@@ -1,19 +1,19 @@
 package workers
 
 type Dispatcher struct {
-	InputQueue chan any
-	WorkerPool chan chan any
+	InputQueue chan []interface{}
+	WorkerPool chan chan []interface{}
 	maxWorkers int64
-	callback   func(args ...any)
+	callback   func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)
 }
 
-func NewDispatcher(maxWorkers int64, maxQueue int64, callback func(args ...any)) *Dispatcher {
-	pool := make(chan chan any, maxWorkers)
+func NewDispatcher(maxWorkers int64, maxQueue int64, callback func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)) *Dispatcher {
+	pool := make(chan chan []interface{}, maxWorkers)
 	return &Dispatcher{
 		WorkerPool: pool,
 		maxWorkers: maxWorkers,
 		callback:   callback,
-		InputQueue: make(chan any, maxQueue),
+		InputQueue: make(chan []interface{}, maxQueue),
 	}
 }
 
@@ -30,10 +30,14 @@ func (dispatcher *Dispatcher) dispatch() {
 	for {
 		select {
 		case input := <-dispatcher.InputQueue:
-			go func(i any) {
+			go func(i []interface{}) {
 				workerQueue := <-dispatcher.WorkerPool
 				workerQueue <- i
 			}(input)
 		}
 	}
+}
+
+func (dispatcher *Dispatcher) Queue(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any) {
+	dispatcher.InputQueue <- []interface{}{effector, successChannel, errorChannel}
 }
