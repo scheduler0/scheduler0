@@ -142,6 +142,7 @@ func (node *Node) Boostrap() {
 	if configs.Bootstrap && !node.isExistingNode {
 		node.bootstrapRaftCluster(rft)
 	}
+	node.FsmStore.Raft = rft
 	node.jobExecutor.Raft = node.FsmStore.Raft
 	go node.handleLeaderChange()
 	//go node.jobExecutor.ListenOnInvocationChannels()
@@ -663,7 +664,7 @@ func (node *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
 	for _, replica := range configs.Replicas {
 		if repStatus, ok := results[replica.Address]; ok && repStatus.IsAlive && repStatus.IsAuth {
 			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(replica.NodeId),
+				ID:       raft.ServerID(rune(configs.NodeId)),
 				Suffrage: raft.Voter,
 				Address:  raft.ServerAddress(replica.RaftAddress),
 			})
@@ -684,7 +685,7 @@ func (node *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 	configs := config.GetConfigurations(logger)
 	servers := []raft.Server{
 		{
-			ID:       raft.ServerID(fmt.Sprintf("%d", configs.NodeId)),
+			ID:       raft.ServerID(rune(configs.NodeId)),
 			Suffrage: raft.Voter,
 			Address:  raft.ServerAddress(configs.RaftAddress),
 		},
@@ -693,7 +694,7 @@ func (node *Node) getRaftConfiguration(logger *log.Logger) raft.Configuration {
 	for _, replica := range configs.Replicas {
 		if replica.Address != utils.GetServerHTTPAddress(node.logger) {
 			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(replica.NodeId),
+				ID:       raft.ServerID(rune(configs.NodeId)),
 				Suffrage: raft.Voter,
 				Address:  raft.ServerAddress(replica.RaftAddress),
 			})
