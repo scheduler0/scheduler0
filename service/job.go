@@ -10,6 +10,7 @@ import (
 	"scheduler0/repository"
 	"scheduler0/service/queue"
 	"scheduler0/utils"
+	"scheduler0/utils/workers"
 	"time"
 )
 
@@ -19,6 +20,7 @@ type jobService struct {
 	Queue       *queue.JobQueue
 	Ctx         context.Context
 	logger      *log.Logger
+	dispatcher  *workers.Dispatcher
 }
 
 type Job interface {
@@ -30,13 +32,14 @@ type Job interface {
 	QueueJobs(jobs []models.JobModel)
 }
 
-func NewJobService(context context.Context, logger *log.Logger, jobRepo repository.Job, queue *queue.JobQueue, projectRepo repository.Project) Job {
+func NewJobService(context context.Context, logger *log.Logger, jobRepo repository.Job, queue *queue.JobQueue, projectRepo repository.Project, dispatcher *workers.Dispatcher) Job {
 	service := &jobService{
 		jobRepo:     jobRepo,
 		projectRepo: projectRepo,
 		Queue:       queue,
 		Ctx:         context,
 		logger:      logger,
+		dispatcher:  dispatcher,
 	}
 
 	return service
@@ -118,23 +121,39 @@ func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.
 		}
 	}
 
-	insertedIds, err := jobService.jobRepo.BatchInsertJobs(jobs)
-	if err != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message))
+	var successChannel = make(chan any)
+	var errorChannel = make(chan any)
+
+	jobService.dispatcher.Queue(func(successChannel chan any, errorChannel chan any) {
+		insertedIds, err := jobService.jobRepo.BatchInsertJobs(jobs)
+		if err != nil {
+			errorChannel <- utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message))
+		}
+
+		schedulerTime := utils.GetSchedulerTime()
+		now := schedulerTime.GetTime(time.Now())
+
+		for i, insertedId := range insertedIds {
+			jobs[i].ID = insertedId
+			jobs[i].DateCreated = now
+			jobs[i].LastExecutionDate = now
+		}
+
+		jobService.QueueJobs(jobs)
+
+		successChannel <- jobs
+	}, successChannel, errorChannel)
+
+	for {
+		select {
+		case res := <-successChannel:
+			jobs := res.([]models.JobModel)
+			return jobs, nil
+		case res := <-errorChannel:
+			errM := res.(utils.GenericError)
+			return nil, &errM
+		}
 	}
-
-	schedulerTime := utils.GetSchedulerTime()
-	now := schedulerTime.GetTime(time.Now())
-
-	for i, insertedId := range insertedIds {
-		jobs[i].ID = insertedId
-		jobs[i].DateCreated = now
-		jobs[i].LastExecutionDate = now
-	}
-
-	jobService.QueueJobs(jobs)
-
-	return jobs, nil
 }
 
 // UpdateJob updates job with ID in transformer. Note that cron expression of job cannot be updated.
