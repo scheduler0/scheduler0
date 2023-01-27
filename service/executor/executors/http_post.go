@@ -12,6 +12,8 @@ import (
 	"scheduler0/models"
 	"scheduler0/utils"
 	"scheduler0/utils/batcher"
+	"scheduler0/utils/workers"
+	"strconv"
 	"time"
 )
 
@@ -29,7 +31,7 @@ func NewHTTTPExecutor(logger *log.Logger) *HTTPExecutionHandler {
 	}
 }
 
-func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, pendingJobs []models.JobModel, onSuccess func(jobs []models.JobModel), onFailure func(jobs []models.JobModel)) ([]models.JobModel, []models.JobModel) {
+func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, dispatcher *workers.Dispatcher, pendingJobs []models.JobModel, onSuccess func(jobs []models.JobModel), onFailure func(jobs []models.JobModel)) ([]models.JobModel, []models.JobModel) {
 	urlJobCache := map[string][]models.JobModel{}
 
 	for _, pj := range pendingJobs {
@@ -50,38 +52,44 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, pe
 		batches := batcher.BatchByBytes(uJc, int(configs.HTTPExecutorPayloadMaxSizeMb))
 
 		for i, batch := range batches {
-			go func(url string, b []byte, chunkId int) {
-				utils.RetryOnError(func() error {
-					httpExecutor.logger.Println(fmt.Sprintf("running job execution for job callback url = %v", url))
-					httpClient := http.Client{
-						Timeout: time.Duration(configs.JobExecutionTimeout) * time.Second,
-					}
+			func(url string, b []byte, chunkId int) {
+				dispatcher.NoBlockQueue(func(successChannel chan any, errorChannel chan any) {
+					defer func() {
+						close(errorChannel)
+						close(successChannel)
+					}()
 
-					req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
-					req.Header.Set("Content-Type", "application/json")
-					//req.Header.Set("x-payload-chunk-id", string(rune(chunkId)))
-					if err != nil {
-						httpExecutor.logger.Println("failed to create request: ", err.Error())
+					utils.RetryOnError(func() error {
+						httpExecutor.logger.Println(fmt.Sprintf("running job execution for job callback url = %v", url))
+						httpClient := http.Client{
+							Timeout: time.Duration(configs.JobExecutionTimeout) * time.Second,
+						}
+
+						req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
+						req.Header.Set("Content-Type", "application/json")
+						req.Header.Set("x-payload-chunk-id", strconv.FormatInt(int64(chunkId), 10))
+						if err != nil {
+							httpExecutor.logger.Println("failed to create request: ", err.Error())
+							onFailure(httpExecutor.unwrapBatch(b))
+							return err
+						}
+
+						res, err := httpClient.Do(req)
+						if err != nil {
+							httpExecutor.logger.Println("request error: ", err.Error())
+							onFailure(httpExecutor.unwrapBatch(b))
+							return err
+						}
+
+						if res.StatusCode >= 200 || res.StatusCode <= 299 {
+							onSuccess(httpExecutor.unwrapBatch(b))
+							return nil
+						}
+
 						onFailure(httpExecutor.unwrapBatch(b))
-						return err
-					}
-
-					res, err := httpClient.Do(req)
-					if err != nil {
-						httpExecutor.logger.Println("request error: ", err.Error())
-						onFailure(httpExecutor.unwrapBatch(b))
-						return err
-					}
-
-					if res.StatusCode >= 200 || res.StatusCode <= 299 {
-						onSuccess(httpExecutor.unwrapBatch(b))
-						return nil
-					}
-
-					onFailure(httpExecutor.unwrapBatch(b))
-
-					return errors.New(fmt.Sprintf("subscriber failed to fully requests status code: %v", res.StatusCode))
-				}, configs.JobExecutionRetryMax, configs.JobExecutionRetryDelay)
+						return errors.New(fmt.Sprintf("subscriber failed to fully requests status code: %v", res.StatusCode))
+					}, configs.JobExecutionRetryMax, configs.JobExecutionRetryDelay)
+				})
 			}(rurl, batch, i)
 		}
 	}
