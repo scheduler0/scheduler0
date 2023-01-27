@@ -9,6 +9,7 @@ import (
 	"scheduler0/repository"
 	"scheduler0/secrets"
 	"scheduler0/utils"
+	"scheduler0/utils/workers"
 )
 
 // Credential service layer for credentials
@@ -21,11 +22,12 @@ type Credential interface {
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 }
 
-func NewCredentialService(Ctx context.Context, logger *log.Logger, repo repository.Credential) Credential {
+func NewCredentialService(Ctx context.Context, logger *log.Logger, repo repository.Credential, dispatcher *workers.Dispatcher) Credential {
 	return &credentialService{
 		CredentialRepo: repo,
 		Ctx:            Ctx,
 		logger:         logger,
+		dispatcher:     dispatcher,
 	}
 }
 
@@ -33,6 +35,7 @@ type credentialService struct {
 	CredentialRepo repository.Credential
 	Ctx            context.Context
 	logger         *log.Logger
+	dispatcher     *workers.Dispatcher
 }
 
 // CreateNewCredential creates a new credentials
@@ -43,12 +46,21 @@ func (credentialService *credentialService) CreateNewCredential(credentialTransf
 	credentialTransformer.ApiKey = apiKey
 	credentialTransformer.ApiSecret = apiSecret
 
-	newCredentialId, err := credentialService.CredentialRepo.CreateOne(credentialTransformer)
-	if err != nil {
-		return 0, err
-	}
+	successData, errorData := credentialService.dispatcher.BlockQueue(func(successChannel chan any, errorChannel chan any) {
+		newCredentialId, err := credentialService.CredentialRepo.CreateOne(credentialTransformer)
+		if err != nil {
+			errorChannel <- err
+			return
+		}
+		successChannel <- newCredentialId
+	})
 
-	return newCredentialId, nil
+	newCredentialId, successOk := successData.(uint64)
+	if successOk {
+		return newCredentialId, nil
+	}
+	errM := errorData.(utils.GenericError)
+	return 0, &errM
 }
 
 // FindOneCredentialByID searches for credential by uuid
