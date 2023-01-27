@@ -152,7 +152,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 			// Time clocks are sources of distributed systems errors and a monotonic clock should always be preferred.
 			// While 60 minutes is quite an unlike delay in a close it's not impossible
 			if now.Before(executionTime) && lastJobState.State == uint64(models.ExecutionLogScheduleState) {
-				jobProcessor.logger.Println("quick recovered job", job.ID)
+				//jobProcessor.logger.Println("quick recovered job", job.ID)
 				jobProcessor.jobExecutor.ScheduleProcess(job, executionTime)
 			} else {
 				jobsToSchedule = append(jobsToSchedule, job)
