@@ -121,13 +121,11 @@ func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.
 		}
 	}
 
-	var successChannel = make(chan any)
-	var errorChannel = make(chan any)
-
-	jobService.dispatcher.Queue(func(successChannel chan any, errorChannel chan any) {
+	successData, errorData := jobService.dispatcher.BlockQueue(func(successChannel chan any, errorChannel chan any) {
 		insertedIds, err := jobService.jobRepo.BatchInsertJobs(jobs)
 		if err != nil {
 			errorChannel <- utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message))
+			return
 		}
 
 		schedulerTime := utils.GetSchedulerTime()
@@ -142,18 +140,15 @@ func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.
 		jobService.QueueJobs(jobs)
 
 		successChannel <- jobs
-	}, successChannel, errorChannel)
+	})
 
-	for {
-		select {
-		case res := <-successChannel:
-			jobs := res.([]models.JobModel)
-			return jobs, nil
-		case res := <-errorChannel:
-			errM := res.(utils.GenericError)
-			return nil, &errM
-		}
+	jobs, successOk := successData.([]models.JobModel)
+	if successOk {
+		return jobs, nil
 	}
+	errM := errorData.(utils.GenericError)
+
+	return nil, &errM
 }
 
 // UpdateJob updates job with ID in transformer. Note that cron expression of job cannot be updated.
