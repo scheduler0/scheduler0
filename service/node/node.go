@@ -672,8 +672,6 @@ func (node *Node) authRaftConfiguration(logger *log.Logger) raft.Configuration {
 		}
 	}
 
-	fmt.Println("servers", servers)
-
 	cfg := raft.Configuration{
 		Servers: servers,
 	}
