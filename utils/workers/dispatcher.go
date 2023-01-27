@@ -1,8 +1,8 @@
 package workers
 
 type Dispatcher struct {
-	InputQueue chan []interface{}
-	WorkerPool chan chan []interface{}
+	inputQueue chan []interface{}
+	workerPool chan chan []interface{}
 	maxWorkers int64
 	callback   func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)
 }
@@ -10,16 +10,16 @@ type Dispatcher struct {
 func NewDispatcher(maxWorkers int64, maxQueue int64, callback func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)) *Dispatcher {
 	pool := make(chan chan []interface{}, maxWorkers)
 	return &Dispatcher{
-		WorkerPool: pool,
+		workerPool: pool,
 		maxWorkers: maxWorkers,
 		callback:   callback,
-		InputQueue: make(chan []interface{}, maxQueue),
+		inputQueue: make(chan []interface{}, maxQueue),
 	}
 }
 
 func (dispatcher *Dispatcher) Run() {
 	for i := 0; int64(i) < dispatcher.maxWorkers; i++ {
-		worker := NewWorker(dispatcher.WorkerPool, dispatcher.callback)
+		worker := NewWorker(dispatcher.workerPool, dispatcher.callback)
 		worker.Start()
 	}
 
@@ -29,15 +29,34 @@ func (dispatcher *Dispatcher) Run() {
 func (dispatcher *Dispatcher) dispatch() {
 	for {
 		select {
-		case input := <-dispatcher.InputQueue:
+		case input := <-dispatcher.inputQueue:
 			go func(i []interface{}) {
-				workerQueue := <-dispatcher.WorkerPool
+				workerQueue := <-dispatcher.workerPool
 				workerQueue <- i
 			}(input)
 		}
 	}
 }
 
-func (dispatcher *Dispatcher) Queue(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any) {
-	dispatcher.InputQueue <- []interface{}{effector, successChannel, errorChannel}
+func (dispatcher *Dispatcher) BlockQueue(effector func(successChannel chan any, errorChannel chan any)) (successData any, errorData any) {
+	successChannel := make(chan any)
+	errorChannel := make(chan any)
+
+	dispatcher.inputQueue <- []interface{}{effector, successChannel, errorChannel}
+
+	for {
+		select {
+		case data := <-successChannel:
+			return data, nil
+		case err := <-errorChannel:
+			return nil, err
+		}
+	}
+}
+
+func (dispatcher *Dispatcher) NoBlockQueue(effector func(successChannel chan any, errorChannel chan any)) {
+	successChannel := make(chan any)
+	errorChannel := make(chan any)
+
+	dispatcher.inputQueue <- []interface{}{effector, successChannel, errorChannel}
 }
