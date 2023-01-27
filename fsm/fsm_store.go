@@ -136,255 +136,11 @@ func ApplyCommand(
 	}
 	switch command.Type {
 	case protobuffs.Command_Type(constants.CommandTypeDbExecute):
-		params := []interface{}{}
-		err := json.Unmarshal(command.Data, &params)
-		if err != nil {
-			return Response{
-				Data:  nil,
-				Error: err.Error(),
-			}
-		}
-		ctx := context.Background()
-
-		db.ConnectionLock.Lock()
-
-		tx, err := db.Connection.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Println("failed to execute sql command", err.Error())
-			return Response{
-				Data:  nil,
-				Error: err.Error(),
-			}
-		}
-
-		exec, err := tx.Exec(command.Sql, params...)
-		if err != nil {
-			logger.Println("failed to execute sql command", err.Error())
-			rollBackErr := tx.Rollback()
-			if rollBackErr != nil {
-				return Response{
-					Data:  nil,
-					Error: err.Error(),
-				}
-			}
-		}
-
-		err = tx.Commit()
-		if err != nil {
-			return Response{
-				Data:  nil,
-				Error: err.Error(),
-			}
-		}
-		db.ConnectionLock.Unlock()
-
-		lastInsertedId, err := exec.LastInsertId()
-		if err != nil {
-			logger.Println("failed to get last ", err.Error())
-			rollBackErr := tx.Rollback()
-			if rollBackErr != nil {
-				return Response{
-					Data:  nil,
-					Error: rollBackErr.Error(),
-				}
-			}
-			return Response{
-				Data:  nil,
-				Error: err.Error(),
-			}
-		}
-		rowsAffected, err := exec.RowsAffected()
-		if err != nil {
-			logger.Println(err.Error())
-			rollBackErr := tx.Rollback()
-			if rollBackErr != nil {
-				return Response{
-					Data:  nil,
-					Error: rollBackErr.Error(),
-				}
-			}
-			return Response{
-				Data:  nil,
-				Error: err.Error(),
-			}
-		}
-		data := []interface{}{lastInsertedId, rowsAffected}
-
-		return Response{
-			Data:  data,
-			Error: "",
-		}
+		return dbExecute(logger, command, db)
 	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
-		jobIds := []interface{}{}
-		err := json.Unmarshal(command.Data, &jobIds)
-		if err != nil {
-			return Response{
-				Data:  nil,
-				Error: err.Error(),
-			}
-		}
-		lowerBound := jobIds[0].(float64)
-		upperBound := jobIds[1].(float64)
-		lastVersion := jobIds[2].(float64)
-
-		serverNodeId, err := utils.GetNodeIdWithRaftAddress(logger, raft.ServerAddress(command.ActionTarget))
-
-		db.ConnectionLock.Lock()
-
-		schedulerTime := utils.GetSchedulerTime()
-		now := schedulerTime.GetTime(time.Now())
-
-		insertBuilder := sq.Insert(JobQueuesTableName).Columns(
-			JobQueueNodeIdColumn,
-			JobQueueLowerBoundJobId,
-			JobQueueUpperBound,
-			JobQueueVersion,
-			JobQueueDateCreatedColumn,
-		).Values(
-			serverNodeId,
-			lowerBound,
-			upperBound,
-			lastVersion,
-			now,
-		).RunWith(db.Connection)
-
-		_, err = insertBuilder.Exec()
-		if err != nil {
-			logger.Fatalln("failed to insert new job queues", err.Error())
-		}
-		db.ConnectionLock.Unlock()
-		if useQueues {
-			queue <- []interface{}{command.Sql, int64(lowerBound), int64(upperBound)}
-		}
-		break
+		return insertJobQueue(logger, command, db, useQueues, queue)
 	case protobuffs.Command_Type(constants.CommandTypeJobExecutionLogs):
-		jobState := models.CommitJobStateLog{}
-		err := json.Unmarshal(command.Data, &jobState)
-		if err != nil {
-			return Response{
-				Data:  nil,
-				Error: err.Error(),
-			}
-		}
-
-		if len(jobState.Logs) < 1 {
-			return Response{
-				Data: nil,
-			}
-		}
-
-		db.ConnectionLock.Lock()
-
-		batchInsert := func(jobExecutionLogs []models.JobExecutionLog) {
-			batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
-
-			for _, batch := range batches {
-				query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
-					ExecutionsTableName,
-					ExecutionsUniqueIdColumn,
-					ExecutionsStateColumn,
-					ExecutionsNodeIdColumn,
-					ExecutionsLastExecutionTimeColumn,
-					ExecutionsNextExecutionTime,
-					ExecutionsJobIdColumn,
-					ExecutionsDateCreatedColumn,
-					ExecutionsJobQueueVersion,
-					ExecutionsVersion,
-				)
-
-				query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-				params := []interface{}{
-					batch[0].UniqueId,
-					batch[0].State,
-					batch[0].NodeId,
-					batch[0].LastExecutionDatetime,
-					batch[0].NextExecutionDatetime,
-					batch[0].JobId,
-					batch[0].DataCreated,
-					batch[0].JobQueueVersion,
-					batch[0].ExecutionVersion,
-				}
-
-				for _, executionLog := range batch[1:] {
-					params = append(params,
-						executionLog.UniqueId,
-						executionLog.State,
-						executionLog.NodeId,
-						executionLog.LastExecutionDatetime,
-						executionLog.NextExecutionDatetime,
-						executionLog.JobId,
-						executionLog.DataCreated,
-						executionLog.JobQueueVersion,
-						executionLog.ExecutionVersion,
-					)
-					query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-				}
-
-				query += ";"
-
-				ctx := context.Background()
-				tx, err := db.Connection.BeginTx(ctx, nil)
-				if err != nil {
-					logger.Fatalln("failed to create transaction for batch insertion", err)
-				}
-
-				_, err = tx.Exec(query, params...)
-				if err != nil {
-					trxErr := tx.Rollback()
-					if trxErr != nil {
-						logger.Fatalln("failed to rollback update transition", trxErr)
-					}
-					logger.Fatalln("batch insert failed to update committed status of executions", err)
-				}
-				err = tx.Commit()
-				if err != nil {
-					logger.Fatalln("failed to commit transition", err)
-				}
-			}
-		}
-
-		batchDelete := func(jobExecutionLogs []models.JobExecutionLog) {
-			batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
-
-			for _, batch := range batches {
-				paramPlaceholder := "?"
-				params := []interface{}{
-					batch[0].UniqueId,
-				}
-
-				for _, jobExecutionLog := range batch[1:] {
-					paramPlaceholder += ",?"
-					params = append(params, jobExecutionLog.UniqueId)
-				}
-
-				ctx := context.Background()
-				tx, err := db.Connection.BeginTx(ctx, nil)
-				if err != nil {
-					logger.Fatalln("failed to create transaction for batch insertion", err)
-				}
-				query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", ExecutionsUnCommittedTableName, ExecutionsUniqueIdColumn, paramPlaceholder)
-				_, err = tx.Exec(query, params...)
-				if err != nil {
-					trxErr := tx.Rollback()
-					if trxErr != nil {
-						logger.Fatalln("failed to rollback update transition", trxErr)
-					}
-					logger.Fatalln("batch delete failed to update committed status of executions", err)
-				}
-				err = tx.Commit()
-				if err != nil {
-					logger.Fatalln("failed to commit transition", err)
-				}
-			}
-		}
-
-		batchInsert(jobState.Logs)
-		batchDelete(jobState.Logs)
-
-		db.ConnectionLock.Unlock()
-
-		//logger.Println(fmt.Sprintf("received %v jobs execution logs from %s", len(jobState.Logs), jobState.Address))
-		break
+		return executeJobs(logger, command, db)
 	case protobuffs.Command_Type(constants.CommandTypeStopJobs):
 		if useQueues {
 			stopAllJobsQueue <- true
@@ -442,4 +198,265 @@ func (s *Store) Restore(r io.ReadCloser) error {
 	s.DataStore.ConnectionLock.Unlock()
 
 	return nil
+}
+
+func dbExecute(logger *log.Logger, command *protobuffs.Command, db *db.DataStore) Response {
+	db.ConnectionLock.Lock()
+	defer db.ConnectionLock.Unlock()
+
+	params := []interface{}{}
+	err := json.Unmarshal(command.Data, &params)
+	if err != nil {
+		return Response{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+	ctx := context.Background()
+
+	tx, err := db.Connection.BeginTx(ctx, nil)
+	if err != nil {
+		logger.Println("failed to execute sql command", err.Error())
+		return Response{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+
+	exec, err := tx.Exec(command.Sql, params...)
+	if err != nil {
+		logger.Println("failed to execute sql command", err.Error())
+		rollBackErr := tx.Rollback()
+		if rollBackErr != nil {
+			return Response{
+				Data:  nil,
+				Error: err.Error(),
+			}
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return Response{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+
+	lastInsertedId, err := exec.LastInsertId()
+	if err != nil {
+		logger.Println("failed to get last ", err.Error())
+		rollBackErr := tx.Rollback()
+		if rollBackErr != nil {
+			return Response{
+				Data:  nil,
+				Error: rollBackErr.Error(),
+			}
+		}
+		return Response{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+	rowsAffected, err := exec.RowsAffected()
+	if err != nil {
+		logger.Println(err.Error())
+		rollBackErr := tx.Rollback()
+		if rollBackErr != nil {
+			return Response{
+				Data:  nil,
+				Error: rollBackErr.Error(),
+			}
+		}
+		return Response{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+	data := []interface{}{lastInsertedId, rowsAffected}
+
+	return Response{
+		Data:  data,
+		Error: "",
+	}
+}
+
+func insertJobQueue(logger *log.Logger, command *protobuffs.Command, db *db.DataStore, useQueues bool, queue chan []interface{}) Response {
+	db.ConnectionLock.Lock()
+	defer db.ConnectionLock.Unlock()
+
+	jobIds := []interface{}{}
+	err := json.Unmarshal(command.Data, &jobIds)
+	if err != nil {
+		return Response{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+	lowerBound := jobIds[0].(float64)
+	upperBound := jobIds[1].(float64)
+	lastVersion := jobIds[2].(float64)
+
+	serverNodeId, err := utils.GetNodeIdWithRaftAddress(logger, raft.ServerAddress(command.ActionTarget))
+
+	schedulerTime := utils.GetSchedulerTime()
+	now := schedulerTime.GetTime(time.Now())
+
+	insertBuilder := sq.Insert(JobQueuesTableName).Columns(
+		JobQueueNodeIdColumn,
+		JobQueueLowerBoundJobId,
+		JobQueueUpperBound,
+		JobQueueVersion,
+		JobQueueDateCreatedColumn,
+	).Values(
+		serverNodeId,
+		lowerBound,
+		upperBound,
+		lastVersion,
+		now,
+	).RunWith(db.Connection)
+
+	_, err = insertBuilder.Exec()
+	if err != nil {
+		logger.Fatalln("failed to insert new job queues", err.Error())
+	}
+	if useQueues {
+		queue <- []interface{}{command.Sql, int64(lowerBound), int64(upperBound)}
+	}
+	return Response{
+		Data:  nil,
+		Error: "",
+	}
+}
+
+func batchInsert(logger *log.Logger, db *db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
+	batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
+
+	for _, batch := range batches {
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
+			ExecutionsTableName,
+			ExecutionsUniqueIdColumn,
+			ExecutionsStateColumn,
+			ExecutionsNodeIdColumn,
+			ExecutionsLastExecutionTimeColumn,
+			ExecutionsNextExecutionTime,
+			ExecutionsJobIdColumn,
+			ExecutionsDateCreatedColumn,
+			ExecutionsJobQueueVersion,
+			ExecutionsVersion,
+		)
+
+		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		params := []interface{}{
+			batch[0].UniqueId,
+			batch[0].State,
+			batch[0].NodeId,
+			batch[0].LastExecutionDatetime,
+			batch[0].NextExecutionDatetime,
+			batch[0].JobId,
+			batch[0].DataCreated,
+			batch[0].JobQueueVersion,
+			batch[0].ExecutionVersion,
+		}
+
+		for _, executionLog := range batch[1:] {
+			params = append(params,
+				executionLog.UniqueId,
+				executionLog.State,
+				executionLog.NodeId,
+				executionLog.LastExecutionDatetime,
+				executionLog.NextExecutionDatetime,
+				executionLog.JobId,
+				executionLog.DataCreated,
+				executionLog.JobQueueVersion,
+				executionLog.ExecutionVersion,
+			)
+			query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
+		}
+
+		query += ";"
+
+		ctx := context.Background()
+		tx, err := db.Connection.BeginTx(ctx, nil)
+		if err != nil {
+			logger.Fatalln("failed to create transaction for batch insertion", err)
+		}
+
+		_, err = tx.Exec(query, params...)
+		if err != nil {
+			trxErr := tx.Rollback()
+			if trxErr != nil {
+				logger.Fatalln("failed to rollback update transition", trxErr)
+			}
+			logger.Fatalln("batch insert failed to update committed status of executions", err)
+		}
+		err = tx.Commit()
+		if err != nil {
+			logger.Fatalln("failed to commit transition", err)
+		}
+	}
+}
+
+func batchDelete(logger *log.Logger, db *db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
+	batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
+
+	for _, batch := range batches {
+		paramPlaceholder := "?"
+		params := []interface{}{
+			batch[0].UniqueId,
+		}
+
+		for _, jobExecutionLog := range batch[1:] {
+			paramPlaceholder += ",?"
+			params = append(params, jobExecutionLog.UniqueId)
+		}
+
+		ctx := context.Background()
+		tx, err := db.Connection.BeginTx(ctx, nil)
+		if err != nil {
+			logger.Fatalln("failed to create transaction for batch insertion", err)
+		}
+		query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", ExecutionsUnCommittedTableName, ExecutionsUniqueIdColumn, paramPlaceholder)
+		_, err = tx.Exec(query, params...)
+		if err != nil {
+			trxErr := tx.Rollback()
+			if trxErr != nil {
+				logger.Fatalln("failed to rollback update transition", trxErr)
+			}
+			logger.Fatalln("batch delete failed to update committed status of executions", err)
+		}
+		err = tx.Commit()
+		if err != nil {
+			logger.Fatalln("failed to commit transition", err)
+		}
+	}
+}
+
+func executeJobs(logger *log.Logger, command *protobuffs.Command, db *db.DataStore) Response {
+	db.ConnectionLock.Lock()
+	defer db.ConnectionLock.Unlock()
+	jobState := models.CommitJobStateLog{}
+	err := json.Unmarshal(command.Data, &jobState)
+	if err != nil {
+		return Response{
+			Data:  nil,
+			Error: err.Error(),
+		}
+	}
+
+	//logger.Println(fmt.Sprintf("received %v jobs execution logs from %s", len(jobState.Logs), jobState.Address))
+
+	if len(jobState.Logs) < 1 {
+		return Response{
+			Data: nil,
+		}
+	}
+
+	batchInsert(logger, db, jobState.Logs)
+	batchDelete(logger, db, jobState.Logs)
+
+	return Response{
+		Data:  nil,
+		Error: "",
+	}
 }
