@@ -2,7 +2,6 @@ Protocol: http
 Host: 127.0.0.1
 Port: 9090
 MaxMemory: 5000
-MaxCPU: 50
 Bootstrap: true
 NodeId: 1
 RaftAddress: 127.0.0.1:7070
@@ -16,11 +15,11 @@ PeerConnectRetryDelay: 1
 PeerAuthRequestTimeoutMs: 2
 JobExecutionTimeout: 30
 JobExecutionRetryDelay: 1
-JobExecutionRetryMax: 20
+JobExecutionRetryMax: 2
 JobInvocationDebounceDelay: 100
-IncomingRequestMaxWorkers: 1
-IncomingRequestMaxQueue: 1
-JobQueueDebounceDelay: 1
+MaxWorkers: 1
+MaxQueue: 1
+JobQueueDebounceDelay: 2
 ExecutionLogFetchFanIn: 2
 ExecutionLogFetchInterval: 2
 HTTPExecutorPayloadMaxSizeMb: 2
