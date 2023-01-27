@@ -37,16 +37,14 @@ type JobExecutor struct {
 	executions            sync.Map
 	debounce              *utils.Debounce
 	dispatcher            *workers.Dispatcher
-
-	scheduledJobsMtx sync.Mutex
-	scheduledJobs    []models.JobSchedule
+	scheduledJobs         sync.Map
 }
 
 func NewJobExecutor(ctx context.Context, logger *log.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo, dispatcher *workers.Dispatcher) *JobExecutor {
 	reCtx, cancel := context.WithCancel(ctx)
 	return &JobExecutor{
 		pendingJobInvocations: []models.JobModel{},
-		scheduledJobs:         []models.JobSchedule{},
+		scheduledJobs:         sync.Map{},
 		jobRepo:               jobRepository,
 		jobExecutionsRepo:     executionsRepo,
 		jobQueuesRepo:         jobQueuesRepo,
@@ -281,13 +279,10 @@ func (jobExecutor *JobExecutor) StopAll() {
 }
 
 func (jobExecutor *JobExecutor) ScheduleProcess(job models.JobModel, executeTime time.Time) {
-	jobExecutor.scheduledJobsMtx.Lock()
-	defer jobExecutor.scheduledJobsMtx.Unlock()
-
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 	execTime := now.Add(executeTime.Sub(job.LastExecutionDate))
-	jobExecutor.scheduledJobs = append(jobExecutor.scheduledJobs, models.JobSchedule{
+	jobExecutor.scheduledJobs.Store(job.ID, models.JobSchedule{
 		Job:           job,
 		ExecutionTime: execTime,
 	})
@@ -302,15 +297,14 @@ func (jobExecutor *JobExecutor) CheckForJobsToInvoke() {
 			select {
 			case <-ticker.C:
 				currentTime := schedulerTime.GetTime(time.Now())
-				jobExecutor.scheduledJobsMtx.Lock()
-				for i, jobSchedule := range jobExecutor.scheduledJobs {
+				jobExecutor.scheduledJobs.Range(func(key, value any) bool {
+					jobSchedule := value.(models.JobSchedule)
 					if currentTime.After(jobSchedule.ExecutionTime) {
+						jobExecutor.scheduledJobs.Delete(jobSchedule.Job.ID)
 						jobExecutor.invokeJob(jobSchedule.Job)
-						jobExecutor.scheduledJobs = append(jobExecutor.scheduledJobs[:i], jobExecutor.scheduledJobs[i+1:]...)
 					}
-				}
-				jobExecutor.scheduledJobsMtx.Unlock()
-
+					return true
+				})
 			case <-jobExecutor.context.Done():
 				return
 			}
