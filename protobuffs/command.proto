@@ -8,6 +8,7 @@ message Command {
     COMMAND_TYPE_JOB_QUEUE = 1;
     COMMAND_TYPE_JOB_EXECUTION_LOGS = 2;
     COMMAND_TYPE_STOP_JOBS = 3;
+    COMMAND_TYPE_RECOVER_JOBS = 4;
   }
   Type type = 1;
   string sql = 2;

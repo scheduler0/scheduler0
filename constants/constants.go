@@ -15,6 +15,7 @@ const (
 	CommandTypeJobQueue         Command = 1
 	CommandTypeJobExecutionLogs Command = 2
 	CommandTypeStopJobs         Command = 3
+	CommandTypeRecoverJobs      Command = 4
 )
 
 // JobMaxBatchSize exceed this and sql-lite won't be happy max variable is 32766
