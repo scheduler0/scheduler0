@@ -146,12 +146,6 @@ func (node *Node) Boostrap() {
 	node.FsmStore.Raft = rft
 	node.jobExecutor.Raft = node.FsmStore.Raft
 	go node.handleLeaderChange()
-	//go node.jobExecutor.ListenOnInvocationChannels()
-
-	if node.isExistingNode &&
-		!node.SingleNodeMode && rft.State().String() == "Follower" {
-		node.jobProcessor.RecoverJobs()
-	}
 
 	myObserver := raft.NewObserver(node.peerObserverChannels, true, func(o *raft.Observation) bool {
 		_, peerObservation := o.Data.(raft.PeerObservation)
@@ -509,7 +503,15 @@ func (node *Node) recoverRaftState() raft.Configuration {
 		if err = node.LogDb.GetLog(index, &entry); err != nil {
 			node.logger.Fatalf("failed to get log at index %d: %v\n", index, err)
 		}
-		fsm.ApplyCommand(node.logger, &entry, dataStore, false, nil, nil)
+		fsm.ApplyCommand(
+			node.logger,
+			&entry,
+			dataStore,
+			false,
+			nil,
+			nil,
+			nil,
+		)
 		lastIndex = entry.Index
 		lastTerm = entry.Term
 	}
@@ -584,17 +586,37 @@ func (node *Node) authenticateWithPeersInConfig(logger *log.Logger) map[string]S
 	return results
 }
 
+func (node *Node) stopAllJobsOnAllNodes() {
+	_, applyErr := fsm.AppApply(
+		node.logger,
+		node.FsmStore.Raft,
+		constants.CommandTypeStopJobs,
+		"",
+		nil,
+	)
+	if applyErr != nil {
+		node.logger.Fatalln("failed to apply job update states ", applyErr)
+	}
+}
+
+func (node *Node) recoverJobsOnNode(peerId raft.ServerID) {
+	_, applyErr := fsm.AppApply(
+		node.logger,
+		node.FsmStore.Raft,
+		constants.CommandTypeRecoverJobs,
+		string(peerId),
+		nil,
+	)
+	if applyErr != nil {
+		node.logger.Fatalln("failed to apply job update states ", applyErr)
+	}
+}
+
 func (node *Node) handleLeaderChange() {
 	select {
 	case <-node.FsmStore.Raft.LeaderCh():
 		node.AcceptWrites = false
-		_, applyErr := fsm.AppApply(
-			node.logger,
-			node.FsmStore.Raft,
-			constants.CommandTypeStopJobs,
-			"",
-			nil,
-		)
+		node.stopAllJobsOnAllNodes()
 		configuration := node.FsmStore.Raft.GetConfiguration().Configuration()
 		servers := configuration.Servers
 		node.jobQueue.RemoveServers(servers)
@@ -602,9 +624,6 @@ func (node *Node) handleLeaderChange() {
 		node.jobQueue.SingleNodeMode = len(servers) == 1
 		node.jobExecutor.SingleNodeMode = node.jobQueue.SingleNodeMode
 		node.SingleNodeMode = node.jobQueue.SingleNodeMode
-		if applyErr != nil {
-			node.logger.Fatalln("failed to apply job update states ", applyErr)
-		}
 		if !node.SingleNodeMode {
 			compressedLogs := node.jobExecutor.GetUncommittedLogs()
 			uncompressedLogs, err := utils.GzUncompress(compressedLogs)
@@ -642,6 +661,8 @@ func (node *Node) listenOnInputQueues(fsmStr *fsm.Store) {
 		select {
 		case job := <-fsmStr.QueueJobsChannel:
 			node.jobExecutor.QueueExecutions(job)
+		case _ = <-fsmStr.RecoverJobs:
+			node.jobProcessor.RecoverJobs()
 		case _ = <-fsmStr.StopAllJobs:
 			node.jobExecutor.StopAll()
 		}
@@ -857,7 +878,7 @@ func (node *Node) listenToObserverChannel() {
 				node.logger.Println("A node got removed from the cluster")
 			}
 			if isResumedHeartbeatObservation {
-				fmt.Println("resumedHeartbeatObservation.PeerID", resumedHeartbeatObservation.PeerID)
+				node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
 				node.logger.Println(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
 			}
 		}

@@ -30,6 +30,7 @@ type Store struct {
 	QueueJobsChannel        chan []interface{}
 	JobExecutionLogsChannel chan models.CommitJobStateLog
 	StopAllJobs             chan bool
+	RecoverJobs             chan bool
 
 	raft.BatchingFSM
 }
@@ -88,6 +89,7 @@ func (s *Store) Apply(l *raft.Log) interface{} {
 		true,
 		s.QueueJobsChannel,
 		s.StopAllJobs,
+		s.RecoverJobs,
 	)
 }
 
@@ -105,6 +107,7 @@ func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
 			true,
 			s.QueueJobsChannel,
 			s.StopAllJobs,
+			s.RecoverJobs,
 		)
 		results = append(results, result)
 	}
@@ -118,7 +121,8 @@ func ApplyCommand(
 	db *db.DataStore,
 	useQueues bool,
 	queue chan []interface{},
-	stopAllJobsQueue chan bool) interface{} {
+	stopAllJobsQueue chan bool,
+	recoverJobsQueue chan bool) interface{} {
 
 	logPrefix := logger.Prefix()
 	logger.SetPrefix(fmt.Sprintf("%s[apply-raft-command] ", logPrefix))
@@ -144,6 +148,10 @@ func ApplyCommand(
 	case protobuffs.Command_Type(constants.CommandTypeStopJobs):
 		if useQueues {
 			stopAllJobsQueue <- true
+		}
+	case protobuffs.Command_Type(constants.CommandTypeRecoverJobs):
+		if useQueues {
+			recoverJobsQueue <- true
 		}
 	}
 
