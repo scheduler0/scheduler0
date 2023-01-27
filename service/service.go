@@ -36,8 +36,8 @@ func NewService(ctx context.Context, logger *log.Logger) *Service {
 	fsmStr := fsm.NewFSMStore(sqliteDb, logger)
 
 	dispatcher := workers.NewDispatcher(
-		int64(configs.IncomingRequestMaxWorkers),
-		int64(configs.IncomingRequestMaxQueue),
+		int64(configs.MaxWorkers),
+		int64(configs.MaxQueue),
 		func(effector func(successChannel, errorChannel chan any), successChannel, errorChannel chan any) {
 			effector(successChannel, errorChannel)
 		},
@@ -59,15 +59,15 @@ func NewService(ctx context.Context, logger *log.Logger) *Service {
 	service := Service{
 		JobService:         NewJobService(ctx, logger, jobRepo, jobQueue, projectRepo, dispatcher),
 		ProjectService:     NewProjectService(logger, projectRepo),
-		CredentialService:  NewCredentialService(ctx, logger, credentialRepo),
+		CredentialService:  NewCredentialService(ctx, logger, credentialRepo, dispatcher),
 		JobExecutorService: jobExecutor,
 		NodeService:        nodeService,
 		JobQueueService:    jobQueue,
 	}
 
 	service.Dispatcher = dispatcher
-
 	service.Dispatcher.Run()
+	service.JobExecutorService.CheckForJobsToInvoke()
 
 	return &service
 }
