@@ -12,12 +12,14 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
 	"scheduler0/utils/batcher"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -74,6 +76,7 @@ func NewFSMStore(db *db.DataStore, logger *log.Logger) *Store {
 		QueueJobsChannel:        make(chan []interface{}, 1),
 		JobExecutionLogsChannel: make(chan models.CommitJobStateLog, 1),
 		StopAllJobs:             make(chan bool, 1),
+		RecoverJobs:             make(chan bool, 1),
 		logger:                  logger,
 	}
 }
@@ -149,10 +152,13 @@ func ApplyCommand(
 		if useQueues {
 			stopAllJobsQueue <- true
 		}
+		break
 	case protobuffs.Command_Type(constants.CommandTypeRecoverJobs):
-		if useQueues {
+		configs := config.GetConfigurations(logger)
+		if useQueues && command.Sql == strconv.FormatUint(configs.NodeId, 10) {
 			recoverJobsQueue <- true
 		}
+		break
 	}
 
 	return nil

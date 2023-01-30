@@ -878,8 +878,8 @@ func (node *Node) listenToObserverChannel() {
 				node.logger.Println("A node got removed from the cluster")
 			}
 			if isResumedHeartbeatObservation {
-				node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
 				node.logger.Println(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
+				node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
 			}
 		}
 	}
