@@ -267,7 +267,7 @@ func (projectRepo *projectRepo) List(offset uint64, limit uint64) ([]models.Proj
 		ProjectsIdColumn,
 		NameColumn,
 		DescriptionColumn,
-		fmt.Sprintf("cast(\"%s\" as text)", ProjectsDateCreatedColumn),
+		ProjectsDateCreatedColumn,
 	).
 		From(ProjectsTableName).
 		Offset(offset).
