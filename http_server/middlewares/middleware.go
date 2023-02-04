@@ -15,10 +15,6 @@ import (
 	"sync"
 )
 
-const (
-	RequestID = iota + 1
-)
-
 // middlewareHandler middleware type
 type middlewareHandler struct {
 	logger *log.Logger
@@ -42,7 +38,7 @@ func (m *middlewareHandler) ContextMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := ksuid.New().String()
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, RequestID, id)
+		ctx = context.WithValue(ctx, "RequestID", id)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
