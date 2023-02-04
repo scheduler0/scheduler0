@@ -72,10 +72,20 @@ func GetDBConnection(logger *log.Logger) *DataStore {
 	dbConnection := conn.(*sql.DB)
 	err = dbConnection.Ping()
 	if err != nil {
-		logger.Fatalln(fmt.Errorf("ping error: restore failed to create db: %v", err))
+		logger.Fatalln(fmt.Errorf("ping error: failed to create file db: %v", err))
 	}
 
 	return sqliteDb
+}
+
+func GetDBMEMConnection(logger *log.Logger) *DataStore {
+	conn, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", ":memory:"))
+	if err != nil {
+		logger.Fatalln(fmt.Errorf("ping error: failed to create in memory db: %v", err))
+	}
+	return &DataStore{
+		Connection: conn,
+	}
 }
 
 func GetSetupSQL() string {
@@ -169,6 +179,7 @@ CREATE TABLE IF NOT EXISTS async_tasks
 	input  					TEXT NOT NULL,
 	output  				TEXT,
 	state					INTEGER NOT NULL,
+	service					TEXT,
     date_created  		 	datetime NOT NULL
 );
 `
