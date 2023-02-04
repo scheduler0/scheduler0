@@ -7,6 +7,7 @@ import (
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/repository"
+	"scheduler0/service/async_task_manager"
 	"scheduler0/service/executor"
 	"scheduler0/service/node"
 	"scheduler0/service/queue"
@@ -22,6 +23,7 @@ type Service struct {
 	JobExecutorService *executor.JobExecutor
 	NodeService        *node.Node
 	JobQueueService    *queue.JobQueue
+	AsyncTaskManager   *async_task_manager.AsyncTaskManager
 }
 
 func NewService(ctx context.Context, logger *log.Logger) *Service {
@@ -49,7 +51,9 @@ func NewService(ctx context.Context, logger *log.Logger) *Service {
 	projectRepo := repository.NewProjectRepo(logger, fsmStr, jobRepo)
 	executionsRepo := repository.NewExecutionsRepo(logger, fsmStr)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmStr)
+	asyncTaskRepo := repository.NewAsyncTasksRepo(ctx, logger, fsmStr)
 
+	asyncTaskManager := async_task_manager.NewAsyncTaskManager(ctx, logger, asyncTaskRepo)
 	jobExecutor := executor.NewJobExecutor(ctx, logger, jobRepo, executionsRepo, jobQueueRepo, dispatcher)
 	jobQueue := queue.NewJobQueue(ctx, logger, fsmStr, jobExecutor, jobQueueRepo)
 	nodeService := node.NewNode(ctx, logger, jobExecutor, jobQueue, jobRepo, projectRepo, executionsRepo, jobQueueRepo)
@@ -57,17 +61,19 @@ func NewService(ctx context.Context, logger *log.Logger) *Service {
 	nodeService.FsmStore = fsmStr
 
 	service := Service{
-		JobService:         NewJobService(ctx, logger, jobRepo, jobQueue, projectRepo, dispatcher),
+		JobService:         NewJobService(ctx, logger, jobRepo, jobQueue, projectRepo, dispatcher, asyncTaskManager),
 		ProjectService:     NewProjectService(logger, projectRepo),
 		CredentialService:  NewCredentialService(ctx, logger, credentialRepo, dispatcher),
 		JobExecutorService: jobExecutor,
 		NodeService:        nodeService,
 		JobQueueService:    jobQueue,
+		AsyncTaskManager:   asyncTaskManager,
 	}
 
 	service.Dispatcher = dispatcher
 	service.Dispatcher.Run()
-	service.JobExecutorService.CheckForJobsToInvoke()
+	service.JobExecutorService.ListenForJobsToInvoke()
+	service.AsyncTaskManager.ListenForNotifications()
 
 	return &service
 }
