@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/robfig/cron"
 	"log"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
+	"scheduler0/service/async_task_manager"
 	"scheduler0/service/queue"
 	"scheduler0/utils"
 	"scheduler0/utils/workers"
@@ -15,31 +17,41 @@ import (
 )
 
 type jobService struct {
-	jobRepo     repository.Job
-	projectRepo repository.Project
-	Queue       *queue.JobQueue
-	Ctx         context.Context
-	logger      *log.Logger
-	dispatcher  *workers.Dispatcher
+	jobRepo          repository.Job
+	projectRepo      repository.Project
+	Queue            *queue.JobQueue
+	Ctx              context.Context
+	logger           *log.Logger
+	dispatcher       *workers.Dispatcher
+	asyncTaskManager *async_task_manager.AsyncTaskManager
 }
 
 type Job interface {
 	GetJobsByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) (*models.PaginatedJob, *utils.GenericError)
 	GetJob(job models.JobModel) (*models.JobModel, *utils.GenericError)
-	BatchInsertJobs(jobs []models.JobModel) ([]models.JobModel, *utils.GenericError)
+	BatchInsertJobs(requestId string, jobs []models.JobModel) ([]uint64, *utils.GenericError)
 	UpdateJob(job models.JobModel) (*models.JobModel, *utils.GenericError)
 	DeleteJob(job models.JobModel) *utils.GenericError
 	QueueJobs(jobs []models.JobModel)
 }
 
-func NewJobService(context context.Context, logger *log.Logger, jobRepo repository.Job, queue *queue.JobQueue, projectRepo repository.Project, dispatcher *workers.Dispatcher) Job {
+func NewJobService(
+	context context.Context,
+	logger *log.Logger,
+	jobRepo repository.Job,
+	queue *queue.JobQueue,
+	projectRepo repository.Project,
+	dispatcher *workers.Dispatcher,
+	asyncTaskManager *async_task_manager.AsyncTaskManager,
+) Job {
 	service := &jobService{
-		jobRepo:     jobRepo,
-		projectRepo: projectRepo,
-		Queue:       queue,
-		Ctx:         context,
-		logger:      logger,
-		dispatcher:  dispatcher,
+		jobRepo:          jobRepo,
+		projectRepo:      projectRepo,
+		Queue:            queue,
+		Ctx:              context,
+		logger:           logger,
+		dispatcher:       dispatcher,
+		asyncTaskManager: asyncTaskManager,
 	}
 
 	return service
@@ -81,10 +93,9 @@ func (jobService *jobService) GetJob(job models.JobModel) (*models.JobModel, *ut
 }
 
 // BatchInsertJobs creates jobs in batches
-func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.JobModel, *utils.GenericError) {
-
+func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.JobModel) ([]uint64, *utils.GenericError) {
 	if len(jobs) < 1 {
-		return []models.JobModel{}, nil
+		return nil, nil
 	}
 
 	for _, job := range jobs {
@@ -121,10 +132,39 @@ func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.
 		}
 	}
 
-	successData, errorData := jobService.dispatcher.BlockQueue(func(successChannel chan any, errorChannel chan any) {
-		insertedIds, err := jobService.jobRepo.BatchInsertJobs(jobs)
-		if err != nil {
-			errorChannel <- utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message))
+	jobsBytes, marshalErr := json.Marshal(jobs)
+	if marshalErr != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to convert json to string"))
+	}
+
+	taskIds, addTaskErr := jobService.asyncTaskManager.AddTasks(string(jobsBytes), requestId, "job")
+	if addTaskErr != nil {
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to create async tasks"))
+	}
+
+	jobService.dispatcher.NoBlockQueue(func(successChannel chan any, errorChannel chan any) {
+		defer func() {
+			close(successChannel)
+			close(errorChannel)
+		}()
+		inProgressUpdateTaskErr := jobService.asyncTaskManager.UpdateTasksById(taskIds[0], models.AsyncTaskInProgress, "")
+		if inProgressUpdateTaskErr != nil {
+			jobService.logger.Println("failed to update an async task", inProgressUpdateTaskErr, "; new state:", models.AsyncTaskInProgress)
+			return
+		}
+
+		insertedIds, iErr := jobService.jobRepo.BatchInsertJobs(jobs)
+		if iErr != nil {
+			errJson, errJsonErr := json.Marshal(utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message)))
+			if errJsonErr != nil {
+				jobService.logger.Println("failed to save error out for an async task", errJsonErr)
+				return
+			}
+			updateTaskErr := jobService.asyncTaskManager.UpdateTasksById(taskIds[0], models.AsyncTaskFail, string(errJson))
+			if updateTaskErr != nil {
+				jobService.logger.Println("failed to update an async task", updateTaskErr, "; new state:", models.AsyncTaskSuccess)
+				return
+			}
 			return
 		}
 
@@ -138,17 +178,19 @@ func (jobService *jobService) BatchInsertJobs(jobs []models.JobModel) ([]models.
 		}
 
 		jobService.QueueJobs(jobs)
-
-		successChannel <- jobs
+		jobsJson, errJsonErr := json.Marshal(jobs)
+		if errJsonErr != nil {
+			jobService.logger.Println("failed to save error out for an async task", errJsonErr)
+			return
+		}
+		updateTaskErr := jobService.asyncTaskManager.UpdateTasksById(taskIds[0], models.AsyncTaskSuccess, string(jobsJson))
+		if updateTaskErr != nil {
+			jobService.logger.Println("failed to update an async task", updateTaskErr, "; new state:", models.AsyncTaskSuccess)
+			return
+		}
 	})
 
-	jobs, successOk := successData.([]models.JobModel)
-	if successOk {
-		return jobs, nil
-	}
-	errM := errorData.(utils.GenericError)
-
-	return nil, &errM
+	return taskIds, nil
 }
 
 // UpdateJob updates job with ID in transformer. Note that cron expression of job cannot be updated.
