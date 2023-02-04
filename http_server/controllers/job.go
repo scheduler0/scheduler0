@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -96,11 +97,15 @@ func (jobController *jobHTTPController) BatchCreateJobs(w http.ResponseWriter, r
 		return
 	}
 
-	createdJobs, err := jobController.jobService.BatchInsertJobs(jobs)
+	requestId := r.Context().Value("RequestID")
+
+	createdJobs, err := jobController.jobService.BatchInsertJobs(requestId.(string), jobs)
 	if err != nil {
 		utils.SendJSON(w, err.Message, false, http.StatusBadRequest, nil)
 		return
 	}
+
+	w.Header().Set("Location", fmt.Sprintf("/async-tasks/%s", requestId))
 
 	utils.SendJSON(w, createdJobs, true, http.StatusAccepted, nil)
 	return
