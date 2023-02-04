@@ -35,6 +35,7 @@ func Start() {
 	credentialController := controllers.NewCredentialController(logger, serv.CredentialService)
 	healthCheckController := controllers.NewHealthCheckController(logger, serv.NodeService.FsmStore)
 	peerController := controllers.NewPeerController(logger, serv.NodeService.FsmStore, serv.NodeService)
+	asyncTaskController := controllers.NewAsyncTaskController(logger, serv.NodeService.FsmStore, serv.AsyncTaskManager)
 
 	// Mount middleware
 	middleware := middlewares.NewMiddlewareHandler(logger)
@@ -72,6 +73,9 @@ func Start() {
 	// Node Endpoints
 	router.HandleFunc("/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
 	router.HandleFunc("/execution-logs", peerController.ExecutionLogs).Methods(http.MethodGet)
+
+	// AsyncTask
+	router.HandleFunc("/async-tasks/{id}", asyncTaskController.GetTask).Methods(http.MethodGet)
 
 	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 
