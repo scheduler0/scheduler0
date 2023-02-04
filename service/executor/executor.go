@@ -275,7 +275,7 @@ func (jobExecutor *JobExecutor) StopAll() {
 	ctx, cancel := context.WithCancel(context.Background())
 	jobExecutor.cancelReq = cancel
 	jobExecutor.context = ctx
-	jobExecutor.CheckForJobsToInvoke()
+	jobExecutor.ListenForJobsToInvoke()
 }
 
 func (jobExecutor *JobExecutor) ScheduleProcess(job models.JobModel, executeTime time.Time) {
@@ -288,7 +288,7 @@ func (jobExecutor *JobExecutor) ScheduleProcess(job models.JobModel, executeTime
 	})
 }
 
-func (jobExecutor *JobExecutor) CheckForJobsToInvoke() {
+func (jobExecutor *JobExecutor) ListenForJobsToInvoke() {
 	ticker := time.NewTicker(time.Duration(1) * time.Second)
 	schedulerTime := utils.GetSchedulerTime()
 
