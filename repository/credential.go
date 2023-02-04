@@ -90,7 +90,7 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 	defer credentialRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
 	sqlr := sq.Expr(fmt.Sprintf(
-		"select %s, %s, %s, %s, cast(\"%s\" as text) from %s where %s = ?",
+		"select %s, %s, %s, %s, %s from %s where %s = ?",
 		JobsIdColumn,
 		ArchivedColumn,
 		ApiKeyColumn,
