@@ -312,27 +312,14 @@ func (jobExecutor *JobExecutor) ListenForJobsToInvoke() {
 	}()
 }
 
-func (jobExecutor *JobExecutor) GetUncommittedLogs() []byte {
+func (jobExecutor *JobExecutor) GetUncommittedLogs() []models.JobExecutionLog {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
 	configs := config.GetConfigurations(jobExecutor.logger)
-
 	executionLogs := jobExecutor.jobExecutionsRepo.GetUncommittedExecutionsLogForNode(configs.NodeId)
 
-	logBytes, err := json.Marshal(executionLogs)
-	if err != nil {
-		jobExecutor.logger.Println("failed to log state to bytes", err)
-		return nil
-	}
-
-	compressedByte, err := utils.GzCompress(logBytes)
-	if err != nil {
-		jobExecutor.logger.Println("failed to compress log file error", err)
-		return nil
-	}
-
-	return compressedByte
+	return executionLogs
 }
 
 func (jobExecutor *JobExecutor) ExecuteHTTP(jobs []models.JobModel, ctx context.Context, onSuccess func(pj []models.JobModel), onFailure func(pj []models.JobModel)) {
