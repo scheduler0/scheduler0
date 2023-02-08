@@ -2,7 +2,9 @@ package async_task_manager
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
 	"scheduler0/utils"
@@ -12,7 +14,8 @@ import (
 type AsyncTaskManager struct {
 	task                 sync.Map // map[uint64]models.AsyncTask
 	taskIdRequestIdMap   sync.Map // map[string]uint64
-	subscribers          sync.Map // map[uint64][]func(task models.AsyncTask)
+	subscribers          sync.Map // map[uint64]map[uint64]func(task models.AsyncTask)
+	subscriberIds        sync.Map // map[uint64][]uint64
 	asyncTaskManagerRepo repository.AsyncTasksRepo
 	context              context.Context
 	logger               *log.Logger
@@ -87,49 +90,85 @@ func (m *AsyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 	return nil
 }
 
-func (m *AsyncTaskManager) AddSubscriber(taskId uint64, subscriber func(task models.AsyncTask)) {
+func (m *AsyncTaskManager) AddSubscriber(taskId uint64, subscriber func(task models.AsyncTask)) (uint64, *utils.GenericError) {
 	t, ok := m.task.Load(taskId)
 	if !ok {
 		m.logger.Println("could not find task with id", taskId)
-		return
+		return 0, utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find task with id %d", taskId))
 	}
 	myt := t.(models.AsyncTask)
-	sb, ok := m.subscribers.Load(myt.Id)
-	var subscribers = []func(task models.AsyncTask){}
+	subIds, ok := m.subscriberIds.Load(taskId)
+	var maxId int64 = 0
 	if ok {
-		storedsubs := sb.([]func(task models.AsyncTask))
+		maxId = subIds.(int64)
+	}
+	subId := uint64(maxId + 1)
+
+	sb, ok := m.subscribers.Load(myt.Id)
+	var subscribers = map[uint64]func(task models.AsyncTask){}
+	if ok {
+		storedsubs := sb.(map[uint64]func(task models.AsyncTask))
 		subscribers = storedsubs
 	}
-	subscribers = append(subscribers, subscriber)
+	subscribers[subId] = subscriber
 	m.subscribers.Store(taskId, subscribers)
+	m.subscriberIds.Store(taskId, subId)
+
+	return subId, nil
 }
 
-func (m *AsyncTaskManager) GetTask(taskId uint64) (*models.AsyncTask, *utils.GenericError) {
+func (m *AsyncTaskManager) GetTask(taskId uint64) (chan models.AsyncTask, uint64, *utils.GenericError) {
 	task, err := m.asyncTaskManagerRepo.GetTask(taskId)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if task.State != models.AsyncTaskInProgress && task.State != models.AsyncTaskNotStated {
-		return task, nil
+		return nil, 0, nil
 	}
 
 	var taskCh = make(chan models.AsyncTask, 1)
 
-	m.AddSubscriber(taskId, func(task models.AsyncTask) {
+	subs, addErr := m.AddSubscriber(taskId, func(task models.AsyncTask) {
 		taskCh <- task
 	})
+	if addErr != nil {
+		return nil, 0, addErr
+	}
 
-	updatedTask := <-taskCh
-
-	return &updatedTask, nil
+	return taskCh, subs, nil
 }
 
-func (m *AsyncTaskManager) GetTaskWithRequestId(requestId string) (*models.AsyncTask, *utils.GenericError) {
+func (m *AsyncTaskManager) GetTaskWithRequestId(requestId string) (chan models.AsyncTask, uint64, *utils.GenericError) {
 	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if !ok {
-		return nil, nil
+		return nil, 0, nil
 	}
 	return m.GetTask(taskId.(uint64))
+}
+
+func (m *AsyncTaskManager) GetTaskIdWithRequestId(requestId string) (uint64, *utils.GenericError) {
+	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
+	if ok {
+		return taskId.(uint64), nil
+
+	}
+	return 0, nil
+}
+
+func (m *AsyncTaskManager) DeleteSubscriber(taskId, subscriberId uint64) *utils.GenericError {
+	t, ok := m.task.Load(taskId)
+	if !ok {
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find task with id %d", taskId))
+	}
+	myt := t.(models.AsyncTask)
+	sb, ok := m.subscribers.Load(myt.Id)
+	if !ok {
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find subscribers for task with id %d", taskId))
+	}
+	subscribers := sb.(map[uint64]func(task models.AsyncTask))
+	delete(subscribers, subscriberId)
+	m.subscribers.Store(taskId, subscribers)
+	return nil
 }
 
 func (m *AsyncTaskManager) ListenForNotifications() {
@@ -145,9 +184,9 @@ func (m *AsyncTaskManager) ListenForNotifications() {
 				myt := t.(models.AsyncTask)
 				sb, ok := m.subscribers.Load(myt.Id)
 
-				var subscribers = []func(task models.AsyncTask){}
+				var subscribers = map[uint64]func(task models.AsyncTask){}
 				if ok {
-					subscribers = sb.([]func(task models.AsyncTask))
+					subscribers = sb.(map[uint64]func(task models.AsyncTask))
 				}
 
 				for _, subscriber := range subscribers {
