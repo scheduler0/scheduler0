@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"scheduler0/config"
@@ -40,7 +41,12 @@ func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Reque
 }
 
 func (controller *peerController) ExecutionLogs(w http.ResponseWriter, r *http.Request) {
-	bLogs := controller.peer.ReturnUncommittedLogs()
-	utils.SendJSON(w, bLogs, true, http.StatusOK, nil)
+	requestId := r.Context().Value("RequestID")
+
+	controller.peer.ReturnUncommittedLogs()
+
+	w.Header().Set("Location", fmt.Sprintf("/async-tasks/%s", requestId))
+
+	utils.SendJSON(w, nil, true, http.StatusOK, nil)
 	return
 }
