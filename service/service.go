@@ -56,7 +56,17 @@ func NewService(ctx context.Context, logger *log.Logger) *Service {
 	asyncTaskManager := async_task_manager.NewAsyncTaskManager(ctx, logger, asyncTaskRepo)
 	jobExecutor := executor.NewJobExecutor(ctx, logger, jobRepo, executionsRepo, jobQueueRepo, dispatcher)
 	jobQueue := queue.NewJobQueue(ctx, logger, fsmStr, jobExecutor, jobQueueRepo)
-	nodeService := node.NewNode(ctx, logger, jobExecutor, jobQueue, jobRepo, projectRepo, executionsRepo, jobQueueRepo)
+	nodeService := node.NewNode(
+		ctx,
+		logger,
+		jobExecutor,
+		jobQueue,
+		jobRepo,
+		projectRepo,
+		executionsRepo,
+		jobQueueRepo,
+		asyncTaskManager,
+	)
 
 	nodeService.FsmStore = fsmStr
 
