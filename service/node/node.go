@@ -26,6 +26,7 @@ import (
 	"scheduler0/protobuffs"
 	"scheduler0/repository"
 	"scheduler0/secrets"
+	"scheduler0/service/async_task_manager"
 	"scheduler0/service/executor"
 	"scheduler0/service/processor"
 	"scheduler0/service/queue"
@@ -84,6 +85,7 @@ type Node struct {
 	projectRepo          repository.Project
 	isExistingNode       bool
 	peerObserverChannels chan raft.Observation
+	asyncTaskManager     *async_task_manager.AsyncTaskManager
 }
 
 func NewNode(
@@ -95,6 +97,7 @@ func NewNode(
 	projectRepo repository.Project,
 	executionsRepo repository.ExecutionsRepo,
 	jobQueueRepo repository.JobQueuesRepo,
+	asyncTaskManager *async_task_manager.AsyncTaskManager,
 ) *Node {
 	logPrefix := logger.Prefix()
 	logger.SetPrefix(fmt.Sprintf("%s[creating-new-Node] ", logPrefix))
@@ -127,6 +130,7 @@ func NewNode(
 		projectRepo:          projectRepo,
 		isExistingNode:       exists,
 		peerObserverChannels: make(chan raft.Observation, numReplicas),
+		asyncTaskManager:     asyncTaskManager,
 	}
 }
 
@@ -191,8 +195,8 @@ func (node *Node) commitJobLogState(peerAddress string, jobState []models.JobExe
 	_ = node.FsmStore.Raft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 }
 
-func (node *Node) ReturnUncommittedLogs() []byte {
-	return node.jobExecutor.GetUncommittedLogs()
+func (node *Node) ReturnUncommittedLogs() {
+	node.jobExecutor.GetUncommittedLogs()
 }
 
 func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
@@ -625,20 +629,9 @@ func (node *Node) handleLeaderChange() {
 		node.jobExecutor.SingleNodeMode = node.jobQueue.SingleNodeMode
 		node.SingleNodeMode = node.jobQueue.SingleNodeMode
 		if !node.SingleNodeMode {
-			compressedLogs := node.jobExecutor.GetUncommittedLogs()
-			uncompressedLogs, err := utils.GzUncompress(compressedLogs)
-			if err != nil {
-				node.logger.Println("failed to uncompress gzipped logs fetch response data", err.Error())
-			}
-
-			jobStateLogs := []models.JobExecutionLog{}
-			err = json.Unmarshal(uncompressedLogs, &jobStateLogs)
-			if err != nil {
-				node.logger.Println("failed to unmarshal uncompressed logs to jobStateLogs instance", err.Error())
-			}
-
-			if len(jobStateLogs) > 0 {
-				node.commitJobLogState(utils.GetServerHTTPAddress(node.logger), jobStateLogs)
+			uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
+			if len(uncommittedLogs) > 0 {
+				node.commitJobLogState(utils.GetServerHTTPAddress(node.logger), uncommittedLogs)
 			}
 
 			go node.fetchUncommittedLogsFromPeers()
@@ -811,7 +804,7 @@ func (node *Node) fetchUncommittedLogsFromPeers() {
 			if len(notCompletedFirstRound) == 0 && !startedJobs {
 				startedJobs = true
 				node.AcceptWrites = true
-				go node.jobProcessor.StartJobs()
+				node.jobProcessor.StartJobs()
 			}
 
 			if len(serversNotFetched) < 1 {
