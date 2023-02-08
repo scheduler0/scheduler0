@@ -30,15 +30,35 @@ func NewAsyncTaskController(logger *log.Logger, fsmStore *fsm.Store, asyncTaskSe
 
 func (controller *asyncTaskController) GetTask(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
+	requestID := params["id"]
 
-	taskID := params["id"]
-
-	task, err := controller.asyncTaskService.GetTaskWithRequestId(taskID)
+	taskCh, subId, err := controller.asyncTaskService.GetTaskWithRequestId(requestID)
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, err.Type, nil)
 		return
 	}
 
-	utils.SendJSON(w, task, true, http.StatusOK, nil)
-	return
+	for {
+		select {
+		case task := <-taskCh:
+			controller.logger.Println("returning task from channel")
+			utils.SendJSON(w, task, true, http.StatusOK, nil)
+			return
+		case <-r.Context().Done():
+			taskIdInt, err := controller.asyncTaskService.GetTaskIdWithRequestId(requestID)
+			if err != nil {
+				controller.logger.Println("failed to delete subscriber for task %s: could not convert taskid str to int", taskIdInt)
+				return
+			}
+			delErr := controller.asyncTaskService.DeleteSubscriber(taskIdInt, subId)
+			close(taskCh)
+			if delErr != nil {
+				controller.logger.Println("failed to delete subscriber for task %s: ", taskIdInt, delErr)
+				return
+			}
+			controller.logger.Println("returning success")
+			return
+		}
+	}
+
 }
