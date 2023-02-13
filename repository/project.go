@@ -4,7 +4,7 @@ import (
 	_ "errors"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
-	"log"
+	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"scheduler0/constants"
 	"scheduler0/fsm"
@@ -27,7 +27,7 @@ type Project interface {
 type projectRepo struct {
 	fsmStore *fsm.Store
 	jobRepo  Job
-	logger   *log.Logger
+	logger   hclog.Logger
 }
 
 const (
@@ -38,11 +38,11 @@ const (
 	ProjectsDateCreatedColumn = "date_created"
 )
 
-func NewProjectRepo(logger *log.Logger, store *fsm.Store, jobRepo Job) Project {
+func NewProjectRepo(logger hclog.Logger, store *fsm.Store, jobRepo Job) Project {
 	return &projectRepo{
 		fsmStore: store,
 		jobRepo:  jobRepo,
-		logger:   logger,
+		logger:   logger.Named("project-repo"),
 	}
 }
 
@@ -83,7 +83,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (uint64,
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.logger, projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if applyErr != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -338,7 +338,7 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (uint
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.logger, projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -371,7 +371,7 @@ func (projectRepo *projectRepo) DeleteOneByID(project models.ProjectModel) (uint
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, deleteErr.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.logger, projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if applyErr != nil {
 		return 0, applyErr
 	}
