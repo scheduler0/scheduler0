@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"github.com/spf13/afero"
 	"github.com/victorlenerd/scheduler0/server/src/utils"
-	"log"
 	"os"
 	"scheduler0/config"
 	"scheduler0/constants"
@@ -19,12 +18,12 @@ type Scheduler0Secrets struct {
 var cachedSecrets *Scheduler0Secrets
 
 // GetSecrets this will retrieve scheduler0 credentials stored on disk
-func GetSecrets(logger *log.Logger) *Scheduler0Secrets {
+func GetSecrets() *Scheduler0Secrets {
 	if cachedSecrets != nil {
 		return cachedSecrets
 	}
 
-	binPath := config.GetBinPath(logger)
+	binPath := config.GetBinPath()
 
 	fs := afero.NewOsFs()
 	data, err := afero.ReadFile(fs, binPath+"/"+constants.SecretsFileName)
@@ -40,8 +39,8 @@ func GetSecrets(logger *log.Logger) *Scheduler0Secrets {
 	return cachedSecrets
 }
 
-func SaveSecrets(logger *log.Logger, credentialsInput *Scheduler0Secrets) *Scheduler0Secrets {
-	binPath := config.GetBinPath(logger)
+func SaveSecrets(credentialsInput *Scheduler0Secrets) *Scheduler0Secrets {
+	binPath := config.GetBinPath()
 
 	fs := afero.NewOsFs()
 	data, err := json.Marshal(credentialsInput)
