@@ -70,7 +70,7 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 			}
 
 			if IsPeerClient(r) {
-				if validity := IsAuthorizedPeerClient(r, m.logger); validity {
+				if validity := IsAuthorizedPeerClient(r); validity {
 					next.ServeHTTP(w, r)
 					return
 				} else {
@@ -100,8 +100,8 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *node.Node) func(nex
 				return
 			}
 
-			if !peer.AcceptWrites && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
-				configs := config.GetConfigurations(m.logger)
+			if !peer.CanAcceptClientWriteRequest() && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
+				configs := config.GetConfigurations()
 				serverAddr, _ := peer.FsmStore.Raft.LeaderWithID()
 
 				redirectUrl := ""
