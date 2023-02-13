@@ -2,7 +2,7 @@ package service
 
 import (
 	"fmt"
-	"log"
+	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
@@ -12,7 +12,7 @@ import (
 // ProjectService project server the layer on top db repos
 type projectService struct {
 	projectRepo repository.Project
-	logger      *log.Logger
+	logger      hclog.Logger
 }
 
 type Project interface {
@@ -25,10 +25,10 @@ type Project interface {
 	BatchGetProjects(projectIds []uint64) ([]models.ProjectModel, *utils.GenericError)
 }
 
-func NewProjectService(logger *log.Logger, projectRepo repository.Project) Project {
+func NewProjectService(logger hclog.Logger, projectRepo repository.Project) Project {
 	return &projectService{
 		projectRepo: projectRepo,
-		logger:      logger,
+		logger:      logger.Named("project-service"),
 	}
 }
 
