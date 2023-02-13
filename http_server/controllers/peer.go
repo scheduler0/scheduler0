@@ -31,7 +31,7 @@ func NewPeerController(logger *log.Logger, fsmStore *fsm.Store, peer *node.Node)
 }
 
 func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Request) {
-	configs := config.GetConfigurations(controller.logger)
+	configs := config.GetConfigurations()
 
 	res := node.Res{
 		IsLeader: configs.Bootstrap,
@@ -43,10 +43,10 @@ func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Reque
 func (controller *peerController) ExecutionLogs(w http.ResponseWriter, r *http.Request) {
 	requestId := r.Context().Value("RequestID")
 
-	controller.peer.ReturnUncommittedLogs()
+	controller.peer.ReturnUncommittedLogs(requestId.(string))
 
 	w.Header().Set("Location", fmt.Sprintf("/async-tasks/%s", requestId))
 
-	utils.SendJSON(w, nil, true, http.StatusOK, nil)
+	utils.SendJSON(w, nil, true, http.StatusAccepted, nil)
 	return
 }
