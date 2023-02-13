@@ -3,7 +3,6 @@ package middlewares
 import (
 	"crypto/sha256"
 	"crypto/subtle"
-	"log"
 	"net/http"
 	"scheduler0/constants/headers"
 	"scheduler0/secrets"
@@ -14,8 +13,8 @@ func IsPeerClient(req *http.Request) bool {
 	return peerHeaderVal == "cmd" || peerHeaderVal == "peer"
 }
 
-func IsAuthorizedPeerClient(req *http.Request, logger *log.Logger) bool {
-	credentials := secrets.GetSecrets(logger)
+func IsAuthorizedPeerClient(req *http.Request) bool {
+	credentials := secrets.GetSecrets()
 	username, password, ok := req.BasicAuth()
 	if ok {
 		usernameHash := sha256.Sum256([]byte(username))
