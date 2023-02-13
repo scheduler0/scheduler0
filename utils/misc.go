@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"github.com/segmentio/ksuid"
 	"github.com/spf13/afero"
@@ -21,10 +22,10 @@ import (
 	"unsafe"
 )
 
-func MakeDirIfNotExist(logger *log.Logger, path string) (string, bool) {
+func MakeDirIfNotExist(path string) (string, bool) {
 	dir, err := os.Getwd()
 	if err != nil {
-		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+		log.Fatal("Fatal error getting working dir: ", err.Error())
 	}
 
 	dirPath := fmt.Sprintf("%v/%v", dir, path)
@@ -38,7 +39,7 @@ func MakeDirIfNotExist(logger *log.Logger, path string) (string, bool) {
 	if !exists {
 		err := fs.Mkdir(dirPath, os.ModePerm)
 		if err != nil {
-			logger.Println("err", err)
+			log.Fatal("err", err)
 			return dirPath, exists
 		}
 	}
@@ -122,8 +123,8 @@ func BytesFromSnapshot(rc io.ReadCloser) ([]byte, error) {
 	return database, nil
 }
 
-func GetNodeServerAddressWithRaftAddress(logger *log.Logger, raftAddress raft.ServerAddress) string {
-	configs := config.GetConfigurations(logger)
+func GetNodeServerAddressWithRaftAddress(raftAddress raft.ServerAddress) string {
+	configs := config.GetConfigurations()
 
 	for _, replica := range configs.Replicas {
 		if replica.RaftAddress == string(raftAddress) {
@@ -134,8 +135,8 @@ func GetNodeServerAddressWithRaftAddress(logger *log.Logger, raftAddress raft.Se
 	return ""
 }
 
-func GetNodeIdWithRaftAddress(logger *log.Logger, raftAddress raft.ServerAddress) (int64, error) {
-	configs := config.GetConfigurations(logger)
+func GetNodeIdWithRaftAddress(raftAddress raft.ServerAddress) (int64, error) {
+	configs := config.GetConfigurations()
 
 	for _, replica := range configs.Replicas {
 		if replica.RaftAddress == string(raftAddress) {
@@ -146,8 +147,8 @@ func GetNodeIdWithRaftAddress(logger *log.Logger, raftAddress raft.ServerAddress
 	return -1, errors.New("cannot find node with raft address")
 }
 
-func GetNodeIdWithServerAddress(logger *log.Logger, serverAddress string) (int64, error) {
-	configs := config.GetConfigurations(logger)
+func GetNodeIdWithServerAddress(serverAddress string) (int64, error) {
+	configs := config.GetConfigurations()
 
 	for _, replica := range configs.Replicas {
 		if replica.Address == serverAddress {
@@ -162,13 +163,13 @@ func bToMb(b uint64) uint64 {
 	return b / 1024 / 1024
 }
 
-func MonitorMemoryUsage(logger *log.Logger) bool {
-	configs := config.GetConfigurations(logger)
+func MonitorMemoryUsage(logger hclog.Logger) bool {
+	configs := config.GetConfigurations()
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	if bToMb(m.TotalAlloc) >= uint64(configs.MaxMemory) {
-		logger.Println("max memory reached cannot schedule jobs ", configs.MaxMemory, " MB, total allocated money", bToMb(m.TotalAlloc), "MB")
+	if bToMb(m.TotalAlloc) >= configs.MaxMemory {
+		logger.Error("max memory reached cannot schedule jobs ", configs.MaxMemory, " MB, total allocated money", bToMb(m.TotalAlloc), "MB")
 		return true
 	}
 
@@ -208,7 +209,7 @@ func GzUncompress(b []byte) ([]byte, error) {
 	return ub, nil
 }
 
-func GetServerHTTPAddress(logger *log.Logger) string {
-	configs := config.GetConfigurations(logger)
+func GetServerHTTPAddress() string {
+	configs := config.GetConfigurations()
 	return fmt.Sprintf("%v://%v:%v", configs.Protocol, configs.Host, configs.Port)
 }
