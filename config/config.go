@@ -19,6 +19,7 @@ type RaftNode struct {
 
 // Scheduler0Configurations global configurations
 type Scheduler0Configurations struct {
+	LogLevel                             string     `json:"logLevel" yaml:"LogLevel"`
 	Protocol                             string     `json:"protocol" yaml:"Protocol"`
 	Host                                 string     `json:"host" yaml:"Host"`
 	Port                                 string     `json:"port" yaml:"Port"`
@@ -52,13 +53,13 @@ var cachedConfig *Scheduler0Configurations
 var once sync.Once
 
 // GetConfigurations this will retrieve scheduler0 configurations stored on disk
-func GetConfigurations(logger *log.Logger) *Scheduler0Configurations {
+func GetConfigurations() *Scheduler0Configurations {
 	if cachedConfig != nil {
 		return cachedConfig
 	}
 
 	once.Do(func() {
-		binPath := GetBinPath(logger)
+		binPath := GetBinPath()
 
 		fs := afero.NewOsFs()
 		data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
@@ -75,10 +76,10 @@ func GetConfigurations(logger *log.Logger) *Scheduler0Configurations {
 	return cachedConfig
 }
 
-func GetBinPath(logger *log.Logger) string {
+func GetBinPath() string {
 	e, err := os.Executable()
 	if err != nil {
-		logger.Fatalln(err)
+		log.Fatalln("failed to get path of scheduler0 binary", err.Error())
 	}
 	return path.Dir(e)
 }
