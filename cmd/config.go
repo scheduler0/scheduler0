@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -31,7 +32,7 @@ Note that starting the server without going through the init flow will not work.
 `,
 }
 
-func runMigration(fs afero.Fs, dir string) {
+func runMigration(cmdLogger hclog.Logger, fs afero.Fs, dir string) {
 	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
 
 	err := fs.Remove(dbFilePath)
@@ -44,7 +45,7 @@ func runMigration(fs afero.Fs, dir string) {
 		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
 	}
 
-	datastore := db.NewSqliteDbConnection(dbFilePath)
+	datastore := db.NewSqliteDbConnection(cmdLogger, dbFilePath)
 	conn := datastore.OpenConnection()
 
 	dbConnection := conn.(*sql.DB)
@@ -113,9 +114,14 @@ Note that the Port is optional. By default the server will use :9090
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
-		logger.Println("Initializing Scheduler0 Configuration")
 
-		config := config.GetConfigurations(logger)
+		logger.Println("Initializing Scheduler0 Configuration")
+		config := config.GetConfigurations()
+
+		cmdLogger := hclog.New(&hclog.LoggerOptions{
+			Name:  "scheduler0-cmd",
+			Level: hclog.LevelFromString(config.LogLevel),
+		})
 
 		if config.Port == "" {
 			portPrompt := promptui.Prompt{
@@ -139,7 +145,7 @@ Note that the Port is optional. By default the server will use :9090
 
 		recreateDb(fs, dir)
 		recreateRaftDir(fs, dir)
-		runMigration(fs, dir)
+		runMigration(cmdLogger, fs, dir)
 
 		logger.Println("Scheduler0 Initialized")
 	},
@@ -160,7 +166,7 @@ Use the --show-password flag if you want the password to be visible.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
-		configs := config.GetConfigurations(logger)
+		configs := config.GetConfigurations()
 		logger.Println("Configurations:")
 		logger.Println("NodeId:", configs.NodeId)
 		logger.Println("Bootstrap:", configs.Bootstrap)
