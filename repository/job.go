@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
-	"log"
+	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"scheduler0/constants"
 	"scheduler0/fsm"
@@ -16,7 +16,7 @@ import (
 // JobRepo job table manager
 type jobRepo struct {
 	fsmStore *fsm.Store
-	logger   *log.Logger
+	logger   hclog.Logger
 }
 
 type Job interface {
@@ -46,10 +46,10 @@ const (
 	JobsDateCreatedColumn = "date_created"
 )
 
-func NewJobRepo(logger *log.Logger, store *fsm.Store) Job {
+func NewJobRepo(logger hclog.Logger, store *fsm.Store) Job {
 	return &jobRepo{
 		fsmStore: store,
-		logger:   logger,
+		logger:   logger.Named("job-repo"),
 	}
 }
 
@@ -291,7 +291,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (uint64, *utils.
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -314,7 +314,7 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (uint64, *utils.
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -441,7 +441,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]uint64, *util
 
 		query += ";"
 
-		res, applyErr := fsm.AppApply(jobRepo.logger, jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+		res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 		if res == nil {
 			return nil, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 		}

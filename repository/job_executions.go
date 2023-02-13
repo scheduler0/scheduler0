@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/hashicorp/go-hclog"
 	"github.com/robfig/cron"
-	"log"
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
@@ -42,13 +42,13 @@ type ExecutionsRepo interface {
 
 type executionsRepo struct {
 	fsmStore *fsm.Store
-	logger   *log.Logger
+	logger   hclog.Logger
 }
 
-func NewExecutionsRepo(logger *log.Logger, store *fsm.Store) *executionsRepo {
+func NewExecutionsRepo(logger hclog.Logger, store *fsm.Store) *executionsRepo {
 	return &executionsRepo{
 		fsmStore: store,
-		logger:   logger,
+		logger:   logger.Named("job-executions-repo"),
 	}
 }
 
@@ -89,7 +89,7 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 			query += fmt.Sprint("(?, ?, ?, ?, ?, ?, ?, ?, ?)")
 			schedule, parseErr := cron.Parse(job.Spec)
 			if parseErr != nil {
-				repo.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+				repo.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 			}
 			executionTime := schedule.Next(jobs[i].LastExecutionDate)
 			schedulerTime := utils.GetSchedulerTime()
@@ -114,30 +114,36 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 		ctx := context.Background()
 		tx, err := repo.fsmStore.DataStore.Connection.BeginTx(ctx, nil)
 		if err != nil {
-			repo.logger.Fatalln("failed to create transaction for batch insertion", err)
+			repo.logger.Error("failed to create transaction for batch insertion", err)
+			return
 		}
 
 		res, err := tx.Exec(query, params...)
 		if err != nil {
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
-				repo.logger.Fatalln("failed to rollback failed batch insertion execute ", err)
+				repo.logger.Error("failed to rollback failed batch insertion execute ", err)
+				return
 			} else {
-				repo.logger.Fatalln("failed to execute batch insertion", err)
+				repo.logger.Error("failed to execute batch insertion", err)
+				return
 			}
 		}
 		err = tx.Commit()
 		if err != nil {
-			repo.logger.Fatalln("failed to commit execute batch insertion", err)
+			repo.logger.Error("failed to commit execute batch insertion", err)
+			return
 		}
 
 		lastInsertedId, err := res.LastInsertId()
 		if err != nil {
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
-				repo.logger.Fatalln("failed to rollback, failed batch insertion execute, failed to get last inserted id", err)
+				repo.logger.Error("failed to rollback, failed batch insertion execute, failed to get last inserted id", err)
+				return
 			} else {
-				repo.logger.Fatalln("failed to execute batch insertion, failed to get last inserted id", err)
+				repo.logger.Error("failed to execute batch insertion, failed to get last inserted id", err)
+				return
 			}
 		}
 
@@ -218,7 +224,8 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []uint64) []mode
 
 		rows, err := repo.fsmStore.DataStore.Connection.Query(query, params...)
 		if err != nil {
-			repo.logger.Fatalln("failed to select last execution log", err)
+			repo.logger.Error("failed to select last execution log", err)
+			return nil
 		}
 		for rows.Next() {
 			lastExecutionLog := models.JobExecutionLog{}
@@ -235,12 +242,14 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []uint64) []mode
 				&lastExecutionLog.JobQueueVersion,
 			)
 			if err != nil {
-				repo.logger.Fatalln("failed to scan rows", scanErr)
+				repo.logger.Error("failed to scan rows", scanErr)
+				return nil
 			}
 			results = append(results, lastExecutionLog)
 		}
 		if rows.Err() != nil {
-			repo.logger.Fatalln("failed to select last execution log rows error", rows.Err())
+			repo.logger.Error("failed to select last execution log rows error", rows.Err())
+			return nil
 		}
 	}
 
@@ -290,17 +299,20 @@ func (repo *executionsRepo) CountLastFailedExecutionLogs(jobId uint64, nodeId ui
 
 	rows, err := repo.fsmStore.DataStore.Connection.Query(query, jobId, executionVersion, nodeId, models.ExecutionLogFailedState)
 	if err != nil {
-		repo.logger.Fatalln("failed to select last execution log", err)
+		repo.logger.Error("failed to select last execution log", err)
+		return 0
 	}
 	var count uint64 = 0
 	for rows.Next() {
 		scanErr := rows.Scan(&count)
 		if err != nil {
-			repo.logger.Fatalln("failed to scan rows ", scanErr)
+			repo.logger.Error("failed to scan rows ", scanErr)
+			return 0
 		}
 	}
 	if rows.Err() != nil {
-		repo.logger.Fatalln("failed to select last execution log rows error", rows.Err())
+		repo.logger.Error("failed to select last execution log rows error", rows.Err())
+		return 0
 	}
 	return count
 }
@@ -321,17 +333,20 @@ func (repo *executionsRepo) CountExecutionLogs(committed bool) uint64 {
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
-		repo.logger.Fatalln("failed to select last execution log", err)
+		repo.logger.Error("failed to select last execution log", err)
+		return 0
 	}
 	var count uint64 = 0
 	for rows.Next() {
 		scanErr := rows.Scan(&count)
 		if err != nil {
-			repo.logger.Fatalln("failed to scan rows ", scanErr)
+			repo.logger.Error("failed to scan rows ", scanErr)
+			return 0
 		}
 	}
 	if rows.Err() != nil {
-		repo.logger.Fatalln("failed to select last execution log rows error", rows.Err())
+		repo.logger.Error("failed to select last execution log rows error", rows.Err())
+		return 0
 	}
 	return count
 }
@@ -360,7 +375,8 @@ func (repo *executionsRepo) GetUncommittedExecutionsLogForNode(nodeId uint64) []
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
-		repo.logger.Fatalln("failed to select last execution log", err)
+		repo.logger.Error("failed to select last execution log", err)
+		return nil
 	}
 	results := []models.JobExecutionLog{}
 	for rows.Next() {
@@ -378,12 +394,14 @@ func (repo *executionsRepo) GetUncommittedExecutionsLogForNode(nodeId uint64) []
 			&lastExecutionLog.ExecutionVersion,
 		)
 		if scanErr != nil {
-			repo.logger.Fatalln("failed to scan rows", scanErr)
+			repo.logger.Error("failed to scan rows", scanErr)
+			return nil
 		}
 		results = append(results, lastExecutionLog)
 	}
 	if rows.Err() != nil {
-		repo.logger.Fatalln("failed to select last execution log rows error", rows.Err())
+		repo.logger.Error("failed to select last execution log rows error", rows.Err())
+		return nil
 	}
 
 	return results

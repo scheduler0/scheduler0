@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"github.com/robfig/cron"
-	"log"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
@@ -21,7 +21,7 @@ type jobService struct {
 	projectRepo      repository.Project
 	Queue            *queue.JobQueue
 	Ctx              context.Context
-	logger           *log.Logger
+	logger           hclog.Logger
 	dispatcher       *workers.Dispatcher
 	asyncTaskManager *async_task_manager.AsyncTaskManager
 }
@@ -37,7 +37,7 @@ type Job interface {
 
 func NewJobService(
 	context context.Context,
-	logger *log.Logger,
+	logger hclog.Logger,
 	jobRepo repository.Job,
 	queue *queue.JobQueue,
 	projectRepo repository.Project,
@@ -149,7 +149,7 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 		}()
 		inProgressUpdateTaskErr := jobService.asyncTaskManager.UpdateTasksById(taskIds[0], models.AsyncTaskInProgress, "")
 		if inProgressUpdateTaskErr != nil {
-			jobService.logger.Println("failed to update an async task", inProgressUpdateTaskErr, "; new state:", models.AsyncTaskInProgress)
+			jobService.logger.Error("failed to update an async task", inProgressUpdateTaskErr, "; new state:", models.AsyncTaskInProgress)
 			return
 		}
 
@@ -157,12 +157,12 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 		if iErr != nil {
 			errJson, errJsonErr := json.Marshal(utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message)))
 			if errJsonErr != nil {
-				jobService.logger.Println("failed to save error out for an async task", errJsonErr)
+				jobService.logger.Error("failed to save error out for an async task", errJsonErr)
 				return
 			}
 			updateTaskErr := jobService.asyncTaskManager.UpdateTasksById(taskIds[0], models.AsyncTaskFail, string(errJson))
 			if updateTaskErr != nil {
-				jobService.logger.Println("failed to update an async task", updateTaskErr, "; new state:", models.AsyncTaskSuccess)
+				jobService.logger.Error("failed to update an async task", updateTaskErr, "; new state:", models.AsyncTaskSuccess)
 				return
 			}
 			return
@@ -180,12 +180,12 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 		jobService.QueueJobs(jobs)
 		jobsJson, errJsonErr := json.Marshal(jobs)
 		if errJsonErr != nil {
-			jobService.logger.Println("failed to save error out for an async task", errJsonErr)
+			jobService.logger.Error("failed to save error out for an async task", errJsonErr)
 			return
 		}
 		updateTaskErr := jobService.asyncTaskManager.UpdateTasksById(taskIds[0], models.AsyncTaskSuccess, string(jobsJson))
 		if updateTaskErr != nil {
-			jobService.logger.Println("failed to update an async task", updateTaskErr, "; new state:", models.AsyncTaskSuccess)
+			jobService.logger.Error("failed to update an async task", updateTaskErr, "; new state:", models.AsyncTaskSuccess)
 			return
 		}
 	})

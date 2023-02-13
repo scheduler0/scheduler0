@@ -5,6 +5,7 @@ import (
 	"fmt"
 	httpLogger "github.com/go-http-utils/logger"
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/go-hclog"
 	"github.com/unrolled/secure"
 	"log"
 	"net/http"
@@ -19,9 +20,13 @@ import (
 func Start() {
 	ctx := context.Background()
 	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
-	configs := config.GetConfigurations(logger)
+	configs := config.GetConfigurations()
+	appLogger := hclog.New(&hclog.LoggerOptions{
+		Name:  "scheduler0",
+		Level: hclog.LevelFromString(configs.LogLevel),
+	})
 
-	serv := service.NewService(ctx, logger)
+	serv := service.NewService(ctx, appLogger)
 
 	// HTTP router setup
 	router := mux.NewRouter()

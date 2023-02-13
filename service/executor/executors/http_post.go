@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/models"
@@ -18,14 +18,14 @@ import (
 )
 
 type HTTPExecutionHandler struct {
-	logger *log.Logger
+	logger hclog.Logger
 }
 
 type HTTPExecutor interface {
 	ExecuteHTTPJob(pendingJobs []*models.JobModel) error
 }
 
-func NewHTTTPExecutor(logger *log.Logger) *HTTPExecutionHandler {
+func NewHTTTPExecutor(logger hclog.Logger) *HTTPExecutionHandler {
 	return &HTTPExecutionHandler{
 		logger: logger,
 	}
@@ -48,7 +48,7 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 
 	for rurl, uJc := range urlJobCache {
 
-		configs := config.GetConfigurations(httpExecutor.logger)
+		configs := config.GetConfigurations()
 		batches := batcher.BatchByBytes(uJc, int(configs.HTTPExecutorPayloadMaxSizeMb))
 
 		for i, batch := range batches {
@@ -60,7 +60,7 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 					}()
 
 					utils.RetryOnError(func() error {
-						httpExecutor.logger.Println(fmt.Sprintf("running job execution for job callback url = %v", url))
+						httpExecutor.logger.Info(fmt.Sprintf("running job execution for job callback url = %v", url))
 						httpClient := http.Client{
 							Timeout: time.Duration(configs.JobExecutionTimeout) * time.Second,
 						}
@@ -69,14 +69,14 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 						req.Header.Set("Content-Type", "application/json")
 						req.Header.Set("x-payload-chunk-id", strconv.FormatInt(int64(chunkId), 10))
 						if err != nil {
-							httpExecutor.logger.Println("failed to create request: ", err.Error())
+							httpExecutor.logger.Error("failed to create request: ", err.Error())
 							onFailure(httpExecutor.unwrapBatch(b))
 							return err
 						}
 
 						res, err := httpClient.Do(req)
 						if err != nil {
-							httpExecutor.logger.Println("request error: ", err.Error())
+							httpExecutor.logger.Error("request error: ", err.Error())
 							onFailure(httpExecutor.unwrapBatch(b))
 							return err
 						}
@@ -101,7 +101,7 @@ func (httpExecutor *HTTPExecutionHandler) unwrapBatch(data []byte) []models.JobM
 	fj := []models.JobModel{}
 	err := json.Unmarshal(data, &fj)
 	if err != nil {
-		httpExecutor.logger.Fatalln("failed to marshal failed jobs: ", err.Error())
+		httpExecutor.logger.Error("failed to marshal failed jobs: ", err.Error())
 	}
 	return fj
 }
