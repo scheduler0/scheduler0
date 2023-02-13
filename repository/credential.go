@@ -3,7 +3,7 @@ package repository
 import (
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
-	"log"
+	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"scheduler0/constants"
 	"scheduler0/fsm"
@@ -25,7 +25,7 @@ type Credential interface {
 // CredentialRepo Credential
 type credentialRepo struct {
 	fsmStore *fsm.Store
-	logger   *log.Logger
+	logger   hclog.Logger
 }
 
 const (
@@ -38,10 +38,10 @@ const (
 	ApiSecretColumn = "api_secret"
 )
 
-func NewCredentialRepo(logger *log.Logger, store *fsm.Store) Credential {
+func NewCredentialRepo(logger hclog.Logger, store *fsm.Store) Credential {
 	return &credentialRepo{
 		fsmStore: store,
-		logger:   logger,
+		logger:   logger.Named("credential-repo"),
 	}
 }
 
@@ -70,7 +70,7 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(credentialRepo.logger, credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -248,7 +248,7 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(credentialRepo.logger, credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -270,7 +270,7 @@ func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(credentialRepo.logger, credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return 0, applyErr
 	}
