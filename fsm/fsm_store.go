@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"scheduler0/config"
 	"scheduler0/constants"
@@ -27,7 +27,7 @@ import (
 type Store struct {
 	rwMtx                   sync.RWMutex
 	DataStore               *db.DataStore
-	logger                  *log.Logger
+	logger                  hclog.Logger
 	Raft                    *raft.Raft
 	QueueJobsChannel        chan []interface{}
 	JobExecutionLogsChannel chan models.CommitJobStateLog
@@ -70,14 +70,16 @@ const (
 
 var _ raft.FSM = &Store{}
 
-func NewFSMStore(db *db.DataStore, logger *log.Logger) *Store {
+func NewFSMStore(db *db.DataStore, logger hclog.Logger) *Store {
+	fsmStoreLogger := logger.Named("fsm-store")
+
 	return &Store{
 		DataStore:               db,
 		QueueJobsChannel:        make(chan []interface{}, 1),
 		JobExecutionLogsChannel: make(chan models.CommitJobStateLog, 1),
 		StopAllJobs:             make(chan bool, 1),
 		RecoverJobs:             make(chan bool, 1),
-		logger:                  logger,
+		logger:                  fsmStoreLogger,
 	}
 }
 
@@ -119,7 +121,7 @@ func (s *Store) ApplyBatch(logs []*raft.Log) []interface{} {
 }
 
 func ApplyCommand(
-	logger *log.Logger,
+	logger hclog.Logger,
 	l *raft.Log,
 	db *db.DataStore,
 	useQueues bool,
@@ -127,19 +129,19 @@ func ApplyCommand(
 	stopAllJobsQueue chan bool,
 	recoverJobsQueue chan bool) interface{} {
 
-	logPrefix := logger.Prefix()
-	logger.SetPrefix(fmt.Sprintf("%s[apply-raft-command] ", logPrefix))
-	defer logger.SetPrefix(logPrefix)
-
 	if l.Type == raft.LogConfiguration {
 		return nil
 	}
 
 	command := &protobuffs.Command{}
 
-	marsherErr := proto.Unmarshal(l.Data, command)
-	if marsherErr != nil {
-		logger.Fatal("failed to unmarshal command", marsherErr.Error())
+	marshalErr := proto.Unmarshal(l.Data, command)
+	if marshalErr != nil {
+		logger.Error("failed to unmarshal command", marshalErr.Error())
+		return Response{
+			Data:  nil,
+			Error: marshalErr.Error(),
+		}
 	}
 	switch command.Type {
 	case protobuffs.Command_Type(constants.CommandTypeDbExecute):
@@ -154,7 +156,7 @@ func ApplyCommand(
 		}
 		break
 	case protobuffs.Command_Type(constants.CommandTypeRecoverJobs):
-		configs := config.GetConfigurations(logger)
+		configs := config.GetConfigurations()
 		if useQueues && command.Sql == strconv.FormatUint(configs.NodeId, 10) {
 			recoverJobsQueue <- true
 		}
@@ -165,20 +167,13 @@ func ApplyCommand(
 }
 
 func (s *Store) Snapshot() (raft.FSMSnapshot, error) {
-	logPrefix := s.logger.Prefix()
-	s.logger.SetPrefix(fmt.Sprintf("%s[snapshot-fsm] ", logPrefix))
-	defer s.logger.SetPrefix(logPrefix)
+	s.logger.Info("taking snapshot")
 	fmsSnapshot := NewFSMSnapshot(s.DataStore)
-	s.logger.Println("took snapshot")
 	return fmsSnapshot, nil
 }
 
 func (s *Store) Restore(r io.ReadCloser) error {
-	logPrefix := s.logger.Prefix()
-	s.logger.SetPrefix(fmt.Sprintf("%s[restoring-snapshot] ", logPrefix))
-	defer s.logger.SetPrefix(logPrefix)
-	s.logger.Println("restoring snapshot")
-
+	s.logger.Info("restoring snapshot")
 	b, err := utils.BytesFromSnapshot(r)
 	if err != nil {
 		return fmt.Errorf("restore failed: %s", err.Error())
@@ -214,7 +209,7 @@ func (s *Store) Restore(r io.ReadCloser) error {
 	return nil
 }
 
-func dbExecute(logger *log.Logger, command *protobuffs.Command, db *db.DataStore) Response {
+func dbExecute(logger hclog.Logger, command *protobuffs.Command, db *db.DataStore) Response {
 	db.ConnectionLock.Lock()
 	defer db.ConnectionLock.Unlock()
 
@@ -230,7 +225,7 @@ func dbExecute(logger *log.Logger, command *protobuffs.Command, db *db.DataStore
 
 	tx, err := db.Connection.BeginTx(ctx, nil)
 	if err != nil {
-		logger.Println("failed to execute sql command", err.Error())
+		logger.Error("failed to execute sql command", err.Error())
 		return Response{
 			Data:  nil,
 			Error: err.Error(),
@@ -239,7 +234,7 @@ func dbExecute(logger *log.Logger, command *protobuffs.Command, db *db.DataStore
 
 	exec, err := tx.Exec(command.Sql, params...)
 	if err != nil {
-		logger.Println("failed to execute sql command", err.Error())
+		logger.Error("failed to execute sql command", err.Error())
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
 			return Response{
@@ -259,7 +254,7 @@ func dbExecute(logger *log.Logger, command *protobuffs.Command, db *db.DataStore
 
 	lastInsertedId, err := exec.LastInsertId()
 	if err != nil {
-		logger.Println("failed to get last ", err.Error())
+		logger.Error("failed to get last ", err.Error())
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
 			return Response{
@@ -274,7 +269,7 @@ func dbExecute(logger *log.Logger, command *protobuffs.Command, db *db.DataStore
 	}
 	rowsAffected, err := exec.RowsAffected()
 	if err != nil {
-		logger.Println(err.Error())
+		logger.Error(err.Error())
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
 			return Response{
@@ -295,13 +290,14 @@ func dbExecute(logger *log.Logger, command *protobuffs.Command, db *db.DataStore
 	}
 }
 
-func insertJobQueue(logger *log.Logger, command *protobuffs.Command, db *db.DataStore, useQueues bool, queue chan []interface{}) Response {
+func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db *db.DataStore, useQueues bool, queue chan []interface{}) Response {
 	db.ConnectionLock.Lock()
 	defer db.ConnectionLock.Unlock()
 
 	jobIds := []interface{}{}
 	err := json.Unmarshal(command.Data, &jobIds)
 	if err != nil {
+		logger.Error("failed unmarshal json bytes to jobs", err.Error())
 		return Response{
 			Data:  nil,
 			Error: err.Error(),
@@ -311,7 +307,7 @@ func insertJobQueue(logger *log.Logger, command *protobuffs.Command, db *db.Data
 	upperBound := jobIds[1].(float64)
 	lastVersion := jobIds[2].(float64)
 
-	serverNodeId, err := utils.GetNodeIdWithRaftAddress(logger, raft.ServerAddress(command.ActionTarget))
+	serverNodeId, err := utils.GetNodeIdWithRaftAddress(raft.ServerAddress(command.ActionTarget))
 
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
@@ -332,7 +328,11 @@ func insertJobQueue(logger *log.Logger, command *protobuffs.Command, db *db.Data
 
 	_, err = insertBuilder.Exec()
 	if err != nil {
-		logger.Fatalln("failed to insert new job queues", err.Error())
+		logger.Error("failed to insert new job queues", err.Error())
+		return Response{
+			Data:  nil,
+			Error: err.Error(),
+		}
 	}
 	if useQueues {
 		queue <- []interface{}{command.Sql, int64(lowerBound), int64(upperBound)}
@@ -343,7 +343,7 @@ func insertJobQueue(logger *log.Logger, command *protobuffs.Command, db *db.Data
 	}
 }
 
-func batchInsert(logger *log.Logger, db *db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
+func batchInsert(logger hclog.Logger, db *db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
 	batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
 
 	for _, batch := range batches {
@@ -393,25 +393,29 @@ func batchInsert(logger *log.Logger, db *db.DataStore, jobExecutionLogs []models
 		ctx := context.Background()
 		tx, err := db.Connection.BeginTx(ctx, nil)
 		if err != nil {
-			logger.Fatalln("failed to create transaction for batch insertion", err)
+			logger.Error("failed to create transaction for batch insertion", err)
+			return
 		}
 
 		_, err = tx.Exec(query, params...)
 		if err != nil {
 			trxErr := tx.Rollback()
 			if trxErr != nil {
-				logger.Fatalln("failed to rollback update transition", trxErr)
+				logger.Error("failed to rollback update transition", trxErr)
+				return
 			}
-			logger.Fatalln("batch insert failed to update committed status of executions", err)
+			logger.Error("batch insert failed to update committed status of executions", err)
+			return
 		}
 		err = tx.Commit()
 		if err != nil {
-			logger.Fatalln("failed to commit transition", err)
+			logger.Error("failed to commit transition", err)
+			return
 		}
 	}
 }
 
-func batchDelete(logger *log.Logger, db *db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
+func batchDelete(logger hclog.Logger, db *db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
 	batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
 
 	for _, batch := range batches {
@@ -428,25 +432,29 @@ func batchDelete(logger *log.Logger, db *db.DataStore, jobExecutionLogs []models
 		ctx := context.Background()
 		tx, err := db.Connection.BeginTx(ctx, nil)
 		if err != nil {
-			logger.Fatalln("failed to create transaction for batch insertion", err)
+			logger.Error("failed to create transaction for batch insertion", err)
+			return
 		}
 		query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", ExecutionsUnCommittedTableName, ExecutionsUniqueIdColumn, paramPlaceholder)
 		_, err = tx.Exec(query, params...)
 		if err != nil {
 			trxErr := tx.Rollback()
 			if trxErr != nil {
-				logger.Fatalln("failed to rollback update transition", trxErr)
+				logger.Error("failed to rollback update transition", trxErr)
+				return
 			}
-			logger.Fatalln("batch delete failed to update committed status of executions", err)
+			logger.Error("batch delete failed to update committed status of executions", err)
+			return
 		}
 		err = tx.Commit()
 		if err != nil {
-			logger.Fatalln("failed to commit transition", err)
+			logger.Error("failed to commit transition", err)
+			return
 		}
 	}
 }
 
-func executeJobs(logger *log.Logger, command *protobuffs.Command, db *db.DataStore) Response {
+func executeJobs(logger hclog.Logger, command *protobuffs.Command, db *db.DataStore) Response {
 	db.ConnectionLock.Lock()
 	defer db.ConnectionLock.Unlock()
 	jobState := models.CommitJobStateLog{}

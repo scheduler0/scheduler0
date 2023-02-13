@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"log"
+	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
@@ -22,7 +22,7 @@ type Credential interface {
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 }
 
-func NewCredentialService(Ctx context.Context, logger *log.Logger, repo repository.Credential, dispatcher *workers.Dispatcher) Credential {
+func NewCredentialService(Ctx context.Context, logger hclog.Logger, repo repository.Credential, dispatcher *workers.Dispatcher) Credential {
 	return &credentialService{
 		CredentialRepo: repo,
 		Ctx:            Ctx,
@@ -34,13 +34,13 @@ func NewCredentialService(Ctx context.Context, logger *log.Logger, repo reposito
 type credentialService struct {
 	CredentialRepo repository.Credential
 	Ctx            context.Context
-	logger         *log.Logger
+	logger         hclog.Logger
 	dispatcher     *workers.Dispatcher
 }
 
 // CreateNewCredential creates a new credentials
 func (credentialService *credentialService) CreateNewCredential(credentialTransformer models.CredentialModel) (uint64, *utils.GenericError) {
-	credentials := secrets.GetSecrets(credentialService.logger)
+	credentials := secrets.GetSecrets()
 
 	apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
 	credentialTransformer.ApiKey = apiKey

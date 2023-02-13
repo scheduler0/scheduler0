@@ -5,10 +5,10 @@ import (
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"github.com/robfig/cron"
 	"google.golang.org/protobuf/proto"
-	"log"
 	"math"
 	"scheduler0/config"
 	"scheduler0/constants"
@@ -30,7 +30,7 @@ type JobExecutor struct {
 	jobRepo               repository.Job
 	jobExecutionsRepo     repository.ExecutionsRepo
 	jobQueuesRepo         repository.JobQueuesRepo
-	logger                *log.Logger
+	logger                hclog.Logger
 	cancelReq             context.CancelFunc
 	httpExecutionHandler  *executors.HTTPExecutionHandler
 	mtx                   sync.Mutex
@@ -40,7 +40,7 @@ type JobExecutor struct {
 	scheduledJobs         sync.Map
 }
 
-func NewJobExecutor(ctx context.Context, logger *log.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo, dispatcher *workers.Dispatcher) *JobExecutor {
+func NewJobExecutor(ctx context.Context, logger hclog.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo, dispatcher *workers.Dispatcher) *JobExecutor {
 	reCtx, cancel := context.WithCancel(ctx)
 	return &JobExecutor{
 		pendingJobInvocations: []models.JobModel{},
@@ -48,7 +48,7 @@ func NewJobExecutor(ctx context.Context, logger *log.Logger, jobRepository repos
 		jobRepo:               jobRepository,
 		jobExecutionsRepo:     executionsRepo,
 		jobQueuesRepo:         jobQueuesRepo,
-		logger:                logger,
+		logger:                logger.Named("job-executor-service"),
 		context:               reCtx,
 		cancelReq:             cancel,
 		httpExecutionHandler:  executors.NewHTTTPExecutor(logger),
@@ -59,7 +59,7 @@ func NewJobExecutor(ctx context.Context, logger *log.Logger, jobRepository repos
 }
 
 func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
-	configs := config.GetConfigurations(jobExecutor.logger)
+	configs := config.GetConfigurations()
 
 	serverAddress := jobQueueParams[0].(string)
 	lowerBound := jobQueueParams[1].(int64)
@@ -75,11 +75,11 @@ func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 
 		for currentLowerBound < upperBound {
 
-			jobExecutor.logger.Println("fetching batching", currentLowerBound, "between", currentUpperBound)
+			jobExecutor.logger.Debug("fetching batching", currentLowerBound, "between", currentUpperBound)
 			jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(uint64(currentLowerBound), uint64(currentUpperBound))
 
 			if getErr != nil {
-				jobExecutor.logger.Fatalln("failed to batch get job by ranges ids ", getErr)
+				jobExecutor.logger.Error("failed to batch get job by ranges ids ", getErr)
 			}
 
 			jobExecutor.ScheduleJobs(jobs)
@@ -98,7 +98,7 @@ func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 	} else {
 		jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(uint64(lowerBound), uint64(upperBound))
 		if getErr != nil {
-			jobExecutor.logger.Fatalln("failed to batch get job by ranges ids ", getErr)
+			jobExecutor.logger.Error("failed to batch get job by ranges ids ", getErr)
 		}
 		jobExecutor.ScheduleJobs(jobs)
 	}
@@ -108,7 +108,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.JobModel) {
 	if len(jobs) < 1 {
 		return
 	}
-	configs := config.GetConfigurations(jobExecutor.logger)
+	configs := config.GetConfigurations()
 
 	jobIds := []uint64{}
 
@@ -122,7 +122,8 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.JobModel) {
 	for i, job := range jobs {
 		schedule, parseErr := cron.Parse(jobs[i].Spec)
 		if parseErr != nil {
-			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+			jobExecutor.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+			return
 		}
 		if _, ok := executionLogsMap[job.ID]; !ok {
 			jobs[i].LastExecutionDate = job.DateCreated
@@ -270,7 +271,7 @@ func (jobExecutor *JobExecutor) StopAll() {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	jobExecutor.logger.Println("stopped all scheduled job")
+	jobExecutor.logger.Info("stopped all scheduled job")
 	jobExecutor.cancelReq()
 	ctx, cancel := context.WithCancel(context.Background())
 	jobExecutor.cancelReq = cancel
@@ -316,7 +317,7 @@ func (jobExecutor *JobExecutor) GetUncommittedLogs() []models.JobExecutionLog {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	configs := config.GetConfigurations(jobExecutor.logger)
+	configs := config.GetConfigurations()
 	executionLogs := jobExecutor.jobExecutionsRepo.GetUncommittedExecutionsLogForNode(configs.NodeId)
 
 	return executionLogs
@@ -330,7 +331,7 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.JobModel, newState mode
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	configs := config.GetConfigurations(jobExecutor.logger)
+	configs := config.GetConfigurations()
 
 	jobsToReschedule := []models.JobModel{}
 
@@ -361,7 +362,8 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.JobModel, newState mode
 		sha := sha1.New()
 		schedule, parseErr := cron.Parse(job.Spec)
 		if parseErr != nil {
-			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+			jobExecutor.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+			return
 		}
 		executionTime := schedule.Next(lastExecution.NextExecutionDatetime)
 		uniqueId := fmt.Sprintf(
@@ -417,7 +419,7 @@ func (jobExecutor *JobExecutor) createInMemExecutionsForJobsIfNotExist(jobs []mo
 
 	lastExecutionVersionsForNewJobs := jobExecutor.jobExecutionsRepo.GetLastExecutionLogForJobIds(jobsNotInExecution)
 
-	configs := config.GetConfigurations(jobExecutor.logger)
+	configs := config.GetConfigurations()
 
 	for _, jobId := range jobsNotInExecution {
 		failCounts := 0
@@ -439,7 +441,7 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	configs := config.GetConfigurations(jobExecutor.logger)
+	configs := config.GetConfigurations()
 
 	jobExecutor.pendingJobInvocations = append(jobExecutor.pendingJobInvocations, pendingJob)
 
@@ -456,7 +458,7 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 
 		jobs, batchGetError := jobExecutor.jobRepo.BatchGetJobsByID(jobIDs)
 		if batchGetError != nil {
-			jobExecutor.logger.Println(fmt.Sprintf("batch query error:: %s", batchGetError.Message))
+			jobExecutor.logger.Error(fmt.Sprintf("batch query error:: %s", batchGetError.Message))
 			return
 		}
 
@@ -496,7 +498,7 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 					jobExecutor.handleFailedJobs,
 				)
 			default:
-				jobExecutor.logger.Println(fmt.Sprintf("unrecognized execution %s", executionType))
+				jobExecutor.logger.Error(fmt.Sprintf("unrecognized execution %s", executionType))
 			}
 		}
 
@@ -505,7 +507,7 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 }
 
 func (jobExecutor *JobExecutor) handleSuccessJobs(successfulJobs []models.JobModel) {
-	configs := config.GetConfigurations(jobExecutor.logger)
+	configs := config.GetConfigurations()
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
 	jobIds := []uint64{}
 	for _, successfulJob := range successfulJobs {
@@ -532,10 +534,10 @@ func (jobExecutor *JobExecutor) handleSuccessJobs(successfulJobs []models.JobMod
 }
 
 func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.JobModel) {
-	configs := config.GetConfigurations(jobExecutor.logger)
-	//for _, erroredJob := range erroredJobs {
-	//	jobExecutor.logger.Println(fmt.Sprintf("failed to execute job %v", erroredJob.ID))
-	//}
+	configs := config.GetConfigurations()
+	for _, erroredJob := range erroredJobs {
+		jobExecutor.logger.Error(fmt.Sprintf("failed to execute job %v", erroredJob.ID))
+	}
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
 	jobIds := []uint64{}
 	for _, erroredJob := range erroredJobs {
@@ -562,7 +564,7 @@ func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.JobModel) 
 }
 
 func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobModel, state models.JobExecutionLogState, executionVersions map[uint64]uint64) {
-	configs := config.GetConfigurations(jobExecutor.logger)
+	configs := config.GetConfigurations()
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
 
 	executionLogs := []models.JobExecutionLog{}
@@ -570,7 +572,8 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 	for _, job := range jobs {
 		schedule, parseErr := cron.Parse(job.Spec)
 		if parseErr != nil {
-			jobExecutor.logger.Fatalln(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+			jobExecutor.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
+			return
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
 		schedulerTime := utils.GetSchedulerTime()
@@ -588,7 +591,7 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 		})
 	}
 
-	peerAddress := utils.GetServerHTTPAddress(jobExecutor.logger)
+	peerAddress := utils.GetServerHTTPAddress()
 	params := models.CommitJobStateLog{
 		Address: peerAddress,
 		Logs:    executionLogs,
@@ -596,7 +599,8 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 
 	data, err := json.Marshal(params)
 	if err != nil {
-		jobExecutor.logger.Fatalln("failed to marshal json")
+		jobExecutor.logger.Error("failed to marshal json")
+		return
 	}
 
 	createCommand := &protobuffs.Command{
@@ -608,7 +612,8 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 
 	createCommandData, err := proto.Marshal(createCommand)
 	if err != nil {
-		jobExecutor.logger.Fatalln("failed to marshal json")
+		jobExecutor.logger.Error("failed to marshal json")
+		return
 	}
 
 	_ = jobExecutor.Raft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)

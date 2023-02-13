@@ -3,8 +3,8 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"io"
-	"log"
 	"os"
 	"scheduler0/constants"
 	"sync"
@@ -16,11 +16,14 @@ type DataStore struct {
 
 	ConnectionLock sync.Mutex
 	Connection     *sql.DB
+
+	logger hclog.Logger
 }
 
-func NewSqliteDbConnection(dbFilePath string) *DataStore {
+func NewSqliteDbConnection(logger hclog.Logger, dbFilePath string) *DataStore {
 	return &DataStore{
 		dbFilePath: dbFilePath,
+		logger:     logger,
 	}
 }
 
@@ -38,7 +41,7 @@ func (db *DataStore) OpenConnection() io.Closer {
 	once.Do(func() {
 		connection, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", db.dbFilePath))
 		if err != nil {
-			log.Fatalln("failed to open db")
+			db.logger.Error("failed to open db", err.Error())
 		}
 
 		db.Connection = connection
@@ -53,35 +56,35 @@ func (db *DataStore) Serialize() []byte {
 
 	data, err := os.ReadFile(db.dbFilePath)
 	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+		db.logger.Error("Fatal error getting working dir: %s \n", err)
 	}
 
 	return data
 }
 
-func GetDBConnection(logger *log.Logger) *DataStore {
+func GetDBConnection(logger hclog.Logger) *DataStore {
 	dir, err := os.Getwd()
 	if err != nil {
-		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+		logger.Error("Fatal error getting working dir: %s \n", err)
 	}
 	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
 
-	sqliteDb := NewSqliteDbConnection(dbFilePath)
+	sqliteDb := NewSqliteDbConnection(logger, dbFilePath)
 	conn := sqliteDb.OpenConnection()
 
 	dbConnection := conn.(*sql.DB)
 	err = dbConnection.Ping()
 	if err != nil {
-		logger.Fatalln(fmt.Errorf("ping error: failed to create file db: %v", err))
+		logger.Error("ping error: failed to create file db: %v", err)
 	}
 
 	return sqliteDb
 }
 
-func GetDBMEMConnection(logger *log.Logger) *DataStore {
+func GetDBMEMConnection(logger hclog.Logger) *DataStore {
 	conn, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", ":memory:"))
 	if err != nil {
-		logger.Fatalln(fmt.Errorf("ping error: failed to create in memory db: %v", err))
+		logger.Error("ping error: failed to create in memory db: %v", err)
 	}
 	return &DataStore{
 		Connection: conn,
