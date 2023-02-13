@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
-	"log"
+	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"scheduler0/constants"
 	"scheduler0/fsm"
@@ -31,24 +31,29 @@ const (
 type asyncTasksRepo struct {
 	context  context.Context
 	fsmStore *fsm.Store
-	logger   *log.Logger
+	logger   hclog.Logger
 }
 
 type AsyncTasksRepo interface {
 	BatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError)
+	RaftBatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError)
+	RaftUpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError
 	UpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError
 	GetTask(taskId uint64) (*models.AsyncTask, *utils.GenericError)
 }
 
-func NewAsyncTasksRepo(context context.Context, logger *log.Logger, fsmStore *fsm.Store) AsyncTasksRepo {
+func NewAsyncTasksRepo(context context.Context, logger hclog.Logger, fsmStore *fsm.Store) AsyncTasksRepo {
 	return &asyncTasksRepo{
 		context:  context,
-		logger:   logger,
+		logger:   logger.Named("async-task-repo"),
 		fsmStore: fsmStore,
 	}
 }
 
 func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError) {
+	repo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+
 	batches := batcher.Batch[models.AsyncTask](tasks, 5)
 	results := make([]uint64, 0, len(tasks))
 
@@ -75,7 +80,57 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask) ([]uint64, *ut
 
 		query += ";"
 
-		res, applyErr := fsm.AppApply(repo.logger, repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+		res, err := repo.fsmStore.DataStore.Connection.Exec(query, params...)
+		if err != nil {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		}
+
+		if res == nil {
+			return nil, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+		}
+
+		lastInsertedId, err := res.LastInsertId()
+		if err != nil {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		}
+		for i := lastInsertedId - int64(len(batch)) + 1; i <= lastInsertedId; i++ {
+			ids = append(ids, uint64(i))
+		}
+
+		results = append(results, ids...)
+	}
+
+	return results, nil
+}
+
+func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError) {
+	batches := batcher.Batch[models.AsyncTask](tasks, 5)
+	results := make([]uint64, 0, len(tasks))
+
+	schedulerTime := utils.GetSchedulerTime()
+	now := schedulerTime.GetTime(time.Now())
+
+	for _, batch := range batches {
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)", AsyncTableName, RequestIdColumn, InputColumn, OutputColumn, StateColumn, ServiceColumn, DateCreatedColumn)
+		params := []interface{}{
+			batch[0].RequestId,
+			batch[0].Input,
+			batch[0].Output,
+			0,
+			batch[0].Service,
+			now,
+		}
+
+		for _, row := range batch[1:] {
+			query += ",(?, ?, ?, ?, ?, ?)"
+			params = append(params, row.RequestId, row.Input, row.Output, 0, now)
+		}
+
+		ids := make([]uint64, 0, len(batch))
+
+		query += ";"
+
+		res, applyErr := fsm.AppApply(repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 		if applyErr != nil {
 			return nil, applyErr
 		}
@@ -95,7 +150,7 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask) ([]uint64, *ut
 	return results, nil
 }
 
-func (repo *asyncTasksRepo) UpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError {
+func (repo *asyncTasksRepo) RaftUpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError {
 	updateQuery := sq.Update(AsyncTableName).
 		Set(StateColumn, state).
 		Set(OutputColumn, output).
@@ -106,9 +161,35 @@ func (repo *asyncTasksRepo) UpdateTaskState(task models.AsyncTask, state models.
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(repo.logger, repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
 	if err != nil {
 		return applyErr
+	}
+
+	if res == nil {
+		return utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
+	}
+
+	return nil
+}
+
+func (repo *asyncTasksRepo) UpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError {
+	repo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+
+	updateQuery := sq.Update(AsyncTableName).
+		Set(StateColumn, state).
+		Set(OutputColumn, output).
+		Where(fmt.Sprintf("%s = ?", IdColumn), task.Id)
+
+	query, params, err := updateQuery.ToSql()
+	if err != nil {
+		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+	}
+
+	res, applyErr := repo.fsmStore.DataStore.Connection.Exec(query, params...)
+	if err != nil {
+		return utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
 
 	if res == nil {
