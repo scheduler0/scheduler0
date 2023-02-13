@@ -3,7 +3,7 @@ package async_task_manager
 import (
 	"context"
 	"fmt"
-	"log"
+	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"scheduler0/models"
 	"scheduler0/repository"
@@ -18,14 +18,14 @@ type AsyncTaskManager struct {
 	subscriberIds        sync.Map // map[uint64][]uint64
 	asyncTaskManagerRepo repository.AsyncTasksRepo
 	context              context.Context
-	logger               *log.Logger
+	logger               hclog.Logger
 	notificationsCh      chan models.AsyncTask
 }
 
-func NewAsyncTaskManager(context context.Context, logger *log.Logger, asyncTaskManagerRepo repository.AsyncTasksRepo) *AsyncTaskManager {
+func NewAsyncTaskManager(context context.Context, logger hclog.Logger, asyncTaskManagerRepo repository.AsyncTasksRepo) *AsyncTaskManager {
 	return &AsyncTaskManager{
 		context:              context,
-		logger:               logger,
+		logger:               logger.Named("async-task-service"),
 		asyncTaskManagerRepo: asyncTaskManagerRepo,
 		notificationsCh:      make(chan models.AsyncTask, 1),
 	}
@@ -52,16 +52,16 @@ func (m *AsyncTaskManager) AddTasks(input, requestId string, service string) ([]
 func (m *AsyncTaskManager) UpdateTasksById(taskId uint64, state models.AsyncTaskState, output string) *utils.GenericError {
 	t, ok := m.task.Load(taskId)
 	if !ok {
-		m.logger.Println("could not find task with id", taskId)
-		return nil
+		m.logger.Error("could not find task with id", taskId)
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find task with id %v", taskId))
 	}
 	myT := t.(models.AsyncTask)
 	myT.State = state
 	m.task.Store(taskId, myT)
 	err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
 	if err != nil {
-		m.logger.Println("could not update task with id", taskId)
-		return err
+		m.logger.Error("could not update task with id", taskId)
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
 	}
 	go func() { m.notificationsCh <- myT }()
 	return nil
@@ -70,21 +70,21 @@ func (m *AsyncTaskManager) UpdateTasksById(taskId uint64, state models.AsyncTask
 func (m *AsyncTaskManager) UpdateTasksByRequestId(requestId string, state models.AsyncTaskState, output string) *utils.GenericError {
 	tId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if !ok {
-		m.logger.Println("could not find task id for request id", requestId)
-		return nil
+		m.logger.Error("could not find task id for request id", requestId)
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find task id for request id %v", requestId))
 	}
 	t, ok := m.task.Load(tId)
 	if !ok {
-		m.logger.Println("could not find task with request id task id", requestId)
-		return nil
+		m.logger.Error("could not find task with request id task id", requestId)
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find task with request id task id %v", requestId))
 	}
 	myT := t.(models.AsyncTask)
 	myT.State = state
 	m.task.Store(myT.Id, myT)
 	err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
 	if err != nil {
-		m.logger.Println("could not update task request id", requestId)
-		return err
+		m.logger.Error("could not update task request id", requestId)
+		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
 	}
 	go func() { m.notificationsCh <- myT }()
 	return nil
@@ -93,7 +93,7 @@ func (m *AsyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 func (m *AsyncTaskManager) AddSubscriber(taskId uint64, subscriber func(task models.AsyncTask)) (uint64, *utils.GenericError) {
 	t, ok := m.task.Load(taskId)
 	if !ok {
-		m.logger.Println("could not find task with id", taskId)
+		m.logger.Error("could not find task with id", taskId)
 		return 0, utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find task with id %d", taskId))
 	}
 	myt := t.(models.AsyncTask)
@@ -117,7 +117,7 @@ func (m *AsyncTaskManager) AddSubscriber(taskId uint64, subscriber func(task mod
 	return subId, nil
 }
 
-func (m *AsyncTaskManager) GetTask(taskId uint64) (chan models.AsyncTask, uint64, *utils.GenericError) {
+func (m *AsyncTaskManager) GetTaskBlocking(taskId uint64) (chan models.AsyncTask, uint64, *utils.GenericError) {
 	task, err := m.asyncTaskManagerRepo.GetTask(taskId)
 	if err != nil {
 		return nil, 0, err
@@ -131,6 +131,7 @@ func (m *AsyncTaskManager) GetTask(taskId uint64) (chan models.AsyncTask, uint64
 	subs, addErr := m.AddSubscriber(taskId, func(task models.AsyncTask) {
 		taskCh <- task
 	})
+
 	if addErr != nil {
 		return nil, 0, addErr
 	}
@@ -138,12 +139,25 @@ func (m *AsyncTaskManager) GetTask(taskId uint64) (chan models.AsyncTask, uint64
 	return taskCh, subs, nil
 }
 
-func (m *AsyncTaskManager) GetTaskWithRequestId(requestId string) (chan models.AsyncTask, uint64, *utils.GenericError) {
+func (m *AsyncTaskManager) GetTaskWithRequestIdNonBlocking(requestId string) (*models.AsyncTask, *utils.GenericError) {
+	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
+	if !ok {
+		return nil, utils.HTTPGenericError(http.StatusNotFound, "task doesn't exist")
+	}
+
+	task, err := m.asyncTaskManagerRepo.GetTask(taskId.(uint64))
+	if err != nil {
+		return nil, err
+	}
+	return task, nil
+}
+
+func (m *AsyncTaskManager) GetTaskWithRequestIdBlocking(requestId string) (chan models.AsyncTask, uint64, *utils.GenericError) {
 	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if !ok {
 		return nil, 0, nil
 	}
-	return m.GetTask(taskId.(uint64))
+	return m.GetTaskBlocking(taskId.(uint64))
 }
 
 func (m *AsyncTaskManager) GetTaskIdWithRequestId(requestId string) (uint64, *utils.GenericError) {
@@ -178,7 +192,7 @@ func (m *AsyncTaskManager) ListenForNotifications() {
 			case taskNotification := <-m.notificationsCh:
 				t, ok := m.task.Load(taskNotification.Id)
 				if !ok {
-					m.logger.Println("could not find task with id", taskNotification.Id)
+					m.logger.Error("could not find task with id", taskNotification.Id)
 					return
 				}
 				myt := t.(models.AsyncTask)
