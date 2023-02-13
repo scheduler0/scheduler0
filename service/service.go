@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/hashicorp/go-hclog"
 	"log"
 	"scheduler0/config"
 	"scheduler0/db"
@@ -26,13 +27,13 @@ type Service struct {
 	AsyncTaskManager   *async_task_manager.AsyncTaskManager
 }
 
-func NewService(ctx context.Context, logger *log.Logger) *Service {
-	configs := config.GetConfigurations(logger)
+func NewService(ctx context.Context, logger hclog.Logger) *Service {
+	configs := config.GetConfigurations()
 
 	schedulerTime := utils.GetSchedulerTime()
 	err := schedulerTime.SetTimezone("UTC")
 	if err != nil {
-		logger.Fatalln("failed to set timezone for s")
+		log.Fatal("failed to set timezone for s")
 	}
 	sqliteDb := db.GetDBConnection(logger)
 	fsmStr := fsm.NewFSMStore(sqliteDb, logger)
@@ -66,6 +67,7 @@ func NewService(ctx context.Context, logger *log.Logger) *Service {
 		executionsRepo,
 		jobQueueRepo,
 		asyncTaskManager,
+		dispatcher,
 	)
 
 	nodeService.FsmStore = fsmStr
