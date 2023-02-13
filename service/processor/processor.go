@@ -3,6 +3,7 @@ package processor
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"github.com/robfig/cron"
 	"log"
 	"scheduler0/config"
@@ -23,18 +24,18 @@ type JobProcessor struct {
 	jobQueuesRepo       repository.JobQueuesRepo
 	jobQueue            *queue.JobQueue
 	jobExecutor         *executor.JobExecutor
-	logger              *log.Logger
+	logger              hclog.Logger
 	mtx                 sync.Mutex
 	ctx                 context.Context
 }
 
 // NewJobProcessor creates a new job processor
-func NewJobProcessor(ctx context.Context, logger *log.Logger, jobRepo repository.Job, projectRepo repository.Project, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
+func NewJobProcessor(ctx context.Context, logger hclog.Logger, jobRepo repository.Job, projectRepo repository.Project, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
 	return &JobProcessor{
 		jobRepo:             jobRepo,
 		projectRepo:         projectRepo,
 		jobQueue:            jobQueue,
-		logger:              logger,
+		logger:              logger.Named("job-processor"),
 		jobExecutionLogRepo: jobExecutionLogRepo,
 		jobQueuesRepo:       jobQueuesRepo,
 		jobExecutor:         jobExecutor,
@@ -44,31 +45,33 @@ func NewJobProcessor(ctx context.Context, logger *log.Logger, jobRepo repository
 
 // StartJobs the cron job job_processor
 func (jobProcessor *JobProcessor) StartJobs() {
-	logPrefix := jobProcessor.logger.Prefix()
-	jobProcessor.logger.SetPrefix(fmt.Sprintf("%s[job-processor] ", logPrefix))
-	defer jobProcessor.logger.SetPrefix(logPrefix)
-
 	jobProcessor.jobQueue.IncrementQueueVersion()
 
 	totalProjectCount, countErr := jobProcessor.projectRepo.Count()
 	if countErr != nil {
-		jobProcessor.logger.Fatalln(countErr.Message)
+		jobProcessor.logger.Error("could not get number of project count", countErr.Message)
+		log.Fatalln("could not get number of project count", countErr.Message)
+		return
 	}
 
-	jobProcessor.logger.Println("Total number of projects: ", totalProjectCount)
+	jobProcessor.logger.Debug("total number of projects: ", totalProjectCount)
 
 	projects, listErr := jobProcessor.projectRepo.List(0, totalProjectCount)
 	if listErr != nil {
-		jobProcessor.logger.Fatalln(listErr.Message)
+		jobProcessor.logger.Error("could not list the number of projects", listErr.Message)
+		log.Fatalln("could not list the number of projects", listErr.Message)
+		return
 	}
 
 	for _, project := range projects {
 		jobsTotalCount, err := jobProcessor.jobRepo.GetJobsTotalCountByProjectID(project.ID)
 		if err != nil {
-			jobProcessor.logger.Fatalln(err.Message)
+			jobProcessor.logger.Error("could not get the number of jobs for a projects", err.Message)
+			log.Fatalln("could not get the number of jobs for a projects", err.Message)
+			return
 		}
 
-		jobProcessor.logger.Println(fmt.Sprintf("Total number of jobs for project %v is %v : ", project.ID, jobsTotalCount))
+		jobProcessor.logger.Debug(fmt.Sprintf("total number of jobs for project %v is %v : ", project.ID, jobsTotalCount))
 		jobs, _, loadErr := jobProcessor.jobRepo.GetJobsPaginated(project.ID, 0, jobsTotalCount)
 
 		for i, job := range jobs {
@@ -76,7 +79,9 @@ func (jobProcessor *JobProcessor) StartJobs() {
 		}
 
 		if loadErr != nil {
-			jobProcessor.logger.Fatalln(loadErr.Message)
+			jobProcessor.logger.Error("could not load projects", loadErr.Message)
+			log.Fatalln("could not load projects", loadErr.Message)
+			return
 		}
 
 		jobProcessor.jobQueue.Queue(jobs)
@@ -90,15 +95,16 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 	jobProcessor.mtx.Lock()
 	defer jobProcessor.mtx.Unlock()
 
-	jobProcessor.logger.Println("recovering jobs.")
+	jobProcessor.logger.Debug("recovering jobs.")
 
-	configs := config.GetConfigurations(jobProcessor.logger)
+	configs := config.GetConfigurations()
 
 	lastVersion := jobProcessor.jobQueuesRepo.GetLastVersion()
 
 	lastJobQueueLogs := jobProcessor.jobQueuesRepo.GetLastJobQueueLogForNode(configs.NodeId, lastVersion)
 	if len(lastJobQueueLogs) < 1 {
-		jobProcessor.logger.Println("no existing job queues for node")
+		jobProcessor.logger.Error("no existing job queues for node")
+		log.Fatal("no existing job queues for node")
 		return
 	}
 
@@ -112,10 +118,12 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 
 		jobsFromDb, err := jobProcessor.jobRepo.BatchGetJobsByID(expandedJobIds)
 		if err != nil {
-			jobProcessor.logger.Fatalln("failed to retrieve jobs from db", err)
+			jobProcessor.logger.Error("failed to retrieve jobs from db", err.Message)
+			log.Fatalln("failed to retrieve jobs from db", err.Message)
+			return
 		}
 
-		jobProcessor.logger.Println("recovered ", len(jobsFromDb), " jobs")
+		jobProcessor.logger.Debug("recovered ", len(jobsFromDb), " jobs")
 
 		jobsToSchedule := []models.JobModel{}
 
@@ -135,7 +143,9 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 
 			schedule, parseErr := cron.Parse(job.Spec)
 			if parseErr != nil {
-				jobProcessor.logger.Fatalln(fmt.Sprintf("failed to parse spec %v", parseErr.Error()))
+				jobProcessor.logger.Error(fmt.Sprintf("failed to parse spec %v", parseErr.Error()))
+				log.Fatalln("failed to parse spec", parseErr.Error())
+				return
 			}
 
 			schedulerTime := utils.GetSchedulerTime()
@@ -152,7 +162,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 			// Time clocks are sources of distributed systems errors and a monotonic clock should always be preferred.
 			// While 60 minutes is quite an unlike delay in a close it's not impossible
 			if now.Before(executionTime) && lastJobState.State == uint64(models.ExecutionLogScheduleState) {
-				//jobProcessor.logger.Println("quick recovered job", job.ID)
+				jobProcessor.logger.Debug("quick recovered job", job.ID)
 				jobProcessor.jobExecutor.ScheduleProcess(job, executionTime)
 			} else {
 				jobsToSchedule = append(jobsToSchedule, job)
