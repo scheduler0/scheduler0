@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
-	"log"
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/constants"
@@ -13,7 +12,7 @@ import (
 	"time"
 )
 
-func AppApply(logger *log.Logger, rft *raft.Raft, commandType constants.Command, sqlString string, params []interface{}) (*Response, *utils.GenericError) {
+func AppApply(rft *raft.Raft, commandType constants.Command, sqlString string, params []interface{}) (*Response, *utils.GenericError) {
 	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -34,7 +33,7 @@ func AppApply(logger *log.Logger, rft *raft.Raft, commandType constants.Command,
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := config.GetConfigurations(logger)
+	configs := config.GetConfigurations()
 
 	af := rft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 	if af.Error() != nil {
