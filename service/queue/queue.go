@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
 	"log"
@@ -30,7 +31,7 @@ type JobQueue struct {
 	SingleNodeMode bool
 	jobsQueueRepo  repository.JobQueuesRepo
 	fsm            *fsm.Store
-	logger         *log.Logger
+	logger         hclog.Logger
 	allocations    map[raft.ServerAddress]uint64
 	minId          int64
 	maxId          int64
@@ -40,13 +41,13 @@ type JobQueue struct {
 	context        context.Context
 }
 
-func NewJobQueue(ctx context.Context, logger *log.Logger, fsm *fsm.Store, Executor *executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
+func NewJobQueue(ctx context.Context, logger hclog.Logger, fsm *fsm.Store, Executor *executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
 	return &JobQueue{
 		Executor:      Executor,
 		jobsQueueRepo: jobsQueueRepo,
 		context:       ctx,
 		fsm:           fsm,
-		logger:        logger,
+		logger:        logger.Named("job-queue-service"),
 		minId:         math.MaxInt64,
 		maxId:         math.MinInt64,
 		allocations:   map[raft.ServerAddress]uint64{},
@@ -83,7 +84,7 @@ func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
 		}
 	}
 
-	configs := config.GetConfigurations(jobQ.logger)
+	configs := config.GetConfigurations()
 	jobQ.debounce.Debounce(jobQ.context, configs.JobQueueDebounceDelay, func() {
 		jobQ.mtx.Lock()
 		defer jobQ.mtx.Unlock()
@@ -97,11 +98,11 @@ func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
 func (jobQ *JobQueue) queue(minId, maxId int64) {
 	f := jobQ.fsm.Raft.VerifyLeader()
 	if f.Error() != nil {
-		jobQ.logger.Println("skipping job queueing as node is not the leader")
+		jobQ.logger.Error("skipping job queueing as node is not the leader")
 		return
 	}
 
-	configs := config.GetConfigurations(jobQ.logger)
+	configs := config.GetConfigurations()
 
 	batchRanges := [][]uint64{}
 
@@ -200,7 +201,6 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 func (jobQ *JobQueue) IncrementQueueVersion() {
 	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
 	_, err := fsm.AppApply(
-		jobQ.logger,
 		jobQ.fsm.Raft,
 		constants.CommandTypeDbExecute,
 		fmt.Sprintf("insert into %s (%s, %s) values (?, ?)",
