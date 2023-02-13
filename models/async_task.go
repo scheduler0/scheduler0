@@ -12,11 +12,16 @@ const (
 )
 
 type AsyncTask struct {
-	Id          uint64
-	RequestId   string
-	Input       string
-	Output      string
-	Service     string
-	State       AsyncTaskState
-	DateCreated time.Time
+	Id          uint64         `json:"id"`
+	RequestId   string         `json:"requestId"`
+	Input       string         `json:"input"`
+	Output      string         `json:"output"`
+	Service     string         `json:"service"`
+	State       AsyncTaskState `json:"state"`
+	DateCreated time.Time      `json:"dateCreated"`
+}
+
+type AsyncTaskRes struct {
+	Data    AsyncTask `json:"data"`
+	Success bool      `json:"success"`
 }
