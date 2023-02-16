@@ -23,11 +23,6 @@ type JobExecutionLog struct {
 	DataCreated           time.Time `json:"dataCreated"`
 }
 
-type CommitJobStateLog struct {
-	Address string            `json:"address"`
-	Logs    []JobExecutionLog `json:"logs"`
-}
-
 type MemJobExecution struct {
 	ExecutionVersion      uint64
 	FailCount             uint64
