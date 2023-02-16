@@ -1,19 +1,21 @@
 package workers
 
+import "scheduler0/models"
+
 type Dispatcher struct {
-	inputQueue chan []interface{}
-	workerPool chan chan []interface{}
+	inputQueue chan models.Work
+	workerPool chan chan models.Work
 	maxWorkers int64
 	callback   func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)
 }
 
 func NewDispatcher(maxWorkers int64, maxQueue int64, callback func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)) *Dispatcher {
-	pool := make(chan chan []interface{}, maxWorkers)
+	pool := make(chan chan models.Work, maxWorkers)
 	return &Dispatcher{
 		workerPool: pool,
 		maxWorkers: maxWorkers,
 		callback:   callback,
-		inputQueue: make(chan []interface{}, maxQueue),
+		inputQueue: make(chan models.Work, maxQueue),
 	}
 }
 
@@ -30,7 +32,7 @@ func (dispatcher *Dispatcher) dispatch() {
 	for {
 		select {
 		case input := <-dispatcher.inputQueue:
-			go func(i []interface{}) {
+			go func(i models.Work) {
 				workerQueue := <-dispatcher.workerPool
 				workerQueue <- i
 			}(input)
@@ -42,7 +44,11 @@ func (dispatcher *Dispatcher) BlockQueue(effector func(successChannel chan any, 
 	successChannel := make(chan any)
 	errorChannel := make(chan any)
 
-	dispatcher.inputQueue <- []interface{}{effector, successChannel, errorChannel}
+	dispatcher.inputQueue <- models.Work{
+		Effector:       effector,
+		SuccessChannel: successChannel,
+		ErrorChannel:   errorChannel,
+	}
 
 	for {
 		select {
@@ -58,5 +64,9 @@ func (dispatcher *Dispatcher) NoBlockQueue(effector func(successChannel chan any
 	successChannel := make(chan any)
 	errorChannel := make(chan any)
 
-	dispatcher.inputQueue <- []interface{}{effector, successChannel, errorChannel}
+	dispatcher.inputQueue <- models.Work{
+		Effector:       effector,
+		SuccessChannel: successChannel,
+		ErrorChannel:   errorChannel,
+	}
 }

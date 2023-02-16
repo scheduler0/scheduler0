@@ -1,16 +1,18 @@
 package workers
 
+import "scheduler0/models"
+
 type Worker struct {
-	WorkerPool  chan chan []interface{}
-	WorkerQueue chan []interface{}
+	WorkerPool  chan chan models.Work
+	WorkerQueue chan models.Work
 	callback    func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)
 	quit        chan bool
 }
 
-func NewWorker(workerPool chan chan []interface{}, callback func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)) Worker {
+func NewWorker(workerPool chan chan models.Work, callback func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)) Worker {
 	return Worker{
 		WorkerPool:  workerPool,
-		WorkerQueue: make(chan []interface{}),
+		WorkerQueue: make(chan models.Work),
 		quit:        make(chan bool),
 		callback:    callback,
 	}
@@ -23,10 +25,7 @@ func (worker Worker) Start() {
 
 			select {
 			case work := <-worker.WorkerQueue:
-				effector := work[0].(func(sc, ec chan any))
-				successChannel := work[1].(chan any)
-				errorChannel := work[2].(chan any)
-				worker.callback(effector, successChannel, errorChannel)
+				worker.callback(work.Effector, work.SuccessChannel, work.ErrorChannel)
 			case <-worker.quit:
 				return
 			}
