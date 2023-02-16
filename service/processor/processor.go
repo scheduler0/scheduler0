@@ -104,7 +104,6 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 	lastJobQueueLogs := jobProcessor.jobQueuesRepo.GetLastJobQueueLogForNode(configs.NodeId, lastVersion)
 	if len(lastJobQueueLogs) < 1 {
 		jobProcessor.logger.Error("no existing job queues for node")
-		log.Fatal("no existing job queues for node")
 		return
 	}
 
@@ -119,11 +118,10 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 		jobsFromDb, err := jobProcessor.jobRepo.BatchGetJobsByID(expandedJobIds)
 		if err != nil {
 			jobProcessor.logger.Error("failed to retrieve jobs from db", err.Message)
-			log.Fatalln("failed to retrieve jobs from db", err.Message)
 			return
 		}
 
-		jobProcessor.logger.Debug("recovered ", len(jobsFromDb), " jobs")
+		jobProcessor.logger.Debug(fmt.Sprintf("recovered %d jobs", len(jobsFromDb)))
 
 		jobsToSchedule := []models.JobModel{}
 
@@ -136,7 +134,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 				jobsToSchedule = append(jobsToSchedule, job)
 			}
 
-			if lastJobState.NodeId != uint64(configs.NodeId) &&
+			if lastJobState.NodeId != configs.NodeId &&
 				lastJobState.JobQueueVersion != lastJobQueueLog.Version {
 				continue
 			}
@@ -144,7 +142,6 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 			schedule, parseErr := cron.Parse(job.Spec)
 			if parseErr != nil {
 				jobProcessor.logger.Error(fmt.Sprintf("failed to parse spec %v", parseErr.Error()))
-				log.Fatalln("failed to parse spec", parseErr.Error())
 				return
 			}
 
@@ -162,7 +159,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 			// Time clocks are sources of distributed systems errors and a monotonic clock should always be preferred.
 			// While 60 minutes is quite an unlike delay in a close it's not impossible
 			if now.Before(executionTime) && lastJobState.State == uint64(models.ExecutionLogScheduleState) {
-				jobProcessor.logger.Debug("quick recovered job", job.ID)
+				jobProcessor.logger.Debug(fmt.Sprintf("quick recovered job %d", job.ID))
 				jobProcessor.jobExecutor.ScheduleProcess(job, executionTime)
 			} else {
 				jobsToSchedule = append(jobsToSchedule, job)
