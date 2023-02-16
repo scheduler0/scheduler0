@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	AsyncTableName = "async_tasks"
+	CommittedAsyncTableName   = "async_tasks_committed"
+	UnCommittedAsyncTableName = "async_tasks_uncommitted"
 )
 
 const (
@@ -35,11 +36,12 @@ type asyncTasksRepo struct {
 }
 
 type AsyncTasksRepo interface {
-	BatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError)
+	BatchInsert(tasks []models.AsyncTask, committed bool) ([]uint64, *utils.GenericError)
 	RaftBatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError)
 	RaftUpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError
 	UpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError
 	GetTask(taskId uint64) (*models.AsyncTask, *utils.GenericError)
+	GetAllUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError)
 }
 
 func NewAsyncTasksRepo(context context.Context, logger hclog.Logger, fsmStore *fsm.Store) AsyncTasksRepo {
@@ -50,7 +52,7 @@ func NewAsyncTasksRepo(context context.Context, logger hclog.Logger, fsmStore *f
 	}
 }
 
-func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError) {
+func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool) ([]uint64, *utils.GenericError) {
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
@@ -60,8 +62,13 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask) ([]uint64, *ut
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
+	table := CommittedAsyncTableName
+	if !committed {
+		table = UnCommittedAsyncTableName
+	}
+
 	for _, batch := range batches {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)", AsyncTableName, RequestIdColumn, InputColumn, OutputColumn, StateColumn, ServiceColumn, DateCreatedColumn)
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)", table, RequestIdColumn, InputColumn, OutputColumn, StateColumn, ServiceColumn, DateCreatedColumn)
 		params := []interface{}{
 			batch[0].RequestId,
 			batch[0].Input,
@@ -110,8 +117,10 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
+	table := CommittedAsyncTableName
+
 	for _, batch := range batches {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)", AsyncTableName, RequestIdColumn, InputColumn, OutputColumn, StateColumn, ServiceColumn, DateCreatedColumn)
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)", table, RequestIdColumn, InputColumn, OutputColumn, StateColumn, ServiceColumn, DateCreatedColumn)
 		params := []interface{}{
 			batch[0].RequestId,
 			batch[0].Input,
@@ -151,7 +160,7 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 }
 
 func (repo *asyncTasksRepo) RaftUpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError {
-	updateQuery := sq.Update(AsyncTableName).
+	updateQuery := sq.Update(UnCommittedAsyncTableName).
 		Set(StateColumn, state).
 		Set(OutputColumn, output).
 		Where(fmt.Sprintf("%s = ?", IdColumn), task.Id)
@@ -177,7 +186,7 @@ func (repo *asyncTasksRepo) UpdateTaskState(task models.AsyncTask, state models.
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
-	updateQuery := sq.Update(AsyncTableName).
+	updateQuery := sq.Update(UnCommittedAsyncTableName).
 		Set(StateColumn, state).
 		Set(OutputColumn, output).
 		Where(fmt.Sprintf("%s = ?", IdColumn), task.Id)
@@ -203,7 +212,8 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
-	selectQuery := sq.Select(
+	query := fmt.Sprintf(
+		"select %s, %s, %s, %s, %s, %s, %s from %s union all %s %s, %s, %s, %s, %s, %s, %s where %s = ?",
 		IdColumn,
 		RequestIdColumn,
 		InputColumn,
@@ -211,12 +221,19 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 		StateColumn,
 		ServiceColumn,
 		DateCreatedColumn,
-	).
-		From(AsyncTableName).
-		Where(IdColumn, taskId).
-		RunWith(repo.fsmStore.DataStore.Connection)
+		CommittedAsyncTableName,
+		IdColumn,
+		RequestIdColumn,
+		InputColumn,
+		OutputColumn,
+		StateColumn,
+		ServiceColumn,
+		DateCreatedColumn,
+		UnCommittedAsyncTableName,
+		IdColumn,
+	)
 
-	rows, err := selectQuery.Query()
+	rows, err := repo.fsmStore.DataStore.Connection.Query(query, taskId)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -240,4 +257,131 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, rows.Err().Error())
 	}
 	return &asyncTask, nil
+}
+
+func (repo *asyncTasksRepo) countAsyncTasks(committed bool) uint64 {
+	tableName := UnCommittedAsyncTableName
+
+	if committed {
+		tableName = CommittedAsyncTableName
+	}
+
+	selectBuilder := sq.Select("count(*)").
+		From(tableName).
+		RunWith(repo.fsmStore.DataStore.Connection)
+
+	rows, err := selectBuilder.Query()
+	if err != nil {
+		repo.logger.Error("failed to count async tasks rows", err)
+		return 0
+	}
+	var count uint64 = 0
+	for rows.Next() {
+		scanErr := rows.Scan(&count)
+		if err != nil {
+			repo.logger.Error("failed to scan rows ", scanErr)
+			return 0
+		}
+	}
+	if rows.Err() != nil {
+		repo.logger.Error("failed to count async tasks rows error", rows.Err())
+		return 0
+	}
+	return count
+}
+
+func (repo *asyncTasksRepo) getAsyncTasksMinMaxIds(committed bool) (uint64, uint64) {
+	tableName := UnCommittedAsyncTableName
+
+	if committed {
+		tableName = CommittedAsyncTableName
+	}
+
+	selectBuilder := sq.Select("min(id)", "max(id)").
+		From(tableName).
+		RunWith(repo.fsmStore.DataStore.Connection)
+
+	rows, err := selectBuilder.Query()
+	if err != nil {
+		repo.logger.Error("failed to count async tasks rows", err)
+		return 0, 0
+	}
+	var minId uint64 = 0
+	var maxId uint64 = 0
+	for rows.Next() {
+		scanErr := rows.Scan(&minId, &maxId)
+		if err != nil {
+			repo.logger.Error("failed to scan rows ", scanErr)
+			return 0, 0
+		}
+	}
+	if rows.Err() != nil {
+		repo.logger.Error("failed to count async tasks rows error", rows.Err())
+		return 0, 0
+	}
+	return minId, maxId
+}
+
+func (repo *asyncTasksRepo) GetAllUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError) {
+	repo.fsmStore.DataStore.ConnectionLock.Lock()
+	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+
+	min, max := repo.getAsyncTasksMinMaxIds(false)
+	count := repo.countAsyncTasks(false)
+	results := make([]models.AsyncTask, 0, count)
+	expandedIds := utils.ExpandIdsRange(min, max)
+
+	batches := batcher.Batch(expandedIds, 7)
+
+	for _, batch := range batches {
+		var params = []interface{}{batch[0]}
+		var paramPlaceholders = "?"
+
+		for _, b := range batch[1:] {
+			paramPlaceholders += ",?"
+			params = append(params, b)
+		}
+
+		query := fmt.Sprintf(
+			"select %s, %s, %s, %s, %s, %s, %s from %s where id in (%s)",
+			IdColumn,
+			RequestIdColumn,
+			InputColumn,
+			OutputColumn,
+			StateColumn,
+			ServiceColumn,
+			DateCreatedColumn,
+			CommittedAsyncTableName,
+			paramPlaceholders,
+		)
+		rows, err := repo.fsmStore.DataStore.Connection.Query(query, params...)
+		if err != nil {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
+		}
+		for rows.Next() {
+			var asyncTask models.AsyncTask
+			scanErr := rows.Scan(
+				&asyncTask.Id,
+				&asyncTask.RequestId,
+				&asyncTask.Input,
+				&asyncTask.Output,
+				&asyncTask.State,
+				&asyncTask.Service,
+				&asyncTask.DateCreated,
+			)
+			if scanErr != nil {
+				return nil, utils.HTTPGenericError(http.StatusInternalServerError, scanErr.Error())
+			}
+			results = append(results, asyncTask)
+		}
+		if rows.Err() != nil {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, rows.Err().Error())
+		}
+		closeErr := rows.Close()
+		if closeErr != nil {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, closeErr.Error())
+		}
+	}
+
+	return results, nil
 }
