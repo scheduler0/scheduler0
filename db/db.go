@@ -175,7 +175,18 @@ CREATE TABLE IF NOT EXISTS job_queue_versions
 	number_of_active_nodes  INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS async_tasks
+CREATE TABLE IF NOT EXISTS async_tasks_committed
+(
+	id						INTEGER PRIMARY KEY AUTOINCREMENT,
+	request_id 				TEXT,
+	input  					TEXT NOT NULL,
+	output  				TEXT,
+	state					INTEGER NOT NULL,
+	service					TEXT,
+    date_created  		 	datetime NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS async_tasks_uncommitted
 (
 	id						INTEGER PRIMARY KEY AUTOINCREMENT,
 	request_id 				TEXT,
