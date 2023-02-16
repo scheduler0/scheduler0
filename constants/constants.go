@@ -11,14 +11,14 @@ const ConfigFileName = "config.yml"
 type Command int32
 
 const (
-	CommandTypeDbExecute        Command = 0
-	CommandTypeJobQueue         Command = 1
-	CommandTypeJobExecutionLogs Command = 2
-	CommandTypeStopJobs         Command = 3
-	CommandTypeRecoverJobs      Command = 4
+	CommandTypeDbExecute   Command = 0
+	CommandTypeJobQueue    Command = 1
+	CommandTypeLocalData   Command = 2
+	CommandTypeStopJobs    Command = 3
+	CommandTypeRecoverJobs Command = 4
 )
 
-// JobMaxBatchSize exceed this and sql-lite won't be happy max variable is 32766
 const DBMaxVariableSize = 32766
 const JobMaxBatchSize = 5461
 const JobExecutionLogMaxBatchSize = 4095
+const AsyncTasksMaxBatchSize = 4679
