@@ -171,14 +171,14 @@ func (node *Node) Boostrap() {
 	node.listenOnInputQueues(node.FsmStore)
 }
 
-func (node *Node) commitJobExecutionLogs(peerAddress string, jobExecutionLogs []models.JobExecutionLog) {
+func (node *Node) commitJobExecutionLogs(peerAddress string, localData models.LocalData) {
 	if node.FsmStore.Raft == nil {
 		log.Fatalln("raft is not set on job executors")
 	}
 
-	params := models.CommitJobStateLog{
+	params := models.CommitLocalData{
 		Address: peerAddress,
-		Logs:    jobExecutionLogs,
+		Data:    localData,
 	}
 
 	data, err := json.Marshal(params)
@@ -186,21 +186,21 @@ func (node *Node) commitJobExecutionLogs(peerAddress string, jobExecutionLogs []
 		log.Fatalln("failed to marshal json")
 	}
 
-	createCommand := &protobuffs.Command{
-		Type:         protobuffs.Command_Type(constants.CommandTypeJobExecutionLogs),
+	commitCommand := &protobuffs.Command{
+		Type:         protobuffs.Command_Type(constants.CommandTypeLocalData),
 		Sql:          peerAddress,
 		Data:         data,
 		ActionTarget: peerAddress,
 	}
 
-	createCommandData, err := proto.Marshal(createCommand)
+	commitCommandData, err := proto.Marshal(commitCommand)
 	if err != nil {
 		log.Fatalln("failed to marshal json")
 	}
 
 	configs := config.GetConfigurations()
 
-	_ = node.FsmStore.Raft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
+	_ = node.FsmStore.Raft.Apply(commitCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 }
 
 func (node *Node) ReturnUncommittedLogs(requestId string) {
@@ -208,7 +208,7 @@ func (node *Node) ReturnUncommittedLogs(requestId string) {
 	if addErr != nil {
 		node.logger.Error("failed to add new async task for job_executor", addErr)
 	}
-	node.logger.Debug("added a new task for job_executor, task id", taskId)
+	node.logger.Debug("added a new task for job_executor, task id", "task-id", taskId)
 
 	node.dispatcher.NoBlockQueue(func(successChannel chan any, errorChannel chan any) {
 		defer func() {
@@ -222,9 +222,26 @@ func (node *Node) ReturnUncommittedLogs(requestId string) {
 			return
 		}
 		uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
-		data, merr := json.Marshal(uncommittedLogs)
-		if merr != nil {
-			node.logger.Error("failed to marshal async task result with request id", requestId, ", error", merr)
+		uncommittedTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
+		if err != nil {
+			node.logger.Error("failed to uncommitted async tasks request id", requestId, ", error", err.Message)
+			uErr := node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, "")
+			if uErr != nil {
+				node.logger.Error("failed to update async task status with request id", "request id", requestId, ", error", uErr)
+			}
+			return
+		}
+		localData := models.LocalData{
+			ExecutionLogs: uncommittedLogs,
+			AsyncTasks:    uncommittedTasks,
+		}
+		data, mErr := json.Marshal(localData)
+		if mErr != nil {
+			node.logger.Error("failed to marshal async task result with request id", requestId, ", error", mErr)
+			uErr := node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, "")
+			if uErr != nil {
+				node.logger.Error("failed to update async task status with request id", requestId, ", error", uErr)
+			}
 			return
 		}
 		uErr := node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskSuccess, string(data))
@@ -309,7 +326,7 @@ func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
 		logger.Fatalln("failed to query for max and min id in uncommitted logs", err.Error())
 	}
 
-	node.logger.Debug("found", count, "uncommitted logs")
+	node.logger.Debug(fmt.Sprintf("found %d uncommitted logs", count))
 
 	if count < 1 {
 		return executionLogs
@@ -331,7 +348,7 @@ func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
 		logger.Fatalln("failed to close rows", err)
 	}
 
-	node.logger.Debug("found max id %d and min id %d in uncommited jobs \n", maxId, minId)
+	node.logger.Debug("found max id %d and min id %d in uncommitted jobs \n", maxId, minId)
 
 	ids := []int64{}
 	for i := minId; i <= maxId; i++ {
@@ -474,7 +491,7 @@ func (node *Node) recoverRaftState() raft.Configuration {
 		logger.Fatalln(err)
 	}
 
-	node.logger.Debug("found", len(snapshots), "snapshots")
+	node.logger.Debug(fmt.Sprintf("found %d snapshots", len(snapshots)))
 
 	var lastSnapshotBytes []byte
 	for _, snapshot := range snapshots {
@@ -616,7 +633,7 @@ func (node *Node) authenticateWithPeersInConfig(logger hclog.Logger) map[string]
 				wg.Done()
 				wrlck.Unlock()
 				if err != nil {
-					node.logger.Error("failed to authenticate with peer ", rep.Address, " error:", err)
+					node.logger.Error("failed to authenticate with peer ", "replica address", rep.Address, " error:", err)
 				}
 			}(replica, results, &wg, &wrlck)
 		}
@@ -662,10 +679,18 @@ func (node *Node) handleLeaderChange() {
 		node.jobQueue.SingleNodeMode = len(servers) == 1
 		node.jobExecutor.SingleNodeMode = node.jobQueue.SingleNodeMode
 		node.SingleNodeMode = node.jobQueue.SingleNodeMode
+		node.asyncTaskManager.SingleNodeMode = node.jobQueue.SingleNodeMode
 		if !node.SingleNodeMode {
 			uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
+			uncommittedAsyncTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
+			if err != nil {
+				log.Fatalln("failed to get uncommitted async tasks after leader selection", "error", err.Error())
+			}
 			if len(uncommittedLogs) > 0 {
-				node.commitJobExecutionLogs(utils.GetServerHTTPAddress(), uncommittedLogs)
+				node.commitJobExecutionLogs(utils.GetServerHTTPAddress(), models.LocalData{
+					ExecutionLogs: uncommittedLogs,
+					AsyncTasks:    uncommittedAsyncTasks,
+				})
 			}
 
 			go node.fanInUncommittedLogsFromPeers()
@@ -824,7 +849,7 @@ func (node *Node) listenToFanInChannel() {
 		select {
 		case peerFanIn := <-node.fanInCh:
 			completedFanIns[peerFanIn.PeerHTTPAddress] = peerFanIn
-			if len(completedFanIns) == len(configs.Replicas)-1 {
+			if len(completedFanIns) == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
 				node.beginAcceptingClientWriteRequest()
 			}
 		case <-node.ctx.Done():
@@ -916,7 +941,7 @@ func (node *Node) fetchUncommittedLogsFromPeersPhase1(ctx context.Context, peerF
 		httpClient := &http.Client{}
 		httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/execution-logs", peerFanIn.PeerHTTPAddress), nil)
 		if reqErr != nil {
-			node.logger.Error("failed to create request to execution logs from", peerFanIn.PeerHTTPAddress, "error", reqErr.Error())
+			node.logger.Error("failed to create request to execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", reqErr.Error())
 		} else {
 			httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
 			httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
@@ -924,21 +949,20 @@ func (node *Node) fetchUncommittedLogsFromPeersPhase1(ctx context.Context, peerF
 			httpRequest.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
 			res, err := httpClient.Do(httpRequest)
 			if err != nil {
-				node.logger.Error("failed to get uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "error", err.Error())
+				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
 			} else {
 				if res.StatusCode == http.StatusAccepted {
 					location := res.Header.Get("Location")
 					peerFanIn.RequestId = location
 					closeErr := res.Body.Close()
 					if closeErr != nil {
-						node.logger.Error("failed to close body", closeErr.Error())
+						node.logger.Error("failed to close body", "error", closeErr.Error())
 					}
 					peerFanIn.State = models.PeerFanInStateGetRequestId
-					fmt.Println("peerFanIn", peerFanIn)
 					node.fanIns.Store(peerFanIn.PeerHTTPAddress, peerFanIn)
-					node.logger.Info("successfully fetch execution logs from", peerFanIn.PeerHTTPAddress)
+					node.logger.Info("successfully fetch execution logs from", "node address", peerFanIn.PeerHTTPAddress)
 				} else {
-					node.logger.Error("failed to get uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
+					node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
 				}
 			}
 		}
@@ -950,7 +974,7 @@ func (node *Node) fetchUncommittedLogsFromPeersPhase2(ctx context.Context, peerF
 		httpClient := &http.Client{}
 		httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s%s", peerFanIn.PeerHTTPAddress, peerFanIn.RequestId), nil)
 		if reqErr != nil {
-			node.logger.Error("failed to create request to execution logs from", peerFanIn.PeerHTTPAddress, "error", reqErr.Error())
+			node.logger.Error("failed to create request to execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", reqErr.Error())
 		} else {
 			httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
 			httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
@@ -958,7 +982,7 @@ func (node *Node) fetchUncommittedLogsFromPeersPhase2(ctx context.Context, peerF
 			httpRequest.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
 			res, err := httpClient.Do(httpRequest)
 			if err != nil {
-				node.logger.Error("failed to get uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "error", err.Error())
+				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
 			} else {
 				if res.StatusCode == http.StatusOK {
 					data, readErr := io.ReadAll(res.Body)
@@ -966,29 +990,29 @@ func (node *Node) fetchUncommittedLogsFromPeersPhase2(ctx context.Context, peerF
 						node.logger.Error("failed to read uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "error", readErr.Error())
 					} else {
 						var asyncTaskRes models.AsyncTaskRes
-						marshalErr := json.Unmarshal([]byte(string(data)), &asyncTaskRes)
+						marshalErr := json.Unmarshal([]byte(data), &asyncTaskRes)
 						if marshalErr != nil {
-							node.logger.Error("failed to read uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
+							node.logger.Error("failed to read uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
 						} else {
-							var execLogs []models.JobExecutionLog
-							marshalErr = json.Unmarshal([]byte(asyncTaskRes.Data.Output), &execLogs)
+							var localData models.LocalData
+							marshalErr = json.Unmarshal([]byte(asyncTaskRes.Data.Output), &localData)
 							if marshalErr != nil {
-								node.logger.Error("failed to read uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
+								node.logger.Error("failed to read uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
 							} else {
-								peerFanIn.ExecutionLogs = execLogs
+								peerFanIn.Data = localData
 								closeErr := res.Body.Close()
 								if closeErr != nil {
-									node.logger.Error("failed to close body", closeErr.Error())
+									node.logger.Error("failed to close body", "error", closeErr.Error())
 								} else {
 									peerFanIn.State = models.PeerFanInStateGetExecutionsLogs
 									node.fanIns.Store(peerFanIn.PeerHTTPAddress, peerFanIn)
-									node.logger.Info("successfully fetch execution logs from", peerFanIn.PeerHTTPAddress)
+									node.logger.Info("successfully fetch execution logs from", "node address", peerFanIn.PeerHTTPAddress)
 								}
 							}
 						}
 					}
 				} else {
-					node.logger.Error("failed to get uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
+					node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
 				}
 			}
 		}
@@ -997,7 +1021,7 @@ func (node *Node) fetchUncommittedLogsFromPeersPhase2(ctx context.Context, peerF
 
 func (node *Node) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
 	for _, peerFanIn := range peerFanIns {
-		node.commitJobExecutionLogs(peerFanIn.PeerHTTPAddress, peerFanIn.ExecutionLogs)
+		node.commitJobExecutionLogs(peerFanIn.PeerHTTPAddress, peerFanIn.Data)
 		node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 		node.fanInCh <- peerFanIn
 	}
@@ -1010,7 +1034,7 @@ func connectNode(logger hclog.Logger, rep config.RaftNode) (*Status, error) {
 	}
 	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/peer-handshake", rep.Address), nil)
 	if err != nil {
-		logger.Error("failed to create request ", err)
+		logger.Error("failed to create request", "error", err)
 		return nil, err
 	}
 	req.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
@@ -1022,7 +1046,7 @@ func connectNode(logger hclog.Logger, rep config.RaftNode) (*Status, error) {
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		logger.Error("failed to send request ", err)
+		logger.Error("failed to send request", "error", err.Error())
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -1030,21 +1054,21 @@ func connectNode(logger hclog.Logger, rep config.RaftNode) (*Status, error) {
 	connectionTime := time.Since(start)
 
 	if resp.StatusCode == http.StatusOK {
-		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			logger.Error("failed to response", err)
-			return nil, err
+		data, ioErr := io.ReadAll(resp.Body)
+		if ioErr != nil {
+			logger.Error("failed to response", "error:", ioErr.Error())
+			return nil, ioErr
 		}
 
 		body := Response{}
 
-		err = json.Unmarshal(data, &body)
-		if err != nil {
-			logger.Error("failed to unmarshal response ", err)
-			return nil, err
+		unMarshalErr := json.Unmarshal(data, &body)
+		if unMarshalErr != nil {
+			logger.Error("failed to unmarshal response ", "error", unMarshalErr.Error())
+			return nil, unMarshalErr
 		}
 
-		logger.Info("successfully authenticated ", rep.Address)
+		logger.Info("successfully authenticated", "replica-address", rep.Address)
 
 		return &Status{
 			IsAlive:            true,
@@ -1054,7 +1078,7 @@ func connectNode(logger hclog.Logger, rep config.RaftNode) (*Status, error) {
 		}, nil
 	}
 
-	logger.Error("could not authenticate ", rep.Address, " status code:", resp.StatusCode)
+	logger.Error("could not authenticate", "replica-address", rep.Address, " status code:", resp.StatusCode)
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		return &Status{
