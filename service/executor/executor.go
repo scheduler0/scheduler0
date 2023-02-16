@@ -79,7 +79,8 @@ func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 			jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(uint64(currentLowerBound), uint64(currentUpperBound))
 
 			if getErr != nil {
-				jobExecutor.logger.Error("failed to batch get job by ranges ids ", getErr)
+				jobExecutor.logger.Error("failed to batch get job by ranges ids", "error", getErr)
+				return
 			}
 
 			jobExecutor.ScheduleJobs(jobs)
@@ -98,7 +99,7 @@ func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 	} else {
 		jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(uint64(lowerBound), uint64(upperBound))
 		if getErr != nil {
-			jobExecutor.logger.Error("failed to batch get job by ranges ids ", getErr)
+			jobExecutor.logger.Error("failed to batch get job by ranges ids ", "error", getErr)
 		}
 		jobExecutor.ScheduleJobs(jobs)
 	}
@@ -592,9 +593,8 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 	}
 
 	peerAddress := utils.GetServerHTTPAddress()
-	params := models.CommitJobStateLog{
-		Address: peerAddress,
-		Logs:    executionLogs,
+	params := models.LocalData{
+		ExecutionLogs: executionLogs,
 	}
 
 	data, err := json.Marshal(params)
@@ -604,7 +604,7 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 	}
 
 	createCommand := &protobuffs.Command{
-		Type:         protobuffs.Command_Type(constants.CommandTypeJobExecutionLogs),
+		Type:         protobuffs.Command_Type(constants.CommandTypeLocalData),
 		Sql:          peerAddress,
 		Data:         data,
 		ActionTarget: peerAddress,
