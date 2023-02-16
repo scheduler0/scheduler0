@@ -10,8 +10,8 @@ const (
 )
 
 type PeerFanIn struct {
-	PeerHTTPAddress string            `json:"peerHTTPAddress"`
-	RequestId       string            `json:"requestId"`
-	State           PeerFanInState    `json:"state"`
-	ExecutionLogs   []JobExecutionLog `json:"executionLogs"`
+	PeerHTTPAddress string         `json:"peerHTTPAddress"`
+	RequestId       string         `json:"requestId"`
+	State           PeerFanInState `json:"state"`
+	Data            LocalData      `json:"data"`
 }
