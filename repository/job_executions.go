@@ -61,7 +61,7 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 	}
 
 	batches := batcher.Batch[models.JobModel](jobs, 9)
-	returningIds := []uint64{}
+	var returningIds []uint64
 
 	for _, batch := range batches {
 		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s , %s, %s) VALUES ",
@@ -76,8 +76,8 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 			ExecutionsDateCreatedColumn,
 			ExecutionsVersion,
 		)
-		params := []interface{}{}
-		ids := []uint64{}
+		var params []interface{}
+		var ids []uint64
 
 		for i, job := range batch {
 			executionVersion := 0
@@ -159,7 +159,7 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []uint64) []mode
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
-	results := []models.JobExecutionLog{}
+	var results []models.JobExecutionLog
 
 	if len(jobIds) < 1 {
 		return results
@@ -259,7 +259,7 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []uint64) []mode
 func (repo *executionsRepo) GetLastExecutionLogForJobIds(jobIds []uint64) map[uint64]models.JobExecutionLog {
 	lastCommittedExecutionLogs := repo.getLastExecutionLogForJobIds(jobIds)
 
-	executionLogsMap := map[uint64]models.JobExecutionLog{}
+	executionLogsMap := make(map[uint64]models.JobExecutionLog, len(jobIds))
 
 	for _, jobId := range jobIds {
 		for _, lastCommittedExecutionLog := range lastCommittedExecutionLogs {
@@ -333,7 +333,7 @@ func (repo *executionsRepo) CountExecutionLogs(committed bool) uint64 {
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
-		repo.logger.Error("failed to select last execution log", err)
+		repo.logger.Error("failed to count executions log", err)
 		return 0
 	}
 	var count uint64 = 0
@@ -345,63 +345,110 @@ func (repo *executionsRepo) CountExecutionLogs(committed bool) uint64 {
 		}
 	}
 	if rows.Err() != nil {
-		repo.logger.Error("failed to select last execution log rows error", rows.Err())
+		repo.logger.Error("failed to count execution logs error", rows.Err())
 		return 0
 	}
 	return count
+}
+
+func (repo *executionsRepo) getUncommittedExecutionsLogsMinMaxIds(committed bool) (uint64, uint64) {
+	tableName := ExecutionsUnCommittedTableName
+
+	if committed {
+		tableName = ExecutionsCommittedTableName
+	}
+
+	selectBuilder := sq.Select("min(id)", "max(id)").
+		From(tableName).
+		RunWith(repo.fsmStore.DataStore.Connection)
+
+	rows, err := selectBuilder.Query()
+	if err != nil {
+		repo.logger.Error("failed to count async tasks rows", err)
+		return 0, 0
+	}
+	var minId uint64 = 0
+	var maxId uint64 = 0
+	for rows.Next() {
+		scanErr := rows.Scan(&minId, &maxId)
+		if err != nil {
+			repo.logger.Error("failed to scan rows ", scanErr)
+			return 0, 0
+		}
+	}
+	if rows.Err() != nil {
+		repo.logger.Error("failed to count async tasks rows error", rows.Err())
+		return 0, 0
+	}
+	return minId, maxId
 }
 
 func (repo *executionsRepo) GetUncommittedExecutionsLogForNode(nodeId uint64) []models.JobExecutionLog {
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
-	selectBuilder := sq.Select(
-		ExecutionsIdColumn,
-		ExecutionsUniqueIdColumn,
-		ExecutionsStateColumn,
-		ExecutionsNodeIdColumn,
-		ExecutionsLastExecutionTimeColumn,
-		ExecutionsNextExecutionTime,
-		ExecutionsJobIdColumn,
-		ExecutionsDateCreatedColumn,
-		ExecutionsJobQueueVersion,
-		ExecutionsVersion,
-	).
-		From(ExecutionsUnCommittedTableName).
-		OrderBy(fmt.Sprintf("%s DESC", ExecutionsNextExecutionTime)).
-		Where(fmt.Sprintf("%s = ?", ExecutionsNodeIdColumn), nodeId).
-		Limit(constants.JobExecutionLogMaxBatchSize).
-		RunWith(repo.fsmStore.DataStore.Connection)
+	min, max := repo.getUncommittedExecutionsLogsMinMaxIds(false)
+	ids := utils.ExpandIdsRange(min, max)
+	batches := batcher.Batch(ids, 10)
+	var results []models.JobExecutionLog
 
-	rows, err := selectBuilder.Query()
-	if err != nil {
-		repo.logger.Error("failed to select last execution log", err)
-		return nil
-	}
-	results := []models.JobExecutionLog{}
-	for rows.Next() {
-		lastExecutionLog := models.JobExecutionLog{}
-		scanErr := rows.Scan(
-			&lastExecutionLog.Id,
-			&lastExecutionLog.UniqueId,
-			&lastExecutionLog.State,
-			&lastExecutionLog.NodeId,
-			&lastExecutionLog.LastExecutionDatetime,
-			&lastExecutionLog.NextExecutionDatetime,
-			&lastExecutionLog.JobId,
-			&lastExecutionLog.DataCreated,
-			&lastExecutionLog.JobQueueVersion,
-			&lastExecutionLog.ExecutionVersion,
-		)
-		if scanErr != nil {
-			repo.logger.Error("failed to scan rows", scanErr)
+	for _, batch := range batches {
+		var params = []interface{}{nodeId, batch[0]}
+		var paramPlaceholders = "?"
+
+		for _, b := range batch[1:] {
+			paramPlaceholders += ",?"
+			params = append(params, b)
+		}
+
+		selectBuilder := sq.Select(
+			ExecutionsIdColumn,
+			ExecutionsUniqueIdColumn,
+			ExecutionsStateColumn,
+			ExecutionsNodeIdColumn,
+			ExecutionsLastExecutionTimeColumn,
+			ExecutionsNextExecutionTime,
+			ExecutionsJobIdColumn,
+			ExecutionsDateCreatedColumn,
+			ExecutionsJobQueueVersion,
+			ExecutionsVersion,
+		).
+			From(ExecutionsUnCommittedTableName).
+			OrderBy(fmt.Sprintf("%s DESC", ExecutionsNextExecutionTime)).
+			Where(fmt.Sprintf("%s = ? AND %s in (%s)", ExecutionsNodeIdColumn, ExecutionsIdColumn, paramPlaceholders), params...).
+			Limit(constants.JobExecutionLogMaxBatchSize).
+			RunWith(repo.fsmStore.DataStore.Connection)
+
+		rows, err := selectBuilder.Query()
+		if err != nil {
+			repo.logger.Error("failed to select last execution log", err)
 			return nil
 		}
-		results = append(results, lastExecutionLog)
-	}
-	if rows.Err() != nil {
-		repo.logger.Error("failed to select last execution log rows error", rows.Err())
-		return nil
+		for rows.Next() {
+			lastExecutionLog := models.JobExecutionLog{}
+			scanErr := rows.Scan(
+				&lastExecutionLog.Id,
+				&lastExecutionLog.UniqueId,
+				&lastExecutionLog.State,
+				&lastExecutionLog.NodeId,
+				&lastExecutionLog.LastExecutionDatetime,
+				&lastExecutionLog.NextExecutionDatetime,
+				&lastExecutionLog.JobId,
+				&lastExecutionLog.DataCreated,
+				&lastExecutionLog.JobQueueVersion,
+				&lastExecutionLog.ExecutionVersion,
+			)
+			if scanErr != nil {
+				repo.logger.Error("failed to scan rows", scanErr)
+				return nil
+			}
+			results = append(results, lastExecutionLog)
+		}
+		if rows.Err() != nil {
+			repo.logger.Error("failed to select last execution log rows error", rows.Err())
+			return nil
+
+		}
 	}
 
 	return results
