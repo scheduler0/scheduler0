@@ -213,3 +213,11 @@ func GetServerHTTPAddress() string {
 	configs := config.GetConfigurations()
 	return fmt.Sprintf("%v://%v:%v", configs.Protocol, configs.Host, configs.Port)
 }
+
+func ExpandIdsRange[T uint64 | int64](min, max T) []T {
+	results := make([]T, 0, max-min)
+	for i := min; i <= max; i++ {
+		results = append(results, i)
+	}
+	return results
+}
