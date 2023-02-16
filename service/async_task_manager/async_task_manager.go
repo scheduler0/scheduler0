@@ -20,6 +20,7 @@ type AsyncTaskManager struct {
 	context              context.Context
 	logger               hclog.Logger
 	notificationsCh      chan models.AsyncTask
+	SingleNodeMode       bool
 }
 
 func NewAsyncTaskManager(context context.Context, logger hclog.Logger, asyncTaskManagerRepo repository.AsyncTasksRepo) *AsyncTaskManager {
@@ -39,14 +40,26 @@ func (m *AsyncTaskManager) AddTasks(input, requestId string, service string) ([]
 			Service:   service,
 		},
 	}
-	ids, err := m.asyncTaskManagerRepo.BatchInsert(tasks)
-	if err != nil {
-		return nil, err
+
+	var sids []uint64
+	if m.SingleNodeMode {
+		ids, err := m.asyncTaskManagerRepo.RaftBatchInsert(tasks)
+		if err != nil {
+			return nil, err
+		}
+		sids = ids
+	} else {
+		ids, err := m.asyncTaskManagerRepo.BatchInsert(tasks, false)
+		if err != nil {
+			return nil, err
+		}
+		sids = ids
 	}
-	tasks[0].Id = ids[0]
-	m.task.Store(ids[0], tasks[0])
-	m.taskIdRequestIdMap.Store(tasks[0].RequestId, ids[0])
-	return ids, nil
+
+	tasks[0].Id = sids[0]
+	m.task.Store(sids[0], tasks[0])
+	m.taskIdRequestIdMap.Store(tasks[0].RequestId, sids[0])
+	return sids, nil
 }
 
 func (m *AsyncTaskManager) UpdateTasksById(taskId uint64, state models.AsyncTaskState, output string) *utils.GenericError {
@@ -58,10 +71,18 @@ func (m *AsyncTaskManager) UpdateTasksById(taskId uint64, state models.AsyncTask
 	myT := t.(models.AsyncTask)
 	myT.State = state
 	m.task.Store(taskId, myT)
-	err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
-	if err != nil {
-		m.logger.Error("could not update task with id", taskId)
-		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
+	if m.SingleNodeMode {
+		err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)
+		if err != nil {
+			m.logger.Error("could not update task with id", taskId)
+			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
+		}
+	} else {
+		err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
+		if err != nil {
+			m.logger.Error("could not update task with id", taskId)
+			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
+		}
 	}
 	go func() { m.notificationsCh <- myT }()
 	return nil
@@ -81,10 +102,18 @@ func (m *AsyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 	myT := t.(models.AsyncTask)
 	myT.State = state
 	m.task.Store(myT.Id, myT)
-	err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
-	if err != nil {
-		m.logger.Error("could not update task request id", requestId)
-		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
+	if m.SingleNodeMode {
+		err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)
+		if err != nil {
+			m.logger.Error("could not update task with id", requestId)
+			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
+		}
+	} else {
+		err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
+		if err != nil {
+			m.logger.Error("could not update task with id", requestId)
+			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
+		}
 	}
 	go func() { m.notificationsCh <- myT }()
 	return nil
@@ -183,6 +212,14 @@ func (m *AsyncTaskManager) DeleteSubscriber(taskId, subscriberId uint64) *utils.
 	delete(subscribers, subscriberId)
 	m.subscribers.Store(taskId, subscribers)
 	return nil
+}
+
+func (m *AsyncTaskManager) GetUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError) {
+	tasks, err := m.asyncTaskManagerRepo.GetAllUnCommittedTasks()
+	if err != nil {
+		return nil, err
+	}
+	return tasks, err
 }
 
 func (m *AsyncTaskManager) ListenForNotifications() {
