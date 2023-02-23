@@ -100,6 +100,11 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *node.Node) func(nex
 				return
 			}
 
+			if !peer.CanAcceptRequest() {
+				utils.SendJSON(w, "peer cannot accept requests", false, http.StatusServiceUnavailable, nil)
+				return
+			}
+
 			if !peer.CanAcceptClientWriteRequest() && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
 				configs := config.GetConfigurations()
 				serverAddr, _ := peer.FsmStore.Raft.LeaderWithID()
