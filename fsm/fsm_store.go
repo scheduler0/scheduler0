@@ -183,6 +183,9 @@ func (s *Store) Snapshot() (raft.FSMSnapshot, error) {
 }
 
 func (s *Store) Restore(r io.ReadCloser) error {
+	s.DataStore.FileLock.Lock()
+	defer s.DataStore.FileLock.Unlock()
+
 	s.logger.Info("restoring snapshot")
 	b, err := utils.BytesFromSnapshot(r)
 	if err != nil {
@@ -202,7 +205,7 @@ func (s *Store) Restore(r io.ReadCloser) error {
 		}
 	}
 
-	db, err := sql.Open("sqlite3", dbFilePath)
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", dbFilePath))
 	if err != nil {
 		return fmt.Errorf("restore failed to create db: %v", err)
 	}
@@ -223,7 +226,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db *db.DataStor
 	db.ConnectionLock.Lock()
 	defer db.ConnectionLock.Unlock()
 
-	params := []interface{}{}
+	var params []interface{}
 	err := json.Unmarshal(command.Data, &params)
 	if err != nil {
 		return Response{
@@ -235,7 +238,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db *db.DataStor
 
 	tx, err := db.Connection.BeginTx(ctx, nil)
 	if err != nil {
-		logger.Error("failed to execute sql command", err.Error())
+		logger.Error("failed to execute sql command", "error", err.Error())
 		return Response{
 			Data:  nil,
 			Error: err.Error(),
@@ -244,7 +247,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db *db.DataStor
 
 	exec, err := tx.Exec(command.Sql, params...)
 	if err != nil {
-		logger.Error("failed to execute sql command", err.Error())
+		logger.Error("failed to execute sql command", "error", err.Error())
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
 			return Response{
@@ -256,6 +259,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db *db.DataStor
 
 	err = tx.Commit()
 	if err != nil {
+		logger.Error("failed to commit transaction", "error", err.Error())
 		return Response{
 			Data:  nil,
 			Error: err.Error(),
@@ -264,9 +268,10 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db *db.DataStor
 
 	lastInsertedId, err := exec.LastInsertId()
 	if err != nil {
-		logger.Error("failed to get last ", err.Error())
+		logger.Error("failed to get last inserted id", "error", err.Error())
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
+			logger.Error("failed to roll back transaction", "error", rollBackErr.Error())
 			return Response{
 				Data:  nil,
 				Error: rollBackErr.Error(),
@@ -279,9 +284,10 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db *db.DataStor
 	}
 	rowsAffected, err := exec.RowsAffected()
 	if err != nil {
-		logger.Error(err.Error())
+		logger.Error("failed to get number of rows affected", "error", err.Error())
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
+			logger.Error("failed to roll back transaction", "error", rollBackErr.Error())
 			return Response{
 				Data:  nil,
 				Error: rollBackErr.Error(),
@@ -304,10 +310,10 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db *db.Dat
 	db.ConnectionLock.Lock()
 	defer db.ConnectionLock.Unlock()
 
-	jobIds := []interface{}{}
+	var jobIds []interface{}
 	err := json.Unmarshal(command.Data, &jobIds)
 	if err != nil {
-		logger.Error("failed unmarshal json bytes to jobs", err.Error())
+		logger.Error("failed unmarshal json bytes to jobs", "error", err.Error())
 		return Response{
 			Data:  nil,
 			Error: err.Error(),
@@ -338,7 +344,7 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db *db.Dat
 
 	_, err = insertBuilder.Exec()
 	if err != nil {
-		logger.Error("failed to insert new job queues", err.Error())
+		logger.Error("failed to insert new job queues", "error", err.Error())
 		return Response{
 			Data:  nil,
 			Error: err.Error(),
@@ -507,9 +513,8 @@ func batchInsertAsyncTasks(logger hclog.Logger, db *db.DataStore, tasks []models
 	batches := batcher.Batch[models.AsyncTask](tasks, 7)
 
 	for _, batch := range batches {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s) VALUES ",
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES ",
 			CommittedAsyncTableName,
-			AsyncTasksIdColumn,
 			AsyncTasksRequestIdColumn,
 			AsyncTasksInputColumn,
 			AsyncTasksOutputColumn,
@@ -518,9 +523,8 @@ func batchInsertAsyncTasks(logger hclog.Logger, db *db.DataStore, tasks []models
 			AsyncTasksDateCreatedColumn,
 		)
 
-		query += "(?, ?, ?, ?, ?, ?, ?)"
+		query += "(?, ?, ?, ?, ?, ?)"
 		params := []interface{}{
-			batch[0].Id,
 			batch[0].RequestId,
 			batch[0].Input,
 			batch[0].Output,
@@ -531,7 +535,6 @@ func batchInsertAsyncTasks(logger hclog.Logger, db *db.DataStore, tasks []models
 
 		for _, asyncTask := range batch[1:] {
 			params = append(params,
-				asyncTask.Id,
 				asyncTask.RequestId,
 				asyncTask.Input,
 				asyncTask.Output,
@@ -539,7 +542,7 @@ func batchInsertAsyncTasks(logger hclog.Logger, db *db.DataStore, tasks []models
 				asyncTask.Service,
 				asyncTask.DateCreated,
 			)
-			query += ",(?, ?, ?, ?, ?, ?, ?)"
+			query += ",(?, ?, ?, ?, ?, ?)"
 		}
 
 		query += ";"
@@ -573,23 +576,28 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db *db.Da
 	db.ConnectionLock.Lock()
 	defer db.ConnectionLock.Unlock()
 
-	localData := models.LocalData{}
+	localData := models.CommitLocalData{}
 	err := json.Unmarshal(command.Data, &localData)
 	if err != nil {
+		logger.Error("failed to unmarshal local data to commit", err.Error())
 		return Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
 	}
 
-	if len(localData.ExecutionLogs) > 0 {
-		batchInsertExecutionLogs(logger, db, localData.ExecutionLogs)
-		batchDeleteDeleteExecutionLogs(logger, db, localData.ExecutionLogs)
+	logger.Debug(fmt.Sprintf("received %d local execution logs to commit", len(localData.Data.ExecutionLogs)))
+
+	if len(localData.Data.ExecutionLogs) > 0 {
+		batchInsertExecutionLogs(logger, db, localData.Data.ExecutionLogs)
+		batchDeleteDeleteExecutionLogs(logger, db, localData.Data.ExecutionLogs)
 	}
 
-	if len(localData.AsyncTasks) > 0 {
-		batchInsertAsyncTasks(logger, db, localData.AsyncTasks)
-		batchDeleteDeleteAsyncTasks(logger, db, localData.AsyncTasks)
+	logger.Debug(fmt.Sprintf("received %d local async tasks to commit", len(localData.Data.AsyncTasks)))
+
+	if len(localData.Data.AsyncTasks) > 0 {
+		batchInsertAsyncTasks(logger, db, localData.Data.AsyncTasks)
+		batchDeleteDeleteAsyncTasks(logger, db, localData.Data.AsyncTasks)
 	}
 
 	return Response{
