@@ -12,7 +12,7 @@ import (
 
 type DataStore struct {
 	dbFilePath string
-	fileLock   sync.Mutex
+	FileLock   sync.Mutex
 
 	ConnectionLock sync.Mutex
 	Connection     *sql.DB
@@ -29,8 +29,8 @@ func NewSqliteDbConnection(logger hclog.Logger, dbFilePath string) *DataStore {
 
 // OpenConnection opens a database connection with one pool
 func (db *DataStore) OpenConnection() io.Closer {
-	db.fileLock.Lock()
-	defer db.fileLock.Unlock()
+	db.FileLock.Lock()
+	defer db.FileLock.Unlock()
 
 	if db.Connection != nil {
 		return db.Connection
@@ -51,8 +51,8 @@ func (db *DataStore) OpenConnection() io.Closer {
 }
 
 func (db *DataStore) Serialize() []byte {
-	db.fileLock.Lock()
-	defer db.fileLock.Unlock()
+	db.FileLock.Lock()
+	defer db.FileLock.Unlock()
 
 	data, err := os.ReadFile(db.dbFilePath)
 	if err != nil {
