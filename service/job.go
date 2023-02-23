@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/robfig/cron"
 	"net/http"
+	"scheduler0/constants"
 	"scheduler0/models"
 	"scheduler0/repository"
 	"scheduler0/service/async_task_manager"
@@ -137,9 +138,9 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to convert json to string"))
 	}
 
-	taskIds, addTaskErr := jobService.asyncTaskManager.AddTasks(string(jobsBytes), requestId, "job")
+	taskIds, addTaskErr := jobService.asyncTaskManager.AddTasks(string(jobsBytes), requestId, constants.CreateJobAsyncTaskService)
 	if addTaskErr != nil {
-		return nil, utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to create async tasks"))
+		return nil, utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to create async tasks %s", addTaskErr.Message))
 	}
 
 	jobService.dispatcher.NoBlockQueue(func(successChannel chan any, errorChannel chan any) {
@@ -155,7 +156,7 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 
 		insertedIds, iErr := jobService.jobRepo.BatchInsertJobs(jobs)
 		if iErr != nil {
-			errJson, errJsonErr := json.Marshal(utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", err.Message)))
+			errJson, errJsonErr := json.Marshal(utils.HTTPGenericError(http.StatusInternalServerError, fmt.Sprintf("failed to batch insert job repository: %v", iErr.Message)))
 			if errJsonErr != nil {
 				jobService.logger.Error("failed to save error out for an async task", errJsonErr)
 				return
