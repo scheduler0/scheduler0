@@ -73,6 +73,7 @@ type Node struct {
 	StoreDb              *boltdb.BoltStore
 	FileSnapShot         *raft.FileSnapshotStore
 	acceptClientWrites   bool
+	acceptRequest        bool
 	State                State
 	FsmStore             *fsm.Store
 	SingleNodeMode       bool
@@ -139,6 +140,7 @@ func NewNode(
 		dispatcher:           dispatcher,
 		fanIns:               sync.Map{},
 		fanInCh:              make(chan models.PeerFanIn),
+		acceptRequest:        false,
 	}
 }
 
@@ -168,10 +170,11 @@ func (node *Node) Boostrap() {
 	rft.RegisterObserver(myObserver)
 	go node.listenToObserverChannel()
 	go node.listenToFanInChannel()
+	node.beginAcceptingClientRequest()
 	node.listenOnInputQueues(node.FsmStore)
 }
 
-func (node *Node) commitJobExecutionLogs(peerAddress string, localData models.LocalData) {
+func (node *Node) commitLocalData(peerAddress string, localData models.LocalData) {
 	if node.FsmStore.Raft == nil {
 		log.Fatalln("raft is not set on job executors")
 	}
@@ -180,6 +183,12 @@ func (node *Node) commitJobExecutionLogs(peerAddress string, localData models.Lo
 		Address: peerAddress,
 		Data:    localData,
 	}
+
+	node.logger.Debug("committing local data from peer",
+		"address", peerAddress,
+		"number of async tasks", len(localData.AsyncTasks),
+		"number of execution logs", len(localData.ExecutionLogs),
+	)
 
 	data, err := json.Marshal(params)
 	if err != nil {
@@ -200,11 +209,14 @@ func (node *Node) commitJobExecutionLogs(peerAddress string, localData models.Lo
 
 	configs := config.GetConfigurations()
 
-	_ = node.FsmStore.Raft.Apply(commitCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
+	af := node.FsmStore.Raft.Apply(commitCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
+	if af.Error() != nil {
+		node.logger.Error("failed to apply local data into raft store", "error", af.Error())
+	}
 }
 
 func (node *Node) ReturnUncommittedLogs(requestId string) {
-	taskId, addErr := node.asyncTaskManager.AddTasks("", requestId, "job_executor")
+	taskId, addErr := node.asyncTaskManager.AddTasks("", requestId, constants.JobExecutorAsyncTaskService)
 	if addErr != nil {
 		node.logger.Error("failed to add new async task for job_executor", addErr)
 	}
@@ -348,7 +360,7 @@ func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
 		logger.Fatalln("failed to close rows", err)
 	}
 
-	node.logger.Debug("found max id %d and min id %d in uncommitted jobs \n", maxId, minId)
+	node.logger.Debug(fmt.Sprintf("found max id %d and min id %d in uncommitted jobs \n", maxId, minId))
 
 	ids := []int64{}
 	for i := minId; i <= maxId; i++ {
@@ -479,7 +491,7 @@ func (node *Node) insertUncommittedLogsIntoRecoverDb(executionLogs []models.JobE
 	}
 }
 
-func (node *Node) recoverRaftState() raft.Configuration {
+func (node *Node) recoverRaftState() {
 	logger := log.New(os.Stderr, "[recover-raft-state] ", log.LstdFlags)
 
 	var (
@@ -525,6 +537,7 @@ func (node *Node) recoverRaftState() raft.Configuration {
 	}
 
 	executionLogs := node.getUncommittedLogs()
+	// TODO: Get and insert uncommitte async tasks
 	recoverDbPath := fmt.Sprintf("%s/%s", dir, constants.RecoveryDbFileName)
 
 	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
@@ -603,8 +616,6 @@ func (node *Node) recoverRaftState() raft.Configuration {
 	if err != nil {
 		logger.Fatalf("failed to delete recovery db: %v", err)
 	}
-
-	return lastConfiguration
 }
 
 func (node *Node) authenticateWithPeersInConfig(logger hclog.Logger) map[string]Status {
@@ -686,14 +697,13 @@ func (node *Node) handleLeaderChange() {
 			if err != nil {
 				log.Fatalln("failed to get uncommitted async tasks after leader selection", "error", err.Error())
 			}
-			if len(uncommittedLogs) > 0 {
-				node.commitJobExecutionLogs(utils.GetServerHTTPAddress(), models.LocalData{
-					ExecutionLogs: uncommittedLogs,
-					AsyncTasks:    uncommittedAsyncTasks,
-				})
+			localData := models.LocalData{
+				ExecutionLogs: uncommittedLogs,
+				AsyncTasks:    uncommittedAsyncTasks,
 			}
-
-			go node.fanInUncommittedLogsFromPeers()
+			node.commitLocalData(utils.GetServerHTTPAddress(), localData)
+			node.handleUncommittedAsyncTasks(uncommittedAsyncTasks)
+			go node.fanInLocalDataFromPeers()
 		} else {
 			if node.isExistingNode {
 				node.jobProcessor.RecoverJobs()
@@ -701,6 +711,29 @@ func (node *Node) handleLeaderChange() {
 				node.jobProcessor.StartJobs()
 			}
 			node.beginAcceptingClientWriteRequest()
+		}
+	}
+}
+
+func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
+	for _, asyncTask := range asyncTasks {
+		if asyncTask.State == models.AsyncTaskInProgress && asyncTask.Service == constants.CreateJobAsyncTaskService {
+			var jobsPayload []models.JobModel
+			err := json.Unmarshal([]byte(asyncTask.Input), &jobsPayload)
+			if err != nil {
+				node.logger.Error("failed to string -> json convert jobs payload from async task with id", "id", asyncTask.Id, "error", err.Error())
+			}
+			jobIds, err := node.jobRepo.BatchInsertJobs(jobsPayload)
+			if err != nil {
+				node.logger.Error("failed to create jobs from async task with id", "id", asyncTask.Id, "error", err.Error())
+			}
+			node.logger.Info("successfully created jobs from async task with id", "id", asyncTask.Id, "job-ids", jobIds)
+		}
+		if asyncTask.State == models.AsyncTaskInProgress && asyncTask.Service == constants.JobExecutorAsyncTaskService {
+			err := node.asyncTaskManager.UpdateTasksByRequestId(asyncTask.RequestId, models.AsyncTaskSuccess, "")
+			if err != nil {
+				node.logger.Error("failed to update state of uncommitted job executor async tasks to success", "error", err.Message)
+			}
 		}
 	}
 }
@@ -844,31 +877,50 @@ func (node *Node) listenToObserverChannel() {
 func (node *Node) listenToFanInChannel() {
 	configs := config.GetConfigurations()
 	completedFanIns := make(map[string]models.PeerFanIn)
+	mtx := sync.Mutex{}
 
-	for {
-		select {
-		case peerFanIn := <-node.fanInCh:
-			completedFanIns[peerFanIn.PeerHTTPAddress] = peerFanIn
-			if len(completedFanIns) == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
-				node.beginAcceptingClientWriteRequest()
+	go func() {
+		for {
+			select {
+			case peerFanIn := <-node.fanInCh:
+				mtx.Lock()
+				completedFanIns[peerFanIn.PeerHTTPAddress] = peerFanIn
+				if len(completedFanIns) == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
+					node.jobProcessor.StartJobs()
+					node.beginAcceptingClientWriteRequest()
+				}
+				mtx.Unlock()
+			case <-node.ctx.Done():
+				return
 			}
-		case <-node.ctx.Done():
-			return
 		}
-	}
+	}()
 }
 
 func (node *Node) beginAcceptingClientWriteRequest() {
 	node.acceptClientWrites = true
-	node.logger.Info("ready to accept requests")
+	node.logger.Info("ready to accept write requests")
 }
 
 func (node *Node) stopAcceptingClientWriteRequest() {
 	node.acceptClientWrites = false
 }
 
+func (node *Node) beginAcceptingClientRequest() {
+	node.acceptRequest = true
+	node.logger.Info("ready to accept requests")
+}
+
+func (node *Node) stopAcceptingClientRequest() {
+	node.acceptRequest = false
+}
+
 func (node *Node) CanAcceptClientWriteRequest() bool {
 	return node.acceptClientWrites
+}
+
+func (node *Node) CanAcceptRequest() bool {
+	return node.acceptRequest
 }
 
 func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
@@ -893,7 +945,7 @@ func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
 	return peerFanIns
 }
 
-func (node *Node) fanInUncommittedLogsFromPeers() {
+func (node *Node) fanInLocalDataFromPeers() {
 	configs := config.GetConfigurations()
 	ticker := time.NewTicker(time.Duration(configs.ExecutionLogFetchIntervalSeconds) * time.Second)
 	ctx, cancelFunc := context.WithCancel(node.ctx)
@@ -1021,7 +1073,7 @@ func (node *Node) fetchUncommittedLogsFromPeersPhase2(ctx context.Context, peerF
 
 func (node *Node) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
 	for _, peerFanIn := range peerFanIns {
-		node.commitJobExecutionLogs(peerFanIn.PeerHTTPAddress, peerFanIn.Data)
+		node.commitLocalData(peerFanIn.PeerHTTPAddress, peerFanIn.Data)
 		node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 		node.fanInCh <- peerFanIn
 	}
