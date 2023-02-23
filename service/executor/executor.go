@@ -69,6 +69,8 @@ func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 		return
 	}
 
+	jobExecutor.logger.Debug("Queueing jobs", "from", lowerBound, "to", upperBound)
+
 	if upperBound-lowerBound > constants.JobMaxBatchSize {
 		currentLowerBound := lowerBound
 		currentUpperBound := lowerBound + constants.JobMaxBatchSize
@@ -111,7 +113,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.JobModel) {
 	}
 	configs := config.GetConfigurations()
 
-	jobIds := []uint64{}
+	jobIds := make([]uint64, 0, len(jobs))
 
 	for _, job := range jobs {
 		jobIds = append(jobIds, job.ID)
@@ -238,7 +240,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.JobModel) {
 	}
 
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
-	lastExecutionVersions := map[uint64]uint64{}
+	lastExecutionVersions := make(map[uint64]uint64)
 
 	for _, job := range jobs {
 		if _, ok := lastExecutionVersions[job.ID]; !ok {
@@ -265,7 +267,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.JobModel) {
 		jobExecutor.logJobExecutionStateInRaft(jobs, models.ExecutionLogScheduleState, lastExecutionVersions)
 	}
 
-	//jobExecutor.logger.Println("scheduled job", jobs[0].ID, "to", jobs[len(jobs)-1].ID)
+	jobExecutor.logger.Debug("scheduled jobs", "from", jobs[0].ID, "to", jobs[len(jobs)-1].ID)
 }
 
 func (jobExecutor *JobExecutor) StopAll() {
@@ -334,7 +336,7 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.JobModel, newState mode
 
 	configs := config.GetConfigurations()
 
-	jobsToReschedule := []models.JobModel{}
+	jobsToReschedule := make([]models.JobModel, 0, len(jobs))
 
 	for i, job := range jobs {
 
@@ -345,8 +347,7 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.JobModel, newState mode
 		executionVersion := lastExecution.ExecutionVersion
 
 		if newState == models.ExecutionLogFailedState &&
-			failCounts < uint64(configs.JobExecutionRetryMax) {
-
+			failCounts < configs.JobExecutionRetryMax {
 			failCounts += 1
 			jobExecutor.executions.Store(job.ID, models.MemJobExecution{
 				ExecutionVersion:      executionVersion,
@@ -388,7 +389,7 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.JobModel, newState mode
 	}
 
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
-	lastExecutionVersions := map[uint64]uint64{}
+	lastExecutionVersions := make(map[uint64]uint64)
 
 	for _, job := range jobsToReschedule {
 		if _, ok := lastExecutionVersions[job.ID]; !ok {
@@ -409,7 +410,7 @@ func (jobExecutor *JobExecutor) createInMemExecutionsForJobsIfNotExist(jobs []mo
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	jobsNotInExecution := []uint64{}
+	jobsNotInExecution := make([]uint64, 0, len(jobs))
 
 	for _, job := range jobs {
 		_, ok := jobExecutor.executions.Load(job.ID)
@@ -472,7 +473,7 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 			return nil
 		}
 
-		//jobExecutor.logger.Println(fmt.Sprintf("batched queried %v", len(jobs)))
+		jobExecutor.logger.Debug(fmt.Sprintf("batched queried %v", len(jobs)))
 
 		jobsToExecute := make([]models.JobModel, 0)
 
@@ -510,11 +511,11 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 func (jobExecutor *JobExecutor) handleSuccessJobs(successfulJobs []models.JobModel) {
 	configs := config.GetConfigurations()
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
-	jobIds := []uint64{}
+	jobIds := make([]uint64, 0, len(successfulJobs))
 	for _, successfulJob := range successfulJobs {
 		jobIds = append(jobIds, successfulJob.ID)
 	}
-	lastExecutionVersions := map[uint64]uint64{}
+	lastExecutionVersions := make(map[uint64]uint64)
 
 	jobExecutor.createInMemExecutionsForJobsIfNotExist(successfulJobs)
 
@@ -540,7 +541,9 @@ func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.JobModel) 
 		jobExecutor.logger.Error(fmt.Sprintf("failed to execute job %v", erroredJob.ID))
 	}
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
-	jobIds := []uint64{}
+
+	jobIds := make([]uint64, 0, len(erroredJobs))
+
 	for _, erroredJob := range erroredJobs {
 		jobIds = append(jobIds, erroredJob.ID)
 	}
@@ -568,7 +571,7 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 	configs := config.GetConfigurations()
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
 
-	executionLogs := []models.JobExecutionLog{}
+	executionLogs := make([]models.JobExecutionLog, 0, len(jobs))
 
 	for _, job := range jobs {
 		schedule, parseErr := cron.Parse(job.Spec)
@@ -583,7 +586,7 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 			JobId:                 job.ID,
 			UniqueId:              job.ExecutionId,
 			State:                 uint64(state),
-			NodeId:                uint64(configs.NodeId),
+			NodeId:                configs.NodeId,
 			LastExecutionDatetime: job.LastExecutionDate,
 			NextExecutionDatetime: executionTime,
 			JobQueueVersion:       lastVersion,
