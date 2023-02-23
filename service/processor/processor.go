@@ -49,16 +49,16 @@ func (jobProcessor *JobProcessor) StartJobs() {
 
 	totalProjectCount, countErr := jobProcessor.projectRepo.Count()
 	if countErr != nil {
-		jobProcessor.logger.Error("could not get number of project count", countErr.Message)
+		jobProcessor.logger.Error("could not get number of project count", "error", countErr.Message)
 		log.Fatalln("could not get number of project count", countErr.Message)
 		return
 	}
 
-	jobProcessor.logger.Debug("total number of projects: ", totalProjectCount)
+	jobProcessor.logger.Debug("total number of projects: ", "count", totalProjectCount)
 
 	projects, listErr := jobProcessor.projectRepo.List(0, totalProjectCount)
 	if listErr != nil {
-		jobProcessor.logger.Error("could not list the number of projects", listErr.Message)
+		jobProcessor.logger.Error("could not list the number of projects", "message", listErr.Message)
 		log.Fatalln("could not list the number of projects", listErr.Message)
 		return
 	}
@@ -66,7 +66,7 @@ func (jobProcessor *JobProcessor) StartJobs() {
 	for _, project := range projects {
 		jobsTotalCount, err := jobProcessor.jobRepo.GetJobsTotalCountByProjectID(project.ID)
 		if err != nil {
-			jobProcessor.logger.Error("could not get the number of jobs for a projects", err.Message)
+			jobProcessor.logger.Error("could not get the number of jobs for a projects", "error", err.Message)
 			log.Fatalln("could not get the number of jobs for a projects", err.Message)
 			return
 		}
@@ -79,7 +79,7 @@ func (jobProcessor *JobProcessor) StartJobs() {
 		}
 
 		if loadErr != nil {
-			jobProcessor.logger.Error("could not load projects", loadErr.Message)
+			jobProcessor.logger.Error("could not load projects", "error", loadErr.Message)
 			log.Fatalln("could not load projects", loadErr.Message)
 			return
 		}
@@ -117,13 +117,13 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 
 		jobsFromDb, err := jobProcessor.jobRepo.BatchGetJobsByID(expandedJobIds)
 		if err != nil {
-			jobProcessor.logger.Error("failed to retrieve jobs from db", err.Message)
+			jobProcessor.logger.Error("failed to retrieve jobs from db", "error", err.Message)
 			return
 		}
 
 		jobProcessor.logger.Debug(fmt.Sprintf("recovered %d jobs", len(jobsFromDb)))
 
-		jobsToSchedule := []models.JobModel{}
+		var jobsToSchedule []models.JobModel
 
 		for _, job := range jobsFromDb {
 			var lastJobState models.JobExecutionLog
