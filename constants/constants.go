@@ -21,4 +21,5 @@ const (
 const DBMaxVariableSize = 32766
 const JobMaxBatchSize = 5461
 const JobExecutionLogMaxBatchSize = 4095
-const AsyncTasksMaxBatchSize = 4679
+const CreateJobAsyncTaskService = "create_job"
+const JobExecutorAsyncTaskService = "job_executor"
