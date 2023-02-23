@@ -160,7 +160,7 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 }
 
 func (repo *asyncTasksRepo) RaftUpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError {
-	updateQuery := sq.Update(UnCommittedAsyncTableName).
+	updateQuery := sq.Update(CommittedAsyncTableName).
 		Set(StateColumn, state).
 		Set(OutputColumn, output).
 		Where(fmt.Sprintf("%s = ?", IdColumn), task.Id)
@@ -213,7 +213,7 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
 	query := fmt.Sprintf(
-		"select %s, %s, %s, %s, %s, %s, %s from %s union all %s %s, %s, %s, %s, %s, %s, %s where %s = ?",
+		"select %s, %s, %s, %s, %s, %s, %s from %s union all select %s, %s, %s, %s, %s, %s, %s from %s where %s = ?",
 		IdColumn,
 		RequestIdColumn,
 		InputColumn,
@@ -351,7 +351,7 @@ func (repo *asyncTasksRepo) GetAllUnCommittedTasks() ([]models.AsyncTask, *utils
 			StateColumn,
 			ServiceColumn,
 			DateCreatedColumn,
-			CommittedAsyncTableName,
+			UnCommittedAsyncTableName,
 			paramPlaceholders,
 		)
 		rows, err := repo.fsmStore.DataStore.Connection.Query(query, params...)
