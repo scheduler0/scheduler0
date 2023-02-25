@@ -9,6 +9,7 @@ output=$(./scheduler0 create credential)
 api_key=$(echo $output | jq -r '.data.api_key')
 api_secret=$(echo $output | jq -r '.data.api_secret')
 
+rm -rf .env
 touch .env
 
 # Write the API key and API secret to the .env file
