@@ -10,7 +10,21 @@ client/build
 .env
 db.db
 .scheduler0
+scheduler0
 execs.log
 raft_data/
 e2e/
-server/db/db.db
+db/db.db
+/localhost.key
+/localhost.csr
+recover.db
+/sqlite3/upgrade/*.c
+/sqlite3/upgrade/*.h
+/sqlite3/upgrade/upgrade
+*.db
+*.exe
+*.dll
+*.o
+
+# VSCode
+.vscode

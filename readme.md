@@ -1,16 +1,9 @@
 # Scheduler0
 
-A simple scheduling server for apps and backend server.
+A Cloud-Native Distributed Cronjob Server based on Raft distributed consensus and use SQlite database.
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/victorlenerd/scheduler0)](https://goreportcard.com/report/github.com/victorlenerd/scheduler0) 
-[![CircleCI](https://circleci.com/gh/victorlenerd/scheduler0/tree/main.svg?style=svg)](https://circleci.com/gh/victorlenerd/scheduler0/tree/main)
+## Basic Setup
 
-## Introduction
-
-To use this you must first clone the repository and add the scheduler0 binary at the root of repo to your $PATH
-    
-The scheduler0 CLI tool in the root of this repo can be used to configure and start the server.
-Postgres is needed to start the server, therefore after cloning the repo you need to run the config command.
 ```shell
 scheduler0 config init
 ```
@@ -30,18 +23,43 @@ scheduler0 --help
 
 ## Configurations
 
-Replace the secret key with your AES-256 key. It will be used to generate API Key and Secret Key.
-As well as the other configurations.
-
 ```shell
-Secret: AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94
-PostgresDatabase: scheduler0_test
-PostgresPassword: localdev
-PostgresUser: core
-PostgresHost: localhost:5432
-Port: 9090
-MaxMemory: 500mb
+LogLevel: DEBUG
+Protocol: http
+Host: 127.0.0.1
+Port: 9091
+MaxMemory: 5000
 MaxCPU: 50
+Bootstrap: true
+NodeId: 1
+RaftAddress: 127.0.0.1:7071
+RaftTransportMaxPool: 100
+RaftTransportTimeout: 1
+RaftApplyTimeout: 2
+RaftSnapshotInterval: 1
+RaftSnapshotThreshold: 1
+PeerConnectRetryMax: 2
+PeerConnectRetryDelay: 1
+PeerAuthRequestTimeoutMs: 2
+JobExecutionTimeout: 30
+JobExecutionRetryDelay: 1
+JobExecutionRetryMax: 10
+MaxWorkers: 1
+MaxQueue: 1
+JobQueueDebounceDelay: 1
+ExecutionLogFetchFanIn: 2
+ExecutionLogFetchIntervalSeconds: 2
+HTTPExecutorPayloadMaxSizeMb: 2
+Replicas:
+  - Address: http://127.0.0.1:9091
+    RaftAddress: 127.0.0.1:7071
+    NodeId: 1
+  - Address: http://127.0.0.1:9092
+    RaftAddress: 127.0.0.1:7072
+    NodeId: 2
+  - Address: http://127.0.0.1:9093
+    RaftAddress: 127.0.0.1:7073
+    NodeId: 3
 ```
 
 These configurations can set in the environment or `config.yml` in the root or by executing:
@@ -56,7 +74,7 @@ Credentials are basically api keys and secrets needed for client apps to reach t
 Use command to generate credentials and more.
 
 ```shell
-scheduler0 create credential --client server
+scheduler0 create credential
 ```
 
 The above command will create a credential for server, this includes api key and secret used in the node example app below.
@@ -65,12 +83,6 @@ You can use the list command to view all credentials, projects and jobs.
 ```shell
 scheduler0 list -t credentials
 ```
-
-## API Documentation
-
-Assuming the scheduler0 server is running on `http://localhost:9090` there is a REST API documentation on http://localhost:9090/api-docs/ [](http://localhost:9090/api-docs/)
-
-Note: that port 9090 is the default port for the server.
 
 ## Example Usage In Node Server
 
@@ -138,23 +150,3 @@ app.listen(port, async () => {
 })
 
 ```
-
-
-## [WIP]: Dashboard
-
-The dashboard is supposed to be a GUI for managing projects, credentials and jobs.
-
-!["Dashboard"](./screenshots/screenshot.png)
- 
-# License
-
- * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-   http://opensource.org/licenses/MIT)
-
-at your option.
-
-### Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in this project by you, as defined in the Apache-2.0 license,
-shall be dual licensed as above, without any additional terms or conditions.

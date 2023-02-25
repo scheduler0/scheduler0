@@ -1,17 +1,21 @@
 package cmd
 
 import (
-	"encoding/json"
+	"database/sql"
+	_ "embed"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
+	"log"
 	"os"
-	"scheduler0/server/db"
-	"scheduler0/utils"
+	"scheduler0/config"
+	"scheduler0/constants"
+	"scheduler0/db"
 )
 
-// ConfigCmd configuration command
+// ConfigCmd configuration protobuffs
 var ConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "create, view or modify scheduler0 configurations",
@@ -28,8 +32,74 @@ Note that starting the server without going through the init flow will not work.
 `,
 }
 
+func runMigration(cmdLogger hclog.Logger, fs afero.Fs, dir string) {
+	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+
+	err := fs.Remove(dbFilePath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal db delete error: %s \n", err))
+	}
+
+	_, err = fs.Create(dbFilePath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
+	}
+
+	datastore := db.NewSqliteDbConnection(cmdLogger, dbFilePath)
+	conn := datastore.OpenConnection()
+
+	dbConnection := conn.(*sql.DB)
+
+	trx, dbConnErr := dbConnection.Begin()
+	if dbConnErr != nil {
+		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", dbConnErr))
+	}
+
+	_, execErr := trx.Exec(db.GetSetupSQL())
+	if execErr != nil {
+		errRollback := trx.Rollback()
+		if errRollback != nil {
+			log.Fatalln(fmt.Errorf("Fatal rollback error: %s \n", execErr))
+		}
+		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", execErr))
+	}
+
+	errCommit := trx.Commit()
+	if errCommit != nil {
+		log.Fatalln(fmt.Errorf("Fatal commit error: %s \n", errCommit))
+	}
+}
+
+func recreateDb(fs afero.Fs, dir string) {
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+	exists, err := afero.DirExists(fs, dirPath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
+	}
+	if exists {
+		err := fs.RemoveAll(dirPath)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
+		}
+	}
+}
+
+func recreateRaftDir(fs afero.Fs, dir string) {
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.RaftDir)
+	exists, err := afero.DirExists(fs, dirPath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
+	}
+	if exists {
+		err := fs.RemoveAll(dirPath)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
+		}
+	}
+}
+
 // InitCmd initializes scheduler0 configuration
-var InitCmd = &cobra.Command{
+var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize database configurations and port for the scheduler0 server",
 	Long: `
@@ -40,111 +110,53 @@ Usage:
 
 	scheduler0 init
 
-Note that the PORT is optional. By default the server will use :9090
+Note that the Port is optional. By default the server will use :9090
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Initialize Scheduler0")
+		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 
-		postgresAddrPrompt := promptui.Prompt{
-			Label:       "Postgres Address",
-			AllowEdit:   true,
-			HideEntered: true,
+		logger.Println("Initializing Scheduler0 Configuration")
+		config := config.GetConfigurations()
+
+		cmdLogger := hclog.New(&hclog.LoggerOptions{
+			Name:  "scheduler0-cmd",
+			Level: hclog.LevelFromString(config.LogLevel),
+		})
+
+		if config.Port == "" {
+			portPrompt := promptui.Prompt{
+				Label:       "Port",
+				HideEntered: true,
+				Default:     "9090",
+			}
+			Port, _ := portPrompt.Run()
+			config.Port = Port
 		}
-		Addr, _ := postgresAddrPrompt.Run()
-
-		postgresUserPrompt := promptui.Prompt{
-			Label:       "Postgres PostgresUser",
-			AllowEdit:   true,
-			HideEntered: true,
+		setEnvErr := os.Setenv(config.Port, config.Port)
+		if setEnvErr != nil {
+			logger.Fatalln(setEnvErr)
 		}
-		User, _ := postgresUserPrompt.Run()
 
-		postgresDBPrompt := promptui.Prompt{
-			Label:       "Postgres PostgresDatabase",
-			AllowEdit:   true,
-			HideEntered: true,
-		}
-		DB, _ := postgresDBPrompt.Run()
-
-		postgresPassPrompt := promptui.Prompt{
-			Label:       "Postgres PostgresPassword",
-			HideEntered: true,
-			Mask:        '*',
-		}
-		Pass, _ := postgresPassPrompt.Run()
-
-		portPrompt := promptui.Prompt{
-			Label:       "Port",
-			HideEntered: true,
-			Default:     "9090",
-		}
-		Port, _ := portPrompt.Run()
-
-		secretKeyPrompt := promptui.Prompt{
-			Label:       "Secret Key",
-			HideEntered: true,
-			Default:     "9090",
-		}
-		SecretKey, _ := secretKeyPrompt.Run()
-
-		err := os.Setenv(utils.PostgresAddressEnv, Addr)
-		utils.CheckErr(err)
-
-		err = os.Setenv(utils.PostgresUserEnv, User)
-		utils.CheckErr(err)
-
-		err = os.Setenv(utils.PostgresPasswordEnv, Pass)
-		utils.CheckErr(err)
-
-		err = os.Setenv(utils.PostgresDatabaseEnv, DB)
-		utils.CheckErr(err)
-
-		err = os.Setenv(utils.PortEnv, Port)
-		utils.CheckErr(err)
-
-		_, err = db.OpenConnection()
+		dir, err := os.Getwd()
 		if err != nil {
-			utils.Error("Cannot connect to the database")
-			utils.Error(err.Error())
-			return
-		} else {
-			config := utils.Scheduler0Configurations{
-				PostgresAddress:  Addr,
-				PostgresUser:     User,
-				PostgresDatabase: DB,
-				PostgresPassword: Pass,
-				PORT:             Port,
-				SecretKey:        SecretKey,
-			}
-
-			configByte, err := json.Marshal(config)
-			if err != nil {
-				panic(fmt.Errorf("Fatal error config file: %s \n", err))
-			}
-			configFilePath := fmt.Sprintf("%v/.scheduler0", os.Getenv("HOME"))
-
-			fs := afero.NewOsFs()
-			file, err := fs.Create(configFilePath)
-			if err != nil {
-				panic(fmt.Errorf("Fatal unable to save scheduler 0: %s \n", err))
-			}
-
-			_, err = file.Write(configByte)
-			if err != nil {
-				panic(fmt.Errorf("Fatal unable to save scheduler 0: %s \n", err))
-			}
+			log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 		}
+		fs := afero.NewOsFs()
+
+		recreateDb(fs, dir)
+		recreateRaftDir(fs, dir)
+		runMigration(cmdLogger, fs, dir)
+
+		logger.Println("Scheduler0 Initialized")
 	},
 }
 
-var showPassword = false
-
 // ShowCmd show scheduler0 password configuration
-var ShowCmd = &cobra.Command{
+var showCmd = &cobra.Command{
 	Use:   "show",
 	Short: "This will show the configurations that have been set.",
 	Long: `
-Using this command you can tell what configurations have been  excluding the database password.
+Using this protobuffs you can tell what configurations have been set.
 
 Usage:
 
@@ -153,39 +165,23 @@ Usage:
 Use the --show-password flag if you want the password to be visible.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		utils.SetScheduler0Configurations()
-		configs := utils.GetScheduler0Configurations()
-
-		if showPassword {
-			utils.Info(fmt.Sprintf(
-				"PORT = %v "+
-					"POSTGRES_ADDRESS = %v "+
-					"POSTGRES_USER = %v "+
-					"POSTGRES_PASSWORD = %v "+
-					"POSTGRES_DATABASE = %v ",
-				configs.PORT,
-				configs.PostgresAddress,
-				configs.PostgresUser,
-				configs.PostgresPassword,
-				configs.PostgresDatabase))
-		} else {
-			utils.Info(fmt.Sprintf(
-				"PORT = %v "+
-					"POSTGRES_ADDRESS = %v "+
-					"POSTGRES_USER = %v "+
-					"POSTGRES_DATABASE = %v ",
-				configs.PORT,
-				configs.PostgresAddress,
-				configs.PostgresUser,
-				configs.PostgresDatabase))
-		}
-
+		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
+		configs := config.GetConfigurations()
+		logger.Println("Configurations:")
+		logger.Println("NodeId:", configs.NodeId)
+		logger.Println("Bootstrap:", configs.Bootstrap)
+		logger.Println("RaftAddress:", configs.RaftAddress)
+		logger.Println("Replicas:", configs.Replicas)
+		logger.Println("Port:", configs.Port)
+		logger.Println("RaftTransportMaxPool:", configs.RaftTransportMaxPool)
+		logger.Println("RaftTransportTimeout:", configs.RaftTransportTimeout)
+		logger.Println("RaftApplyTimeout:", configs.RaftApplyTimeout)
+		logger.Println("RaftSnapshotInterval:", configs.RaftSnapshotInterval)
+		logger.Println("RaftSnapshotThreshold:", configs.RaftSnapshotThreshold)
 	},
 }
 
 func init() {
-	ShowCmd.Flags().BoolVarP(&showPassword, "show-password", "s", false, "scheduler0 config show --show-password")
-
-	ConfigCmd.AddCommand(InitCmd)
-	ConfigCmd.AddCommand(ShowCmd)
+	ConfigCmd.AddCommand(initCmd)
+	ConfigCmd.AddCommand(showCmd)
 }

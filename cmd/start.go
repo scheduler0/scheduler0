@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"scheduler0/server/http_server"
-	"scheduler0/utils"
+	"log"
+	"os"
+	"scheduler0/http_server"
 )
 
 // StartCmd http server command
@@ -12,7 +13,7 @@ var StartCmd = &cobra.Command{
 	Short: "Start scheduler0 http server",
 	Long: `
 This start command will spin up the http server. 
-The server will be ready to receive request on the PORT specified during init otherwise use :9090
+The server will be ready to receive request on the Port specified during init otherwise use :9090
 
 Usage: 
 
@@ -21,8 +22,8 @@ Usage:
 The server needs to be running in order to execute jobs.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		utils.Info("Starting Server.")
-		utils.SetScheduler0Configurations()
+		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
+		logger.Println("Starting Server.")
 		http_server.Start()
 	},
 }

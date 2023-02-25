@@ -71,3 +71,8 @@ func Decrypt(encryptedString string, keyString string) (decryptedString string) 
 
 	return fmt.Sprintf("%s", plaintext)
 }
+
+// GenerateApiAndSecretKey create an api key or api secret
+func GenerateApiAndSecretKey(secretKey string) (string, string) {
+	return Encrypt(GetRandomSha256(), secretKey), Encrypt(GetRandomSha256(), secretKey)
+}

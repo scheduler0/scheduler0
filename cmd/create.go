@@ -1,123 +1,91 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/go-pg/pg"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
-	"scheduler0/server/db"
-	"scheduler0/server/service"
-	"scheduler0/server/transformers"
-	"scheduler0/utils"
-	"strings"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"scheduler0/config"
+	"scheduler0/constants/headers"
+	"scheduler0/models"
+	"scheduler0/secrets"
 )
 
-// CreateCmd create job, credentials and projects command
 var CreateCmd = &cobra.Command{
 	Use:   "create",
-	Short: "create a credential or project",
+	Short: "create a resource like credential, projects or jobs",
 	Long: `
-Use this command to create credentials for any client or a project. 
+Use this 
 
 Usage:
-	scheduler0 create credentials --client server
-
-This will create an api key and api secret for a server side backend.
-For other clients such as Android, iOS and Web an restriction key is required.
+	create credential
 `,
 }
 
-var clientFlag = ""
-
-// CredentialCmd create credential command
-var CredentialCmd = &cobra.Command{
+var credentialCmd = &cobra.Command{
 	Use:   "credential",
-	Short: "create credential",
-	Long: `
-Use this command to create a new credential for any client.
-
-Usage:
-	scheduler0 create credential --client server
-
-The client flag has to be one of android, ios, web, server.
-For android, ios, web credential at least one restriction will be required.
-`,
+	Short: "Creates a new credential",
+	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		utils.SetScheduler0Configurations()
+		logger := log.New(os.Stdout, "[cmd] ", log.LstdFlags)
 
-		validClients := strings.Join([]string{"android", "ios", "web", "server"}, ",")
-		isValidClientFlag := strings.Contains(validClients, clientFlag)
+		configs := config.GetConfigurations()
+		credentials := secrets.GetSecrets()
 
-		if !isValidClientFlag {
-			utils.Error(fmt.Sprintf("%v is not a valid client", clientFlag))
-			return
-		}
-		conn, err := db.OpenConnection()
-		dbConnection := conn.(*pg.DB)
-		utils.CheckErr(err)
-		credentialService := service.Credential{DBConnection: dbConnection}
-		credentialTransformer := transformers.Credential{
-			Platform: clientFlag,
+		credentialModel := models.CredentialModel{}
+		data, err := credentialModel.ToJSON()
+		if err != nil {
+			logger.Fatalln(err)
 		}
 
-		if clientFlag == "ios" {
-			iOSBundleRestrictionPrompt := promptui.Prompt{
-				Label:       "iOS Bundle Restriction",
-				AllowEdit:   true,
-				HideEntered: true,
-			}
-			iOSBundleRestriction, _ := iOSBundleRestrictionPrompt.Run()
+		client := &http.Client{
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				req.Method = http.MethodPost
+				body := bytes.NewReader(data)
+				rc := ioutil.NopCloser(body)
+				req.Body = rc
+				req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+				req.Header.Add(headers.PeerHeader, headers.PeerHeaderCMDValue)
+				req.Header.Add("Content-Type", "application/json")
 
-			if len(iOSBundleRestriction) < 1 {
-				utils.Error("please enter a valid ios bundle id")
-			} else {
-				credentialTransformer.IOSBundleIDRestriction = iOSBundleRestriction
-			}
-		} else if clientFlag == "android" {
-			androidRestrictionPrompt := promptui.Prompt{
-				Label:       "Android Package Name Restriction",
-				AllowEdit:   true,
-				HideEntered: true,
-			}
-			restriction, _ := androidRestrictionPrompt.Run()
+				if len(via) > 5 {
+					logger.Fatalln("too many redirects")
+				}
 
-			if len(restriction) < 1 {
-				utils.Error("please enter a valid android package name")
-			} else {
-				credentialTransformer.AndroidPackageNameRestriction = restriction
-			}
-		} else if clientFlag == "web" {
-			webRestrictionPrompt := promptui.Prompt{
-				Label:       "Web http referral restriction",
-				AllowEdit:   true,
-				HideEntered: true,
-			}
-			httpRestriction, _ := webRestrictionPrompt.Run()
-
-			ipRestrictionPrompt := promptui.Prompt{
-				Label:       "Web http referral restriction",
-				AllowEdit:   true,
-				HideEntered: true,
-			}
-			ipRestriction, _ := ipRestrictionPrompt.Run()
-
-			if len(ipRestriction) < 1 || len(httpRestriction) < 1 {
-				utils.Error("please enter a valid bundle description")
-			} else {
-				credentialTransformer.HTTPReferrerRestriction = httpRestriction
-				credentialTransformer.IPRestrictionRestriction = ipRestriction
-			}
+				return nil
+			},
 		}
-		credentialUUID, creteCredentialError := credentialService.CreateNewCredential(credentialTransformer)
-		if creteCredentialError != nil {
-			utils.Error(creteCredentialError.Message)
+		req, err := http.NewRequest(
+			"POST",
+			fmt.Sprintf("%s://%s:%s/credentials", configs.Protocol, configs.Host, configs.Port),
+			bytes.NewReader(data),
+		)
+
+		req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+		req.Header.Add(headers.PeerHeader, headers.PeerHeaderCMDValue)
+		req.Header.Add("Content-Type", "application/json")
+		res, err := client.Do(req)
+		if err != nil {
+			logger.Fatalln(err)
+		}
+		defer res.Body.Close()
+
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			logger.Fatalln(err)
+		}
+
+		if res.StatusCode != http.StatusCreated {
+			logger.Fatalln("failed to create new credential:error:", string(body))
 		} else {
-			utils.Info(fmt.Sprintf("Successfully created a new credential with ID = %v", credentialUUID))
+			fmt.Println(string(body))
 		}
 	},
 }
 
 func init() {
-	CredentialCmd.Flags().StringVarP(&clientFlag, "client", "c", "", "scheduler0 create credential --client server")
-	CreateCmd.AddCommand(CredentialCmd)
+	CreateCmd.AddCommand(credentialCmd)
 }

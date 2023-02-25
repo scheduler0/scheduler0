@@ -49,10 +49,10 @@ clean_test_cache:
 test:
 	go clean -testcache
 
-	go test ./server/managers/execution
+	go test ./managers/execution
 
-	go test ./server/managers/job
-	go test ./server/managers/project
+	go test ./managers/job
+	go test ./managers/project
 
 	go test ./server/http_server/controllers/execution
 	go test ./server/http_server/controllers/credential
@@ -65,3 +65,53 @@ test:
 	go test ./server/http_server/middlewares/auth/web
 
 	go test ./server/process
+
+copy_build_into_e2e:
+	cp scheduler0 ./e2e/node1/
+	cp scheduler0 ./e2e/node2/
+	cp scheduler0 ./e2e/node3/
+	cp scheduler0 ./e2e/node4/
+	cp scheduler0 ./e2e/node5/
+#	cp scheduler0 ./e2e/node6/
+#	cp scheduler0 ./e2e/node7/
+
+start_e2e_server1:
+	./e2e/node1/scheduler0 config init
+	rm -rfd ./e2e/node1/raft_data
+	rm -rfd ./raft_data/1
+	./e2e/node1/scheduler0 start
+
+start_e2e_server2:
+	./e2e/node2/scheduler0 config init
+	rm -rfd ./e2e/node2/raft_data
+	rm -rfd ./raft_data/2
+	./e2e/node2/scheduler0 start
+
+start_e2e_server3:
+	./e2e/node3/scheduler0 config init
+	rm -rfd ./e2e/node3/raft_data
+	rm -rfd ./raft_data/3
+	./e2e/node3/scheduler0 start
+
+start_e2e_server4:
+	./e2e/node4/scheduler0 config init
+	rm -rfd ./e2e/node4/raft_data
+	rm -rfd ./raft_data/4
+	./e2e/node4/scheduler0 start
+
+start_e2e_server5:
+	rm -rfd ./e2e/node5/raft_data
+	rm -rfd ./raft_data/5
+	./e2e/node5/scheduler0 start
+
+local_raft_test_build:
+	docker-compose -f ./docker/docker-compose.yml up --force-recreate --build server
+
+local_raft_test_up:
+	docker-compose -f ./docker/docker-compose.yml up server
+
+increase_ulimit:
+	ulimit -n 1280
+
+generate_protobuffs:
+ 	protoc --proto_path=. --go_out=. --go_opt="Mcommand.proto=.;protobuffs" command.proto

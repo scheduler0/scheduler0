@@ -1,11 +1,30 @@
-Secret: AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94
-PostgresDatabase: scheduler0_test
-PostgresPassword: localdev
-PostgresUser: core
-PostgresHost: localhost:5432
+LogLevel: DEBUG
+Protocol: http
+Host: 127.0.0.1
 Port: 9090
-MaxMemory: 500mb
-MaxCPU: 50
+MaxMemory: 5000
+Bootstrap: true
+NodeId: 1
+RaftAddress: 127.0.0.1:7070
+RaftTransportMaxPool: 100
+RaftTransportTimeout: 1
+RaftApplyTimeout: 2
+RaftSnapshotInterval: 1
+RaftSnapshotThreshold: 1
+PeerConnectRetryMax: 2
+PeerConnectRetryDelay: 1
+PeerAuthRequestTimeoutMs: 2
+JobExecutionTimeout: 30
+JobExecutionRetryDelay: 1
+JobExecutionRetryMax: 2
+JobInvocationDebounceDelay: 100
+MaxWorkers: 1
+MaxQueue: 1
+JobQueueDebounceDelay: 2
+ExecutionLogFetchFanIn: 2
+ExecutionLogFetchInterval: 2
+HTTPExecutorPayloadMaxSizeMb: 2
 Replicas:
-  - localhost:9091
-  - localhost:9092
+  - Address: http://127.0.0.1:9090
+    RaftAddress: 127.0.0.1:7070
+    NodeId: 1

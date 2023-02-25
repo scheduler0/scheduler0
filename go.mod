@@ -1,36 +1,49 @@
 module scheduler0
 
-go 1.13
+go 1.18
 
 require (
-	github.com/bxcodec/faker v2.0.1+incompatible
+	github.com/Masterminds/squirrel v1.5.3
 	github.com/bxcodec/faker/v3 v3.5.0
-	github.com/containerd/containerd v1.4.3 // indirect
-	github.com/docker/distribution v2.7.1+incompatible // indirect
-	github.com/docker/docker v20.10.3+incompatible
-	github.com/docker/go-connections v0.4.0
-	github.com/docker/go-units v0.4.0 // indirect
 	github.com/go-http-utils/logger v0.0.0-20161128092850-f3a42dcdeae6
-	github.com/go-openapi/strfmt v0.20.0 // indirect
-	github.com/go-pg/pg v8.0.7+incompatible
-	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.8.0
-	github.com/jedib0t/go-pretty/v6 v6.1.0
-	github.com/magiconair/properties v1.8.4
+	github.com/hashicorp/go-hclog v1.4.0
+	github.com/hashicorp/raft v1.3.11
+	github.com/hashicorp/raft-boltdb/v2 v2.2.2
 	github.com/manifoldco/promptui v0.8.0
-	github.com/onsi/ginkgo v1.15.0
-	github.com/onsi/gomega v1.10.4
-	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.0.1 // indirect
+	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/robfig/cron v1.2.0
 	github.com/segmentio/ksuid v1.0.3
 	github.com/spf13/afero v1.1.2
 	github.com/spf13/cobra v1.1.1
-	github.com/spf13/viper v1.7.1
-	github.com/stretchr/testify v1.7.0
 	github.com/unrolled/secure v1.0.8
 	github.com/victorlenerd/scheduler0/server v0.0.0-20210208050834-cb7d550eb16e
-	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
-	golang.org/x/tools v0.1.0 // indirect
+	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.3.0
+)
+
+require (
+	github.com/armon/go-metrics v0.3.9 // indirect
+	github.com/boltdb/bolt v1.3.1 // indirect
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
+	github.com/fatih/color v1.13.0 // indirect
+	github.com/google/go-cmp v0.5.8 // indirect
+	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
+	github.com/hashicorp/go-msgpack v1.1.5 // indirect
+	github.com/hashicorp/golang-lru v0.5.4 // indirect
+	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/juju/ansiterm v0.0.0-20180109212912-720a0952cc2a // indirect
+	github.com/kr/pretty v0.3.0 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
+	github.com/lunixbochs/vtclean v0.0.0-20180621232353-2d01aacdc34a // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/rogpeppe/go-internal v1.8.0 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/testify v1.8.1 // indirect
+	go.etcd.io/bbolt v1.3.5 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
