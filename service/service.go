@@ -54,7 +54,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmStr)
 	asyncTaskRepo := repository.NewAsyncTasksRepo(ctx, logger, fsmStr)
 
-	asyncTaskManager := async_task_manager.NewAsyncTaskManager(ctx, logger, asyncTaskRepo)
+	asyncTaskManager := async_task_manager.NewAsyncTaskManager(ctx, logger, fsmStr, asyncTaskRepo)
 	jobExecutor := executor.NewJobExecutor(ctx, logger, jobRepo, executionsRepo, jobQueueRepo, dispatcher)
 	jobQueue := queue.NewJobQueue(ctx, logger, fsmStr, jobExecutor, jobQueueRepo)
 	nodeService := node.NewNode(
