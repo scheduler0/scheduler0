@@ -80,7 +80,7 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool
 
 		for _, row := range batch[1:] {
 			query += ",(?, ?, ?, ?, ?, ?)"
-			params = append(params, row.RequestId, row.Input, row.Output, 0, now)
+			params = append(params, row.RequestId, row.Input, row.Output, 0, row.Service, now)
 		}
 
 		ids := make([]uint64, 0, len(batch))
