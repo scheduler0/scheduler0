@@ -109,7 +109,7 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 		}
 	}
 
-	projectIds := []uint64{}
+	var projectIds []uint64
 
 	for _, job := range jobs {
 		projectIds = append(projectIds, job.ProjectID)
@@ -163,9 +163,10 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 			}
 			updateTaskErr := jobService.asyncTaskManager.UpdateTasksById(taskIds[0], models.AsyncTaskFail, string(errJson))
 			if updateTaskErr != nil {
-				jobService.logger.Error("failed to update an async task", updateTaskErr, "; new state:", models.AsyncTaskSuccess)
+				jobService.logger.Error("failed to update an async task", updateTaskErr, "; new state:", models.AsyncTaskFail)
 				return
 			}
+			jobService.logger.Error("failed to batch insert jobs", iErr)
 			return
 		}
 
