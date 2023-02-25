@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"net/http"
+	"scheduler0/fsm"
 	"scheduler0/models"
 	"scheduler0/repository"
 	"scheduler0/utils"
@@ -20,14 +21,16 @@ type AsyncTaskManager struct {
 	context              context.Context
 	logger               hclog.Logger
 	notificationsCh      chan models.AsyncTask
+	fsm                  *fsm.Store
 	SingleNodeMode       bool
 }
 
-func NewAsyncTaskManager(context context.Context, logger hclog.Logger, asyncTaskManagerRepo repository.AsyncTasksRepo) *AsyncTaskManager {
+func NewAsyncTaskManager(context context.Context, logger hclog.Logger, fsm *fsm.Store, asyncTaskManagerRepo repository.AsyncTasksRepo) *AsyncTaskManager {
 	return &AsyncTaskManager{
 		context:              context,
 		logger:               logger.Named("async-task-service"),
 		asyncTaskManagerRepo: asyncTaskManagerRepo,
+		fsm:                  fsm,
 		notificationsCh:      make(chan models.AsyncTask, 1),
 	}
 }
@@ -49,11 +52,20 @@ func (m *AsyncTaskManager) AddTasks(input, requestId string, service string) ([]
 		}
 		sids = ids
 	} else {
-		ids, err := m.asyncTaskManagerRepo.BatchInsert(tasks, false)
-		if err != nil {
-			return nil, err
+		f := m.fsm.Raft.VerifyLeader()
+		if f.Error() != nil {
+			ids, err := m.asyncTaskManagerRepo.BatchInsert(tasks, false)
+			if err != nil {
+				return nil, err
+			}
+			sids = ids
+		} else {
+			ids, err := m.asyncTaskManagerRepo.RaftBatchInsert(tasks)
+			if err != nil {
+				return nil, err
+			}
+			sids = ids
 		}
-		sids = ids
 	}
 
 	tasks[0].Id = sids[0]
@@ -78,10 +90,19 @@ func (m *AsyncTaskManager) UpdateTasksById(taskId uint64, state models.AsyncTask
 			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
 		}
 	} else {
-		err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
-		if err != nil {
-			m.logger.Error("could not update task with id", taskId)
-			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
+		f := m.fsm.Raft.VerifyLeader()
+		if f.Error() != nil {
+			err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
+			if err != nil {
+				m.logger.Error("could not update task with id", taskId)
+				return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
+			}
+		} else {
+			err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)
+			if err != nil {
+				m.logger.Error("could not update task with id", taskId)
+				return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
+			}
 		}
 	}
 	go func() { m.notificationsCh <- myT }()
@@ -109,10 +130,19 @@ func (m *AsyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
 		}
 	} else {
-		err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
-		if err != nil {
-			m.logger.Error("could not update task with id", requestId)
-			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
+		f := m.fsm.Raft.VerifyLeader()
+		if f.Error() != nil {
+			err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
+			if err != nil {
+				m.logger.Error("could not update task with id", requestId)
+				return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
+			}
+		} else {
+			err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)
+			if err != nil {
+				m.logger.Error("could not update task with id", requestId)
+				return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
+			}
 		}
 	}
 	go func() { m.notificationsCh <- myT }()

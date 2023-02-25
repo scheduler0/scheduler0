@@ -84,15 +84,9 @@ func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
 		}
 	}
 
-	configs := config.GetConfigurations()
-	jobQ.debounce.Debounce(jobQ.context, configs.JobQueueDebounceDelay, func() {
-		jobQ.mtx.Lock()
-		defer jobQ.mtx.Unlock()
-
-		jobQ.queue(jobQ.minId, jobQ.maxId)
-		jobQ.minId = math.MaxInt64
-		jobQ.maxId = math.MinInt16
-	})
+	jobQ.queue(jobQ.minId, jobQ.maxId)
+	jobQ.minId = math.MaxInt64
+	jobQ.maxId = math.MinInt16
 }
 
 func (jobQ *JobQueue) queue(minId, maxId int64) {
@@ -102,25 +96,24 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 		return
 	}
 
-	configs := config.GetConfigurations()
-
-	batchRanges := [][]uint64{}
-
 	numberOfServers := len(jobQ.allocations) - 1
-	for i := 0; i < numberOfServers; i++ {
-		batchRanges = append(batchRanges, []uint64{})
-	}
+	var serverAllocations [][]uint64
 
 	if numberOfServers > 0 {
 		currentServer := 0
+		serverAllocations = append(serverAllocations, []uint64{})
 		cycle := int64(math.Ceil(float64((maxId - minId) / int64(numberOfServers))))
 		epoc := minId
-		for epoc < maxId {
+		for epoc <= maxId {
+			if len(serverAllocations) < currentServer {
+				serverAllocations = append(serverAllocations, []uint64{})
+			}
+
 			lowerBound := epoc
 			upperBound := epoc + cycle
 
-			batchRanges[currentServer] = append(batchRanges[currentServer], uint64(lowerBound))
-			batchRanges[currentServer] = append(batchRanges[currentServer], uint64(upperBound))
+			serverAllocations[currentServer] = append(serverAllocations[currentServer], uint64(lowerBound))
+			serverAllocations[currentServer] = append(serverAllocations[currentServer], uint64(upperBound))
 
 			epoc = upperBound + 1
 
@@ -134,36 +127,19 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 			}
 		}
 	} else {
-		batchRanges = append(batchRanges, []uint64{uint64(minId), uint64(maxId)})
+		serverAllocations = append(serverAllocations, []uint64{uint64(minId), uint64(maxId)})
 	}
 
-	allocations := jobQ.allocations
-
 	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
+	configs := config.GetConfigurations()
 
 	j := 0
-	for j < len(batchRanges) {
-		server := func() raft.ServerAddress {
-			var minAllocation uint64 = math.MaxInt64
-			var minServer raft.ServerAddress
-
-			// Edge case for single node mode
-			if jobQ.SingleNodeMode {
-				return raft.ServerAddress(configs.RaftAddress)
-			}
-
-			for server, allocation := range allocations {
-				if allocation < minAllocation && string(server) != configs.RaftAddress {
-					minAllocation = allocation
-					minServer = server
-				}
-			}
-			return minServer
-		}()
+	for j < len(serverAllocations) {
+		server := jobQ.getServerToQueue()
 
 		batchRange := []interface{}{
-			batchRanges[j][0],
-			batchRanges[j][len(batchRanges[j])-1],
+			serverAllocations[j][0],
+			serverAllocations[j][len(serverAllocations[j])-1],
 			lastVersion,
 		}
 
@@ -191,11 +167,29 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 			}
 			log.Fatalln(af.Error().Error())
 		}
-		allocations[server] += uint64(len(batchRange))
+		jobQ.allocations[server] += uint64(len(batchRange))
 		j++
 	}
+}
 
-	jobQ.allocations = allocations
+func (jobQ *JobQueue) getServerToQueue() raft.ServerAddress {
+	configs := config.GetConfigurations()
+
+	var minAllocation uint64 = math.MaxInt64
+	var minServer raft.ServerAddress
+
+	// Edge case for single node mode
+	if jobQ.SingleNodeMode {
+		return raft.ServerAddress(configs.RaftAddress)
+	}
+
+	for server, allocation := range jobQ.allocations {
+		if allocation < minAllocation && string(server) != configs.RaftAddress {
+			minAllocation = allocation
+			minServer = server
+		}
+	}
+	return minServer
 }
 
 func (jobQ *JobQueue) IncrementQueueVersion() {
