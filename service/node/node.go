@@ -423,7 +423,7 @@ func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
 }
 
 func (node *Node) insertUncommittedLogsIntoRecoverDb(executionLogs []models.JobExecutionLog, dbConnection *sql.DB) {
-	logger := log.New(os.Stderr, "[insert-uncommitted-logs-into-recoverDb] ", log.LstdFlags)
+	logger := log.New(os.Stderr, "[insert-uncommitted-execution-logs-into-recoverDb] ", log.LstdFlags)
 
 	executionLogsBatches := batcher.Batch[models.JobExecutionLog](executionLogs, 9)
 
@@ -491,6 +491,43 @@ func (node *Node) insertUncommittedLogsIntoRecoverDb(executionLogs []models.JobE
 	}
 }
 
+func (node *Node) insertUncommittedAsyncTaskLogsIntoRecoveryDb(asyncTasks []models.AsyncTask, dbConnection *sql.DB) {
+	logger := log.New(os.Stderr, "[insert-uncommitted-async-task-logs-into-recoverDb] ", log.LstdFlags)
+	batches := batcher.Batch[models.AsyncTask](asyncTasks, 5)
+
+	for _, batch := range batches {
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)",
+			fsm.UnCommittedAsyncTableName,
+			fsm.AsyncTasksRequestIdColumn,
+			fsm.AsyncTasksInputColumn,
+			fsm.AsyncTasksOutputColumn,
+			fsm.AsyncTasksStateColumn,
+			fsm.AsyncTasksServiceColumn,
+			fsm.AsyncTasksDateCreatedColumn,
+		)
+		params := []interface{}{
+			batch[0].RequestId,
+			batch[0].Input,
+			batch[0].Output,
+			batch[0].State,
+			batch[0].Service,
+			batch[0].DateCreated,
+		}
+
+		for _, row := range batch[1:] {
+			query += ",(?, ?, ?, ?, ?, ?)"
+			params = append(params, row.RequestId, row.Input, row.Output, row.State, row.Service, row.DateCreated)
+		}
+
+		query += ";"
+
+		_, err := dbConnection.Exec(query, params...)
+		if err != nil {
+			logger.Fatalln("failed to insert uncommitted async tasks", err.Error())
+		}
+	}
+}
+
 func (node *Node) recoverRaftState() {
 	logger := log.New(os.Stderr, "[recover-raft-state] ", log.LstdFlags)
 
@@ -537,7 +574,10 @@ func (node *Node) recoverRaftState() {
 	}
 
 	executionLogs := node.getUncommittedLogs()
-	// TODO: Get and insert uncommitte async tasks
+	uncommittedTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
+	if err != nil {
+		node.logger.Error("failed to get uncommitted tasks", err)
+	}
 	recoverDbPath := fmt.Sprintf("%s/%s", dir, constants.RecoveryDbFileName)
 
 	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
@@ -588,6 +628,10 @@ func (node *Node) recoverRaftState() {
 
 	if len(executionLogs) > 0 {
 		node.insertUncommittedLogsIntoRecoverDb(executionLogs, dbConnection)
+	}
+
+	if len(uncommittedTasks) > 0 {
+		node.insertUncommittedAsyncTaskLogsIntoRecoveryDb(uncommittedTasks, dbConnection)
 	}
 
 	lastConfiguration := node.getRaftConfiguration()
