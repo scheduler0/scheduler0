@@ -45,7 +45,7 @@ func (repo *jobQueues) GetLastJobQueueLogForNode(nodeId uint64, version uint64) 
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
-	result := []models.JobQueueLog{}
+	var result []models.JobQueueLog
 
 	selectBuilder := sq.Select(
 		JobQueueIdColumn,
