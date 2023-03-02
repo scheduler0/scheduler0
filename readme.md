@@ -8,8 +8,6 @@ A Cloud-Native Distributed Cronjob Server based on Raft distributed consensus an
 scheduler0 config init
 ```
 
-Will take you through the configuration flow, where you will be prompted to enter your database credentials.
-
 ### To start the http server.
 
 ```shell
