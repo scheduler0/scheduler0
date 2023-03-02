@@ -18,9 +18,6 @@ db/db.db
 /localhost.key
 /localhost.csr
 recover.db
-/sqlite3/upgrade/*.c
-/sqlite3/upgrade/*.h
-/sqlite3/upgrade/upgrade
 *.db
 *.exe
 *.dll

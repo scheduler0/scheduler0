@@ -1,6 +1,6 @@
 # Scheduler0
 
-A Cloud-Native Distributed Cronjob Server based on Raft distributed consensus and use SQlite database.
+A Cloud-Native Distributed Cronjob Server based on Raft distributed consensus and sqlite.
 
 ## Basic Setup
 
@@ -46,7 +46,6 @@ JobExecutionRetryDelay: 1
 JobExecutionRetryMax: 10
 MaxWorkers: 1
 MaxQueue: 1
-JobQueueDebounceDelay: 1
 ExecutionLogFetchFanIn: 2
 ExecutionLogFetchIntervalSeconds: 2
 HTTPExecutorPayloadMaxSizeMb: 2
@@ -78,7 +77,7 @@ scheduler0 create credential
 ```
 
 The above command will create a credential for server, this includes api key and secret used in the node example app below.
-You can use the list command to view all credentials, projects and jobs.
+You can use the list command to view all credentials.
 
 ```shell
 scheduler0 list -t credentials
