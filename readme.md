@@ -28,7 +28,7 @@ scheduler0 --help
 ```
 
 ## Configurations
-These configurations can only be set in a `config.yml` file next to the scheduler0 binary. 
+These configurations should be set in a `config.yml` file next to the scheduler0 binary. 
 ```shell
 LogLevel: DEBUG
 Protocol: http
