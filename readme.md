@@ -9,9 +9,16 @@ Initialize the configuration
 scheduler0 config init
 ```
 
-Creates the secrets or credentials need for the nodes to authentice with each other
+Creates the secrets or credentials need for the nodes to authenticate with each other. 
+The nodes use basic http authentication, so you have to provide a username, password and a secret key used to generate 
+api-key and api-secret for clients.
 ```shell
 scheduler0 credential init
+```
+
+Use the command below to create an api-key and api-secret for a client. This api-key and secret can be used to make request to any nodes in the cluster.
+```shell
+scheduler0 create credential 
 ```
 
 ### To start the http server.
