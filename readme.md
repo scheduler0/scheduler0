@@ -76,10 +76,10 @@ Replicas:
 | MaxMemory | This restricts the how much memory is consumed. Once 70% of the memory specified is reached scheduler0 will stop scheduling jobs on the node and stop executing jobs on the node |
 | Bootstrap | If set to true this node will startup the cluster. Only a single node should have this set to true
 | NodeId | The id of the node in the cluster. It should be unique for the node.
-| RaftAddress | This is add network address for the node dedicated for raft communication purposes
+| RaftAddress | The network address for the node dedicated for raft communication purposes
 | RaftTransportMaxPool | Maximum number of connection pool raft should use
 | RaftTransportTimeout | The raft connection timeout
-| RaftApplyTimeout | This is add network address for the node dedicated for raft communication purposes
+| RaftApplyTimeout | Timeout for replicating data across nodes
 | RaftSnapshotInterval | SnapshotInterval controls how often we check if we should perform a snapshot.
 | RaftSnapshotThreshold | SnapshotThreshold controls how many outstanding logs there must be before we perform a snapshot.
 | PeerConnectRetryMax | Number of times to retry connection to other nodes
