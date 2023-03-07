@@ -241,3 +241,7 @@ app.listen(port, async () => {
     console.log(`app listening at http://localhost:${port}`);
 });
 ```
+
+## LICENSE
+
+GNU Affero General Public License v3.0
