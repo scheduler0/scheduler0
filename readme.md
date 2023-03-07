@@ -2,7 +2,20 @@
 
 A cloud-native distributed cron-job server based on Raft distributed consensus and sqlite.
 
-## Basic Setup
+## How It Works
+
+Scheduler0 can run as a single node or a cluster of nodes. As a single node Scheduler0 will handle 
+incoming http request to CRUD cron jobs, client credentials, projects and execute the cron jobs. 
+However, as a cluster the node that is configured to bootstrap the raft cluster will handle incoming 
+http request to CRUD cron jobs, client credentials, projects and automatically load balance the execution of the jobs on 
+the other nodes in the cluster. When a new leader is elected or changes in the membership of the cluster occurs, 
+as long as there's more than one node in the cluster, the execution of jobs will not be handled by the leader. 
+
+When the nodes restart the jobs are queued and continue executions. Scheduler0 can recover jobs that yet to execute upon
+a restart, for example if a jobs is supposed to execute every 3days and the cluster or node goes down on the second day, 
+if it comes back online before the 3day, the job will still be executed on the expected day.
+
+## Getting Started
 
 Initialize the configuration
 ```shell
