@@ -114,11 +114,19 @@ Replicas:
 
 ## Example Usage In Node Server
 
+This is a node client example that creates a project, and 100,000 jobs and counts the number of times the jobs 
+get executed.
+
 ```javascript
 'use strict'
 
-require('dotenv').config()
+/**
+ * The purpose of this program is to test the scheduler0 server.
+ * It sends a request scheduler0 server and counts scheduler0 request to the callback url.
+ * It's kinda like a scratch pad.
+ * **/
 
+require('dotenv').config()
 const axios = require('axios')
 const express = require('express')
 
@@ -132,11 +140,18 @@ const scheduler0ApiSecret = process.env.API_SECRET
 
 const axiosInstance = axios.create({
     baseURL: scheduler0Endpoint,
+    timeout: 999999999,
     headers: {
         'x-api-key': scheduler0ApiKey,
         'x-secret-key': scheduler0ApiSecret
     }
 });
+
+axiosInstance.interceptors.request.use(request => {
+    request.maxContentLength = Infinity;
+    request.maxBodyLength = Infinity;
+    return request;
+})
 
 async function createProject() {
     const { data: { data } } = await axiosInstance
@@ -147,34 +162,77 @@ async function createProject() {
     return data
 }
 
-async function createJob(projectUUID) {
-    try {
-        const { data: { data } } = await axiosInstance
-            .post('/jobs', {
-                name: "sample project",
+async function createJobs(projectID) {
+    let payload = [];
+
+    for (let i = 0; i < 100; i++) {
+        for (let j = 0; j < 1000; j++) {
+            payload.push({
                 spec: "@every 1m",
-                project_uuid: projectUUID,
-                callback_url: "http://localhost:3000/callback"
-            });
+                project_id: projectID,
+                execution_type: "http",
+                data: JSON.stringify({jobId: i + j}),
+                callback_url: `http://localhost:3000/callback`
+            })
+        }
 
-        console.log(data)
-
-        return data
-    } catch (err) {
-        console.log({ error: err.response.data })
+        try {
+            const {data: {data}} = await axiosInstance
+                .post('/jobs', payload);
+            payload = []
+        } catch (err) {
+            console.error(err)
+        }
     }
 }
 
-// This callback will get executed every minute
+const hits = new Map();
+
+app.use(express.json({limit: '3mb'}));
+
 app.post('/callback', (req, res) => {
-    res.send(`Callback executed at :${(new Date()).toUTCString()}`)
-})
+
+    const payload =  req.body
+
+    res.send(null);
+
+    payload.forEach((payload) => {
+        if (!hits.has(payload.id)) {
+            hits.set(payload.id, 0);
+        }
+
+        hits.set(payload.id, hits.get(payload.id) + 1);
+    })
+
+    const hitCounts = new Map();
+
+    const values = hits.values();
+    let currentValue = values.next();
+    while (currentValue) {
+        const { value, done } = currentValue;
+
+        if (done) {
+            break;
+        }
+
+        if (!hitCounts.has(value)) {
+            hitCounts.set(value, 0);
+        }
+
+        hitCounts.set(value, hitCounts.get(value) + 1);
+
+        currentValue = values.next();
+    }
+
+    const min = Math.min(...Array.from(hits.values()));
+    const max = Math.max(...Array.from(hits.values()));
+
+    console.log(hits.size, hitCounts, min, max)
+});
 
 app.listen(port, async () => {
-    const project = await createProject()
-    const job  = await createJob(project.uuid)
-   
-    console.log(`app listening at http://localhost:${port}`)
-})
-
+    const project = await createProject();
+    await createJobs(project.id);
+    console.log(`app listening at http://localhost:${port}`);
+});
 ```
