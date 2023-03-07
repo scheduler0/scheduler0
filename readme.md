@@ -20,6 +20,11 @@ if it comes back online before the 3day, the job will still be executed on the e
 
 ## Getting Started
 
+Build from source
+```shell
+go build -o scheduler0
+```
+
 Initialize the configuration
 ```shell
 scheduler0 config init
