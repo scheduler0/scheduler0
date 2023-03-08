@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"scheduler0/constants"
+	_ "scheduler0/sqlite3"
 	"sync"
 )
 
