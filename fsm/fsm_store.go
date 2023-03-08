@@ -510,7 +510,7 @@ func batchDeleteDeleteAsyncTasks(logger hclog.Logger, db *db.DataStore, tasks []
 }
 
 func batchInsertAsyncTasks(logger hclog.Logger, db *db.DataStore, tasks []models.AsyncTask) {
-	batches := batcher.Batch[models.AsyncTask](tasks, 7)
+	batches := batcher.Batch[models.AsyncTask](tasks, 6)
 
 	for _, batch := range batches {
 		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES ",
