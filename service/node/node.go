@@ -537,7 +537,7 @@ func (node *Node) recoverRaftState() {
 		snapshots, err = node.FileSnapShot.List()
 	)
 	if err != nil {
-		logger.Fatalln(err)
+		logger.Fatalln("failed to load file snapshots", err)
 	}
 
 	node.logger.Debug(fmt.Sprintf("found %d snapshots", len(snapshots)))
@@ -576,7 +576,7 @@ func (node *Node) recoverRaftState() {
 	executionLogs := node.getUncommittedLogs()
 	uncommittedTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
 	if err != nil {
-		node.logger.Error("failed to get uncommitted tasks", err)
+		node.logger.Warn("failed to get uncommitted tasks", "error", err)
 	}
 	recoverDbPath := fmt.Sprintf("%s/%s", dir, constants.RecoveryDbFileName)
 
@@ -793,6 +793,8 @@ func (node *Node) listenOnInputQueues(fsmStr *fsm.Store) {
 			node.jobProcessor.RecoverJobs()
 		case _ = <-fsmStr.StopAllJobs:
 			node.jobExecutor.StopAll()
+		case <-node.ctx.Done():
+			return
 		}
 	}
 }
@@ -1028,6 +1030,9 @@ func (node *Node) fanInLocalDataFromPeers() {
 			go node.fetchUncommittedLogsFromPeersPhase1(ctx, phase1)
 			go node.fetchUncommittedLogsFromPeersPhase2(ctx, phase2)
 			go node.commitFetchedUnCommittedLogs(phase3)
+		case <-node.ctx.Done():
+			cancelFunc()
+			return
 		}
 	}
 }

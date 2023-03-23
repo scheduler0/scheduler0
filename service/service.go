@@ -2,8 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"log"
+	"runtime"
 	"scheduler0/config"
 	"scheduler0/db"
 	"scheduler0/fsm"
@@ -14,6 +17,7 @@ import (
 	"scheduler0/service/queue"
 	"scheduler0/utils"
 	"scheduler0/utils/workers"
+	"time"
 )
 
 type Service struct {
@@ -29,6 +33,8 @@ type Service struct {
 
 func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	configs := config.GetConfigurations()
+
+	serviceCtx, cancelServiceContext := context.WithCancel(ctx)
 
 	schedulerTime := utils.GetSchedulerTime()
 	err := schedulerTime.SetTimezone("UTC")
@@ -52,13 +58,13 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	projectRepo := repository.NewProjectRepo(logger, fsmStr, jobRepo)
 	executionsRepo := repository.NewExecutionsRepo(logger, fsmStr)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmStr)
-	asyncTaskRepo := repository.NewAsyncTasksRepo(ctx, logger, fsmStr)
+	asyncTaskRepo := repository.NewAsyncTasksRepo(serviceCtx, logger, fsmStr)
 
-	asyncTaskManager := async_task_manager.NewAsyncTaskManager(ctx, logger, fsmStr, asyncTaskRepo)
-	jobExecutor := executor.NewJobExecutor(ctx, logger, jobRepo, executionsRepo, jobQueueRepo, dispatcher)
-	jobQueue := queue.NewJobQueue(ctx, logger, fsmStr, jobExecutor, jobQueueRepo)
+	asyncTaskManager := async_task_manager.NewAsyncTaskManager(serviceCtx, logger, fsmStr, asyncTaskRepo)
+	jobExecutor := executor.NewJobExecutor(serviceCtx, logger, jobRepo, executionsRepo, jobQueueRepo, dispatcher)
+	jobQueue := queue.NewJobQueue(serviceCtx, logger, fsmStr, jobExecutor, jobQueueRepo)
 	nodeService := node.NewNode(
-		ctx,
+		serviceCtx,
 		logger,
 		jobExecutor,
 		jobQueue,
@@ -73,9 +79,9 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	nodeService.FsmStore = fsmStr
 
 	service := Service{
-		JobService:         NewJobService(ctx, logger, jobRepo, jobQueue, projectRepo, dispatcher, asyncTaskManager),
+		JobService:         NewJobService(serviceCtx, logger, jobRepo, jobQueue, projectRepo, dispatcher, asyncTaskManager),
 		ProjectService:     NewProjectService(logger, projectRepo),
-		CredentialService:  NewCredentialService(ctx, logger, credentialRepo, dispatcher),
+		CredentialService:  NewCredentialService(serviceCtx, logger, credentialRepo, dispatcher),
 		JobExecutorService: jobExecutor,
 		NodeService:        nodeService,
 		JobQueueService:    jobQueue,
@@ -86,6 +92,34 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	service.Dispatcher.Run()
 	service.JobExecutorService.ListenForJobsToInvoke()
 	service.AsyncTaskManager.ListenForNotifications()
+
+	memCheckerCh := make(chan bool, 1)
+
+	memStats := runtime.MemStats{}
+	memChecker := utils.NewMemoryLimitChecker(configs.MaxMemory, &memStats, memCheckerCh, time.Duration(1)*time.Second)
+
+	go func() {
+		memChecker.StartMemoryUsageChecker()
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-memCheckerCh:
+				cancelServiceContext()
+				memChecker.StopMemoryUsageChecker()
+				panic(
+					errors.New(
+						fmt.Sprintf(
+							"stopping internal service due to memory limit exceed mem-limit(Mb) %v mem-usage(Mb) %v",
+							configs.MaxMemory,
+							memStats.Sys/(1024*1024),
+						),
+					),
+				)
+			}
+		}
+	}()
 
 	return &service
 }
