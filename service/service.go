@@ -98,9 +98,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	memStats := runtime.MemStats{}
 	memChecker := utils.NewMemoryLimitChecker(configs.MaxMemory, &memStats, memCheckerCh, time.Duration(1)*time.Second)
 
-	go func() {
-		memChecker.StartMemoryUsageChecker()
-	}()
+	go memChecker.StartMemoryUsageChecker()
 
 	go func() {
 		for {
