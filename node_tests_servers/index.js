@@ -63,7 +63,7 @@ async function createJobs(projectID) {
     //     }
     // }
 
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 1000; i++) {
         for (let j = 0; j < 1000; j++) {
             payload.push({
                 spec: "@every 1m",

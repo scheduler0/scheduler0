@@ -120,6 +120,8 @@ CREATE TABLE IF NOT EXISTS jobs
     callback_url   TEXT      NOT NULL,
     execution_type TEXT      NOT NULL DEFAULT "http",
     date_created   datetime NOT NULL,
+	timezone 	   TEXT NOT NULL,
+	timezone_offset INTEGER NOT NULL,
     FOREIGN KEY (project_id)
         REFERENCES projects (id)
         ON DELETE CASCADE

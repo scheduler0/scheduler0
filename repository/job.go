@@ -37,13 +37,15 @@ const (
 )
 
 const (
-	JobsIdColumn          = "id"
-	ProjectIdColumn       = "project_id"
-	SpecColumn            = "spec"
-	CallbackURLColumn     = "callback_url"
-	DataColumn            = "data"
-	ExecutionTypeColumn   = "execution_type"
-	JobsDateCreatedColumn = "date_created"
+	JobsIdColumn             = "id"
+	ProjectIdColumn          = "project_id"
+	SpecColumn               = "spec"
+	CallbackURLColumn        = "callback_url"
+	DataColumn               = "data"
+	ExecutionTypeColumn      = "execution_type"
+	JobsTimezoneColumn       = "timezone"
+	JobsTimezoneOffsetColumn = "timezone_offset"
+	JobsDateCreatedColumn    = "date_created"
 )
 
 func NewJobRepo(logger hclog.Logger, store *fsm.Store) Job {
@@ -65,6 +67,8 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 		CallbackURLColumn,
 		ExecutionTypeColumn,
 		JobsDateCreatedColumn,
+		JobsTimezoneColumn,
+		JobsTimezoneOffsetColumn,
 		DataColumn,
 	).
 		From(JobsTableName).
@@ -85,16 +89,10 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 			&jobModel.CallbackUrl,
 			&jobModel.ExecutionType,
 			&jobModel.DateCreated,
+			&jobModel.Timezone,
+			&jobModel.TimezoneOffset,
 			&jobModel.Data,
 		)
-		//t, errParse := dateparse.ParseLocal(dataString)
-		//if errParse != nil {
-		//	return utils.HTTPGenericError(500, errParse.Error())
-		//}
-		//jobModel.DateCreated = t
-		//if err != nil {
-		//	return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
-		//}
 		count += 1
 	}
 	if rows.Err() != nil {
@@ -133,6 +131,8 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *u
 			CallbackURLColumn,
 			ExecutionTypeColumn,
 			JobsDateCreatedColumn,
+			JobsTimezoneColumn,
+			JobsTimezoneOffsetColumn,
 			DataColumn,
 		).
 			From(JobsTableName).
@@ -152,6 +152,8 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *u
 				&job.CallbackUrl,
 				&job.ExecutionType,
 				&job.DateCreated,
+				&job.Timezone,
+				&job.TimezoneOffset,
 				&job.Data,
 			)
 			if scanErr != nil {
@@ -179,6 +181,8 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) (
 		CallbackURLColumn,
 		ExecutionTypeColumn,
 		JobsDateCreatedColumn,
+		JobsTimezoneColumn,
+		JobsTimezoneOffsetColumn,
 		DataColumn,
 	).
 		From(JobsTableName).
@@ -201,6 +205,8 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) (
 			&job.CallbackUrl,
 			&job.ExecutionType,
 			&job.DateCreated,
+			&job.Timezone,
+			&job.TimezoneOffset,
 			&job.Data,
 		)
 		if scanErr != nil {
@@ -229,6 +235,8 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit
 		CallbackURLColumn,
 		ExecutionTypeColumn,
 		JobsDateCreatedColumn,
+		JobsTimezoneColumn,
+		JobsTimezoneOffsetColumn,
 		DataColumn,
 	).
 		From(JobsTableName).
@@ -252,6 +260,8 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit
 			&job.CallbackUrl,
 			&job.ExecutionType,
 			&job.DateCreated,
+			&job.Timezone,
+			&job.TimezoneOffset,
 			&job.Data,
 		)
 		if err != nil {
@@ -283,6 +293,8 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (uint64, *utils.
 	updateQuery := sq.Update(JobsTableName).
 		Set(CallbackURLColumn, jobModel.CallbackUrl).
 		Set(ExecutionTypeColumn, jobModel.ExecutionType).
+		Set(JobsTimezoneColumn, jobModel.Timezone).
+		Set(JobsTimezoneOffsetColumn, jobModel.TimezoneOffset).
 		Set(DataColumn, jobModel.Data).
 		Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID)
 
@@ -411,19 +423,21 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]uint64, *util
 	now := schedulerTime.GetTime(time.Now())
 
 	for _, batch := range batches {
-		query := fmt.Sprintf("INSERT INTO jobs (%s, %s, %s, %s, %s, %s) VALUES ",
+		query := fmt.Sprintf("INSERT INTO jobs (%s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
 			ProjectIdColumn,
 			SpecColumn,
 			CallbackURLColumn,
 			ExecutionTypeColumn,
 			JobsDateCreatedColumn,
+			JobsTimezoneColumn,
+			JobsTimezoneOffsetColumn,
 			DataColumn,
 		)
 		params := []interface{}{}
 		ids := []uint64{}
 
 		for i, job := range batch {
-			query += fmt.Sprint("(?, ?, ?, ?, ?, ?)")
+			query += fmt.Sprint("(?, ?, ?, ?, ?, ?, ?, ?)")
 			job.DateCreated = now
 			params = append(params,
 				job.ProjectID,
@@ -431,6 +445,8 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]uint64, *util
 				job.CallbackUrl,
 				job.ExecutionType,
 				job.DateCreated,
+				job.Timezone,
+				job.TimezoneOffset,
 				job.Data,
 			)
 

@@ -107,6 +107,12 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 		} else {
 			return nil, utils.HTTPGenericError(http.StatusBadRequest, fmt.Sprintf("job spec is not valid %s", job.Spec))
 		}
+
+		if job.Timezone == "" {
+			return nil, utils.HTTPGenericError(http.StatusBadRequest, fmt.Sprintf("job timezone is not valid, provided timezone is %s", job.Timezone))
+		}
+
+		// TODO: check that provided timezone is valid
 	}
 
 	var projectIds []uint64

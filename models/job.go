@@ -22,6 +22,8 @@ type JobModel struct {
 	Data              string    `json:"data,omitempty"`
 	ExecutionType     string    `json:"execution_type,omitempty"`
 	LastExecutionDate time.Time `json:"last_execution_date,omitempty"`
+	Timezone          string    `json:"timezone,omitempty"`
+	TimezoneOffset    int64     `json:"timezoneOffset,omitempty"`
 	ExecutionId       string    `json:"execution_id,omitempty"`
 	DateCreated       time.Time `json:"date_created,omitempty"`
 }

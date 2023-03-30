@@ -56,7 +56,6 @@ Protocol: http
 Host: 127.0.0.1
 Port: 9091
 MaxMemory: 5000
-MaxCPU: 50
 Bootstrap: true
 NodeId: 1
 RaftAddress: 127.0.0.1:7071
