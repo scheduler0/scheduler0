@@ -130,8 +130,8 @@ app.post('/callback', (req, res) => {
 });
 
 app.listen(port, async () => {
-    // const project = await createProject();
-    await createJobs(1);
+    const project = await createProject();
+    await createJobs(project.id);
     console.log(`app listening at http://localhost:${port}`);
 });
 

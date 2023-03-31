@@ -35,13 +35,13 @@ api-key and api-secret for clients. The provided username, password and secret w
 ```shell
 scheduler0 credential init
 ```
-Use the command below to create an api-key and api-secret for a client. This api-key and secret can be used to make request to any nodes in the cluster.
-```shell
-scheduler0 create credential 
-```
 To start the http server.
 ```shell
 scheduler0 start
+```
+Use the command below to create an api-key and api-secret for a client. This api-key and secret can be used to make request to any nodes in the cluster.
+```shell
+scheduler0 create credential 
 ```
 For more information. Use the help flag
 ```shell
@@ -176,6 +176,7 @@ async function createJobs(projectID) {
                 project_id: projectID,
                 execution_type: "http",
                 data: JSON.stringify({jobId: i + j}),
+                timezone: 'America/New_York',
                 callback_url: `http://localhost:3000/callback`
             })
         }
