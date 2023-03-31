@@ -36,7 +36,7 @@ func runMigration(cmdLogger hclog.Logger, fs afero.Fs, dir string) {
 	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
 
 	err := fs.Remove(dbFilePath)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		log.Fatalln(fmt.Errorf("Fatal db delete error: %s \n", err))
 	}
 
@@ -78,7 +78,7 @@ func recreateDb(fs afero.Fs, dir string) {
 	}
 	if exists {
 		removeErr := fs.RemoveAll(dirPath)
-		if removeErr != nil && removeErr != afero.ErrFileNotFound {
+		if removeErr != nil && !os.IsNotExist(removeErr) {
 			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
 		}
 	}
@@ -92,7 +92,7 @@ func recreateRaftDir(fs afero.Fs, dir string) {
 	}
 	if exists {
 		removeErr := fs.RemoveAll(dirPath)
-		if removeErr != nil && removeErr != afero.ErrFileNotFound {
+		if removeErr != nil && !os.IsNotExist(removeErr) {
 			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
 		}
 	}
