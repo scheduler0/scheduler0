@@ -77,8 +77,8 @@ func recreateDb(fs afero.Fs, dir string) {
 		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
 	}
 	if exists {
-		err := fs.RemoveAll(dirPath)
-		if err != nil {
+		removeErr := fs.RemoveAll(dirPath)
+		if removeErr != nil && removeErr != afero.ErrFileNotFound {
 			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
 		}
 	}
@@ -91,8 +91,8 @@ func recreateRaftDir(fs afero.Fs, dir string) {
 		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
 	}
 	if exists {
-		err := fs.RemoveAll(dirPath)
-		if err != nil {
+		removeErr := fs.RemoveAll(dirPath)
+		if removeErr != nil && removeErr != afero.ErrFileNotFound {
 			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
 		}
 	}
