@@ -63,13 +63,14 @@ async function createJobs(projectID) {
     //     }
     // }
 
-    for (let i = 0; i < 1000; i++) {
-        for (let j = 0; j < 1000; j++) {
+    for (let i = 0; i < 10; i++) {
+        for (let j = 0; j < 1; j++) {
             payload.push({
                 spec: "@every 1m",
                 project_id: projectID,
                 execution_type: "http",
                 data: JSON.stringify({jobId: i + j}),
+                timezone: 'America/New_York',
                 callback_url: `http://localhost:3000/callback`
             })
         }
@@ -129,8 +130,8 @@ app.post('/callback', (req, res) => {
 });
 
 app.listen(port, async () => {
-    const project = await createProject();
-    await createJobs(project.id);
+    // const project = await createProject();
+    await createJobs(1);
     console.log(`app listening at http://localhost:${port}`);
 });
 
