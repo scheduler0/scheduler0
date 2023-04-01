@@ -1,13 +1,14 @@
 package config
 
 import (
+	"encoding/json"
 	"github.com/spf13/afero"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"gopkg.in/yaml.v2"
 	"log"
 	"os"
 	"path"
 	"scheduler0/constants"
+	"strconv"
 	"sync"
 )
 
@@ -63,17 +64,245 @@ func GetConfigurations() *Scheduler0Configurations {
 
 		fs := afero.NewOsFs()
 		data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
-		utils.CheckErr(err)
+		if err != nil && !os.IsNotExist(err) {
+			panic(err)
+		}
 
 		config := Scheduler0Configurations{}
 
-		err = yaml.Unmarshal(data, &config)
-		utils.CheckErr(err)
+		if os.IsNotExist(err) {
+			config = *GetConfigFromEnv()
+		}
 
+		err = yaml.Unmarshal(data, &config)
+		if err != nil {
+			panic(err)
+		}
 		cachedConfig = &config
 	})
 
 	return cachedConfig
+}
+
+func GetConfigFromEnv() *Scheduler0Configurations {
+	config := &Scheduler0Configurations{}
+
+	// Set LogLevel
+	if val, ok := os.LookupEnv("SCHEDULER0_LOGLEVEL"); ok {
+		config.LogLevel = val
+	}
+
+	// Set Protocol
+	if val, ok := os.LookupEnv("SCHEDULER0_PROTOCOL"); ok {
+		config.Protocol = val
+	}
+
+	// Set Host
+	if val, ok := os.LookupEnv("SCHEDULER0_HOST"); ok {
+		config.Host = val
+	}
+
+	// Set Port
+	if val, ok := os.LookupEnv("SCHEDULER0_PORT"); ok {
+		config.Port = val
+	}
+
+	// Set Replicas
+	if val, ok := os.LookupEnv("SCHEDULER0_REPLICAS"); ok {
+		replicas := []RaftNode{}
+		err := json.Unmarshal([]byte(val), &replicas)
+		if err != nil {
+			log.Fatalf("Error unmarshaling replicas: %v", err)
+		}
+		config.Replicas = replicas
+	}
+
+	// Set PeerAuthRequestTimeoutMs
+	if val, ok := os.LookupEnv("SCHEDULER0_PEER_AUTH_REQUEST_TIMEOUT_MS"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_PEER_AUTH_REQUEST_TIMEOUT_MS: %v", err)
+		}
+		config.PeerAuthRequestTimeoutMs = parsed
+	}
+
+	// Set PeerConnectRetryMax
+	if val, ok := os.LookupEnv("SCHEDULER0_PEER_CONNECT_RETRY_MAX"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_PEER_CONNECT_RETRY_MAX: %v", err)
+		}
+		config.PeerConnectRetryMax = parsed
+	}
+
+	// Set PeerConnectRetryDelaySeconds
+	if val, ok := os.LookupEnv("SCHEDULER0_PEER_CONNECT_RETRY_DELAY_SECONDS"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_PEER_CONNECT_RETRY_DELAY_SECONDS: %v", err)
+		}
+		config.PeerConnectRetryDelaySeconds = parsed
+	}
+
+	// Set Bootstrap
+	if val, ok := os.LookupEnv("SCHEDULER0_BOOTSTRAP"); ok {
+		parsed, err := strconv.ParseBool(val)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_BOOTSTRAP: %v", err)
+		}
+		config.Bootstrap = parsed
+	}
+
+	// Set NodeId
+	if val, ok := os.LookupEnv("SCHEDULER0_NODE_ID"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_NODE_ID: %v", err)
+		}
+		config.NodeId = parsed
+	}
+
+	// Set RaftAddress
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_ADDRESS"); ok {
+		config.RaftAddress = val
+	}
+
+	// Set RaftTransportMaxPool
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_TRANSPORT_MAX_POOL"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_RAFT")
+		}
+		config.RaftTransportMaxPool = parsed
+	}
+
+	// Set RaftApplyTimeout
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_APPLY_TIMEOUT"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_RAFT_APPLY_TIMEOUT: %v", err)
+		}
+		config.RaftApplyTimeout = parsed
+	}
+
+	// Set RaftSnapshotInterval
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_SNAPSHOT_INTERVAL"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_RAFT_SNAPSHOT_INTERVAL: %v", err)
+		}
+		config.RaftSnapshotInterval = parsed
+	}
+
+	// Set RaftSnapshotThreshold
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_SNAPSHOT_THRESHOLD"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_RAFT_SNAPSHOT_THRESHOLD: %v", err)
+		}
+		config.RaftSnapshotThreshold = parsed
+	}
+
+	// Set JobExecutionTimeout
+	if val, ok := os.LookupEnv("SCHEDULER0_JOB_EXECUTION_TIMEOUT"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_JOB_EXECUTION_TIMEOUT: %v", err)
+		}
+		config.JobExecutionTimeout = parsed
+	}
+
+	// Set JobExecutionRetryDelay
+	if val, ok := os.LookupEnv("SCHEDULER0_JOB_EXECUTION_RETRY_DELAY"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_JOB_EXECUTION_RETRY_DELAY: %v", err)
+		}
+		config.JobExecutionRetryDelay = parsed
+	}
+
+	// Set JobExecutionRetryMax
+	if val, ok := os.LookupEnv("SCHEDULER0_JOB_EXECUTION_RETRY_MAX"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_JOB_EXECUTION_RETRY_MAX: %v", err)
+		}
+		config.JobExecutionRetryMax = parsed
+	}
+
+	// Set UncommittedExecutionLogsFetchTimeout
+	if val, ok := os.LookupEnv("SCHEDULER0_UNCOMMITTED_EXECUTION_LOGS_FETCH_TIMEOUT"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_UNCOMMITTED_EXECUTION_LOGS_FETCH_TIMEOUT: %v", err)
+		}
+		config.UncommittedExecutionLogsFetchTimeout = parsed
+	}
+
+	// Set MaxWorkers
+	if val, ok := os.LookupEnv("SCHEDULER0_MAX_WORKERS"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_MAX_WORKERS: %v", err)
+		}
+		config.MaxWorkers = parsed
+	}
+
+	// Set JobQueueDebounceDelay
+	if val, ok := os.LookupEnv("SCHEDULER0_JOB_QUEUE_DEBOUNCE_DELAY"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_JOB_QUEUE_DEBOUNCE_DELAY: %v", err)
+		}
+		config.JobQueueDebounceDelay = parsed
+	}
+
+	// Set MaxMemory
+	if val, ok := os.LookupEnv("SCHEDULER0_MAX_MEMORY"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_MAX_MEMORY: %v", err)
+		}
+		config.MaxMemory = parsed
+	}
+
+	// Set ExecutionLogFetchFanIn
+	if val, ok := os.LookupEnv("SCHEDULER0_EXECUTION_LOG_FETCH_FAN_IN"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_EXECUTION_LOG_FETCH_FAN_IN: %v", err)
+		}
+		config.ExecutionLogFetchFanIn = parsed
+	}
+
+	// Set ExecutionLogFetchIntervalSeconds
+	if val, ok := os.LookupEnv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS: %v", err)
+		}
+		config.ExecutionLogFetchIntervalSeconds = parsed
+	}
+
+	// Set JobInvocationDebounceDelay
+	if val, ok := os.LookupEnv("SCHEDULER0_JOB_INVOCATION_DEBOUNCE_DELAY"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_JOB_INVOCATION_DEBOUNCE_DELAY: %v", err)
+		}
+		config.JobInvocationDebounceDelay = parsed
+	}
+
+	// Set HTTPExecutorPayloadMaxSizeMb
+	if val, ok := os.LookupEnv("SCHEDULER0_HTTP_EXECUTOR_PAYLOAD_MAX_SIZE_MB"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_HTTP_EXECUTOR_PAYLOAD_MAX_SIZE_MB: %v", err)
+		}
+		config.HTTPExecutorPayloadMaxSizeMb = parsed
+	}
+
+	return config
 }
 
 func GetBinPath() string {
