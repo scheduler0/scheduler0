@@ -36,6 +36,10 @@ type Scheduler0Configurations struct {
 	RaftApplyTimeout                     uint64     `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`
 	RaftSnapshotInterval                 uint64     `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`
 	RaftSnapshotThreshold                uint64     `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`
+	RaftHeartbeatTimeout                 uint64     `json:"raftHeartbeatTimeout" yaml:"RaftHeartbeatTimeout"`
+	RaftElectionTimeout                  uint64     `json:"raftElectionTimeout" yaml:"RaftElectionTimeout"`
+	RaftCommitTimeout                    uint64     `json:"raftCommitTimeout" yaml:"RaftCommitTimeout"`
+	RaftMaxAppendEntries                 uint64     `json:"raftMaxAppendEntries" yaml:"RaftMaxAppendEntries"`
 	JobExecutionTimeout                  uint64     `json:"jobExecutionTimeout" yaml:"JobExecutionTimeout"`
 	JobExecutionRetryDelay               uint64     `json:"jobExecutionRetryDelay" yaml:"JobExecutionRetryDelay"`
 	JobExecutionRetryMax                 uint64     `json:"jobExecutionRetryMax" yaml:"JobExecutionRetryMax"`
@@ -201,6 +205,42 @@ func GetConfigFromEnv() *Scheduler0Configurations {
 			log.Fatalf("Error parsing SCHEDULER0_RAFT_SNAPSHOT_THRESHOLD: %v", err)
 		}
 		config.RaftSnapshotThreshold = parsed
+	}
+
+	// Set RaftHeartbeatTimeout
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_HEARTBEAT_TIMEOUT"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_RAFT_HEARTBEAT_TIMEOUT: %v", err)
+		}
+		config.RaftHeartbeatTimeout = parsed
+	}
+
+	// Set RaftElectionTimeout
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_ELECTION_TIMEOUT"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_RAFT_ELECTION_TIMEOUT: %v", err)
+		}
+		config.RaftElectionTimeout = parsed
+	}
+
+	// Set RaftCommitTimeout
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_COMMIT_TIMEOUT"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_RAFT_COMMIT_TIMEOUT: %v", err)
+		}
+		config.RaftCommitTimeout = parsed
+	}
+
+	// Set RaftMaxAppendEntries
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_MAX_APPEND_ENTRIES"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_RAFT_MAX_APPEND_ENTRIES: %v", err)
+		}
+		config.RaftMaxAppendEntries = parsed
 	}
 
 	// Set JobExecutionTimeout

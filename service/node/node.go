@@ -272,7 +272,25 @@ func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(strconv.FormatUint(configs.NodeId, 10))
 
-	// TODO: Set raft configs in scheduler0 config
+	// Set Raft configs from Scheduler0Configurations if available, otherwise use default values
+	if configs.RaftHeartbeatTimeout != 0 {
+		c.HeartbeatTimeout = time.Millisecond * time.Duration(configs.RaftHeartbeatTimeout)
+	}
+	if configs.RaftElectionTimeout != 0 {
+		c.ElectionTimeout = time.Millisecond * time.Duration(configs.RaftElectionTimeout)
+	}
+	if configs.RaftCommitTimeout != 0 {
+		c.CommitTimeout = time.Millisecond * time.Duration(configs.RaftCommitTimeout)
+	}
+	if configs.RaftMaxAppendEntries != 0 {
+		c.MaxAppendEntries = int(configs.RaftMaxAppendEntries)
+	}
+	if configs.RaftSnapshotInterval != 0 {
+		c.SnapshotInterval = time.Millisecond * time.Duration(configs.RaftSnapshotInterval)
+	}
+	if configs.RaftSnapshotThreshold != 0 {
+		c.SnapshotThreshold = configs.RaftSnapshotThreshold
+	}
 
 	r, err := raft.NewRaft(c, fsm, node.LogDb, node.StoreDb, node.FileSnapShot, node.TransportManager)
 	if err != nil {
