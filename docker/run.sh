@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-docker build -t scheduler0:latest .
+docker rm -f scheduler0
+docker rmi -f scheduler0:latest
+docker build -t scheduler0:latest --no-cache .
 docker run \
     -p 9090:9090 \
     -p 7070:7070 \
