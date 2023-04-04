@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/spf13/afero"
 	"os"
 	"scheduler0/config"
@@ -34,6 +35,11 @@ func GetSecrets() *Scheduler0Secrets {
 
 	if os.IsNotExist(err) {
 		secrets = GetSecretsFromEnv()
+		cachedSecrets = &secrets
+
+		fmt.Println("cachedSecrets", cachedSecrets)
+
+		return cachedSecrets
 	}
 
 	err = json.Unmarshal(data, &secrets)
