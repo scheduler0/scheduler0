@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+docker rm -f stop
 docker rm -f scheduler0
 docker rmi -f scheduler0:latest
 docker build -t scheduler0:latest --no-cache .

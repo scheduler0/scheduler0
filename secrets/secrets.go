@@ -34,17 +34,14 @@ func GetSecrets() *Scheduler0Secrets {
 
 	if os.IsNotExist(err) {
 		secrets = GetSecretsFromEnv()
-		cachedSecrets = &secrets
-		return cachedSecrets
-	}
-
-	err = json.Unmarshal(data, &secrets)
-	if err != nil && !os.IsNotExist(err) {
-		panic(err)
+	} else {
+		err = json.Unmarshal(data, &secrets)
+		if err != nil && !os.IsNotExist(err) {
+			panic(err)
+		}
 	}
 
 	cachedSecrets = &secrets
-
 	return cachedSecrets
 }
 
