@@ -10,9 +10,6 @@ RUN git clone https://github.com/victorlenerd/scheduler0.git .
 # Build the binary
 RUN go build -o scheduler0
 
-RUN rm rf config.yml
-RUN rm rf .scheduler0
-
 RUN ./scheduler0 config init
 
 # Expose the default port used by the application

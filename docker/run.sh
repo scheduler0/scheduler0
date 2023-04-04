@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#docker build -t scheduler0:latest --no-cache .
+docker build -t scheduler0:latest .
 docker run \
     -p 9090:9090 \
     -p 7070:7070 \
