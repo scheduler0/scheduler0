@@ -285,8 +285,9 @@ func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
 	if configs.RaftMaxAppendEntries != 0 {
 		c.MaxAppendEntries = int(configs.RaftMaxAppendEntries)
 	}
+
 	if configs.RaftSnapshotInterval != 0 {
-		c.SnapshotInterval = time.Millisecond * time.Duration(configs.RaftSnapshotInterval)
+		c.SnapshotInterval = time.Second * time.Duration(configs.RaftSnapshotInterval)
 	}
 	if configs.RaftSnapshotThreshold != 0 {
 		c.SnapshotThreshold = configs.RaftSnapshotThreshold

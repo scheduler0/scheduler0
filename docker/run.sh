@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-docker build -t scheduler0:latest .
+#docker build -t scheduler0:latest --no-cache .
 docker run \
     -p 9090:9090 \
     -p 7070:7070 \
@@ -18,10 +18,7 @@ docker run \
     -e SCHEDULER0_BOOTSTRAP=true \
     -e SCHEDULER0_NODE_ID=1 \
     -e SCHEDULER0_RAFT_ADDRESS=127.0.0.1:7070 \
-    -e SCHEDULER0_RAFT_TRANSPORT_MAX_POOL=100 \
-    -e SCHEDULER0_RAFT_APPLY_TIMEOUT=5 \
-    -e SCHEDULER0_RAFT_SNAPSHOT_INTERVAL=60 \
-    -e SCHEDULER0_JOB_EXECUTION_TIMEOUT=30 \
+    -e SCHEDULER0_RAFT_TRANSPORT_MAX_POOL=1 \
     -e SCHEDULER0_JOB_EXECUTION_RETRY_DELAY=1 \
     -e SCHEDULER0_JOB_EXECUTION_RETRY_MAX=5 \
     -e SCHEDULER0_MAX_WORKERS=5 \
