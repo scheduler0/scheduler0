@@ -3,7 +3,6 @@ package secrets
 import (
 	"encoding/json"
 	"github.com/spf13/afero"
-	"github.com/victorlenerd/scheduler0/server/src/utils"
 	"os"
 	"scheduler0/config"
 	"scheduler0/constants"
@@ -27,16 +26,45 @@ func GetSecrets() *Scheduler0Secrets {
 
 	fs := afero.NewOsFs()
 	data, err := afero.ReadFile(fs, binPath+"/"+constants.SecretsFileName)
-	utils.CheckErr(err)
+	if err != nil && !os.IsNotExist(err) {
+		panic(err)
+	}
 
 	secrets := Scheduler0Secrets{}
 
+	if os.IsNotExist(err) {
+		secrets = GetSecretsFromEnv()
+	}
+
 	err = json.Unmarshal(data, &secrets)
-	utils.CheckErr(err)
+	if err != nil && !os.IsNotExist(err) {
+		panic(err)
+	}
 
 	cachedSecrets = &secrets
 
 	return cachedSecrets
+}
+
+func GetSecretsFromEnv() Scheduler0Secrets {
+	secrets := Scheduler0Secrets{}
+
+	// Set LogLevel
+	if val, ok := os.LookupEnv("SCHEDULER0_SECRET_KEY"); ok {
+		secrets.SecretKey = val
+	}
+
+	// Set Protocol
+	if val, ok := os.LookupEnv("SCHEDULER0_AUTH_PASSWORD"); ok {
+		secrets.AuthPassword = val
+	}
+
+	// Set Host
+	if val, ok := os.LookupEnv("SCHEDULER0_AUTH_USERNAME"); ok {
+		secrets.AuthUsername = val
+	}
+
+	return secrets
 }
 
 func SaveSecrets(credentialsInput *Scheduler0Secrets) *Scheduler0Secrets {
@@ -44,10 +72,14 @@ func SaveSecrets(credentialsInput *Scheduler0Secrets) *Scheduler0Secrets {
 
 	fs := afero.NewOsFs()
 	data, err := json.Marshal(credentialsInput)
-	utils.CheckErr(err)
+	if err != nil {
+		panic(err)
+	}
 
 	err = afero.WriteFile(fs, binPath+"/"+constants.SecretsFileName, data, os.ModePerm)
-	utils.CheckErr(err)
+	if err != nil {
+		panic(err)
+	}
 
 	cachedSecrets = credentialsInput
 

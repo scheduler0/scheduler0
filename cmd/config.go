@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"log"
@@ -123,20 +122,6 @@ Note that the Port is optional. By default the server will use :9090
 			Level: hclog.LevelFromString(config.LogLevel),
 		})
 
-		if config.Port == "" {
-			portPrompt := promptui.Prompt{
-				Label:       "Port",
-				HideEntered: true,
-				Default:     "9090",
-			}
-			Port, _ := portPrompt.Run()
-			config.Port = Port
-		}
-		setEnvErr := os.Setenv(config.Port, config.Port)
-		if setEnvErr != nil {
-			logger.Fatalln(setEnvErr)
-		}
-
 		dir, err := os.Getwd()
 		if err != nil {
 			log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
@@ -151,37 +136,6 @@ Note that the Port is optional. By default the server will use :9090
 	},
 }
 
-// ShowCmd show scheduler0 password configuration
-var showCmd = &cobra.Command{
-	Use:   "show",
-	Short: "This will show the configurations that have been set.",
-	Long: `
-Using this protobuffs you can tell what configurations have been set.
-
-Usage:
-
-	scheduler0 config show
-
-Use the --show-password flag if you want the password to be visible.
-`,
-	Run: func(cmd *cobra.Command, args []string) {
-		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
-		configs := config.GetConfigurations()
-		logger.Println("Configurations:")
-		logger.Println("NodeId:", configs.NodeId)
-		logger.Println("Bootstrap:", configs.Bootstrap)
-		logger.Println("RaftAddress:", configs.RaftAddress)
-		logger.Println("Replicas:", configs.Replicas)
-		logger.Println("Port:", configs.Port)
-		logger.Println("RaftTransportMaxPool:", configs.RaftTransportMaxPool)
-		logger.Println("RaftTransportTimeout:", configs.RaftTransportTimeout)
-		logger.Println("RaftApplyTimeout:", configs.RaftApplyTimeout)
-		logger.Println("RaftSnapshotInterval:", configs.RaftSnapshotInterval)
-		logger.Println("RaftSnapshotThreshold:", configs.RaftSnapshotThreshold)
-	},
-}
-
 func init() {
 	ConfigCmd.AddCommand(initCmd)
-	ConfigCmd.AddCommand(showCmd)
 }

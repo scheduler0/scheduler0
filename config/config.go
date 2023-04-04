@@ -20,38 +20,37 @@ type RaftNode struct {
 
 // Scheduler0Configurations global configurations
 type Scheduler0Configurations struct {
-	LogLevel                             string     `json:"logLevel" yaml:"LogLevel"`
-	Protocol                             string     `json:"protocol" yaml:"Protocol"`
-	Host                                 string     `json:"host" yaml:"Host"`
-	Port                                 string     `json:"port" yaml:"Port"`
-	Replicas                             []RaftNode `json:"replicas" yaml:"Replicas"`
-	PeerAuthRequestTimeoutMs             uint64     `json:"PeerAuthRequestTimeoutMs" yaml:"PeerAuthRequestTimeoutMs"`
-	PeerConnectRetryMax                  uint64     `json:"peerConnectRetryMax" yaml:"PeerConnectRetryMax"`
-	PeerConnectRetryDelaySeconds         uint64     `json:"peerConnectRetryDelay" yaml:"PeerConnectRetryDelaySeconds"`
-	Bootstrap                            bool       `json:"bootstrap" yaml:"Bootstrap"`
-	NodeId                               uint64     `json:"nodeId" yaml:"NodeId"`
-	RaftAddress                          string     `json:"raftAddress" yaml:"RaftAddress"`
-	RaftTransportMaxPool                 uint64     `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`
-	RaftTransportTimeout                 uint64     `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`
-	RaftApplyTimeout                     uint64     `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`
-	RaftSnapshotInterval                 uint64     `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`
-	RaftSnapshotThreshold                uint64     `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`
-	RaftHeartbeatTimeout                 uint64     `json:"raftHeartbeatTimeout" yaml:"RaftHeartbeatTimeout"`
-	RaftElectionTimeout                  uint64     `json:"raftElectionTimeout" yaml:"RaftElectionTimeout"`
-	RaftCommitTimeout                    uint64     `json:"raftCommitTimeout" yaml:"RaftCommitTimeout"`
-	RaftMaxAppendEntries                 uint64     `json:"raftMaxAppendEntries" yaml:"RaftMaxAppendEntries"`
-	JobExecutionTimeout                  uint64     `json:"jobExecutionTimeout" yaml:"JobExecutionTimeout"`
-	JobExecutionRetryDelay               uint64     `json:"jobExecutionRetryDelay" yaml:"JobExecutionRetryDelay"`
-	JobExecutionRetryMax                 uint64     `json:"jobExecutionRetryMax" yaml:"JobExecutionRetryMax"`
-	UncommittedExecutionLogsFetchTimeout uint64     `json:"uncommittedExecutionLogsFetchTimeout" yaml:"UncommittedExecutionLogsFetchTimeout"`
-	MaxWorkers                           uint64     `json:"maxWorkers" yaml:"MaxWorkers"`
-	MaxQueue                             uint64     `json:"maxQueue" yaml:"MaxQueue"`
-	JobQueueDebounceDelay                uint64     `json:"jobQueueDebounceDelay" yaml:"JobQueueDebounceDelay"`
-	MaxMemory                            uint64     `json:"maxMemory" yaml:"MaxMemory"`
-	ExecutionLogFetchFanIn               uint64     `json:"executionLogFetchFanIn" yaml:"ExecutionLogFetchFanIn"`
-	ExecutionLogFetchIntervalSeconds     uint64     `json:"executionLogFetchIntervalSeconds" yaml:"ExecutionLogFetchIntervalSeconds"`
-	JobInvocationDebounceDelay           uint64     `json:"jobInvocationDebounceDelay" yaml:"JobInvocationDebounceDelay"`
-	HTTPExecutorPayloadMaxSizeMb         uint64     `json:"httpExecutorPayloadMaxSizeMb" yaml:"HTTPExecutorPayloadMaxSizeMb"`
+	LogLevel                         string     `json:"logLevel" yaml:"LogLevel"`
+	Protocol                         string     `json:"protocol" yaml:"Protocol"`
+	Host                             string     `json:"host" yaml:"Host"`
+	Port                             string     `json:"port" yaml:"Port"`
+	Replicas                         []RaftNode `json:"replicas" yaml:"Replicas"`
+	PeerAuthRequestTimeoutMs         uint64     `json:"PeerAuthRequestTimeoutMs" yaml:"PeerAuthRequestTimeoutMs"`
+	PeerConnectRetryMax              uint64     `json:"peerConnectRetryMax" yaml:"PeerConnectRetryMax"`
+	PeerConnectRetryDelaySeconds     uint64     `json:"peerConnectRetryDelay" yaml:"PeerConnectRetryDelaySeconds"`
+	Bootstrap                        bool       `json:"bootstrap" yaml:"Bootstrap"`
+	NodeId                           uint64     `json:"nodeId" yaml:"NodeId"`
+	RaftAddress                      string     `json:"raftAddress" yaml:"RaftAddress"`
+	RaftTransportMaxPool             uint64     `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`
+	RaftTransportTimeout             uint64     `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`
+	RaftApplyTimeout                 uint64     `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`
+	RaftSnapshotInterval             uint64     `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`
+	RaftSnapshotThreshold            uint64     `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`
+	RaftHeartbeatTimeout             uint64     `json:"raftHeartbeatTimeout" yaml:"RaftHeartbeatTimeout"`
+	RaftElectionTimeout              uint64     `json:"raftElectionTimeout" yaml:"RaftElectionTimeout"`
+	RaftCommitTimeout                uint64     `json:"raftCommitTimeout" yaml:"RaftCommitTimeout"`
+	RaftMaxAppendEntries             uint64     `json:"raftMaxAppendEntries" yaml:"RaftMaxAppendEntries"`
+	JobExecutionTimeout              uint64     `json:"jobExecutionTimeout" yaml:"JobExecutionTimeout"`
+	JobExecutionRetryDelay           uint64     `json:"jobExecutionRetryDelay" yaml:"JobExecutionRetryDelay"`
+	JobExecutionRetryMax             uint64     `json:"jobExecutionRetryMax" yaml:"JobExecutionRetryMax"`
+	MaxWorkers                       uint64     `json:"maxWorkers" yaml:"MaxWorkers"`
+	MaxQueue                         uint64     `json:"maxQueue" yaml:"MaxQueue"`
+	JobQueueDebounceDelay            uint64     `json:"jobQueueDebounceDelay" yaml:"JobQueueDebounceDelay"`
+	MaxMemory                        uint64     `json:"maxMemory" yaml:"MaxMemory"`
+	ExecutionLogFetchFanIn           uint64     `json:"executionLogFetchFanIn" yaml:"ExecutionLogFetchFanIn"`
+	ExecutionLogFetchIntervalSeconds uint64     `json:"executionLogFetchIntervalSeconds" yaml:"ExecutionLogFetchIntervalSeconds"`
+	JobInvocationDebounceDelay       uint64     `json:"jobInvocationDebounceDelay" yaml:"JobInvocationDebounceDelay"`
+	HTTPExecutorPayloadMaxSizeMb     uint64     `json:"httpExecutorPayloadMaxSizeMb" yaml:"HTTPExecutorPayloadMaxSizeMb"`
 }
 
 var cachedConfig *Scheduler0Configurations
@@ -268,15 +267,6 @@ func GetConfigFromEnv() *Scheduler0Configurations {
 			log.Fatalf("Error parsing SCHEDULER0_JOB_EXECUTION_RETRY_MAX: %v", err)
 		}
 		config.JobExecutionRetryMax = parsed
-	}
-
-	// Set UncommittedExecutionLogsFetchTimeout
-	if val, ok := os.LookupEnv("SCHEDULER0_UNCOMMITTED_EXECUTION_LOGS_FETCH_TIMEOUT"); ok {
-		parsed, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			log.Fatalf("Error parsing SCHEDULER0_UNCOMMITTED_EXECUTION_LOGS_FETCH_TIMEOUT: %v", err)
-		}
-		config.UncommittedExecutionLogsFetchTimeout = parsed
 	}
 
 	// Set MaxWorkers
