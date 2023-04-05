@@ -4,10 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
+	_ "github.com/iamf-dev/scheduler0-sqlite"
 	"io"
 	"os"
 	"scheduler0/constants"
-	_ "scheduler0/sqlite3"
 	"sync"
 )
 

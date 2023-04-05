@@ -10,6 +10,7 @@ require (
 	github.com/hashicorp/go-hclog v1.4.0
 	github.com/hashicorp/raft v1.3.11
 	github.com/hashicorp/raft-boltdb/v2 v2.2.2
+	github.com/iamf-dev/scheduler0-sqlite v0.0.0-20230405184205-02533e277ceb
 	github.com/manifoldco/promptui v0.8.0
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/robfig/cron v1.2.0
@@ -17,7 +18,6 @@ require (
 	github.com/spf13/afero v1.1.2
 	github.com/spf13/cobra v1.1.1
 	github.com/unrolled/secure v1.0.8
-	github.com/victorlenerd/scheduler0/server v0.0.0-20210208050834-cb7d550eb16e
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.3.0
 )

@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"scheduler0/cmd"
-	_ "scheduler0/sqlite3"
 )
 
 func main() {
