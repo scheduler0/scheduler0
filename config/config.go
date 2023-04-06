@@ -179,6 +179,15 @@ func GetConfigFromEnv() *Scheduler0Configurations {
 		config.RaftTransportMaxPool = parsed
 	}
 
+	// Set RaftTransportMaxPool
+	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_TRANSPORT_TIMEOUT"); ok {
+		parsed, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			log.Fatalf("Error parsing SCHEDULER0_RAFT")
+		}
+		config.RaftTransportTimeout = parsed
+	}
+
 	// Set RaftApplyTimeout
 	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_APPLY_TIMEOUT"); ok {
 		parsed, err := strconv.ParseUint(val, 10, 64)
