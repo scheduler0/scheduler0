@@ -68,7 +68,7 @@ func GetDBConnection(logger hclog.Logger) *DataStore {
 	if err != nil {
 		logger.Error("Fatal error getting working dir: %s \n", err)
 	}
-	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+	dbFilePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
 
 	sqliteDb := NewSqliteDbConnection(logger, dbFilePath)
 	conn := sqliteDb.OpenConnection()

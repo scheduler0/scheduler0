@@ -32,11 +32,17 @@ Note that starting the server without going through the init flow will not work.
 }
 
 func runMigration(cmdLogger hclog.Logger, fs afero.Fs, dir string) {
-	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+	dbDirPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDir)
+	dbFilePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
 
 	err := fs.Remove(dbFilePath)
 	if err != nil && !os.IsNotExist(err) {
 		log.Fatalln(fmt.Errorf("Fatal db delete error: %s \n", err))
+	}
+
+	err = fs.Mkdir(dbDirPath, os.ModePerm)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
 	}
 
 	_, err = fs.Create(dbFilePath)
@@ -70,13 +76,18 @@ func runMigration(cmdLogger hclog.Logger, fs afero.Fs, dir string) {
 }
 
 func recreateDb(fs afero.Fs, dir string) {
-	dirPath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
+	dirPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir)
+	filePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
 	exists, err := afero.DirExists(fs, dirPath)
 	if err != nil {
 		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
 	}
 	if exists {
 		removeErr := fs.RemoveAll(dirPath)
+		if removeErr != nil && !os.IsNotExist(removeErr) {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
+		}
+		removeErr = fs.RemoveAll(filePath)
 		if removeErr != nil && !os.IsNotExist(removeErr) {
 			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
 		}

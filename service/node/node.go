@@ -322,7 +322,7 @@ func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
 		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
 
-	mainDbPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDbFileName)
+	mainDbPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
 	dataStore := db.NewSqliteDbConnection(node.logger, mainDbPath)
 	conn := dataStore.OpenConnection()
 	dbConnection := conn.(*sql.DB)
@@ -597,7 +597,7 @@ func (node *Node) recoverRaftState() {
 	if err != nil {
 		node.logger.Warn("failed to get uncommitted tasks", "error", err)
 	}
-	recoverDbPath := fmt.Sprintf("%s/%s", dir, constants.RecoveryDbFileName)
+	recoverDbPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.RecoveryDbFileName)
 
 	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
 	if err != nil {
