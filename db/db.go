@@ -227,17 +227,18 @@ func RunMigration(cmdLogger hclog.Logger) {
 
 	err = fs.Remove(dbFilePath)
 	if err != nil && !os.IsNotExist(err) {
-		log.Fatalln(fmt.Errorf("Fatal db delete error: %s \n", err))
+		log.Fatalln(fmt.Errorf("Fatal failed to remove db file path error: %s \n", err))
 	}
 
-	err = fs.Remove(dbDirPath)
-	if err != nil && !os.IsNotExist(err) {
-		log.Fatalln(fmt.Errorf("Fatal db delete error: %s \n", err))
-	}
-
-	err = fs.Mkdir(dbDirPath, os.ModePerm)
+	exists, err := afero.DirExists(fs, dbDirPath)
 	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
+		log.Fatalln(fmt.Errorf("Fatal failed to check id sqlite dir exist: %s \n", err))
+	}
+	if !exists {
+		err = fs.Mkdir(dbDirPath, os.ModePerm)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal failed to create sqlite dir: %s \n", err))
+		}
 	}
 
 	_, err = fs.Create(dbFilePath)
