@@ -22,7 +22,7 @@ var raftCmd = &cobra.Command{
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 		logger.Println("Reset ")
 
-		utils.RecreateRaftDir()
+		utils.RemoveRaftDir()
 		logger.Println("Cleared raft state")
 	},
 }

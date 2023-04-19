@@ -10,7 +10,6 @@ import (
 	"log"
 	"os"
 	"scheduler0/constants"
-	"scheduler0/utils"
 	"sync"
 )
 
@@ -81,9 +80,7 @@ func GetDBConnection(logger hclog.Logger) *DataStore {
 	}
 
 	if !exists {
-		utils.RecreateDb()
 		RunMigration(logger)
-		utils.RecreateRaftDir()
 	}
 
 	sqliteDb := NewSqliteDbConnection(logger, filePath)
@@ -229,6 +226,11 @@ func RunMigration(cmdLogger hclog.Logger) {
 	dbFilePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
 
 	err = fs.Remove(dbFilePath)
+	if err != nil && !os.IsNotExist(err) {
+		log.Fatalln(fmt.Errorf("Fatal db delete error: %s \n", err))
+	}
+
+	err = fs.Remove(dbDirPath)
 	if err != nil && !os.IsNotExist(err) {
 		log.Fatalln(fmt.Errorf("Fatal db delete error: %s \n", err))
 	}

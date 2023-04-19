@@ -53,8 +53,8 @@ Note that the Port is optional. By default the server will use :9090
 			Level: hclog.LevelFromString(config.LogLevel),
 		})
 
-		utils.RecreateDb()
-		utils.RecreateRaftDir()
+		utils.RemoveDbDir()
+		utils.RemoveRaftDir()
 		db.RunMigration(cmdLogger)
 
 		logger.Println("Scheduler0 Initialized")

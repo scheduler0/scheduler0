@@ -223,7 +223,7 @@ func ExpandIdsRange[T uint64 | int64](min, max T) []T {
 	return results
 }
 
-func RecreateDb() {
+func RemoveDbDir() {
 	dir, err := os.Getwd()
 	if err != nil {
 		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
@@ -247,7 +247,7 @@ func RecreateDb() {
 	}
 }
 
-func RecreateRaftDir() {
+func RemoveRaftDir() {
 	dir, err := os.Getwd()
 	if err != nil {
 		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
