@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	_ "github.com/iamf-dev/scheduler0-sqlite"
+	"github.com/spf13/afero"
 	"io"
+	"log"
 	"os"
 	"scheduler0/constants"
+	"scheduler0/utils"
 	"sync"
 )
 
@@ -68,9 +71,22 @@ func GetDBConnection(logger hclog.Logger) *DataStore {
 	if err != nil {
 		logger.Error("Fatal error getting working dir: %s \n", err)
 	}
-	dbFilePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
 
-	sqliteDb := NewSqliteDbConnection(logger, dbFilePath)
+	fs := afero.NewOsFs()
+	dirPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir)
+	filePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
+	exists, err := afero.DirExists(fs, dirPath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
+	}
+
+	if !exists {
+		utils.RecreateDb()
+		RunMigration(logger)
+		utils.RecreateRaftDir()
+	}
+
+	sqliteDb := NewSqliteDbConnection(logger, filePath)
 	conn := sqliteDb.OpenConnection()
 
 	dbConnection := conn.(*sql.DB)
@@ -200,4 +216,54 @@ CREATE TABLE IF NOT EXISTS async_tasks_uncommitted
     date_created  		 	datetime NOT NULL
 );
 `
+}
+
+func RunMigration(cmdLogger hclog.Logger) {
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
+	fs := afero.NewOsFs()
+
+	dbDirPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDir)
+	dbFilePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
+
+	err = fs.Remove(dbFilePath)
+	if err != nil && !os.IsNotExist(err) {
+		log.Fatalln(fmt.Errorf("Fatal db delete error: %s \n", err))
+	}
+
+	err = fs.Mkdir(dbDirPath, os.ModePerm)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
+	}
+
+	_, err = fs.Create(dbFilePath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
+	}
+
+	datastore := NewSqliteDbConnection(cmdLogger, dbFilePath)
+	conn := datastore.OpenConnection()
+
+	dbConnection := conn.(*sql.DB)
+
+	trx, dbConnErr := dbConnection.Begin()
+	if dbConnErr != nil {
+		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", dbConnErr))
+	}
+
+	_, execErr := trx.Exec(GetSetupSQL())
+	if execErr != nil {
+		errRollback := trx.Rollback()
+		if errRollback != nil {
+			log.Fatalln(fmt.Errorf("Fatal rollback error: %s \n", execErr))
+		}
+		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", execErr))
+	}
+
+	errCommit := trx.Commit()
+	if errCommit != nil {
+		log.Fatalln(fmt.Errorf("Fatal commit error: %s \n", errCommit))
+	}
 }

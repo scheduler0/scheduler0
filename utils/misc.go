@@ -19,6 +19,7 @@ import (
 	"os"
 	"runtime"
 	"scheduler0/config"
+	"scheduler0/constants"
 	"unsafe"
 )
 
@@ -220,4 +221,48 @@ func ExpandIdsRange[T uint64 | int64](min, max T) []T {
 		results = append(results, i)
 	}
 	return results
+}
+
+func RecreateDb() {
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
+	fs := afero.NewOsFs()
+	dirPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir)
+	filePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
+	exists, err := afero.DirExists(fs, dirPath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
+	}
+	if exists {
+		removeErr := fs.RemoveAll(dirPath)
+		if removeErr != nil && !os.IsNotExist(removeErr) {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
+		}
+		removeErr = fs.RemoveAll(filePath)
+		if removeErr != nil && !os.IsNotExist(removeErr) {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
+		}
+	}
+}
+
+func RecreateRaftDir() {
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
+	}
+	fs := afero.NewOsFs()
+
+	dirPath := fmt.Sprintf("%v/%v", dir, constants.RaftDir)
+	exists, err := afero.DirExists(fs, dirPath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
+	}
+	if exists {
+		removeErr := fs.RemoveAll(dirPath)
+		if removeErr != nil && !os.IsNotExist(removeErr) {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
+		}
+	}
 }

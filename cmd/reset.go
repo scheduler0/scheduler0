@@ -2,11 +2,10 @@ package cmd
 
 import (
 	_ "embed"
-	"fmt"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
+	"scheduler0/utils"
 )
 
 var ResetCmd = &cobra.Command{
@@ -23,13 +22,7 @@ var raftCmd = &cobra.Command{
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 		logger.Println("Reset ")
 
-		dir, err := os.Getwd()
-		if err != nil {
-			log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
-		}
-		fs := afero.NewOsFs()
-
-		recreateRaftDir(fs, dir)
+		utils.RecreateRaftDir()
 		logger.Println("Cleared raft state")
 	},
 }
