@@ -93,6 +93,9 @@ Replicas:
 | Protocol | The protocol in which the nodes used to communicate with each other. Only HTTP is supported.                                                                                     |
 | Host | The host in which the node can be reached by other nodes                                                                                                                         |
 | Port | The port in which the node can be reached by other nodes                                                                                                                         |
+| SecretKey | AES256 secret key used for creating api keys and api secrets for client authentication                                                                                           |
+| AuthUsername | Username used for basic authentication with other nodes                                                                                                                          |
+| AuthPassword | Password used for basic authentication with other nodes                                                                                                                          |
 | MaxMemory | This restricts the how much memory is consumed. Once 70% of the memory specified is reached scheduler0 will stop scheduling jobs on the node and stop executing jobs on the node |
 | Bootstrap | If set to true this node will startup the cluster. Only a single node should have this set to true                                                                               
 | NodeId | The id of the node in the cluster. It should be unique for the node.                                                                                                             
