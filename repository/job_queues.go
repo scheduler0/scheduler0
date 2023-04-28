@@ -60,6 +60,7 @@ func (repo *jobQueues) GetLastJobQueueLogForNode(nodeId uint64, version uint64) 
 		RunWith(repo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
+	defer rows.Close()
 	if err != nil {
 		repo.logger.Error("failed to build query to fetch queue logs", err)
 		return nil
@@ -96,6 +97,7 @@ func (repo *jobQueues) GetLastVersion() uint64 {
 		RunWith(repo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
+	defer rows.Close()
 	if err != nil {
 		log.Fatal("failed to build query to fetch queue logs", err)
 	}

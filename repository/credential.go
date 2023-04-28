@@ -70,7 +70,7 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -248,7 +248,7 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -270,7 +270,7 @@ func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}

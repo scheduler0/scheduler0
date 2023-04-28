@@ -61,11 +61,11 @@ func NewJobExecutor(ctx context.Context, logger hclog.Logger, jobRepository repo
 func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 	configs := config.GetConfigurations()
 
-	serverAddress := jobQueueParams[0].(string)
+	serverId := jobQueueParams[0].(uint64)
 	lowerBound := jobQueueParams[1].(int64)
 	upperBound := jobQueueParams[2].(int64)
 
-	if serverAddress != configs.RaftAddress {
+	if serverId != configs.NodeId {
 		return
 	}
 
@@ -607,10 +607,10 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 	}
 
 	createCommand := &protobuffs.Command{
-		Type:         protobuffs.Command_Type(constants.CommandTypeLocalData),
-		Sql:          peerAddress,
-		Data:         data,
-		ActionTarget: peerAddress,
+		Type:       protobuffs.Command_Type(constants.CommandTypeLocalData),
+		Sql:        peerAddress,
+		Data:       data,
+		TargetNode: configs.NodeId,
 	}
 
 	createCommandData, err := proto.Marshal(createCommand)
