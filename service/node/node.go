@@ -195,11 +195,16 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 		log.Fatalln("failed to marshal json")
 	}
 
+	nodeId, err := utils.GetNodeIdWithServerAddress(peerAddress)
+	if err != nil {
+		log.Fatalln("failed to get node with id for peer address", peerAddress)
+	}
+
 	commitCommand := &protobuffs.Command{
-		Type:         protobuffs.Command_Type(constants.CommandTypeLocalData),
-		Sql:          peerAddress,
-		Data:         data,
-		ActionTarget: peerAddress,
+		Type:       protobuffs.Command_Type(constants.CommandTypeLocalData),
+		Sql:        peerAddress,
+		Data:       data,
+		TargetNode: uint64(nodeId),
 	}
 
 	commitCommandData, err := proto.Marshal(commitCommand)
@@ -722,6 +727,7 @@ func (node *Node) stopAllJobsOnAllNodes() {
 		node.FsmStore.Raft,
 		constants.CommandTypeStopJobs,
 		"",
+		0,
 		nil,
 	)
 	if applyErr != nil {
@@ -730,10 +736,16 @@ func (node *Node) stopAllJobsOnAllNodes() {
 }
 
 func (node *Node) recoverJobsOnNode(peerId raft.ServerID) {
+	num, err := strconv.ParseUint(string(peerId), 10, 32)
+	if err != nil {
+		panic(err)
+	}
+	peerIdNum := uint64(num)
 	_, applyErr := fsm.AppApply(
 		node.FsmStore.Raft,
 		constants.CommandTypeRecoverJobs,
-		string(peerId),
+		"",
+		peerIdNum,
 		nil,
 	)
 	if applyErr != nil {
@@ -748,8 +760,16 @@ func (node *Node) handleLeaderChange() {
 		node.stopAllJobsOnAllNodes()
 		configuration := node.FsmStore.Raft.GetConfiguration().Configuration()
 		servers := configuration.Servers
-		node.jobQueue.RemoveServers(servers)
-		node.jobQueue.AddServers(servers)
+		nodeIds := []uint64{}
+		for _, server := range servers {
+			nodeId, err := utils.GetNodeIdWithRaftAddress(server.Address)
+			if err != nil {
+				log.Fatalln("failed to get node with id for peer address", server.Address)
+			}
+			nodeIds = append(nodeIds, uint64(nodeId))
+		}
+		node.jobQueue.RemoveServers(nodeIds)
+		node.jobQueue.AddServers(nodeIds)
 		node.jobQueue.SingleNodeMode = len(servers) == 1
 		node.jobExecutor.SingleNodeMode = node.jobQueue.SingleNodeMode
 		node.SingleNodeMode = node.jobQueue.SingleNodeMode

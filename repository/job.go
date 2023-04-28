@@ -303,7 +303,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (uint64, *utils.
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -326,7 +326,7 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (uint64, *utils.
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -457,7 +457,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]uint64, *util
 
 		query += ";"
 
-		res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+		res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 		if res == nil {
 			return nil, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 		}
