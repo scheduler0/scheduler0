@@ -119,6 +119,11 @@ Replicas:
 | Replicas | A list of all the nodes in the replicas and their addresses                                                                                                                      
 
 
+## Using Docker Compose 
+
+Here is an example of running a cluster with three nodes using docker compose [https://github.com/iamf-dev/scheduler0-docker/blob/main/cluster_of_three/docker-compose.yml] 
+it shows how to set the required environment variables and uses docker volume binds
+
 ## Example Usage In Node Server
 
 This is a node client example that creates a project, and 100,000 jobs and counts the number of times the jobs 
