@@ -61,11 +61,11 @@ func NewJobExecutor(ctx context.Context, logger hclog.Logger, jobRepository repo
 func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 	configs := config.GetConfigurations()
 
-	serverAddress := jobQueueParams[0].(string)
+	serverId := jobQueueParams[0].(uint64)
 	lowerBound := jobQueueParams[1].(int64)
 	upperBound := jobQueueParams[2].(int64)
 
-	if serverAddress != configs.RaftAddress {
+	if serverId != configs.NodeId {
 		return
 	}
 

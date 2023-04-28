@@ -19,7 +19,6 @@ import (
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
 	"scheduler0/utils/batcher"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -167,7 +166,7 @@ func ApplyCommand(
 		break
 	case protobuffs.Command_Type(constants.CommandTypeRecoverJobs):
 		configs := config.GetConfigurations()
-		if useQueues && command.Sql == strconv.FormatUint(configs.NodeId, 10) {
+		if useQueues && command.TargetNode == configs.NodeId {
 			recoverJobsQueue <- true
 		}
 		break
@@ -323,8 +322,6 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db *db.Dat
 	upperBound := jobIds[1].(float64)
 	lastVersion := jobIds[2].(float64)
 
-	serverNodeId, err := utils.GetNodeIdWithRaftAddress(raft.ServerAddress(command.ActionTarget))
-
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
@@ -335,7 +332,7 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db *db.Dat
 		JobQueueVersion,
 		JobQueueDateCreatedColumn,
 	).Values(
-		serverNodeId,
+		command.TargetNode,
 		lowerBound,
 		upperBound,
 		lastVersion,
@@ -351,7 +348,7 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db *db.Dat
 		}
 	}
 	if useQueues {
-		queue <- []interface{}{command.Sql, int64(lowerBound), int64(upperBound)}
+		queue <- []interface{}{command.TargetNode, int64(lowerBound), int64(upperBound)}
 	}
 	return Response{
 		Data:  nil,
