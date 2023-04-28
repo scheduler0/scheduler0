@@ -48,17 +48,14 @@ func GetSecrets() *Scheduler0Secrets {
 func GetSecretsFromEnv() Scheduler0Secrets {
 	secrets := Scheduler0Secrets{}
 
-	// Set LogLevel
 	if val, ok := os.LookupEnv("SCHEDULER0_SECRET_KEY"); ok {
 		secrets.SecretKey = val
 	}
 
-	// Set Protocol
 	if val, ok := os.LookupEnv("SCHEDULER0_AUTH_PASSWORD"); ok {
 		secrets.AuthPassword = val
 	}
 
-	// Set Host
 	if val, ok := os.LookupEnv("SCHEDULER0_AUTH_USERNAME"); ok {
 		secrets.AuthUsername = val
 	}
