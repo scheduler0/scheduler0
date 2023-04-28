@@ -12,16 +12,17 @@ import (
 	"time"
 )
 
-func AppApply(rft *raft.Raft, commandType constants.Command, sqlString string, params []interface{}) (*Response, *utils.GenericError) {
+func AppApply(rft *raft.Raft, commandType constants.Command, sqlString string, nodeId uint64, params []interface{}) (*Response, *utils.GenericError) {
 	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
 	createCommand := &protobuffs.Command{
-		Type: protobuffs.Command_Type(commandType),
-		Sql:  sqlString,
-		Data: data,
+		Type:       protobuffs.Command_Type(commandType),
+		Sql:        sqlString,
+		Data:       data,
+		TargetNode: nodeId,
 	}
 
 	if err != nil {

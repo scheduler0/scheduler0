@@ -139,7 +139,7 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 
 		query += ";"
 
-		res, applyErr := fsm.AppApply(repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+		res, applyErr := fsm.AppApply(repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 		if applyErr != nil {
 			return nil, applyErr
 		}
@@ -170,7 +170,7 @@ func (repo *asyncTasksRepo) RaftUpdateTaskState(task models.AsyncTask, state mod
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return applyErr
 	}

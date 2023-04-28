@@ -83,7 +83,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (uint64,
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 	if applyErr != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -338,7 +338,7 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (uint
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -371,7 +371,7 @@ func (projectRepo *projectRepo) DeleteOneByID(project models.ProjectModel) (uint
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, deleteErr.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, params)
+	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
 	if applyErr != nil {
 		return 0, applyErr
 	}
