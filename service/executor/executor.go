@@ -607,10 +607,10 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 	}
 
 	createCommand := &protobuffs.Command{
-		Type:         protobuffs.Command_Type(constants.CommandTypeLocalData),
-		Sql:          peerAddress,
-		Data:         data,
-		ActionTarget: peerAddress,
+		Type:       protobuffs.Command_Type(constants.CommandTypeLocalData),
+		Sql:        peerAddress,
+		Data:       data,
+		TargetNode: configs.NodeId,
 	}
 
 	createCommandData, err := proto.Marshal(createCommand)
