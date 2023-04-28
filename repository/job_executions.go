@@ -251,6 +251,7 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []uint64) []mode
 			repo.logger.Error("failed to select last execution log rows error", rows.Err())
 			return nil
 		}
+		rows.Close()
 	}
 
 	return results
@@ -298,6 +299,7 @@ func (repo *executionsRepo) CountLastFailedExecutionLogs(jobId uint64, nodeId ui
 	)
 
 	rows, err := repo.fsmStore.DataStore.Connection.Query(query, jobId, executionVersion, nodeId, models.ExecutionLogFailedState)
+	defer rows.Close()
 	if err != nil {
 		repo.logger.Error("failed to select last execution log", err)
 		return 0
@@ -332,6 +334,7 @@ func (repo *executionsRepo) CountExecutionLogs(committed bool) uint64 {
 		RunWith(repo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
+	defer rows.Close()
 	if err != nil {
 		repo.logger.Error("failed to count executions log", err)
 		return 0
@@ -363,6 +366,7 @@ func (repo *executionsRepo) getUncommittedExecutionsLogsMinMaxIds(committed bool
 		RunWith(repo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
+	defer rows.Close()
 	if err != nil {
 		repo.logger.Error("failed to count async tasks rows", err)
 		return 0, 0
@@ -449,6 +453,7 @@ func (repo *executionsRepo) GetUncommittedExecutionsLogForNode(nodeId uint64) []
 			return nil
 
 		}
+		rows.Close()
 	}
 
 	return results

@@ -231,10 +231,10 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []uint64) ([]mo
 		RunWith(projectRepo.fsmStore.DataStore.Connection)
 
 	rows, err := selectBuilder.Query()
+	defer rows.Close()
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
-	defer rows.Close()
 	count := 0
 	projects := []models.ProjectModel{}
 	for rows.Next() {
@@ -276,10 +276,10 @@ func (projectRepo *projectRepo) List(offset uint64, limit uint64) ([]models.Proj
 
 	projects := []models.ProjectModel{}
 	rows, err := selectBuilder.Query()
+	defer rows.Close()
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
-	defer rows.Close()
 	for rows.Next() {
 		project := models.ProjectModel{}
 		err = rows.Scan(
@@ -307,10 +307,10 @@ func (projectRepo *projectRepo) Count() (uint64, *utils.GenericError) {
 
 	countQuery := sq.Select("count(*)").From(ProjectsTableName).RunWith(projectRepo.fsmStore.DataStore.Connection)
 	rows, err := countQuery.Query()
+	defer rows.Close()
 	if err != nil {
 		return 0, utils.HTTPGenericError(500, err.Error())
 	}
-	defer rows.Close()
 	count := 0
 	for rows.Next() {
 		err = rows.Scan(
