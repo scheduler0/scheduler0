@@ -32,7 +32,7 @@ type JobQueue struct {
 	jobsQueueRepo  repository.JobQueuesRepo
 	fsm            *fsm.Store
 	logger         hclog.Logger
-	allocations    map[raft.ServerAddress]uint64
+	allocations    map[uint64]uint64
 	minId          int64
 	maxId          int64
 	mtx            sync.Mutex
@@ -50,20 +50,20 @@ func NewJobQueue(ctx context.Context, logger hclog.Logger, fsm *fsm.Store, Execu
 		logger:        logger.Named("job-queue-service"),
 		minId:         math.MaxInt64,
 		maxId:         math.MinInt64,
-		allocations:   map[raft.ServerAddress]uint64{},
+		allocations:   map[uint64]uint64{},
 		debounce:      utils.NewDebounce(),
 	}
 }
 
-func (jobQ *JobQueue) AddServers(serverAddresses []raft.Server) {
-	for _, serverAddress := range serverAddresses {
-		jobQ.allocations[serverAddress.Address] = 0
+func (jobQ *JobQueue) AddServers(nodeIds []uint64) {
+	for _, nodeId := range nodeIds {
+		jobQ.allocations[nodeId] = nodeId
 	}
 }
 
-func (jobQ *JobQueue) RemoveServers(serverAddresses []raft.Server) {
-	for _, serverAddress := range serverAddresses {
-		delete(jobQ.allocations, serverAddress.Address)
+func (jobQ *JobQueue) RemoveServers(nodeIds []uint64) {
+	for _, nodeId := range nodeIds {
+		delete(jobQ.allocations, nodeId)
 	}
 }
 
@@ -101,17 +101,15 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 
 	if numberOfServers > 0 {
 		currentServer := 0
-		serverAllocations = append(serverAllocations, []uint64{})
 		cycle := int64(math.Ceil(float64((maxId - minId) / int64(numberOfServers))))
 		epoc := minId
 		for epoc <= maxId {
-			if len(serverAllocations) < currentServer {
+			if len(serverAllocations) <= currentServer {
 				serverAllocations = append(serverAllocations, []uint64{})
 			}
 
 			lowerBound := epoc
 			upperBound := epoc + cycle
-
 			serverAllocations[currentServer] = append(serverAllocations[currentServer], uint64(lowerBound))
 			serverAllocations[currentServer] = append(serverAllocations[currentServer], uint64(upperBound))
 
@@ -149,10 +147,10 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 		}
 
 		createCommand := &protobuffs.Command{
-			Type:         protobuffs.Command_Type(constants.CommandTypeJobQueue),
-			Sql:          string(server),
-			Data:         d,
-			ActionTarget: string(server),
+			Type:       protobuffs.Command_Type(constants.CommandTypeJobQueue),
+			Sql:        "",
+			Data:       d,
+			TargetNode: server,
 		}
 
 		createCommandData, err := proto.Marshal(createCommand)
@@ -172,19 +170,19 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 	}
 }
 
-func (jobQ *JobQueue) getServerToQueue() raft.ServerAddress {
+func (jobQ *JobQueue) getServerToQueue() uint64 {
 	configs := config.GetConfigurations()
 
 	var minAllocation uint64 = math.MaxInt64
-	var minServer raft.ServerAddress
+	var minServer uint64
 
 	// Edge case for single node mode
 	if jobQ.SingleNodeMode {
-		return raft.ServerAddress(configs.RaftAddress)
+		return configs.NodeId
 	}
 
 	for server, allocation := range jobQ.allocations {
-		if allocation < minAllocation && string(server) != configs.RaftAddress {
+		if allocation < minAllocation && server != configs.NodeId {
 			minAllocation = allocation
 			minServer = server
 		}
@@ -201,7 +199,7 @@ func (jobQ *JobQueue) IncrementQueueVersion() {
 			repository.JobQueuesVersionTableName,
 			repository.JobQueueVersion,
 			repository.JobNumberOfActiveNodesVersion,
-		), []interface{}{lastVersion + 1, len(jobQ.allocations)})
+		), 0, []interface{}{lastVersion + 1, len(jobQ.allocations)})
 	if err != nil {
 		log.Fatalln("failed to increment job queue version", err)
 	}
