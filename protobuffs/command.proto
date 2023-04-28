@@ -14,5 +14,5 @@ message Command {
   string sql = 2;
   bytes args = 3;
   bytes data = 4;
-  string action_target = 5;
+  uint64 target_node = 5;
 }
