@@ -66,8 +66,8 @@ RaftAddress: 127.0.0.1:7071
 RaftTransportMaxPool: 100
 RaftTransportTimeout: 1
 RaftApplyTimeout: 2
-RaftSnapshotInterval: 1
-RaftSnapshotThreshold: 1
+RaftSnapshotInterval: 60
+RaftSnapshotThreshold: 100
 PeerConnectRetryMax: 2
 PeerConnectRetryDelay: 1
 PeerAuthRequestTimeoutMs: 2
@@ -130,7 +130,7 @@ it shows how to set the required environment variables and uses docker volume bi
 
 ## Example Usage In Node Server
 
-This is a node client example that creates a project, and 100,000 jobs and counts the number of times the jobs 
+This is a node client example that creates a project, and 50,000 jobs and counts the number of times the jobs 
 get executed.
 
 ```javascript
@@ -181,7 +181,7 @@ async function createProject() {
 async function createJobs(projectID) {
     let payload = [];
 
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 50; i++) {
         for (let j = 0; j < 1000; j++) {
             payload.push({
                 spec: "@every 1m",
