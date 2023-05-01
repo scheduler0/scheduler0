@@ -34,5 +34,8 @@ func (schedulerTime *SchedulerTime) SetTimezone(tz string) error {
 }
 
 func (schedulerTime *SchedulerTime) GetTime(t time.Time) time.Time {
+	if schedulerTime.loc == nil {
+		return t
+	}
 	return t.In(schedulerTime.loc)
 }

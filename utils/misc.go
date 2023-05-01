@@ -229,7 +229,7 @@ func RemoveDbDir() {
 		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
 	fs := afero.NewOsFs()
-	dirPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir)
+	dirPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDir)
 	filePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
 	exists, err := afero.DirExists(fs, dirPath)
 	if err != nil {
