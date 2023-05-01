@@ -1,4 +1,6 @@
-<img src="./logo.png" height="250" />
+<p align="center">
+    <img src="./logo.png" height="250" />
+</p>
 
 # Scheduler0
 
