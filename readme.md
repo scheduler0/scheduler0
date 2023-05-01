@@ -1,3 +1,5 @@
+<img src="./logo.png" height="250" />
+
 # Scheduler0
 
 A cloud-native distributed cron-job server based on Raft distributed consensus and sqlite.
