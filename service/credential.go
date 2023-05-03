@@ -9,7 +9,6 @@ import (
 	"scheduler0/repository"
 	"scheduler0/secrets"
 	"scheduler0/utils"
-	"scheduler0/utils/workers"
 )
 
 // Credential service layer for credentials
@@ -22,7 +21,7 @@ type Credential interface {
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 }
 
-func NewCredentialService(Ctx context.Context, logger hclog.Logger, repo repository.Credential, dispatcher *workers.Dispatcher) Credential {
+func NewCredentialService(Ctx context.Context, logger hclog.Logger, repo repository.Credential, dispatcher *utils.Dispatcher) Credential {
 	return &credentialService{
 		CredentialRepo: repo,
 		Ctx:            Ctx,
@@ -35,7 +34,7 @@ type credentialService struct {
 	CredentialRepo repository.Credential
 	Ctx            context.Context
 	logger         hclog.Logger
-	dispatcher     *workers.Dispatcher
+	dispatcher     *utils.Dispatcher
 }
 
 // CreateNewCredential creates a new credentials

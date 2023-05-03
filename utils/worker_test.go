@@ -1,13 +1,14 @@
-package workers
+package utils
 
 import (
+	"scheduler0/models"
 	"testing"
 )
 
 func Test_Workers(t *testing.T) {
 
 	t.Run("should execute callback when work is queued", func(t *testing.T) {
-		pool := make(chan chan []interface{}, 1)
+		pool := make(chan chan models.Work, 1)
 
 		callback := func(effector func(s chan any, e chan any), s chan any, e chan any) {
 			effector(s, e)
@@ -24,7 +25,11 @@ func Test_Workers(t *testing.T) {
 			close(e)
 		}
 
-		worker.WorkerQueue <- []interface{}{c, s, e}
+		worker.WorkerQueue <- models.Work{
+			SuccessChannel: s,
+			ErrorChannel:   e,
+			Effector:       c,
+		}
 
 		_, eClosed := <-e
 		_, sClosed := <-s

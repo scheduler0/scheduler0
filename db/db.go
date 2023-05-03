@@ -72,7 +72,7 @@ func GetDBConnection(logger hclog.Logger) *DataStore {
 	}
 
 	fs := afero.NewOsFs()
-	dirPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir)
+	dirPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDir)
 	filePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
 	exists, err := afero.DirExists(fs, dirPath)
 	if err != nil {

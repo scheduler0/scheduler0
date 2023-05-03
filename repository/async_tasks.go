@@ -10,7 +10,6 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/models"
 	"scheduler0/utils"
-	"scheduler0/utils/batcher"
 	"time"
 )
 
@@ -56,7 +55,7 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool
 	repo.fsmStore.DataStore.ConnectionLock.Lock()
 	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
 
-	batches := batcher.Batch[models.AsyncTask](tasks, 5)
+	batches := utils.Batch[models.AsyncTask](tasks, 5)
 	results := make([]uint64, 0, len(tasks))
 
 	schedulerTime := utils.GetSchedulerTime()
@@ -111,7 +110,7 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool
 }
 
 func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError) {
-	batches := batcher.Batch[models.AsyncTask](tasks, 5)
+	batches := utils.Batch[models.AsyncTask](tasks, 5)
 	results := make([]uint64, 0, len(tasks))
 
 	schedulerTime := utils.GetSchedulerTime()
@@ -331,7 +330,7 @@ func (repo *asyncTasksRepo) GetAllUnCommittedTasks() ([]models.AsyncTask, *utils
 	results := make([]models.AsyncTask, 0, count)
 	expandedIds := utils.ExpandIdsRange(min, max)
 
-	batches := batcher.Batch(expandedIds, 7)
+	batches := utils.Batch(expandedIds, 7)
 
 	for _, batch := range batches {
 		var params = []interface{}{batch[0]}

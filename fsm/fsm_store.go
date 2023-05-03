@@ -18,7 +18,6 @@ import (
 	"scheduler0/models"
 	"scheduler0/protobuffs"
 	"scheduler0/utils"
-	"scheduler0/utils/batcher"
 	"sync"
 	"time"
 )
@@ -357,7 +356,7 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db *db.Dat
 }
 
 func batchInsertExecutionLogs(logger hclog.Logger, db *db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
-	batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
+	batches := utils.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
 
 	for _, batch := range batches {
 		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
@@ -429,7 +428,7 @@ func batchInsertExecutionLogs(logger hclog.Logger, db *db.DataStore, jobExecutio
 }
 
 func batchDeleteDeleteExecutionLogs(logger hclog.Logger, db *db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
-	batches := batcher.Batch[models.JobExecutionLog](jobExecutionLogs, 1)
+	batches := utils.Batch[models.JobExecutionLog](jobExecutionLogs, 1)
 
 	for _, batch := range batches {
 		paramPlaceholder := "?"
@@ -468,7 +467,7 @@ func batchDeleteDeleteExecutionLogs(logger hclog.Logger, db *db.DataStore, jobEx
 }
 
 func batchDeleteDeleteAsyncTasks(logger hclog.Logger, db *db.DataStore, tasks []models.AsyncTask) {
-	batches := batcher.Batch[models.AsyncTask](tasks, 1)
+	batches := utils.Batch[models.AsyncTask](tasks, 1)
 
 	for _, batch := range batches {
 		paramPlaceholder := "?"
@@ -507,7 +506,7 @@ func batchDeleteDeleteAsyncTasks(logger hclog.Logger, db *db.DataStore, tasks []
 }
 
 func batchInsertAsyncTasks(logger hclog.Logger, db *db.DataStore, tasks []models.AsyncTask) {
-	batches := batcher.Batch[models.AsyncTask](tasks, 6)
+	batches := utils.Batch[models.AsyncTask](tasks, 6)
 
 	for _, batch := range batches {
 		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES ",

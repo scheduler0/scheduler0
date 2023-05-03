@@ -9,7 +9,6 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/models"
 	"scheduler0/utils"
-	"scheduler0/utils/batcher"
 	"time"
 )
 
@@ -108,7 +107,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *u
 	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
 
 	jobs := []models.JobModel{}
-	batches := batcher.Batch[uint64](jobIDs, 1)
+	batches := utils.Batch[uint64](jobIDs, 1)
 
 	for _, batch := range batches {
 		paramsPlaceholder := ""
@@ -415,7 +414,7 @@ func (jobRepo *jobRepo) GetJobsPaginated(projectID uint64, offset uint64, limit 
 
 // BatchInsertJobs inserts n number of jobs
 func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]uint64, *utils.GenericError) {
-	batches := batcher.Batch[models.JobModel](jobs, 6)
+	batches := utils.Batch[models.JobModel](jobs, 6)
 
 	returningIds := []uint64{}
 
