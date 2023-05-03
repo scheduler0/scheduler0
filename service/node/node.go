@@ -32,8 +32,6 @@ import (
 	"scheduler0/service/processor"
 	"scheduler0/service/queue"
 	"scheduler0/utils"
-	"scheduler0/utils/batcher"
-	"scheduler0/utils/workers"
 	"strconv"
 	"sync"
 	"time"
@@ -89,7 +87,7 @@ type Node struct {
 	isExistingNode       bool
 	peerObserverChannels chan raft.Observation
 	asyncTaskManager     *async_task_manager.AsyncTaskManager
-	dispatcher           *workers.Dispatcher
+	dispatcher           *utils.Dispatcher
 	fanIns               sync.Map // models.PeerFanIn
 	fanInCh              chan models.PeerFanIn
 }
@@ -104,7 +102,7 @@ func NewNode(
 	executionsRepo repository.ExecutionsRepo,
 	jobQueueRepo repository.JobQueuesRepo,
 	asyncTaskManager *async_task_manager.AsyncTaskManager,
-	dispatcher *workers.Dispatcher,
+	dispatcher *utils.Dispatcher,
 ) *Node {
 	nodeServiceLogger := logger.Named("node-service")
 
@@ -391,7 +389,7 @@ func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
 		ids = append(ids, i)
 	}
 
-	batches := batcher.Batch[int64](ids, 7)
+	batches := utils.Batch[int64](ids, 7)
 
 	for _, batch := range batches {
 		batchIds := []interface{}{batch[0]}
@@ -449,7 +447,7 @@ func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
 func (node *Node) insertUncommittedLogsIntoRecoverDb(executionLogs []models.JobExecutionLog, dbConnection *sql.DB) {
 	logger := log.New(os.Stderr, "[insert-uncommitted-execution-logs-into-recoverDb] ", log.LstdFlags)
 
-	executionLogsBatches := batcher.Batch[models.JobExecutionLog](executionLogs, 9)
+	executionLogsBatches := utils.Batch[models.JobExecutionLog](executionLogs, 9)
 
 	for _, executionLogsBatch := range executionLogsBatches {
 		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
@@ -517,7 +515,7 @@ func (node *Node) insertUncommittedLogsIntoRecoverDb(executionLogs []models.JobE
 
 func (node *Node) insertUncommittedAsyncTaskLogsIntoRecoveryDb(asyncTasks []models.AsyncTask, dbConnection *sql.DB) {
 	logger := log.New(os.Stderr, "[insert-uncommitted-async-task-logs-into-recoverDb] ", log.LstdFlags)
-	batches := batcher.Batch[models.AsyncTask](asyncTasks, 5)
+	batches := utils.Batch[models.AsyncTask](asyncTasks, 5)
 
 	for _, batch := range batches {
 		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)",

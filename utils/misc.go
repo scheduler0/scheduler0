@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"github.com/segmentio/ksuid"
 	"github.com/spf13/afero"
@@ -17,7 +16,6 @@ import (
 	"log"
 	"math"
 	"os"
-	"runtime"
 	"scheduler0/config"
 	"scheduler0/constants"
 	"unsafe"
@@ -65,6 +63,39 @@ func ReadUint64(b []byte) (uint64, error) {
 
 func WriteUint64(w io.Writer, v uint64) error {
 	return binary.Write(w, binary.LittleEndian, v)
+}
+
+func GzCompress(b []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gzw, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		return nil, fmt.Errorf("gzip new writer: %s", err)
+	}
+
+	if _, err := gzw.Write(b); err != nil {
+		return nil, fmt.Errorf("gzip Write: %s", err)
+	}
+	if err := gzw.Close(); err != nil {
+		return nil, fmt.Errorf("gzip Close: %s", err)
+	}
+	return buf.Bytes(), nil
+}
+
+func GzUncompress(b []byte) ([]byte, error) {
+	gz, err := gzip.NewReader(bytes.NewReader(b))
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal gzip NewReader: %s", err)
+	}
+
+	ub, err := ioutil.ReadAll(gz)
+	if err != nil {
+		return nil, fmt.Errorf("unmarshal gzip ReadAll: %s", err)
+	}
+
+	if err := gz.Close(); err != nil {
+		return nil, fmt.Errorf("unmarshal gzip Close: %s", err)
+	}
+	return ub, nil
 }
 
 func BytesFromSnapshot(rc io.ReadCloser) ([]byte, error) {
@@ -116,6 +147,9 @@ func BytesFromSnapshot(rc io.ReadCloser) ([]byte, error) {
 			}
 			database = buf.Bytes()
 		} else {
+			if int64(len(b)) < offset+int64(sz) {
+				return nil, errors.New("invalid compressed bytes")
+			}
 			database = b[offset : offset+int64(sz)]
 		}
 	} else {
@@ -160,56 +194,6 @@ func GetNodeIdWithServerAddress(serverAddress string) (int64, error) {
 	return -1, errors.New("cannot find node with server address")
 }
 
-func bToMb(b uint64) uint64 {
-	return b / 1024 / 1024
-}
-
-func MonitorMemoryUsage(logger hclog.Logger) bool {
-	configs := config.GetConfigurations()
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-
-	if bToMb(m.TotalAlloc) >= configs.MaxMemory {
-		logger.Error("max memory reached cannot schedule jobs ", configs.MaxMemory, " MB, total allocated money", bToMb(m.TotalAlloc), "MB")
-		return true
-	}
-
-	return false
-}
-
-func GzCompress(b []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	gzw, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
-	if err != nil {
-		return nil, fmt.Errorf("gzip new writer: %s", err)
-	}
-
-	if _, err := gzw.Write(b); err != nil {
-		return nil, fmt.Errorf("gzip Write: %s", err)
-	}
-	if err := gzw.Close(); err != nil {
-		return nil, fmt.Errorf("gzip Close: %s", err)
-	}
-	return buf.Bytes(), nil
-}
-
-func GzUncompress(b []byte) ([]byte, error) {
-	gz, err := gzip.NewReader(bytes.NewReader(b))
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal gzip NewReader: %s", err)
-	}
-
-	ub, err := ioutil.ReadAll(gz)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal gzip ReadAll: %s", err)
-	}
-
-	if err := gz.Close(); err != nil {
-		return nil, fmt.Errorf("unmarshal gzip Close: %s", err)
-	}
-	return ub, nil
-}
-
 func GetServerHTTPAddress() string {
 	configs := config.GetConfigurations()
 	return fmt.Sprintf("%v://%v:%v", configs.Protocol, configs.Host, configs.Port)
@@ -223,7 +207,7 @@ func ExpandIdsRange[T uint64 | int64](min, max T) []T {
 	return results
 }
 
-func RemoveDbDir() {
+func RemoveSqliteDbDir() {
 	dir, err := os.Getwd()
 	if err != nil {
 		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
