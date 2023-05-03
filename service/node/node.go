@@ -277,7 +277,7 @@ func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(strconv.FormatUint(configs.NodeId, 10))
 
-	// Set Raft configs from Scheduler0Configurations if available, otherwise use default values
+	// Set Raft configs from scheduler0Configurations if available, otherwise use default values
 	if configs.RaftHeartbeatTimeout != 0 {
 		c.HeartbeatTimeout = time.Millisecond * time.Duration(configs.RaftHeartbeatTimeout)
 	}
