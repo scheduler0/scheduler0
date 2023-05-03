@@ -16,12 +16,11 @@ import (
 	"scheduler0/service/node"
 	"scheduler0/service/queue"
 	"scheduler0/utils"
-	"scheduler0/utils/workers"
 	"time"
 )
 
 type Service struct {
-	Dispatcher         *workers.Dispatcher
+	Dispatcher         *utils.Dispatcher
 	JobService         Job
 	ProjectService     Project
 	CredentialService  Credential
@@ -44,7 +43,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	sqliteDb := db.GetDBConnection(logger)
 	fsmStr := fsm.NewFSMStore(sqliteDb, logger)
 
-	dispatcher := workers.NewDispatcher(
+	dispatcher := utils.NewDispatcher(
 		int64(configs.MaxWorkers),
 		int64(configs.MaxQueue),
 		func(effector func(successChannel, errorChannel chan any), successChannel, errorChannel chan any) {

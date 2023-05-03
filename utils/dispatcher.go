@@ -1,4 +1,4 @@
-package workers
+package utils
 
 import "scheduler0/models"
 

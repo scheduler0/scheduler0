@@ -20,6 +20,7 @@ type RaftNode struct {
 	NodeId      uint64 `json:"nodeId" yaml:"NodeId"`            // Unique identifier for the Raft node within the cluster
 }
 
+//go:generate mockery --name Scheduler0Configurations
 // Scheduler0Configurations global configurations
 type Scheduler0Configurations struct {
 	LogLevel                         string     `json:"logLevel" yaml:"LogLevel"`                                                 // Logging verbosity level

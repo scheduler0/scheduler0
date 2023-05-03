@@ -13,7 +13,6 @@ import (
 	"scheduler0/service/async_task_manager"
 	"scheduler0/service/queue"
 	"scheduler0/utils"
-	"scheduler0/utils/workers"
 	"time"
 )
 
@@ -23,7 +22,7 @@ type jobService struct {
 	Queue            *queue.JobQueue
 	Ctx              context.Context
 	logger           hclog.Logger
-	dispatcher       *workers.Dispatcher
+	dispatcher       *utils.Dispatcher
 	asyncTaskManager *async_task_manager.AsyncTaskManager
 }
 
@@ -42,7 +41,7 @@ func NewJobService(
 	jobRepo repository.Job,
 	queue *queue.JobQueue,
 	projectRepo repository.Project,
-	dispatcher *workers.Dispatcher,
+	dispatcher *utils.Dispatcher,
 	asyncTaskManager *async_task_manager.AsyncTaskManager,
 ) Job {
 	service := &jobService{

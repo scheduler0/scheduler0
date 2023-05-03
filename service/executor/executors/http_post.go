@@ -11,8 +11,6 @@ import (
 	"scheduler0/config"
 	"scheduler0/models"
 	"scheduler0/utils"
-	"scheduler0/utils/batcher"
-	"scheduler0/utils/workers"
 	"strconv"
 	"time"
 )
@@ -31,7 +29,7 @@ func NewHTTTPExecutor(logger hclog.Logger) *HTTPExecutionHandler {
 	}
 }
 
-func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, dispatcher *workers.Dispatcher, pendingJobs []models.JobModel, onSuccess func(jobs []models.JobModel), onFailure func(jobs []models.JobModel)) ([]models.JobModel, []models.JobModel) {
+func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, dispatcher *utils.Dispatcher, pendingJobs []models.JobModel, onSuccess func(jobs []models.JobModel), onFailure func(jobs []models.JobModel)) ([]models.JobModel, []models.JobModel) {
 	urlJobCache := map[string][]models.JobModel{}
 
 	for _, pj := range pendingJobs {
@@ -49,7 +47,7 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 	for rurl, uJc := range urlJobCache {
 
 		configs := config.GetConfigurations()
-		batches := batcher.BatchByBytes(uJc, int(configs.HTTPExecutorPayloadMaxSizeMb))
+		batches := utils.BatchByBytes(uJc, int(configs.HTTPExecutorPayloadMaxSizeMb))
 
 		for i, batch := range batches {
 			func(url string, b []byte, chunkId int) {

@@ -53,7 +53,7 @@ Note that the Port is optional. By default the server will use :9090
 			Level: hclog.LevelFromString(config.LogLevel),
 		})
 
-		utils.RemoveDbDir()
+		utils.RemoveSqliteDbDir()
 		utils.RemoveRaftDir()
 		db.RunMigration(cmdLogger)
 
