@@ -22,7 +22,7 @@ func GetSecrets() *Scheduler0Secrets {
 		return cachedSecrets
 	}
 
-	binPath := config.GetBinPath()
+	binPath := config.getBinPath()
 
 	fs := afero.NewOsFs()
 	data, err := afero.ReadFile(fs, binPath+"/"+constants.SecretsFileName)
@@ -64,7 +64,7 @@ func GetSecretsFromEnv() Scheduler0Secrets {
 }
 
 func SaveSecrets(credentialsInput *Scheduler0Secrets) *Scheduler0Secrets {
-	binPath := config.GetBinPath()
+	binPath := config.getBinPath()
 
 	fs := afero.NewOsFs()
 	data, err := json.Marshal(credentialsInput)

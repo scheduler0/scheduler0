@@ -52,7 +52,7 @@ func TestGetConfigFromEnv(t *testing.T) {
 	os.Setenv("SCHEDULER0_HTTP_EXECUTOR_PAYLOAD_MAX_SIZE_MB", "5")
 
 	// Get configuration from environment variables
-	config := GetConfigFromEnv()
+	config := getConfigFromEnv()
 
 	// Check if the values are set correctly
 	assert.NotNil(t, config)
