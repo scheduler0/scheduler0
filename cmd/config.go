@@ -46,7 +46,8 @@ Note that the Port is optional. By default the server will use :9090
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 
 		logger.Println("Initializing Scheduler0 Configuration")
-		config := config.GetConfigurations()
+
+		config := config.NewScheduler0Config().GetConfigurations()
 
 		cmdLogger := hclog.New(&hclog.LoggerOptions{
 			Name:  "scheduler0-cmd",

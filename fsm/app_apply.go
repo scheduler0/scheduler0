@@ -34,7 +34,7 @@ func AppApply(rft *raft.Raft, commandType constants.Command, sqlString string, n
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := config.GetConfigurations()
+	configs := config.NewScheduler0Config().GetConfigurations()
 
 	af := rft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 	if af.Error() != nil {

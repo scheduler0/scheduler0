@@ -16,22 +16,24 @@ type PeerController interface {
 }
 
 type peerController struct {
-	fsmStore *fsm.Store
-	logger   *log.Logger
-	peer     *node.Node
+	scheduler0Config config.Scheduler0Config
+	fsmStore         *fsm.Store
+	logger           *log.Logger
+	peer             *node.Node
 }
 
-func NewPeerController(logger *log.Logger, fsmStore *fsm.Store, peer *node.Node) PeerController {
+func NewPeerController(logger *log.Logger, scheduler0Config config.Scheduler0Config, fsmStore *fsm.Store, peer *node.Node) PeerController {
 	controller := peerController{
-		fsmStore: fsmStore,
-		logger:   logger,
-		peer:     peer,
+		scheduler0Config: scheduler0Config,
+		fsmStore:         fsmStore,
+		logger:           logger,
+		peer:             peer,
 	}
 	return &controller
 }
 
 func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Request) {
-	configs := config.GetConfigurations()
+	configs := controller.scheduler0Config.GetConfigurations()
 
 	res := node.Res{
 		IsLeader: configs.Bootstrap,

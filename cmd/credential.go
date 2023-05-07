@@ -36,7 +36,8 @@ var initCCmd = &cobra.Command{
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 		logger.Println("Initializing Scheduler0 Credentials")
 
-		credentials := secrets.GetSecrets()
+		scheduler0Secrets := secrets.NewScheduler0Secrets()
+		credentials := scheduler0Secrets.GetSecrets()
 
 		if credentials.SecretKey != "" && credentials.AuthUsername != "" && credentials.AuthPassword != "" {
 			recreateKey := promptui.Prompt{
@@ -73,7 +74,7 @@ var initCCmd = &cobra.Command{
 		passwordKey, _ := passwordKeyPrompt.Run()
 		credentials.AuthPassword = passwordKey
 
-		secrets.SaveSecrets(credentials)
+		scheduler0Secrets.SaveSecrets(credentials)
 		logger.Println("Scheduler0 Initialized")
 	},
 }
@@ -93,7 +94,8 @@ Use the --show-password flag if you want the password to be visible.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
-		credentials := secrets.GetSecrets()
+		scheduler0Secrets := secrets.NewScheduler0Secrets()
+		credentials := scheduler0Secrets.GetSecrets()
 		logger.Println("Credentials:")
 		logger.Println("SecretKey:", credentials.SecretKey)
 		logger.Println("AuthUsername:", credentials.AuthUsername)

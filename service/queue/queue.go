@@ -27,31 +27,33 @@ type JobQueueCommand struct {
 }
 
 type JobQueue struct {
-	Executor       *executor.JobExecutor
-	SingleNodeMode bool
-	jobsQueueRepo  repository.JobQueuesRepo
-	fsm            *fsm.Store
-	logger         hclog.Logger
-	allocations    map[uint64]uint64
-	minId          int64
-	maxId          int64
-	mtx            sync.Mutex
-	once           sync.Once
-	debounce       *utils.Debounce
-	context        context.Context
+	Executor         *executor.JobExecutor
+	SingleNodeMode   bool
+	jobsQueueRepo    repository.JobQueuesRepo
+	fsm              *fsm.Store
+	logger           hclog.Logger
+	allocations      map[uint64]uint64
+	minId            int64
+	maxId            int64
+	mtx              sync.Mutex
+	once             sync.Once
+	debounce         *utils.Debounce
+	context          context.Context
+	schedulerOconfig config.Scheduler0Config
 }
 
-func NewJobQueue(ctx context.Context, logger hclog.Logger, fsm *fsm.Store, Executor *executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
+func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, fsm *fsm.Store, Executor *executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
 	return &JobQueue{
-		Executor:      Executor,
-		jobsQueueRepo: jobsQueueRepo,
-		context:       ctx,
-		fsm:           fsm,
-		logger:        logger.Named("job-queue-service"),
-		minId:         math.MaxInt64,
-		maxId:         math.MinInt64,
-		allocations:   map[uint64]uint64{},
-		debounce:      utils.NewDebounce(),
+		Executor:         Executor,
+		jobsQueueRepo:    jobsQueueRepo,
+		context:          ctx,
+		fsm:              fsm,
+		logger:           logger.Named("job-queue-service"),
+		minId:            math.MaxInt64,
+		maxId:            math.MinInt64,
+		allocations:      map[uint64]uint64{},
+		debounce:         utils.NewDebounce(),
+		schedulerOconfig: scheduler0Config,
 	}
 }
 
@@ -129,7 +131,7 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 	}
 
 	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
-	configs := config.GetConfigurations()
+	configs := jobQ.schedulerOconfig.GetConfigurations()
 
 	j := 0
 	for j < len(serverAllocations) {
@@ -171,7 +173,7 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 }
 
 func (jobQ *JobQueue) getServerToQueue() uint64 {
-	configs := config.GetConfigurations()
+	configs := jobQ.schedulerOconfig.GetConfigurations()
 
 	var minAllocation uint64 = math.MaxInt64
 	var minServer uint64

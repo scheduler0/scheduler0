@@ -11,6 +11,7 @@ import (
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/repository"
+	"scheduler0/secrets"
 	"scheduler0/service/async_task_manager"
 	"scheduler0/service/executor"
 	"scheduler0/service/node"
@@ -31,7 +32,9 @@ type Service struct {
 }
 
 func NewService(ctx context.Context, logger hclog.Logger) *Service {
-	configs := config.GetConfigurations()
+	scheduler0Configs := config.NewScheduler0Config()
+	scheduler0Secrets := secrets.NewScheduler0Secrets()
+	configs := scheduler0Configs.GetConfigurations()
 
 	serviceCtx, cancelServiceContext := context.WithCancel(ctx)
 
@@ -41,7 +44,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 		log.Fatal("failed to set timezone for s")
 	}
 	sqliteDb := db.GetDBConnection(logger)
-	fsmStr := fsm.NewFSMStore(sqliteDb, logger)
+	fsmStr := fsm.NewFSMStore(logger, sqliteDb)
 
 	dispatcher := utils.NewDispatcher(
 		int64(configs.MaxWorkers),
@@ -60,11 +63,13 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	asyncTaskRepo := repository.NewAsyncTasksRepo(serviceCtx, logger, fsmStr)
 
 	asyncTaskManager := async_task_manager.NewAsyncTaskManager(serviceCtx, logger, fsmStr, asyncTaskRepo)
-	jobExecutor := executor.NewJobExecutor(serviceCtx, logger, jobRepo, executionsRepo, jobQueueRepo, dispatcher)
-	jobQueue := queue.NewJobQueue(serviceCtx, logger, fsmStr, jobExecutor, jobQueueRepo)
+	jobExecutor := executor.NewJobExecutor(serviceCtx, logger, scheduler0Configs, jobRepo, executionsRepo, jobQueueRepo, dispatcher)
+	jobQueue := queue.NewJobQueue(serviceCtx, logger, scheduler0Configs, fsmStr, jobExecutor, jobQueueRepo)
 	nodeService := node.NewNode(
 		serviceCtx,
 		logger,
+		scheduler0Configs,
+		scheduler0Secrets,
 		jobExecutor,
 		jobQueue,
 		jobRepo,
@@ -80,7 +85,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	service := Service{
 		JobService:         NewJobService(serviceCtx, logger, jobRepo, jobQueue, projectRepo, dispatcher, asyncTaskManager),
 		ProjectService:     NewProjectService(logger, projectRepo),
-		CredentialService:  NewCredentialService(serviceCtx, logger, credentialRepo, dispatcher),
+		CredentialService:  NewCredentialService(serviceCtx, logger, scheduler0Secrets, credentialRepo, dispatcher),
 		JobExecutorService: jobExecutor,
 		NodeService:        nodeService,
 		JobQueueService:    jobQueue,
