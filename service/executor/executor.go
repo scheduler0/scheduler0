@@ -37,9 +37,10 @@ type JobExecutor struct {
 	debounce              *utils.Debounce
 	dispatcher            *utils.Dispatcher
 	scheduledJobs         sync.Map
+	schedulerOconfig      config.Scheduler0Config
 }
 
-func NewJobExecutor(ctx context.Context, logger hclog.Logger, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo, dispatcher *utils.Dispatcher) *JobExecutor {
+func NewJobExecutor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo, dispatcher *utils.Dispatcher) *JobExecutor {
 	reCtx, cancel := context.WithCancel(ctx)
 	return &JobExecutor{
 		pendingJobInvocations: []models.JobModel{},
@@ -54,11 +55,12 @@ func NewJobExecutor(ctx context.Context, logger hclog.Logger, jobRepository repo
 		executions:            sync.Map{},
 		debounce:              utils.NewDebounce(),
 		dispatcher:            dispatcher,
+		schedulerOconfig:      scheduler0Config,
 	}
 }
 
 func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
-	configs := config.GetConfigurations()
+	configs := jobExecutor.schedulerOconfig.GetConfigurations()
 
 	serverId := jobQueueParams[0].(uint64)
 	lowerBound := jobQueueParams[1].(int64)
@@ -110,7 +112,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.JobModel) {
 	if len(jobs) < 1 {
 		return
 	}
-	configs := config.GetConfigurations()
+	configs := jobExecutor.schedulerOconfig.GetConfigurations()
 
 	jobIds := make([]uint64, 0, len(jobs))
 
@@ -319,7 +321,7 @@ func (jobExecutor *JobExecutor) GetUncommittedLogs() []models.JobExecutionLog {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	configs := config.GetConfigurations()
+	configs := jobExecutor.schedulerOconfig.GetConfigurations()
 	executionLogs := jobExecutor.jobExecutionsRepo.GetUncommittedExecutionsLogForNode(configs.NodeId)
 
 	return executionLogs
@@ -333,7 +335,7 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.JobModel, newState mode
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	configs := config.GetConfigurations()
+	configs := jobExecutor.schedulerOconfig.GetConfigurations()
 
 	jobsToReschedule := make([]models.JobModel, 0, len(jobs))
 
@@ -420,7 +422,7 @@ func (jobExecutor *JobExecutor) createInMemExecutionsForJobsIfNotExist(jobs []mo
 
 	lastExecutionVersionsForNewJobs := jobExecutor.jobExecutionsRepo.GetLastExecutionLogForJobIds(jobsNotInExecution)
 
-	configs := config.GetConfigurations()
+	configs := jobExecutor.schedulerOconfig.GetConfigurations()
 
 	for _, jobId := range jobsNotInExecution {
 		failCounts := 0
@@ -442,7 +444,7 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	configs := config.GetConfigurations()
+	configs := jobExecutor.schedulerOconfig.GetConfigurations()
 
 	jobExecutor.pendingJobInvocations = append(jobExecutor.pendingJobInvocations, pendingJob)
 
@@ -508,7 +510,7 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.JobModel) {
 }
 
 func (jobExecutor *JobExecutor) handleSuccessJobs(successfulJobs []models.JobModel) {
-	configs := config.GetConfigurations()
+	configs := jobExecutor.schedulerOconfig.GetConfigurations()
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
 	jobIds := make([]uint64, 0, len(successfulJobs))
 	for _, successfulJob := range successfulJobs {
@@ -535,7 +537,7 @@ func (jobExecutor *JobExecutor) handleSuccessJobs(successfulJobs []models.JobMod
 }
 
 func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.JobModel) {
-	configs := config.GetConfigurations()
+	configs := jobExecutor.schedulerOconfig.GetConfigurations()
 	for _, erroredJob := range erroredJobs {
 		jobExecutor.logger.Error(fmt.Sprintf("failed to execute job %v", erroredJob.ID))
 	}
@@ -567,7 +569,7 @@ func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.JobModel) 
 }
 
 func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobModel, state models.JobExecutionLogState, executionVersions map[uint64]uint64) {
-	configs := config.GetConfigurations()
+	configs := jobExecutor.schedulerOconfig.GetConfigurations()
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
 
 	executionLogs := make([]models.JobExecutionLog, 0, len(jobs))

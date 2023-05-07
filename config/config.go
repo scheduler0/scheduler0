@@ -61,6 +61,10 @@ type scheduler0Configurations struct {
 
 }
 
+func NewScheduler0Config() Scheduler0Config {
+	return &scheduler0Configurations{}
+}
+
 var cachedConfig *scheduler0Configurations
 var once sync.Once
 
@@ -75,7 +79,11 @@ func (sc *scheduler0Configurations) GetConfigurations() *scheduler0Configuration
 	// Ensure that the configuration is read and cached only once
 	once.Do(func() {
 		// Get the binary path
-		binPath := getBinPath()
+		e, err := os.Executable()
+		if err != nil {
+			log.Fatalln("failed to get path of scheduler0 binary", err.Error())
+		}
+		binPath := path.Dir(e)
 
 		// Create a new file system
 		fs := afero.NewOsFs()
@@ -364,12 +372,4 @@ func getConfigFromEnv() *scheduler0Configurations {
 	}
 
 	return config
-}
-
-func getBinPath() string {
-	e, err := os.Executable()
-	if err != nil {
-		log.Fatalln("failed to get path of scheduler0 binary", err.Error())
-	}
-	return path.Dir(e)
 }

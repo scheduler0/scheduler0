@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/constants/headers"
+	"scheduler0/secrets"
 	"scheduler0/service"
 	"scheduler0/service/node"
 	"scheduler0/utils"
@@ -17,9 +18,11 @@ import (
 
 // middlewareHandler middleware type
 type middlewareHandler struct {
-	logger *log.Logger
-	doOnce sync.Once
-	ctx    context.Context
+	logger           *log.Logger
+	doOnce           sync.Once
+	ctx              context.Context
+	scheduler0Secret secrets.Scheduler0Secrets
+	scheduler0Config config.Scheduler0Config
 }
 
 type MiddlewareHandler interface {
@@ -27,9 +30,11 @@ type MiddlewareHandler interface {
 	AuthMiddleware(credentialService service.Credential) func(next http.Handler) http.Handler
 }
 
-func NewMiddlewareHandler(logger *log.Logger) *middlewareHandler {
+func NewMiddlewareHandler(logger *log.Logger, scheduler0Secret secrets.Scheduler0Secrets, scheduler0Config config.Scheduler0Config) *middlewareHandler {
 	return &middlewareHandler{
-		logger: logger,
+		logger:           logger,
+		scheduler0Secret: scheduler0Secret,
+		scheduler0Config: scheduler0Config,
 	}
 }
 
@@ -70,7 +75,7 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 			}
 
 			if IsPeerClient(r) {
-				if validity := IsAuthorizedPeerClient(r); validity {
+				if validity := IsAuthorizedPeerClient(r, m.scheduler0Secret); validity {
 					next.ServeHTTP(w, r)
 					return
 				} else {
@@ -106,7 +111,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *node.Node) func(nex
 			}
 
 			if !peer.CanAcceptClientWriteRequest() && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
-				configs := config.GetConfigurations()
+				configs := m.scheduler0Config.GetConfigurations()
 				serverAddr, _ := peer.FsmStore.Raft.LeaderWithID()
 
 				redirectUrl := ""

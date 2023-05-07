@@ -31,6 +31,7 @@ type Store struct {
 	LocalDataChannel chan models.LocalData
 	StopAllJobs      chan bool
 	RecoverJobs      chan bool
+	scheduler0Config config.Scheduler0Config
 
 	raft.BatchingFSM
 }
@@ -78,7 +79,7 @@ const (
 
 var _ raft.FSM = &Store{}
 
-func NewFSMStore(db *db.DataStore, logger hclog.Logger) *Store {
+func NewFSMStore(logger hclog.Logger, db *db.DataStore) *Store {
 	fsmStoreLogger := logger.Named("fsm-store")
 
 	return &Store{
@@ -164,7 +165,7 @@ func ApplyCommand(
 		}
 		break
 	case protobuffs.Command_Type(constants.CommandTypeRecoverJobs):
-		configs := config.GetConfigurations()
+		configs := config.NewScheduler0Config().GetConfigurations()
 		if useQueues && command.TargetNode == configs.NodeId {
 			recoverJobsQueue <- true
 		}

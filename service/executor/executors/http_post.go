@@ -17,6 +17,7 @@ import (
 
 type HTTPExecutionHandler struct {
 	logger hclog.Logger
+	config config.Scheduler0Config
 }
 
 type HTTPExecutor interface {
@@ -46,7 +47,7 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 
 	for rurl, uJc := range urlJobCache {
 
-		configs := config.GetConfigurations()
+		configs := config.NewScheduler0Config().GetConfigurations()
 		batches := utils.BatchByBytes(uJc, int(configs.HTTPExecutorPayloadMaxSizeMb))
 
 		for i, batch := range batches {

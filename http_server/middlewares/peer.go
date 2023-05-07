@@ -13,8 +13,8 @@ func IsPeerClient(req *http.Request) bool {
 	return peerHeaderVal == "cmd" || peerHeaderVal == "peer"
 }
 
-func IsAuthorizedPeerClient(req *http.Request) bool {
-	credentials := secrets.GetSecrets()
+func IsAuthorizedPeerClient(req *http.Request, scheduler0Secrets secrets.Scheduler0Secrets) bool {
+	credentials := scheduler0Secrets.GetSecrets()
 	username, password, ok := req.BasicAuth()
 	if ok {
 		usernameHash := sha256.Sum256([]byte(username))

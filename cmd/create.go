@@ -32,8 +32,8 @@ var credentialCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stdout, "[cmd] ", log.LstdFlags)
 
-		configs := config.GetConfigurations()
-		credentials := secrets.GetSecrets()
+		configs := config.NewScheduler0Config().GetConfigurations()
+		credentials := secrets.NewScheduler0Secrets().GetSecrets()
 
 		credentialModel := models.CredentialModel{}
 		data, err := credentialModel.ToJSON()

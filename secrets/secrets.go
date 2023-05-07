@@ -4,25 +4,34 @@ import (
 	"encoding/json"
 	"github.com/spf13/afero"
 	"os"
-	"scheduler0/config"
 	"scheduler0/constants"
+	"scheduler0/utils"
 )
 
-type Scheduler0Secrets struct {
+type Scheduler0Secrets interface {
+	GetSecrets() *scheduler0Secrets
+	SaveSecrets(credentialsInput *scheduler0Secrets) *scheduler0Secrets
+}
+
+type scheduler0Secrets struct {
 	SecretKey    string `json:"secretKey" yaml:"SecretKey"`
 	AuthUsername string `json:"authUsername" yaml:"AuthUsername"`
 	AuthPassword string `json:"authPassword" yaml:"AuthPassword"`
 }
 
-var cachedSecrets *Scheduler0Secrets
+func NewScheduler0Secrets() *scheduler0Secrets {
+	return &scheduler0Secrets{}
+}
+
+var cachedSecrets *scheduler0Secrets
 
 // GetSecrets this will retrieve scheduler0 credentials stored on disk
-func GetSecrets() *Scheduler0Secrets {
+func (_ *scheduler0Secrets) GetSecrets() *scheduler0Secrets {
 	if cachedSecrets != nil {
 		return cachedSecrets
 	}
 
-	binPath := config.getBinPath()
+	binPath := utils.GetBinPath()
 
 	fs := afero.NewOsFs()
 	data, err := afero.ReadFile(fs, binPath+"/"+constants.SecretsFileName)
@@ -30,10 +39,10 @@ func GetSecrets() *Scheduler0Secrets {
 		panic(err)
 	}
 
-	secrets := Scheduler0Secrets{}
+	secrets := scheduler0Secrets{}
 
 	if os.IsNotExist(err) {
-		secrets = GetSecretsFromEnv()
+		secrets = getSecretsFromEnv()
 	} else {
 		err = json.Unmarshal(data, &secrets)
 		if err != nil && !os.IsNotExist(err) {
@@ -45,26 +54,9 @@ func GetSecrets() *Scheduler0Secrets {
 	return cachedSecrets
 }
 
-func GetSecretsFromEnv() Scheduler0Secrets {
-	secrets := Scheduler0Secrets{}
-
-	if val, ok := os.LookupEnv("SCHEDULER0_SECRET_KEY"); ok {
-		secrets.SecretKey = val
-	}
-
-	if val, ok := os.LookupEnv("SCHEDULER0_AUTH_PASSWORD"); ok {
-		secrets.AuthPassword = val
-	}
-
-	if val, ok := os.LookupEnv("SCHEDULER0_AUTH_USERNAME"); ok {
-		secrets.AuthUsername = val
-	}
-
-	return secrets
-}
-
-func SaveSecrets(credentialsInput *Scheduler0Secrets) *Scheduler0Secrets {
-	binPath := config.getBinPath()
+// SaveSecrets saves the secrets into a .scheduler0 file
+func (_ *scheduler0Secrets) SaveSecrets(credentialsInput *scheduler0Secrets) *scheduler0Secrets {
+	binPath := utils.GetBinPath()
 
 	fs := afero.NewOsFs()
 	data, err := json.Marshal(credentialsInput)
@@ -80,4 +72,22 @@ func SaveSecrets(credentialsInput *Scheduler0Secrets) *Scheduler0Secrets {
 	cachedSecrets = credentialsInput
 
 	return cachedSecrets
+}
+
+func getSecretsFromEnv() scheduler0Secrets {
+	secrets := scheduler0Secrets{}
+
+	if val, ok := os.LookupEnv("SCHEDULER0_SECRET_KEY"); ok {
+		secrets.SecretKey = val
+	}
+
+	if val, ok := os.LookupEnv("SCHEDULER0_AUTH_PASSWORD"); ok {
+		secrets.AuthPassword = val
+	}
+
+	if val, ok := os.LookupEnv("SCHEDULER0_AUTH_USERNAME"); ok {
+		secrets.AuthUsername = val
+	}
+
+	return secrets
 }

@@ -16,6 +16,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"path"
 	"scheduler0/config"
 	"scheduler0/constants"
 	"unsafe"
@@ -159,7 +160,8 @@ func BytesFromSnapshot(rc io.ReadCloser) ([]byte, error) {
 }
 
 func GetNodeServerAddressWithRaftAddress(raftAddress raft.ServerAddress) string {
-	configs := config.GetConfigurations()
+	configProvider := config.NewScheduler0Config()
+	configs := configProvider.GetConfigurations()
 
 	for _, replica := range configs.Replicas {
 		if replica.RaftAddress == string(raftAddress) {
@@ -171,7 +173,8 @@ func GetNodeServerAddressWithRaftAddress(raftAddress raft.ServerAddress) string 
 }
 
 func GetNodeIdWithRaftAddress(raftAddress raft.ServerAddress) (int64, error) {
-	configs := config.GetConfigurations()
+	configProvider := config.NewScheduler0Config()
+	configs := configProvider.GetConfigurations()
 
 	for _, replica := range configs.Replicas {
 		if replica.RaftAddress == string(raftAddress) {
@@ -183,7 +186,8 @@ func GetNodeIdWithRaftAddress(raftAddress raft.ServerAddress) (int64, error) {
 }
 
 func GetNodeIdWithServerAddress(serverAddress string) (int64, error) {
-	configs := config.GetConfigurations()
+	configProvider := config.NewScheduler0Config()
+	configs := configProvider.GetConfigurations()
 
 	for _, replica := range configs.Replicas {
 		if replica.Address == serverAddress {
@@ -195,7 +199,8 @@ func GetNodeIdWithServerAddress(serverAddress string) (int64, error) {
 }
 
 func GetServerHTTPAddress() string {
-	configs := config.GetConfigurations()
+	configProvider := config.NewScheduler0Config()
+	configs := configProvider.GetConfigurations()
 	return fmt.Sprintf("%v://%v:%v", configs.Protocol, configs.Host, configs.Port)
 }
 
@@ -249,4 +254,12 @@ func RemoveRaftDir() {
 			log.Fatalln(fmt.Errorf("Fatal failed to remove raft dir: %s \n", err))
 		}
 	}
+}
+
+func GetBinPath() string {
+	e, err := os.Executable()
+	if err != nil {
+		log.Fatalln("failed to get path of scheduler0 binary", err.Error())
+	}
+	return path.Dir(e)
 }

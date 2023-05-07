@@ -27,10 +27,11 @@ type JobProcessor struct {
 	logger              hclog.Logger
 	mtx                 sync.Mutex
 	ctx                 context.Context
+	scheduler0Config    config.Scheduler0Config
 }
 
 // NewJobProcessor creates a new job processor
-func NewJobProcessor(ctx context.Context, logger hclog.Logger, jobRepo repository.Job, projectRepo repository.Project, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
+func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.Job, projectRepo repository.Project, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
 	return &JobProcessor{
 		jobRepo:             jobRepo,
 		projectRepo:         projectRepo,
@@ -40,6 +41,7 @@ func NewJobProcessor(ctx context.Context, logger hclog.Logger, jobRepo repositor
 		jobQueuesRepo:       jobQueuesRepo,
 		jobExecutor:         jobExecutor,
 		ctx:                 ctx,
+		scheduler0Config:    scheduler0Config,
 	}
 }
 
@@ -97,7 +99,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 
 	jobProcessor.logger.Debug("recovering jobs.")
 
-	configs := config.GetConfigurations()
+	configs := jobProcessor.scheduler0Config.GetConfigurations()
 
 	lastVersion := jobProcessor.jobQueuesRepo.GetLastVersion()
 

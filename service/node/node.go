@@ -90,11 +90,15 @@ type Node struct {
 	dispatcher           *utils.Dispatcher
 	fanIns               sync.Map // models.PeerFanIn
 	fanInCh              chan models.PeerFanIn
+	scheduler0Config     config.Scheduler0Config
+	scheduler0Secrets    secrets.Scheduler0Secrets
 }
 
 func NewNode(
 	ctx context.Context,
 	logger hclog.Logger,
+	scheduler0Config config.Scheduler0Config,
+	scheduler0Secrets secrets.Scheduler0Secrets,
 	jobExecutor *executor.JobExecutor,
 	jobQueue *queue.JobQueue,
 	jobRepo repository.Job,
@@ -108,10 +112,10 @@ func NewNode(
 
 	dirPath := fmt.Sprintf("%v", constants.RaftDir)
 	dirPath, exists := utils.MakeDirIfNotExist(dirPath)
-	configs := config.GetConfigurations()
+	configs := scheduler0Config.GetConfigurations()
 	dirPath = fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	utils.MakeDirIfNotExist(dirPath)
-	tm, ldb, sdb, fss, err := getLogsAndTransport()
+	tm, ldb, sdb, fss, err := getLogsAndTransport(scheduler0Config)
 	if err != nil {
 		log.Fatal("failed essentials for Node", err)
 	}
@@ -127,7 +131,7 @@ func NewNode(
 		acceptClientWrites:   false,
 		State:                Cold,
 		ctx:                  ctx,
-		jobProcessor:         processor.NewJobProcessor(ctx, nodeServiceLogger, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
+		jobProcessor:         processor.NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
 		jobQueue:             jobQueue,
 		jobExecutor:          jobExecutor,
 		jobRepo:              jobRepo,
@@ -139,6 +143,8 @@ func NewNode(
 		fanIns:               sync.Map{},
 		fanInCh:              make(chan models.PeerFanIn),
 		acceptRequest:        false,
+		scheduler0Config:     scheduler0Config,
+		scheduler0Secrets:    scheduler0Secrets,
 	}
 }
 
@@ -150,7 +156,7 @@ func (node *Node) Boostrap() {
 		node.recoverRaftState()
 	}
 
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 	rft := node.newRaft(node.FsmStore)
 	if configs.Bootstrap && !node.isExistingNode {
 		node.bootstrapRaftCluster(rft)
@@ -210,7 +216,7 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 		log.Fatalln("failed to marshal json")
 	}
 
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 
 	af := node.FsmStore.Raft.Apply(commitCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 	if af.Error() != nil {
@@ -270,7 +276,7 @@ func (node *Node) ReturnUncommittedLogs(requestId string) {
 func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
 	logger := log.New(os.Stderr, "[creating-new-Node-raft] ", log.LstdFlags)
 
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 
 	c := raft.DefaultConfig()
 	c.LocalID = raft.ServerID(strconv.FormatUint(configs.NodeId, 10))
@@ -318,7 +324,7 @@ func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
 
 	executionLogs := []models.JobExecutionLog{}
 
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 
 	dir, err := os.Getwd()
 	if err != nil {
@@ -618,7 +624,7 @@ func (node *Node) recoverRaftState() {
 		logger.Fatalln(fmt.Errorf("fatal db file migrations error: %s \n", err))
 	}
 
-	fsmStr := fsm.NewFSMStore(dataStore, node.logger)
+	fsmStr := fsm.NewFSMStore(node.logger, dataStore)
 
 	// The snapshot information is the best known end point for the data
 	// until we play back the Raft log entries.
@@ -687,7 +693,7 @@ func (node *Node) recoverRaftState() {
 func (node *Node) authenticateWithPeersInConfig(logger hclog.Logger) map[string]Status {
 	node.logger.Info("authenticating with nodes...")
 
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 	var wg sync.WaitGroup
 
 	results := map[string]Status{}
@@ -699,7 +705,7 @@ func (node *Node) authenticateWithPeersInConfig(logger hclog.Logger) map[string]
 			go func(rep config.RaftNode, res map[string]Status, wg *sync.WaitGroup, wrlck *sync.Mutex) {
 				wrlck.Lock()
 				err := utils.RetryOnError(func() error {
-					if peerStatus, err := connectNode(logger, rep); err == nil {
+					if peerStatus, err := node.connectNode(logger, rep); err == nil {
 						results[rep.Address] = *peerStatus
 					} else {
 						return err
@@ -840,7 +846,7 @@ func (node *Node) authRaftConfiguration() raft.Configuration {
 	node.mtx.Lock()
 	defer node.mtx.Unlock()
 
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 	results := node.authenticateWithPeersInConfig(node.logger)
 	servers := []raft.Server{
 		{
@@ -871,7 +877,7 @@ func (node *Node) getRaftConfiguration() raft.Configuration {
 	node.mtx.Lock()
 	defer node.mtx.Unlock()
 
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 	servers := []raft.Server{
 		{
 			ID:       raft.ServerID(strconv.FormatUint(configs.NodeId, 10)),
@@ -898,7 +904,7 @@ func (node *Node) getRaftConfiguration() raft.Configuration {
 }
 
 func (node *Node) getRandomFanInPeerHTTPAddresses() []string {
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 	numReplicas := len(configs.Replicas)
 	servers := make([]raft.ServerAddress, 0, numReplicas)
 	httpAddresses := make([]string, 0, numReplicas)
@@ -958,7 +964,7 @@ func (node *Node) listenToObserverChannel() {
 }
 
 func (node *Node) listenToFanInChannel() {
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 	completedFanIns := make(map[string]models.PeerFanIn)
 	mtx := sync.Mutex{}
 
@@ -1029,7 +1035,7 @@ func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
 }
 
 func (node *Node) fanInLocalDataFromPeers() {
-	configs := config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 	ticker := time.NewTicker(time.Duration(configs.ExecutionLogFetchIntervalSeconds) * time.Second)
 	ctx, cancelFunc := context.WithCancel(node.ctx)
 
@@ -1083,8 +1089,8 @@ func (node *Node) fetchUncommittedLogsFromPeersPhase1(ctx context.Context, peerF
 		} else {
 			httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
 			httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
-			credentials := secrets.GetSecrets()
-			httpRequest.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+			secret := node.scheduler0Secrets.GetSecrets()
+			httpRequest.SetBasicAuth(secret.AuthUsername, secret.AuthPassword)
 			res, err := httpClient.Do(httpRequest)
 			if err != nil {
 				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
@@ -1116,8 +1122,8 @@ func (node *Node) fetchUncommittedLogsFromPeersPhase2(ctx context.Context, peerF
 		} else {
 			httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
 			httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
-			credentials := secrets.GetSecrets()
-			httpRequest.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+			secret := node.scheduler0Secrets.GetSecrets()
+			httpRequest.SetBasicAuth(secret.AuthUsername, secret.AuthPassword)
 			res, err := httpClient.Do(httpRequest)
 			if err != nil {
 				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
@@ -1165,8 +1171,8 @@ func (node *Node) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
 	}
 }
 
-func connectNode(logger hclog.Logger, rep config.RaftNode) (*Status, error) {
-	configs := config.GetConfigurations()
+func (node *Node) connectNode(logger hclog.Logger, rep config.RaftNode) (*Status, error) {
+	configs := node.scheduler0Config.GetConfigurations()
 	httpClient := http.Client{
 		Timeout: time.Duration(configs.PeerAuthRequestTimeoutMs) * time.Millisecond,
 	}
@@ -1177,7 +1183,7 @@ func connectNode(logger hclog.Logger, rep config.RaftNode) (*Status, error) {
 	}
 	req.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
 	req.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
-	credentials := secrets.GetSecrets()
+	credentials := node.scheduler0Secrets.GetSecrets()
 	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
 
 	start := time.Now()
@@ -1244,10 +1250,10 @@ func connectNode(logger hclog.Logger, rep config.RaftNode) (*Status, error) {
 	}, nil
 }
 
-func getLogsAndTransport() (tm *raft.NetworkTransport, ldb *boltdb.BoltStore, sdb *boltdb.BoltStore, fss *raft.FileSnapshotStore, err error) {
+func getLogsAndTransport(scheduler0Config config.Scheduler0Config) (tm *raft.NetworkTransport, ldb *boltdb.BoltStore, sdb *boltdb.BoltStore, fss *raft.FileSnapshotStore, err error) {
 	logger := log.New(os.Stderr, "[get-raft-logs-and-transport] ", log.LstdFlags)
 
-	configs := config.GetConfigurations()
+	configs := scheduler0Config.GetConfigurations()
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 
 	ldb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))

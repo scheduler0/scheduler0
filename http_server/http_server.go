@@ -13,6 +13,7 @@ import (
 	"scheduler0/config"
 	"scheduler0/http_server/controllers"
 	"scheduler0/http_server/middlewares"
+	"scheduler0/secrets"
 	"scheduler0/service"
 )
 
@@ -20,7 +21,7 @@ import (
 func Start() {
 	ctx := context.Background()
 	logger := log.New(os.Stderr, "[http-server] ", log.LstdFlags)
-	configs := config.GetConfigurations()
+	configs := config.NewScheduler0Config().GetConfigurations()
 	appLogger := hclog.New(&hclog.LoggerOptions{
 		Name:  "scheduler0",
 		Level: hclog.LevelFromString(configs.LogLevel),
@@ -39,11 +40,12 @@ func Start() {
 	projectController := controllers.NewProjectController(logger, serv.ProjectService)
 	credentialController := controllers.NewCredentialController(logger, serv.CredentialService)
 	healthCheckController := controllers.NewHealthCheckController(logger, serv.NodeService.FsmStore)
-	peerController := controllers.NewPeerController(logger, serv.NodeService.FsmStore, serv.NodeService)
+	peerController := controllers.NewPeerController(logger, configs, serv.NodeService.FsmStore, serv.NodeService)
 	asyncTaskController := controllers.NewAsyncTaskController(logger, serv.NodeService.FsmStore, serv.AsyncTaskManager)
 
+	secrets := secrets.NewScheduler0Secrets().GetSecrets()
 	// Mount middleware
-	middleware := middlewares.NewMiddlewareHandler(logger)
+	middleware := middlewares.NewMiddlewareHandler(logger, secrets, configs)
 
 	router.Use(secureMiddleware.Handler)
 	router.Use(mux.CORSMethodMiddleware(router))

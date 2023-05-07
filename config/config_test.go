@@ -9,10 +9,12 @@ import (
 
 func TestGetConfigurations(t *testing.T) {
 	// Call GetConfigurations for the first time
-	config1 := GetConfigurations()
+	configProvider := NewScheduler0Config()
+
+	config1 := configProvider.GetConfigurations()
 
 	// Call GetConfigurations for the second time
-	config2 := GetConfigurations()
+	config2 := configProvider.GetConfigurations()
 
 	// Assert that the same configuration object is returned every time
 	assert.Equal(t, config1, config2, "GetConfigurations should return the same configuration object every time it's called")
