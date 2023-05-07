@@ -25,6 +25,10 @@ type Scheduler0Config interface {
 	GetConfigurations() *scheduler0Configurations
 }
 
+func NewScheduler0Config() Scheduler0Config {
+	return &scheduler0Configurations{}
+}
+
 // scheduler0Configurations global configurations
 type scheduler0Configurations struct {
 	LogLevel                         string     `json:"logLevel" yaml:"LogLevel"`                                                 // Logging verbosity level
@@ -61,12 +65,12 @@ type scheduler0Configurations struct {
 
 }
 
-var cachedConfig *Scheduler0Configurations
+var cachedConfig *scheduler0Configurations
 var once sync.Once
 
-// GetConfigurations returns the cached Scheduler0Configurations if it exists,
+// GetConfigurations returns the cached scheduler0Configurations if it exists,
 // otherwise it reads the configuration file and caches it.
-func GetConfigurations() *Scheduler0Configurations {
+func (_ scheduler0Configurations) GetConfigurations() *scheduler0Configurations {
 	// Check if cachedConfig is not nil, then return it
 	if cachedConfig != nil {
 		return cachedConfig
@@ -75,7 +79,7 @@ func GetConfigurations() *Scheduler0Configurations {
 	// Ensure that the configuration is read and cached only once
 	once.Do(func() {
 		// Get the binary path
-		binPath := GetBinPath()
+		binPath := getBinPath()
 
 		// Create a new file system
 		fs := afero.NewOsFs()
@@ -86,12 +90,12 @@ func GetConfigurations() *Scheduler0Configurations {
 			panic(err)
 		}
 
-		// Initialize an empty Scheduler0Configurations struct
-		config := Scheduler0Configurations{}
+		// Initialize an empty scheduler0Configurations struct
+		config := scheduler0Configurations{}
 
 		// If the error is due to the file not existing, get the configuration from environment variables
 		if os.IsNotExist(err) {
-			config = *GetConfigFromEnv()
+			config = *getConfigFromEnv()
 		}
 
 		// Unmarshal the YAML data into the config struct
@@ -109,8 +113,8 @@ func GetConfigurations() *Scheduler0Configurations {
 }
 
 // GetConfigFromEnv gets scheduler0 configurations from env
-func GetConfigFromEnv() *Scheduler0Configurations {
-	config := &Scheduler0Configurations{}
+func getConfigFromEnv() *scheduler0Configurations {
+	config := &scheduler0Configurations{}
 
 	// Set LogLevel
 	if val, ok := os.LookupEnv("SCHEDULER0_LOGLEVEL"); ok {
@@ -366,7 +370,7 @@ func GetConfigFromEnv() *Scheduler0Configurations {
 	return config
 }
 
-func GetBinPath() string {
+func getBinPath() string {
 	e, err := os.Executable()
 	if err != nil {
 		log.Fatalln("failed to get path of scheduler0 binary", err.Error())
