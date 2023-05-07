@@ -25,6 +25,10 @@ type Scheduler0Config interface {
 	GetConfigurations() *scheduler0Configurations
 }
 
+func NewScheduler0Config() Scheduler0Config {
+	return &scheduler0Configurations{}
+}
+
 // scheduler0Configurations global configurations
 type scheduler0Configurations struct {
 	LogLevel                         string     `json:"logLevel" yaml:"LogLevel"`                                                 // Logging verbosity level
@@ -66,7 +70,7 @@ var once sync.Once
 
 // GetConfigurations returns the cached Scheduler0Configurations if it exists,
 // otherwise it reads the configuration file and caches it.
-func GetConfigurations() *Scheduler0Configurations {
+func (_ scheduler0Configurations) GetConfigurations() *scheduler0Configurations {
 	// Check if cachedConfig is not nil, then return it
 	if cachedConfig != nil {
 		return cachedConfig
@@ -109,8 +113,8 @@ func GetConfigurations() *Scheduler0Configurations {
 }
 
 // GetConfigFromEnv gets scheduler0 configurations from env
-func GetConfigFromEnv() *Scheduler0Configurations {
-	config := &Scheduler0Configurations{}
+func getConfigFromEnv() *scheduler0Configurations {
+	config := &scheduler0Configurations{}
 
 	// Set LogLevel
 	if val, ok := os.LookupEnv("SCHEDULER0_LOGLEVEL"); ok {
