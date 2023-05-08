@@ -12,12 +12,12 @@ import (
 	"sync"
 )
 
-// RaftNode represents a node in a Raft cluster, providing the necessary
+// RaftNode represents a node in a raft cluster, providing the necessary
 // information for communication between nodes and identification within the cluster.
 type RaftNode struct {
-	Address     string `json:"address" yaml:"Address"`          // Network address of the Raft node for client communication
-	RaftAddress string `json:"raft_address" yaml:"RaftAddress"` // Address for the Raft protocol communication between nodes in the cluster
-	NodeId      uint64 `json:"nodeId" yaml:"NodeId"`            // Unique identifier for the Raft node within the cluster
+	Address     string `json:"address" yaml:"Address"`          // Network address of the raft node for client communication
+	RaftAddress string `json:"raft_address" yaml:"RaftAddress"` // Address for the raft protocol communication between nodes in the cluster
+	NodeId      uint64 `json:"nodeId" yaml:"NodeId"`            // Unique identifier for the raft node within the cluster
 }
 
 //go:generate mockery --name Scheduler0Config
@@ -35,22 +35,22 @@ type scheduler0Configurations struct {
 	Protocol                         string     `json:"protocol" yaml:"Protocol"`                                                 // Communication protocol used
 	Host                             string     `json:"host" yaml:"Host"`                                                         // Host address
 	Port                             string     `json:"port" yaml:"Port"`                                                         // Port number
-	Replicas                         []RaftNode `json:"replicas" yaml:"Replicas"`                                                 // List of replicas in the Raft cluster
+	Replicas                         []RaftNode `json:"replicas" yaml:"Replicas"`                                                 // List of replicas in the raft cluster
 	PeerAuthRequestTimeoutMs         uint64     `json:"PeerAuthRequestTimeoutMs" yaml:"PeerAuthRequestTimeoutMs"`                 // Peer authentication request timeout in milliseconds
 	PeerConnectRetryMax              uint64     `json:"peerConnectRetryMax" yaml:"PeerConnectRetryMax"`                           // Maximum number of retries for connecting to peers
 	PeerConnectRetryDelaySeconds     uint64     `json:"peerConnectRetryDelay" yaml:"PeerConnectRetryDelaySeconds"`                // Delay between retries for connecting to peers, in seconds
 	Bootstrap                        bool       `json:"bootstrap" yaml:"Bootstrap"`                                               // Whether the scheduler should start in bootstrap mode
 	NodeId                           uint64     `json:"nodeId" yaml:"NodeId"`                                                     // Unique identifier for the scheduler node
-	RaftAddress                      string     `json:"raftAddress" yaml:"RaftAddress"`                                           // Address used for Raft communication
-	RaftTransportMaxPool             uint64     `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`                         // Maximum size of the Raft transport pool
-	RaftTransportTimeout             uint64     `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`                         // Timeout for Raft transport operations
-	RaftApplyTimeout                 uint64     `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`                                 // Timeout for applying Raft log entries
-	RaftSnapshotInterval             uint64     `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`                         // Interval between Raft snapshots
-	RaftSnapshotThreshold            uint64     `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`                       // Threshold for Raft snapshot creation
-	RaftHeartbeatTimeout             uint64     `json:"raftHeartbeatTimeout" yaml:"RaftHeartbeatTimeout"`                         // Timeout for Raft heartbeat
-	RaftElectionTimeout              uint64     `json:"raftElectionTimeout" yaml:"RaftElectionTimeout"`                           // Timeout for Raft leader election
-	RaftCommitTimeout                uint64     `json:"raftCommitTimeout" yaml:"RaftCommitTimeout"`                               // Timeout for Raft commit operation
-	RaftMaxAppendEntries             uint64     `json:"raftMaxAppendEntries" yaml:"RaftMaxAppendEntries"`                         // Maximum number of entries to append in a single Raft operation
+	RaftAddress                      string     `json:"raftAddress" yaml:"RaftAddress"`                                           // Address used for raft communication
+	RaftTransportMaxPool             uint64     `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`                         // Maximum size of the raft transport pool
+	RaftTransportTimeout             uint64     `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`                         // Timeout for raft transport operations
+	RaftApplyTimeout                 uint64     `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`                                 // Timeout for applying raft log entries
+	RaftSnapshotInterval             uint64     `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`                         // Interval between raft snapshots
+	RaftSnapshotThreshold            uint64     `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`                       // Threshold for raft snapshot creation
+	RaftHeartbeatTimeout             uint64     `json:"raftHeartbeatTimeout" yaml:"RaftHeartbeatTimeout"`                         // Timeout for raft heartbeat
+	RaftElectionTimeout              uint64     `json:"raftElectionTimeout" yaml:"RaftElectionTimeout"`                           // Timeout for raft leader election
+	RaftCommitTimeout                uint64     `json:"raftCommitTimeout" yaml:"RaftCommitTimeout"`                               // Timeout for raft commit operation
+	RaftMaxAppendEntries             uint64     `json:"raftMaxAppendEntries" yaml:"RaftMaxAppendEntries"`                         // Maximum number of entries to append in a single raft operation
 	JobExecutionTimeout              uint64     `json:"jobExecutionTimeout" yaml:"JobExecutionTimeout"`                           // Timeout for job execution
 	JobExecutionRetryDelay           uint64     `json:"jobExecutionRetryDelay" yaml:"JobExecutionRetryDelay"`                     // Delay between retries for job execution
 	JobExecutionRetryMax             uint64     `json:"jobExecutionRetryMax" yaml:"JobExecutionRetryMax"`                         // Maximum number of retries for job execution

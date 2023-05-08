@@ -29,9 +29,10 @@ const (
 )
 
 type asyncTasksRepo struct {
-	context  context.Context
-	fsmStore *fsm.Store
-	logger   hclog.Logger
+	context               context.Context
+	fsmStore              fsm.Scheduler0RaftStore
+	logger                hclog.Logger
+	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
 type AsyncTasksRepo interface {
@@ -43,17 +44,18 @@ type AsyncTasksRepo interface {
 	GetAllUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError)
 }
 
-func NewAsyncTasksRepo(context context.Context, logger hclog.Logger, fsmStore *fsm.Store) AsyncTasksRepo {
+func NewAsyncTasksRepo(context context.Context, logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, fsmStore fsm.Scheduler0RaftStore) AsyncTasksRepo {
 	return &asyncTasksRepo{
-		context:  context,
-		logger:   logger.Named("async-task-repo"),
-		fsmStore: fsmStore,
+		context:               context,
+		logger:                logger.Named("async-task-repo"),
+		fsmStore:              fsmStore,
+		scheduler0RaftActions: scheduler0RaftActions,
 	}
 }
 
 func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool) ([]uint64, *utils.GenericError) {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	batches := utils.Batch[models.AsyncTask](tasks, 5)
 	results := make([]uint64, 0, len(tasks))
@@ -86,7 +88,7 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool
 
 		query += ";"
 
-		res, err := repo.fsmStore.DataStore.Connection.Exec(query, params...)
+		res, err := repo.fsmStore.GetDataStore().GetOpenConnection().Exec(query, params...)
 		if err != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
@@ -138,7 +140,7 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 
 		query += ";"
 
-		res, applyErr := fsm.AppApply(repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+		res, applyErr := repo.scheduler0RaftActions.WriteCommandToRaftLog(repo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 		if applyErr != nil {
 			return nil, applyErr
 		}
@@ -169,7 +171,7 @@ func (repo *asyncTasksRepo) RaftUpdateTaskState(task models.AsyncTask, state mod
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(repo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := repo.scheduler0RaftActions.WriteCommandToRaftLog(repo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return applyErr
 	}
@@ -182,8 +184,8 @@ func (repo *asyncTasksRepo) RaftUpdateTaskState(task models.AsyncTask, state mod
 }
 
 func (repo *asyncTasksRepo) UpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	updateQuery := sq.Update(UnCommittedAsyncTableName).
 		Set(StateColumn, state).
@@ -195,7 +197,7 @@ func (repo *asyncTasksRepo) UpdateTaskState(task models.AsyncTask, state models.
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := repo.fsmStore.DataStore.Connection.Exec(query, params...)
+	res, applyErr := repo.fsmStore.GetDataStore().GetOpenConnection().Exec(query, params...)
 	if err != nil {
 		return utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -208,8 +210,8 @@ func (repo *asyncTasksRepo) UpdateTaskState(task models.AsyncTask, state models.
 }
 
 func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.GenericError) {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	query := fmt.Sprintf(
 		"select %s, %s, %s, %s, %s, %s, %s from %s union all select %s, %s, %s, %s, %s, %s, %s from %s where %s = ?",
@@ -232,7 +234,7 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 		IdColumn,
 	)
 
-	rows, err := repo.fsmStore.DataStore.Connection.Query(query, taskId)
+	rows, err := repo.fsmStore.GetDataStore().GetOpenConnection().Query(query, taskId)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -267,7 +269,7 @@ func (repo *asyncTasksRepo) countAsyncTasks(committed bool) uint64 {
 
 	selectBuilder := sq.Select("count(*)").
 		From(tableName).
-		RunWith(repo.fsmStore.DataStore.Connection)
+		RunWith(repo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -298,7 +300,7 @@ func (repo *asyncTasksRepo) getAsyncTasksMinMaxIds(committed bool) (uint64, uint
 
 	selectBuilder := sq.Select("min(id)", "max(id)").
 		From(tableName).
-		RunWith(repo.fsmStore.DataStore.Connection)
+		RunWith(repo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -322,8 +324,8 @@ func (repo *asyncTasksRepo) getAsyncTasksMinMaxIds(committed bool) (uint64, uint
 }
 
 func (repo *asyncTasksRepo) GetAllUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError) {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	min, max := repo.getAsyncTasksMinMaxIds(false)
 	count := repo.countAsyncTasks(false)
@@ -353,7 +355,7 @@ func (repo *asyncTasksRepo) GetAllUnCommittedTasks() ([]models.AsyncTask, *utils
 			UnCommittedAsyncTableName,
 			paramPlaceholders,
 		)
-		rows, err := repo.fsmStore.DataStore.Connection.Query(query, params...)
+		rows, err := repo.fsmStore.GetDataStore().GetOpenConnection().Query(query, params...)
 		if err != nil {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}

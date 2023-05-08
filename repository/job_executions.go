@@ -40,20 +40,22 @@ type ExecutionsRepo interface {
 }
 
 type executionsRepo struct {
-	fsmStore *fsm.Store
-	logger   hclog.Logger
+	fsmStore              fsm.Scheduler0RaftStore
+	logger                hclog.Logger
+	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-func NewExecutionsRepo(logger hclog.Logger, store *fsm.Store) *executionsRepo {
+func NewExecutionsRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) *executionsRepo {
 	return &executionsRepo{
-		fsmStore: store,
-		logger:   logger.Named("job-executions-repo"),
+		fsmStore:              store,
+		logger:                logger.Named("job-executions-repo"),
+		scheduler0RaftActions: scheduler0RaftActions,
 	}
 }
 
 func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, jobExecutionVersions map[uint64]uint64) {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	if len(jobs) < 1 {
 		return
@@ -111,7 +113,7 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 
 		query += ";"
 		ctx := context.Background()
-		tx, err := repo.fsmStore.DataStore.Connection.BeginTx(ctx, nil)
+		tx, err := repo.fsmStore.GetDataStore().GetOpenConnection().BeginTx(ctx, nil)
 		if err != nil {
 			repo.logger.Error("failed to create transaction for batch insertion", err)
 			return
@@ -155,8 +157,8 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 }
 
 func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []uint64) []models.JobExecutionLog {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	var results []models.JobExecutionLog
 
@@ -221,7 +223,7 @@ func (repo *executionsRepo) getLastExecutionLogForJobIds(jobIds []uint64) []mode
 			paramsPlaceholder,
 		)
 
-		rows, err := repo.fsmStore.DataStore.Connection.Query(query, params...)
+		rows, err := repo.fsmStore.GetDataStore().GetOpenConnection().Query(query, params...)
 		if err != nil {
 			repo.logger.Error("failed to select last execution log", err)
 			return nil
@@ -284,8 +286,8 @@ func (repo *executionsRepo) GetLastExecutionLogForJobIds(jobIds []uint64) map[ui
 }
 
 func (repo *executionsRepo) CountLastFailedExecutionLogs(jobId uint64, nodeId uint64, executionVersion uint64) uint64 {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	query := fmt.Sprintf("select count(*) from ("+
 		"select * from job_executions_committed union all select * from job_executions_uncommitted"+
@@ -297,7 +299,7 @@ func (repo *executionsRepo) CountLastFailedExecutionLogs(jobId uint64, nodeId ui
 		ExecutionsVersion,
 	)
 
-	rows, err := repo.fsmStore.DataStore.Connection.Query(query, jobId, executionVersion, nodeId, models.ExecutionLogFailedState)
+	rows, err := repo.fsmStore.GetDataStore().GetOpenConnection().Query(query, jobId, executionVersion, nodeId, models.ExecutionLogFailedState)
 	defer rows.Close()
 	if err != nil {
 		repo.logger.Error("failed to select last execution log", err)
@@ -319,8 +321,8 @@ func (repo *executionsRepo) CountLastFailedExecutionLogs(jobId uint64, nodeId ui
 }
 
 func (repo *executionsRepo) CountExecutionLogs(committed bool) uint64 {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	tableName := ExecutionsUnCommittedTableName
 
@@ -330,7 +332,7 @@ func (repo *executionsRepo) CountExecutionLogs(committed bool) uint64 {
 
 	selectBuilder := sq.Select("count(*)").
 		From(tableName).
-		RunWith(repo.fsmStore.DataStore.Connection)
+		RunWith(repo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	defer rows.Close()
@@ -362,7 +364,7 @@ func (repo *executionsRepo) getUncommittedExecutionsLogsMinMaxIds(committed bool
 
 	selectBuilder := sq.Select("min(id)", "max(id)").
 		From(tableName).
-		RunWith(repo.fsmStore.DataStore.Connection)
+		RunWith(repo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	defer rows.Close()
@@ -387,8 +389,8 @@ func (repo *executionsRepo) getUncommittedExecutionsLogsMinMaxIds(committed bool
 }
 
 func (repo *executionsRepo) GetUncommittedExecutionsLogForNode(nodeId uint64) []models.JobExecutionLog {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	min, max := repo.getUncommittedExecutionsLogsMinMaxIds(false)
 	ids := utils.ExpandIdsRange(min, max)
@@ -420,7 +422,7 @@ func (repo *executionsRepo) GetUncommittedExecutionsLogForNode(nodeId uint64) []
 			OrderBy(fmt.Sprintf("%s DESC", ExecutionsNextExecutionTime)).
 			Where(fmt.Sprintf("%s = ? AND %s in (%s)", ExecutionsNodeIdColumn, ExecutionsIdColumn, paramPlaceholders), params...).
 			Limit(constants.JobExecutionLogMaxBatchSize).
-			RunWith(repo.fsmStore.DataStore.Connection)
+			RunWith(repo.fsmStore.GetDataStore().GetOpenConnection())
 
 		rows, err := selectBuilder.Query()
 		if err != nil {

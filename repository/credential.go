@@ -24,8 +24,9 @@ type Credential interface {
 
 // CredentialRepo Credential
 type credentialRepo struct {
-	fsmStore *fsm.Store
-	logger   hclog.Logger
+	fsmStore              fsm.Scheduler0RaftStore
+	logger                hclog.Logger
+	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
 const (
@@ -38,10 +39,11 @@ const (
 	ApiSecretColumn = "api_secret"
 )
 
-func NewCredentialRepo(logger hclog.Logger, store *fsm.Store) Credential {
+func NewCredentialRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) Credential {
 	return &credentialRepo{
-		fsmStore: store,
-		logger:   logger.Named("credential-repo"),
+		fsmStore:              store,
+		logger:                logger.Named("credential-repo"),
+		scheduler0RaftActions: scheduler0RaftActions,
 	}
 }
 
@@ -70,7 +72,7 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := credentialRepo.scheduler0RaftActions.WriteCommandToRaftLog(credentialRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -86,8 +88,8 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 
 // GetOneID returns a single credential
 func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialModel) error {
-	credentialRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer credentialRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	credentialRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	sqlr := sq.Expr(fmt.Sprintf(
 		"select %s, %s, %s, %s, %s from %s where %s = ?",
@@ -105,7 +107,7 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 		return err
 	}
 
-	rows, err := credentialRepo.fsmStore.DataStore.Connection.Query(sqlString, args...)
+	rows, err := credentialRepo.fsmStore.GetDataStore().GetOpenConnection().Query(sqlString, args...)
 	if err != nil {
 		return err
 	}
@@ -127,8 +129,8 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 
 // GetByAPIKey returns a credential with the matching api key
 func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialModel) *utils.GenericError {
-	credentialRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer credentialRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	credentialRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
 		JobsIdColumn,
@@ -139,7 +141,7 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 	).
 		From(CredentialTableName).
 		Where(fmt.Sprintf("%s = ?", ApiKeyColumn), credential.ApiKey).
-		RunWith(credentialRepo.fsmStore.DataStore.Connection)
+		RunWith(credentialRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -166,10 +168,10 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 
 // Count returns total number of credential
 func (credentialRepo *credentialRepo) Count() (uint64, *utils.GenericError) {
-	credentialRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer credentialRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	credentialRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	countQuery := sq.Select("count(*)").From(CredentialTableName).RunWith(credentialRepo.fsmStore.DataStore.Connection)
+	countQuery := sq.Select("count(*)").From(CredentialTableName).RunWith(credentialRepo.fsmStore.GetDataStore().GetOpenConnection())
 	rows, err := countQuery.Query()
 	if err != nil {
 		return 0, utils.HTTPGenericError(500, err.Error())
@@ -193,8 +195,8 @@ func (credentialRepo *credentialRepo) Count() (uint64, *utils.GenericError) {
 
 // List returns a paginated set of credentials
 func (credentialRepo *credentialRepo) List(offset uint64, limit uint64, orderBy string) ([]models.CredentialModel, *utils.GenericError) {
-	credentialRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer credentialRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	credentialRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
 		JobsIdColumn,
@@ -207,7 +209,7 @@ func (credentialRepo *credentialRepo) List(offset uint64, limit uint64, orderBy 
 		Offset(offset).
 		Limit(limit).
 		OrderBy(orderBy).
-		RunWith(credentialRepo.fsmStore.DataStore.Connection)
+		RunWith(credentialRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -248,7 +250,7 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := credentialRepo.scheduler0RaftActions.WriteCommandToRaftLog(credentialRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -270,7 +272,7 @@ func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(credentialRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := credentialRepo.scheduler0RaftActions.WriteCommandToRaftLog(credentialRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}

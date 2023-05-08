@@ -39,7 +39,7 @@ func TestOpenConnection(t *testing.T) {
 	defer os.Remove(tempFile.Name())
 
 	sqliteDb := NewSqliteDbConnection(logger, tempFile.Name())
-	conn := sqliteDb.OpenConnection()
+	conn := sqliteDb.OpenConnectionToExistingDB()
 
 	if conn == nil {
 		t.Fatalf("Failed to open SQLite database connection")
@@ -72,7 +72,7 @@ func TestGetDBConnection(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 
-	sqliteDb := GetDBConnection(logger)
+	sqliteDb := CreateConnectionFromNewDbIfNonExists(logger)
 
 	if sqliteDb == nil {
 		t.Fatalf("Failed to get SQLite database connection")
