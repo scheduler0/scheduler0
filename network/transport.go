@@ -12,7 +12,7 @@ type Listener interface {
 	Dial(address string, timeout time.Duration) (net.Conn, error)
 }
 
-// Transport is the network service provided to Raft, and wraps a Listener.
+// Transport is the network service provided to raft, and wraps a Listener.
 type Transport struct {
 	ln Listener
 }

@@ -11,10 +11,10 @@ import (
 )
 
 type fsmSnapshot struct {
-	db *db.DataStore
+	db db.DataStore
 }
 
-func NewFSMSnapshot(db *db.DataStore) *fsmSnapshot {
+func NewFSMSnapshot(db db.DataStore) *fsmSnapshot {
 	return &fsmSnapshot{
 		db: db,
 	}

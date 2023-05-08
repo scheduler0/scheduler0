@@ -3,7 +3,7 @@ package repository_test
 //var _ = Describe("Job Repo", func() {
 //	pool := db.GetTestDBConnection()
 //	fsmStore := store2.Store{
-//		DataStore: pool,
+//		dataStore: pool,
 //	}
 //	jobRepo := repository2.NewJobRepo(&fsmStore)
 //	projectRepo := repository2.NewProjectRepo(&fsmStore, jobRepo)

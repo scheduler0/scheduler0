@@ -14,8 +14,9 @@ import (
 
 // JobRepo job table manager
 type jobRepo struct {
-	fsmStore *fsm.Store
-	logger   hclog.Logger
+	fsmStore              fsm.Scheduler0RaftStore
+	logger                hclog.Logger
+	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
 type Job interface {
@@ -47,17 +48,18 @@ const (
 	JobsDateCreatedColumn    = "date_created"
 )
 
-func NewJobRepo(logger hclog.Logger, store *fsm.Store) Job {
+func NewJobRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) Job {
 	return &jobRepo{
-		fsmStore: store,
-		logger:   logger.Named("job-repo"),
+		fsmStore:              store,
+		scheduler0RaftActions: scheduler0RaftActions,
+		logger:                logger.Named("job-repo"),
 	}
 }
 
 // GetOneByID returns a single job that matches uuid
 func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericError {
-	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	jobRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
 		JobsIdColumn,
@@ -72,7 +74,7 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 	).
 		From(JobsTableName).
 		Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID).
-		RunWith(jobRepo.fsmStore.DataStore.Connection)
+		RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -103,8 +105,8 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 
 // BatchGetJobsByID returns jobs where uuid in jobUUIDs
 func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *utils.GenericError) {
-	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	jobRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	jobs := []models.JobModel{}
 	batches := utils.Batch[uint64](jobIDs, 1)
@@ -136,7 +138,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *u
 		).
 			From(JobsTableName).
 			Where(fmt.Sprintf("%s IN (%s)", JobsIdColumn, paramsPlaceholder), ids...).
-			RunWith(jobRepo.fsmStore.DataStore.Connection)
+			RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 		rows, err := selectBuilder.Query()
 		if err != nil {
@@ -170,8 +172,8 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *u
 }
 
 func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.JobModel, *utils.GenericError) {
-	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	jobRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
 		JobsIdColumn,
@@ -186,7 +188,7 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) (
 	).
 		From(JobsTableName).
 		Where(fmt.Sprintf("%s BETWEEN ? and ?", JobsIdColumn), lowerBound, upperBound).
-		RunWith(jobRepo.fsmStore.DataStore.Connection)
+		RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -222,8 +224,8 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) (
 
 // GetAllByProjectID returns paginated set of jobs that are not archived
 func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) ([]models.JobModel, *utils.GenericError) {
-	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	jobRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	jobs := []models.JobModel{}
 
@@ -243,7 +245,7 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit
 		Limit(limit).
 		OrderBy(orderBy).
 		Where(fmt.Sprintf("%s = ?", ProjectIdColumn), projectID).
-		RunWith(jobRepo.fsmStore.DataStore.Connection)
+		RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -302,7 +304,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (uint64, *utils.
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -325,7 +327,7 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (uint64, *utils.
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -341,10 +343,10 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (uint64, *utils.
 
 // GetJobsTotalCount returns total number of jobs
 func (jobRepo *jobRepo) GetJobsTotalCount() (uint64, *utils.GenericError) {
-	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	jobRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	countQuery := sq.Select("count(*)").From(JobsTableName).RunWith(jobRepo.fsmStore.DataStore.Connection)
+	countQuery := sq.Select("count(*)").From(JobsTableName).RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 	rows, err := countQuery.Query()
 	if err != nil {
 		return 0, utils.HTTPGenericError(500, err.Error())
@@ -368,13 +370,13 @@ func (jobRepo *jobRepo) GetJobsTotalCount() (uint64, *utils.GenericError) {
 
 // GetJobsTotalCountByProjectID returns the number of jobs for project with uuid
 func (jobRepo *jobRepo) GetJobsTotalCountByProjectID(projectID uint64) (uint64, *utils.GenericError) {
-	jobRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer jobRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	jobRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	countQuery := sq.Select("count(*)").
 		From(JobsTableName).
 		Where(fmt.Sprintf("%s = ?", ProjectIdColumn), projectID).
-		RunWith(jobRepo.fsmStore.DataStore.Connection)
+		RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 	rows, queryErr := countQuery.Query()
 	if queryErr != nil {
 		return 0, utils.HTTPGenericError(500, queryErr.Error())
@@ -456,7 +458,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]uint64, *util
 
 		query += ";"
 
-		res, applyErr := fsm.AppApply(jobRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+		res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 		if res == nil {
 			return nil, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 		}

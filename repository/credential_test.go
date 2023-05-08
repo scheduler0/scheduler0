@@ -12,7 +12,7 @@ import (
 //	db.PrepareTestDB()
 //	dbConn := db.GetTestDBConnection()
 //	fsmStore := store2.Store{
-//		DataStore: dbConn,
+//		dataStore: dbConn,
 //	}
 //	credentialRepo := repository2.NewCredentialRepo(&fsmStore)
 //

@@ -25,9 +25,10 @@ type Project interface {
 }
 
 type projectRepo struct {
-	fsmStore *fsm.Store
-	jobRepo  Job
-	logger   hclog.Logger
+	fsmStore              fsm.Scheduler0RaftStore
+	jobRepo               Job
+	logger                hclog.Logger
+	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
 const (
@@ -38,11 +39,12 @@ const (
 	ProjectsDateCreatedColumn = "date_created"
 )
 
-func NewProjectRepo(logger hclog.Logger, store *fsm.Store, jobRepo Job) Project {
+func NewProjectRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore, jobRepo Job) Project {
 	return &projectRepo{
-		fsmStore: store,
-		jobRepo:  jobRepo,
-		logger:   logger.Named("project-repo"),
+		fsmStore:              store,
+		scheduler0RaftActions: scheduler0RaftActions,
+		jobRepo:               jobRepo,
+		logger:                logger.Named("project-repo"),
 	}
 }
 
@@ -83,7 +85,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (uint64,
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if applyErr != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -105,8 +107,8 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (uint64,
 
 // GetOneByName returns a project with a matching name
 func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *utils.GenericError {
-	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	projectRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
 		ProjectsIdColumn,
@@ -116,7 +118,7 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s = ?", NameColumn), project.Name).
-		RunWith(projectRepo.fsmStore.DataStore.Connection)
+		RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -148,8 +150,8 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 
 // GetOneByID returns a project that matches the uuid
 func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.GenericError {
-	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	projectRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
 		ProjectsIdColumn,
@@ -159,7 +161,7 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID).
-		RunWith(projectRepo.fsmStore.DataStore.Connection)
+		RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	if err != nil {
@@ -190,8 +192,8 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 }
 
 func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []uint64) ([]models.ProjectModel, *utils.GenericError) {
-	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	projectRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	if len(projectIds) < 1 {
 		return []models.ProjectModel{}, nil
@@ -228,7 +230,7 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []uint64) ([]mo
 	).
 		From(ProjectsTableName).
 		Where(fmt.Sprintf("%s in (%s)", ProjectsIdColumn, idParams), projectIdsArgs...).
-		RunWith(projectRepo.fsmStore.DataStore.Connection)
+		RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	defer rows.Close()
@@ -260,8 +262,8 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []uint64) ([]mo
 
 // List returns a paginated set of results
 func (projectRepo *projectRepo) List(offset uint64, limit uint64) ([]models.ProjectModel, *utils.GenericError) {
-	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	projectRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
 		ProjectsIdColumn,
@@ -272,7 +274,7 @@ func (projectRepo *projectRepo) List(offset uint64, limit uint64) ([]models.Proj
 		From(ProjectsTableName).
 		Offset(offset).
 		Limit(limit).
-		RunWith(projectRepo.fsmStore.DataStore.Connection)
+		RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	projects := []models.ProjectModel{}
 	rows, err := selectBuilder.Query()
@@ -302,10 +304,10 @@ func (projectRepo *projectRepo) List(offset uint64, limit uint64) ([]models.Proj
 
 // Count return the number of projects
 func (projectRepo *projectRepo) Count() (uint64, *utils.GenericError) {
-	projectRepo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer projectRepo.fsmStore.DataStore.ConnectionLock.Unlock()
+	projectRepo.fsmStore.GetDataStore().ConnectionLock()
+	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	countQuery := sq.Select("count(*)").From(ProjectsTableName).RunWith(projectRepo.fsmStore.DataStore.Connection)
+	countQuery := sq.Select("count(*)").From(ProjectsTableName).RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 	rows, err := countQuery.Query()
 	defer rows.Close()
 	if err != nil {
@@ -338,7 +340,7 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (uint
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -371,7 +373,7 @@ func (projectRepo *projectRepo) DeleteOneByID(project models.ProjectModel) (uint
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, deleteErr.Error())
 	}
 
-	res, applyErr := fsm.AppApply(projectRepo.fsmStore.Raft, constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if applyErr != nil {
 		return 0, applyErr
 	}

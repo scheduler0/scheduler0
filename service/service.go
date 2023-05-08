@@ -43,8 +43,9 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	if err != nil {
 		log.Fatal("failed to set timezone for s")
 	}
-	sqliteDb := db.GetDBConnection(logger)
-	fsmStr := fsm.NewFSMStore(logger, sqliteDb)
+	sqliteDb := db.CreateConnectionFromNewDbIfNonExists(logger)
+	fsmActions := fsm.NewScheduler0RaftActions()
+	fsmStr := fsm.NewFSMStore(logger, fsmActions, sqliteDb)
 
 	dispatcher := utils.NewDispatcher(
 		int64(configs.MaxWorkers),
@@ -55,21 +56,22 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	)
 
 	//repository
-	credentialRepo := repository.NewCredentialRepo(logger, fsmStr)
-	jobRepo := repository.NewJobRepo(logger, fsmStr)
-	projectRepo := repository.NewProjectRepo(logger, fsmStr, jobRepo)
-	executionsRepo := repository.NewExecutionsRepo(logger, fsmStr)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmStr)
-	asyncTaskRepo := repository.NewAsyncTasksRepo(serviceCtx, logger, fsmStr)
+	credentialRepo := repository.NewCredentialRepo(logger, fsmActions, fsmStr)
+	jobRepo := repository.NewJobRepo(logger, fsmActions, fsmStr)
+	projectRepo := repository.NewProjectRepo(logger, fsmActions, fsmStr, jobRepo)
+	executionsRepo := repository.NewExecutionsRepo(logger, fsmActions, fsmStr)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmActions, fsmStr)
+	asyncTaskRepo := repository.NewAsyncTasksRepo(serviceCtx, logger, fsmActions, fsmStr)
 
 	asyncTaskManager := async_task_manager.NewAsyncTaskManager(serviceCtx, logger, fsmStr, asyncTaskRepo)
 	jobExecutor := executor.NewJobExecutor(serviceCtx, logger, scheduler0Configs, jobRepo, executionsRepo, jobQueueRepo, dispatcher)
-	jobQueue := queue.NewJobQueue(serviceCtx, logger, scheduler0Configs, fsmStr, jobExecutor, jobQueueRepo)
+	jobQueue := queue.NewJobQueue(serviceCtx, logger, scheduler0Configs, fsmActions, fsmStr, jobExecutor, jobQueueRepo)
 	nodeService := node.NewNode(
 		serviceCtx,
 		logger,
 		scheduler0Configs,
 		scheduler0Secrets,
+		fsmActions,
 		jobExecutor,
 		jobQueue,
 		jobRepo,

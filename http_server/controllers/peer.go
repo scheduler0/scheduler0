@@ -17,12 +17,12 @@ type PeerController interface {
 
 type peerController struct {
 	scheduler0Config config.Scheduler0Config
-	fsmStore         *fsm.Store
+	fsmStore         fsm.Scheduler0RaftStore
 	logger           *log.Logger
 	peer             *node.Node
 }
 
-func NewPeerController(logger *log.Logger, scheduler0Config config.Scheduler0Config, fsmStore *fsm.Store, peer *node.Node) PeerController {
+func NewPeerController(logger *log.Logger, scheduler0Config config.Scheduler0Config, fsmStore fsm.Scheduler0RaftStore, peer *node.Node) PeerController {
 	controller := peerController{
 		scheduler0Config: scheduler0Config,
 		fsmStore:         fsmStore,

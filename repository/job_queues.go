@@ -25,8 +25,9 @@ const (
 )
 
 type jobQueues struct {
-	fsmStore *fsm.Store
-	logger   hclog.Logger
+	fsmStore              fsm.Scheduler0RaftStore
+	logger                hclog.Logger
+	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
 type JobQueuesRepo interface {
@@ -34,16 +35,17 @@ type JobQueuesRepo interface {
 	GetLastVersion() uint64
 }
 
-func NewJobQueuesRepo(logger hclog.Logger, store *fsm.Store) *jobQueues {
+func NewJobQueuesRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) *jobQueues {
 	return &jobQueues{
-		logger:   logger.Named("job-queue-repo"),
-		fsmStore: store,
+		logger:                logger.Named("job-queue-repo"),
+		fsmStore:              store,
+		scheduler0RaftActions: scheduler0RaftActions,
 	}
 }
 
 func (repo *jobQueues) GetLastJobQueueLogForNode(nodeId uint64, version uint64) []models.JobQueueLog {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	var result []models.JobQueueLog
 
@@ -57,7 +59,7 @@ func (repo *jobQueues) GetLastJobQueueLogForNode(nodeId uint64, version uint64) 
 		From(JobQueuesTableName).
 		Where(fmt.Sprintf("%s = ? AND %s = ?", JobQueueNodeIdColumn, JobQueueVersion), nodeId, version).
 		OrderBy(fmt.Sprintf("%s DESC", JobQueueDateCreatedColumn)).
-		RunWith(repo.fsmStore.DataStore.Connection)
+		RunWith(repo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	defer rows.Close()
@@ -89,12 +91,12 @@ func (repo *jobQueues) GetLastJobQueueLogForNode(nodeId uint64, version uint64) 
 }
 
 func (repo *jobQueues) GetLastVersion() uint64 {
-	repo.fsmStore.DataStore.ConnectionLock.Lock()
-	defer repo.fsmStore.DataStore.ConnectionLock.Unlock()
+	repo.fsmStore.GetDataStore().ConnectionLock()
+	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(fmt.Sprintf("MAX(%s)", JobQueueVersion)).
 		From(JobQueuesVersionTableName).
-		RunWith(repo.fsmStore.DataStore.Connection)
+		RunWith(repo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
 	defer rows.Close()

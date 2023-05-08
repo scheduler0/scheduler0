@@ -5,10 +5,10 @@ const (
 	SqliteDbFileName   = "db.db"       // The name of the SQLite database file
 	RecoveryDbFileName = "recover.db"  // The name of the recovery database file
 	SecretsFileName    = ".scheduler0" // The name of the secrets file
-	RaftDir            = "raft_data"   // The name of the Raft data directory
+	RaftDir            = "raft_data"   // The name of the raft data directory
 	SqliteDir          = "sqlite_data" // The name of the SQLite data directory
-	RaftLog            = "logs.dat"    // The name of the Raft log file
-	RaftStableLog      = "stable.dat"  // The name of the Raft stable log file
+	RaftLog            = "logs.dat"    // The name of the raft log file
+	RaftStableLog      = "stable.dat"  // The name of the raft stable log file
 	ConfigFileName     = "config.yml"  // The name of the configuration file
 )
 

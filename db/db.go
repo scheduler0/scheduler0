@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
@@ -13,30 +14,42 @@ import (
 	"sync"
 )
 
-type DataStore struct {
+type dataStore struct {
 	dbFilePath string
-	FileLock   sync.Mutex
+	fileLock   sync.Mutex
 
-	ConnectionLock sync.Mutex
-	Connection     *sql.DB
+	connectionLock sync.Mutex
+	connection     *sql.DB
 
 	logger hclog.Logger
 }
 
-func NewSqliteDbConnection(logger hclog.Logger, dbFilePath string) *DataStore {
-	return &DataStore{
+type DataStore interface {
+	OpenConnectionToExistingDB() io.Closer
+	Serialize() []byte
+	ConnectionLock()
+	ConnectionUnlock()
+	FileLock()
+	FileUnlock()
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+	GetOpenConnection() *sql.DB
+	UpdateOpenConnection(conn *sql.DB)
+}
+
+func NewSqliteDbConnection(logger hclog.Logger, dbFilePath string) DataStore {
+	return &dataStore{
 		dbFilePath: dbFilePath,
 		logger:     logger,
 	}
 }
 
-// OpenConnection opens a database connection with one pool
-func (db *DataStore) OpenConnection() io.Closer {
-	db.FileLock.Lock()
-	defer db.FileLock.Unlock()
+// OpenConnectionToExistingDB opens a database connection with one pool
+func (db *dataStore) OpenConnectionToExistingDB() io.Closer {
+	db.fileLock.Lock()
+	defer db.fileLock.Unlock()
 
-	if db.Connection != nil {
-		return db.Connection
+	if db.connection != nil {
+		return db.connection
 	}
 
 	once := sync.Once{}
@@ -47,15 +60,15 @@ func (db *DataStore) OpenConnection() io.Closer {
 			db.logger.Error("failed to open db", err.Error())
 		}
 
-		db.Connection = connection
+		db.connection = connection
 	})
 
-	return db.Connection
+	return db.connection
 }
 
-func (db *DataStore) Serialize() []byte {
-	db.FileLock.Lock()
-	defer db.FileLock.Unlock()
+func (db *dataStore) Serialize() []byte {
+	db.fileLock.Lock()
+	defer db.fileLock.Unlock()
 
 	data, err := os.ReadFile(db.dbFilePath)
 	if err != nil {
@@ -65,7 +78,35 @@ func (db *DataStore) Serialize() []byte {
 	return data
 }
 
-func GetDBConnection(logger hclog.Logger) *DataStore {
+func (db *dataStore) ConnectionLock() {
+	db.connectionLock.Lock()
+}
+
+func (db *dataStore) ConnectionUnlock() {
+	db.connectionLock.Unlock()
+}
+
+func (db *dataStore) FileLock() {
+	db.fileLock.Lock()
+}
+
+func (db *dataStore) FileUnlock() {
+	db.fileLock.Unlock()
+}
+
+func (db *dataStore) GetOpenConnection() *sql.DB {
+	return db.connection
+}
+
+func (db *dataStore) UpdateOpenConnection(conn *sql.DB) {
+	db.connection = conn
+}
+
+func (db *dataStore) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	return db.connection.BeginTx(ctx, opts)
+}
+
+func CreateConnectionFromNewDbIfNonExists(logger hclog.Logger) DataStore {
 	dir, err := os.Getwd()
 	if err != nil {
 		logger.Error("Fatal error getting working dir: %s \n", err)
@@ -84,7 +125,7 @@ func GetDBConnection(logger hclog.Logger) *DataStore {
 	}
 
 	sqliteDb := NewSqliteDbConnection(logger, filePath)
-	conn := sqliteDb.OpenConnection()
+	conn := sqliteDb.OpenConnectionToExistingDB()
 
 	dbConnection := conn.(*sql.DB)
 	err = dbConnection.Ping()
@@ -95,13 +136,13 @@ func GetDBConnection(logger hclog.Logger) *DataStore {
 	return sqliteDb
 }
 
-func GetDBMEMConnection(logger hclog.Logger) *DataStore {
+func GetDBMEMConnection(logger hclog.Logger) DataStore {
 	conn, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", ":memory:"))
 	if err != nil {
 		logger.Error("ping error: failed to create in memory db: %v", err)
 	}
-	return &DataStore{
-		Connection: conn,
+	return &dataStore{
+		connection: conn,
 	}
 }
 
@@ -247,7 +288,7 @@ func RunMigration(cmdLogger hclog.Logger) {
 	}
 
 	datastore := NewSqliteDbConnection(cmdLogger, dbFilePath)
-	conn := datastore.OpenConnection()
+	conn := datastore.OpenConnectionToExistingDB()
 
 	dbConnection := conn.(*sql.DB)
 

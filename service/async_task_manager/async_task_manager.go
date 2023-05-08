@@ -21,11 +21,11 @@ type AsyncTaskManager struct {
 	context              context.Context
 	logger               hclog.Logger
 	notificationsCh      chan models.AsyncTask
-	fsm                  *fsm.Store
+	fsm                  fsm.Scheduler0RaftStore
 	SingleNodeMode       bool
 }
 
-func NewAsyncTaskManager(context context.Context, logger hclog.Logger, fsm *fsm.Store, asyncTaskManagerRepo repository.AsyncTasksRepo) *AsyncTaskManager {
+func NewAsyncTaskManager(context context.Context, logger hclog.Logger, fsm fsm.Scheduler0RaftStore, asyncTaskManagerRepo repository.AsyncTasksRepo) *AsyncTaskManager {
 	return &AsyncTaskManager{
 		context:              context,
 		logger:               logger.Named("async-task-service"),
@@ -52,7 +52,7 @@ func (m *AsyncTaskManager) AddTasks(input, requestId string, service string) ([]
 		}
 		sids = ids
 	} else {
-		f := m.fsm.Raft.VerifyLeader()
+		f := m.fsm.GetRaft().VerifyLeader()
 		if f.Error() != nil {
 			ids, err := m.asyncTaskManagerRepo.BatchInsert(tasks, false)
 			if err != nil {
@@ -90,7 +90,7 @@ func (m *AsyncTaskManager) UpdateTasksById(taskId uint64, state models.AsyncTask
 			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
 		}
 	} else {
-		f := m.fsm.Raft.VerifyLeader()
+		f := m.fsm.GetRaft().VerifyLeader()
 		if f.Error() != nil {
 			err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
 			if err != nil {
@@ -130,7 +130,7 @@ func (m *AsyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
 		}
 	} else {
-		f := m.fsm.Raft.VerifyLeader()
+		f := m.fsm.GetRaft().VerifyLeader()
 		if f.Error() != nil {
 			err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
 			if err != nil {

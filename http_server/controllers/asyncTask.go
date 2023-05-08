@@ -16,12 +16,12 @@ type AsyncTaskController interface {
 }
 
 type asyncTaskController struct {
-	fsmStore         *fsm.Store
+	fsmStore         fsm.Scheduler0RaftStore
 	logger           *log.Logger
 	asyncTaskService *async_task_manager.AsyncTaskManager
 }
 
-func NewAsyncTaskController(logger *log.Logger, fsmStore *fsm.Store, asyncTaskService *async_task_manager.AsyncTaskManager) AsyncTaskController {
+func NewAsyncTaskController(logger *log.Logger, fsmStore fsm.Scheduler0RaftStore, asyncTaskService *async_task_manager.AsyncTaskManager) AsyncTaskController {
 	controller := asyncTaskController{
 		fsmStore:         fsmStore,
 		logger:           logger,

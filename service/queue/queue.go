@@ -27,33 +27,35 @@ type JobQueueCommand struct {
 }
 
 type JobQueue struct {
-	Executor         *executor.JobExecutor
-	SingleNodeMode   bool
-	jobsQueueRepo    repository.JobQueuesRepo
-	fsm              *fsm.Store
-	logger           hclog.Logger
-	allocations      map[uint64]uint64
-	minId            int64
-	maxId            int64
-	mtx              sync.Mutex
-	once             sync.Once
-	debounce         *utils.Debounce
-	context          context.Context
-	schedulerOconfig config.Scheduler0Config
+	Executor              *executor.JobExecutor
+	SingleNodeMode        bool
+	jobsQueueRepo         repository.JobQueuesRepo
+	fsm                   fsm.Scheduler0RaftStore
+	logger                hclog.Logger
+	allocations           map[uint64]uint64
+	minId                 int64
+	maxId                 int64
+	mtx                   sync.Mutex
+	once                  sync.Once
+	debounce              *utils.Debounce
+	context               context.Context
+	schedulerOConfig      config.Scheduler0Config
+	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, fsm *fsm.Store, Executor *executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
+func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, scheduler0RaftActions fsm.Scheduler0RaftActions, fsm fsm.Scheduler0RaftStore, Executor *executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
 	return &JobQueue{
-		Executor:         Executor,
-		jobsQueueRepo:    jobsQueueRepo,
-		context:          ctx,
-		fsm:              fsm,
-		logger:           logger.Named("job-queue-service"),
-		minId:            math.MaxInt64,
-		maxId:            math.MinInt64,
-		allocations:      map[uint64]uint64{},
-		debounce:         utils.NewDebounce(),
-		schedulerOconfig: scheduler0Config,
+		Executor:              Executor,
+		jobsQueueRepo:         jobsQueueRepo,
+		context:               ctx,
+		fsm:                   fsm,
+		logger:                logger.Named("job-queue-service"),
+		minId:                 math.MaxInt64,
+		maxId:                 math.MinInt64,
+		allocations:           map[uint64]uint64{},
+		debounce:              utils.NewDebounce(),
+		schedulerOConfig:      scheduler0Config,
+		scheduler0RaftActions: scheduler0RaftActions,
 	}
 }
 
@@ -92,7 +94,7 @@ func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
 }
 
 func (jobQ *JobQueue) queue(minId, maxId int64) {
-	f := jobQ.fsm.Raft.VerifyLeader()
+	f := jobQ.fsm.GetRaft().VerifyLeader()
 	if f.Error() != nil {
 		jobQ.logger.Error("skipping job queueing as node is not the leader")
 		return
@@ -131,7 +133,7 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 	}
 
 	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
-	configs := jobQ.schedulerOconfig.GetConfigurations()
+	configs := jobQ.schedulerOConfig.GetConfigurations()
 
 	j := 0
 	for j < len(serverAllocations) {
@@ -160,7 +162,7 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 			log.Fatalln(err.Error())
 		}
 
-		af := jobQ.fsm.Raft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
+		af := jobQ.fsm.GetRaft().Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 		if af.Error() != nil {
 			if af.Error() == raft.ErrNotLeader {
 				log.Fatalln("raft leader not found")
@@ -173,7 +175,7 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 }
 
 func (jobQ *JobQueue) getServerToQueue() uint64 {
-	configs := jobQ.schedulerOconfig.GetConfigurations()
+	configs := jobQ.schedulerOConfig.GetConfigurations()
 
 	var minAllocation uint64 = math.MaxInt64
 	var minServer uint64
@@ -194,8 +196,8 @@ func (jobQ *JobQueue) getServerToQueue() uint64 {
 
 func (jobQ *JobQueue) IncrementQueueVersion() {
 	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
-	_, err := fsm.AppApply(
-		jobQ.fsm.Raft,
+	_, err := jobQ.scheduler0RaftActions.WriteCommandToRaftLog(
+		jobQ.fsm.GetRaft(),
 		constants.CommandTypeDbExecute,
 		fmt.Sprintf("insert into %s (%s, %s) values (?, ?)",
 			repository.JobQueuesVersionTableName,
