@@ -65,10 +65,10 @@ type scheduler0Configurations struct {
 
 }
 
-var cachedConfig *scheduler0Configurations
+var cachedConfig *Scheduler0Configurations
 var once sync.Once
 
-// GetConfigurations returns the cached scheduler0Configurations if it exists,
+// GetConfigurations returns the cached Scheduler0Configurations if it exists,
 // otherwise it reads the configuration file and caches it.
 func (_ scheduler0Configurations) GetConfigurations() *scheduler0Configurations {
 	// Check if cachedConfig is not nil, then return it
@@ -79,7 +79,7 @@ func (_ scheduler0Configurations) GetConfigurations() *scheduler0Configurations 
 	// Ensure that the configuration is read and cached only once
 	once.Do(func() {
 		// Get the binary path
-		binPath := getBinPath()
+		binPath := GetBinPath()
 
 		// Create a new file system
 		fs := afero.NewOsFs()
@@ -90,12 +90,12 @@ func (_ scheduler0Configurations) GetConfigurations() *scheduler0Configurations 
 			panic(err)
 		}
 
-		// Initialize an empty scheduler0Configurations struct
-		config := scheduler0Configurations{}
+		// Initialize an empty Scheduler0Configurations struct
+		config := Scheduler0Configurations{}
 
 		// If the error is due to the file not existing, get the configuration from environment variables
 		if os.IsNotExist(err) {
-			config = *getConfigFromEnv()
+			config = *GetConfigFromEnv()
 		}
 
 		// Unmarshal the YAML data into the config struct
@@ -370,7 +370,7 @@ func getConfigFromEnv() *scheduler0Configurations {
 	return config
 }
 
-func getBinPath() string {
+func GetBinPath() string {
 	e, err := os.Executable()
 	if err != nil {
 		log.Fatalln("failed to get path of scheduler0 binary", err.Error())

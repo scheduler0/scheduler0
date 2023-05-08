@@ -110,15 +110,10 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *node.Node) func(nex
 				return
 			}
 
-			fmt.Println("peer.CanAcceptClientWriteRequest()", peer.CanAcceptClientWriteRequest())
-
 			if !peer.CanAcceptClientWriteRequest() && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
 				configs := m.scheduler0Config.GetConfigurations()
 				fmt.Println("peer.FsmStore.GetRaft()", peer.FsmStore.GetRaft())
 				serverAddr, _ := peer.FsmStore.GetRaft().LeaderWithID()
-
-				fmt.Println("serverAddr", serverAddr)
-				fmt.Println("configs", configs.Replicas)
 
 				redirectUrl := ""
 
@@ -128,8 +123,6 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *node.Node) func(nex
 						break
 					}
 				}
-
-				fmt.Println("redirectUrl", redirectUrl)
 
 				if redirectUrl == "" {
 					m.logger.Println("failed to get redirect url from replicas")
