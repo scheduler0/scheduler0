@@ -24,6 +24,7 @@ type dataStore struct {
 	logger hclog.Logger
 }
 
+//go:generate mockery --name DataStore --output ../mocks
 type DataStore interface {
 	OpenConnectionToExistingDB() io.Closer
 	Serialize() []byte
@@ -34,6 +35,7 @@ type DataStore interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	GetOpenConnection() *sql.DB
 	UpdateOpenConnection(conn *sql.DB)
+	RunMigration()
 }
 
 func NewSqliteDbConnection(logger hclog.Logger, dbFilePath string) DataStore {
@@ -104,6 +106,43 @@ func (db *dataStore) UpdateOpenConnection(conn *sql.DB) {
 
 func (db *dataStore) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
 	return db.connection.BeginTx(ctx, opts)
+}
+
+func (db *dataStore) RunMigration() {
+	fs := afero.NewOsFs()
+
+	err := fs.Remove(db.dbFilePath)
+	if err != nil && !os.IsNotExist(err) {
+		log.Fatalln(fmt.Errorf("Fatal failed to remove db file path error: %s \n", err))
+	}
+	_, err = fs.Create(db.dbFilePath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
+	}
+
+	datastore := NewSqliteDbConnection(db.logger, db.dbFilePath)
+	conn := datastore.OpenConnectionToExistingDB()
+
+	dbConnection := conn.(*sql.DB)
+
+	trx, dbConnErr := dbConnection.Begin()
+	if dbConnErr != nil {
+		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", dbConnErr))
+	}
+
+	_, execErr := trx.Exec(GetSetupSQL())
+	if execErr != nil {
+		errRollback := trx.Rollback()
+		if errRollback != nil {
+			log.Fatalln(fmt.Errorf("Fatal rollback error: %s \n", execErr))
+		}
+		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", execErr))
+	}
+
+	errCommit := trx.Commit()
+	if errCommit != nil {
+		log.Fatalln(fmt.Errorf("Fatal commit error: %s \n", errCommit))
+	}
 }
 
 func CreateConnectionFromNewDbIfNonExists(logger hclog.Logger) DataStore {
