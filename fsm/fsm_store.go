@@ -31,11 +31,6 @@ type store struct {
 	raft.BatchingFSM
 }
 
-type Response struct {
-	Data  []interface{}
-	Error string
-}
-
 const (
 	JobQueuesTableName        = "job_queues"
 	JobQueueNodeIdColumn      = "node_id"
@@ -72,8 +67,10 @@ const (
 	AsyncTasksDateCreatedColumn = "date_created"
 )
 
+//go:generate mockery --name Scheduler0RaftStore --output ../mocks
 type Scheduler0RaftStore interface {
-	GetFSM() *store
+	GetFSM() raft.FSM
+	GetBatchingFSM() raft.BatchingFSM
 	GetDataStore() db.DataStore
 	GetRaft() *raft.Raft
 	UpdateRaft(rft *raft.Raft)
@@ -98,7 +95,11 @@ func NewFSMStore(logger hclog.Logger, scheduler0RaftActions Scheduler0RaftAction
 	}
 }
 
-func (s *store) GetFSM() *store {
+func (s *store) GetFSM() raft.FSM {
+	return s
+}
+
+func (s *store) GetBatchingFSM() raft.BatchingFSM {
 	return s
 }
 

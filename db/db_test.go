@@ -52,13 +52,15 @@ func TestSerialize(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := ioutil.TempFile("", "test-db.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(tempFile.Name())
 
 	sqliteDb := NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
 	data := sqliteDb.Serialize()
 
 	if len(data) == 0 {
