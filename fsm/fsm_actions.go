@@ -53,8 +53,6 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	fmt.Println("WriteCommandToRaftLog")
-
 	createCommand := &protobuffs.Command{
 		Type:       protobuffs.Command_Type(commandType),
 		Sql:        sqlString,
@@ -72,7 +70,6 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 	}
 
 	configs := config.NewScheduler0Config().GetConfigurations()
-	fmt.Println("rft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)", rft)
 
 	af := rft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 	if af.Error() != nil {
@@ -81,7 +78,6 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 		}
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
 	}
-	fmt.Println("ffff)")
 
 	if af.Response() != nil {
 		r := af.Response().(models.Response)
@@ -90,7 +86,6 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 		}
 		return &r, nil
 	}
-	fmt.Println("ffseff)")
 
 	return nil, nil
 }
