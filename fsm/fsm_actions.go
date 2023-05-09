@@ -18,13 +18,14 @@ import (
 	"time"
 )
 
+//go:generate mockery --name Scheduler0RaftActions --output ../mocks
 type Scheduler0RaftActions interface {
 	WriteCommandToRaftLog(
 		rft *raft.Raft,
 		commandType constants.Command,
 		sqlString string,
 		nodeId uint64,
-		params []interface{}) (*Response, *utils.GenericError)
+		params []interface{}) (*models.Response, *utils.GenericError)
 	ApplyRaftLog(
 		logger hclog.Logger,
 		l *raft.Log,
@@ -46,7 +47,7 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 	commandType constants.Command,
 	sqlString string,
 	nodeId uint64,
-	params []interface{}) (*Response, *utils.GenericError) {
+	params []interface{}) (*models.Response, *utils.GenericError) {
 	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -83,7 +84,7 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 	fmt.Println("ffff)")
 
 	if af.Response() != nil {
-		r := af.Response().(Response)
+		r := af.Response().(models.Response)
 		if r.Error != "" {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
 		}
@@ -112,7 +113,7 @@ func (_ *scheduler0RaftActions) ApplyRaftLog(
 	marshalErr := proto.Unmarshal(l.Data, command)
 	if marshalErr != nil {
 		logger.Error("failed to unmarshal command", marshalErr.Error())
-		return Response{
+		return models.Response{
 			Data:  nil,
 			Error: marshalErr.Error(),
 		}
@@ -140,14 +141,14 @@ func (_ *scheduler0RaftActions) ApplyRaftLog(
 	return nil
 }
 
-func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore) Response {
+func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore) models.Response {
 	db.ConnectionLock()
 	defer db.ConnectionUnlock()
 
 	var params []interface{}
 	err := json.Unmarshal(command.Data, &params)
 	if err != nil {
-		return Response{
+		return models.Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
@@ -157,7 +158,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("failed to execute sql command", "error", err.Error())
-		return Response{
+		return models.Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
@@ -168,7 +169,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 		logger.Error("failed to execute sql command", "error", err.Error())
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
-			return Response{
+			return models.Response{
 				Data:  nil,
 				Error: err.Error(),
 			}
@@ -178,7 +179,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 	err = tx.Commit()
 	if err != nil {
 		logger.Error("failed to commit transaction", "error", err.Error())
-		return Response{
+		return models.Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
@@ -190,12 +191,12 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
 			logger.Error("failed to roll back transaction", "error", rollBackErr.Error())
-			return Response{
+			return models.Response{
 				Data:  nil,
 				Error: rollBackErr.Error(),
 			}
 		}
-		return Response{
+		return models.Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
@@ -206,25 +207,25 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
 			logger.Error("failed to roll back transaction", "error", rollBackErr.Error())
-			return Response{
+			return models.Response{
 				Data:  nil,
 				Error: rollBackErr.Error(),
 			}
 		}
-		return Response{
+		return models.Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
 	}
 	data := []interface{}{lastInsertedId, rowsAffected}
 
-	return Response{
+	return models.Response{
 		Data:  data,
 		Error: "",
 	}
 }
 
-func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.DataStore, useQueues bool, queue chan []interface{}) Response {
+func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.DataStore, useQueues bool, queue chan []interface{}) models.Response {
 	db.ConnectionLock()
 	defer db.ConnectionUnlock()
 
@@ -232,7 +233,7 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.Data
 	err := json.Unmarshal(command.Data, &jobIds)
 	if err != nil {
 		logger.Error("failed unmarshal json bytes to jobs", "error", err.Error())
-		return Response{
+		return models.Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
@@ -261,7 +262,7 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.Data
 	_, err = insertBuilder.Exec()
 	if err != nil {
 		logger.Error("failed to insert new job queues", "error", err.Error())
-		return Response{
+		return models.Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
@@ -269,7 +270,7 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.Data
 	if useQueues {
 		queue <- []interface{}{command.TargetNode, int64(lowerBound), int64(upperBound)}
 	}
-	return Response{
+	return models.Response{
 		Data:  nil,
 		Error: "",
 	}
@@ -488,7 +489,7 @@ func batchInsertAsyncTasks(logger hclog.Logger, db db.DataStore, tasks []models.
 	}
 }
 
-func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.DataStore) Response {
+func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.DataStore) models.Response {
 	db.ConnectionLock()
 	defer db.ConnectionUnlock()
 
@@ -496,7 +497,7 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 	err := json.Unmarshal(command.Data, &localData)
 	if err != nil {
 		logger.Error("failed to unmarshal local data to commit", err.Error())
-		return Response{
+		return models.Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
@@ -516,7 +517,7 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 		batchDeleteDeleteAsyncTasks(logger, db, localData.Data.AsyncTasks)
 	}
 
-	return Response{
+	return models.Response{
 		Data:  nil,
 		Error: "",
 	}
