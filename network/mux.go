@@ -104,7 +104,7 @@ func (mux *Mux) Listen(header byte) *Layer {
 		ln:   ln,
 		addr: mux.ln.Addr(),
 	}
-	layer.dialer = NewDialer(header, false, true)
+	layer.dialer = NewDialer(header)
 
 	return layer
 }

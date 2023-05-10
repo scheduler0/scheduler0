@@ -20,7 +20,7 @@ type RaftNode struct {
 	NodeId      uint64 `json:"nodeId" yaml:"NodeId"`            // Unique identifier for the raft node within the cluster
 }
 
-//go:generate mockery --name Scheduler0Config
+//go:generate mockery --name Scheduler0Config --output ../mocks
 type Scheduler0Config interface {
 	GetConfigurations() *scheduler0Configurations
 }
