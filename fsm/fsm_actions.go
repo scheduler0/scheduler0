@@ -14,6 +14,7 @@ import (
 	"scheduler0/db"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
+	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"time"
 )
@@ -36,10 +37,14 @@ type Scheduler0RaftActions interface {
 		recoverJobsQueue chan bool) interface{}
 }
 
-type scheduler0RaftActions struct{}
+type scheduler0RaftActions struct {
+	sharedRepo shared_repo.SharedRepo
+}
 
-func NewScheduler0RaftActions() Scheduler0RaftActions {
-	return &scheduler0RaftActions{}
+func NewScheduler0RaftActions(sharedRepo shared_repo.SharedRepo) Scheduler0RaftActions {
+	return &scheduler0RaftActions{
+		sharedRepo: sharedRepo,
+	}
 }
 
 func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
@@ -90,7 +95,7 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 	return nil, nil
 }
 
-func (_ *scheduler0RaftActions) ApplyRaftLog(
+func (raftActions *scheduler0RaftActions) ApplyRaftLog(
 	logger hclog.Logger,
 	l *raft.Log,
 	db db.DataStore,
@@ -119,7 +124,7 @@ func (_ *scheduler0RaftActions) ApplyRaftLog(
 	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
 		return insertJobQueue(logger, command, db, useQueues, queue)
 	case protobuffs.Command_Type(constants.CommandTypeLocalData):
-		return localDataCommit(logger, command, db)
+		return localDataCommit(logger, command, db, raftActions.sharedRepo)
 	case protobuffs.Command_Type(constants.CommandTypeStopJobs):
 		if useQueues {
 			stopAllJobsQueue <- true
@@ -271,223 +276,7 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.Data
 	}
 }
 
-func batchInsertExecutionLogs(logger hclog.Logger, db db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
-	batches := utils.Batch[models.JobExecutionLog](jobExecutionLogs, 9)
-
-	for _, batch := range batches {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
-			ExecutionsTableName,
-			ExecutionsUniqueIdColumn,
-			ExecutionsStateColumn,
-			ExecutionsNodeIdColumn,
-			ExecutionsLastExecutionTimeColumn,
-			ExecutionsNextExecutionTime,
-			ExecutionsJobIdColumn,
-			ExecutionsDateCreatedColumn,
-			ExecutionsJobQueueVersion,
-			ExecutionsVersion,
-		)
-
-		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-		params := []interface{}{
-			batch[0].UniqueId,
-			batch[0].State,
-			batch[0].NodeId,
-			batch[0].LastExecutionDatetime,
-			batch[0].NextExecutionDatetime,
-			batch[0].JobId,
-			batch[0].DataCreated,
-			batch[0].JobQueueVersion,
-			batch[0].ExecutionVersion,
-		}
-
-		for _, executionLog := range batch[1:] {
-			params = append(params,
-				executionLog.UniqueId,
-				executionLog.State,
-				executionLog.NodeId,
-				executionLog.LastExecutionDatetime,
-				executionLog.NextExecutionDatetime,
-				executionLog.JobId,
-				executionLog.DataCreated,
-				executionLog.JobQueueVersion,
-				executionLog.ExecutionVersion,
-			)
-			query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-		}
-
-		query += ";"
-
-		ctx := context.Background()
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("failed to create transaction for execution logs batch insertion", err.Error())
-			return
-		}
-
-		_, err = tx.Exec(query, params...)
-		if err != nil {
-			trxErr := tx.Rollback()
-			if trxErr != nil {
-				logger.Error("failed to rollback transaction to insert batch execution logs", "error", trxErr.Error())
-				return
-			}
-			logger.Error("failed to batch insert execution logs", "error", err.Error())
-			return
-		}
-		err = tx.Commit()
-		if err != nil {
-			logger.Error("failed to commit transaction to insert batch execution logs", "error", err.Error())
-			return
-		}
-	}
-}
-
-func batchDeleteDeleteExecutionLogs(logger hclog.Logger, db db.DataStore, jobExecutionLogs []models.JobExecutionLog) {
-	batches := utils.Batch[models.JobExecutionLog](jobExecutionLogs, 1)
-
-	for _, batch := range batches {
-		paramPlaceholder := "?"
-		params := []interface{}{
-			batch[0].UniqueId,
-		}
-
-		for _, jobExecutionLog := range batch[1:] {
-			paramPlaceholder += ",?"
-			params = append(params, jobExecutionLog.UniqueId)
-		}
-
-		ctx := context.Background()
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("failed to create transaction for batch execution log deletion", err)
-			return
-		}
-		query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", ExecutionsUnCommittedTableName, ExecutionsUniqueIdColumn, paramPlaceholder)
-		_, err = tx.Exec(query, params...)
-		if err != nil {
-			trxErr := tx.Rollback()
-			if trxErr != nil {
-				logger.Error("failed to rollback batch execution log deletion transaction", "error", trxErr.Error())
-				return
-			}
-			logger.Error("failed to batch delete execution logs", "error", err.Error())
-			return
-		}
-		err = tx.Commit()
-		if err != nil {
-			logger.Error("failed to commit transaction for batch execution log deletion", "error", err.Error())
-			return
-		}
-	}
-}
-
-func batchDeleteDeleteAsyncTasks(logger hclog.Logger, db db.DataStore, tasks []models.AsyncTask) {
-	batches := utils.Batch[models.AsyncTask](tasks, 1)
-
-	for _, batch := range batches {
-		paramPlaceholder := "?"
-		params := []interface{}{
-			batch[0].Id,
-		}
-
-		for _, asyncTask := range batch[1:] {
-			paramPlaceholder += ",?"
-			params = append(params, asyncTask.Id)
-		}
-
-		ctx := context.Background()
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("failed to create transaction for delete", "error", err.Error())
-			return
-		}
-		query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", UnCommittedAsyncTableName, AsyncTasksIdColumn, paramPlaceholder)
-		_, err = tx.Exec(query, params...)
-		if err != nil {
-			trxErr := tx.Rollback()
-			if trxErr != nil {
-				logger.Error("failed to rollback transaction for batch deletion of async tasks", "error", trxErr.Error())
-				return
-			}
-			logger.Error("batch async tasks delete failed", "error", err.Error())
-			return
-		}
-		err = tx.Commit()
-		if err != nil {
-			logger.Error("failed to commit transaction for batch async task deletion", "error", err.Error())
-			return
-		}
-	}
-}
-
-func batchInsertAsyncTasks(logger hclog.Logger, db db.DataStore, tasks []models.AsyncTask) {
-	batches := utils.Batch[models.AsyncTask](tasks, 6)
-
-	for _, batch := range batches {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES ",
-			CommittedAsyncTableName,
-			AsyncTasksRequestIdColumn,
-			AsyncTasksInputColumn,
-			AsyncTasksOutputColumn,
-			AsyncTasksStateColumn,
-			AsyncTasksServiceColumn,
-			AsyncTasksDateCreatedColumn,
-		)
-
-		query += "(?, ?, ?, ?, ?, ?)"
-		params := []interface{}{
-			batch[0].RequestId,
-			batch[0].Input,
-			batch[0].Output,
-			batch[0].State,
-			batch[0].Service,
-			batch[0].DateCreated,
-		}
-
-		for _, asyncTask := range batch[1:] {
-			params = append(params,
-				asyncTask.RequestId,
-				asyncTask.Input,
-				asyncTask.Output,
-				asyncTask.State,
-				asyncTask.Service,
-				asyncTask.DateCreated,
-			)
-			query += ",(?, ?, ?, ?, ?, ?)"
-		}
-
-		query += ";"
-
-		ctx := context.Background()
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Error("failed to create transaction for batch async tasks insertion", "error", err.Error())
-			return
-		}
-
-		_, err = tx.Exec(query, params...)
-		if err != nil {
-			trxErr := tx.Rollback()
-			if trxErr != nil {
-				logger.Error("failed to rollback transaction for batch async tasks insertion", "error", trxErr.Error())
-				return
-			}
-			logger.Error("batch insert failed for async tasks insertion", "error", err.Error())
-			return
-		}
-		err = tx.Commit()
-		if err != nil {
-			logger.Error("failed to commit insert delete transaction for async tasks", "error", err.Error())
-			return
-		}
-	}
-}
-
-func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.DataStore) models.Response {
-	db.ConnectionLock()
-	defer db.ConnectionUnlock()
-
+func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.DataStore, shardRepo shared_repo.SharedRepo) models.Response {
 	localData := models.CommitLocalData{}
 	err := json.Unmarshal(command.Data, &localData)
 	if err != nil {
@@ -497,19 +286,42 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 			Error: err.Error(),
 		}
 	}
-
 	logger.Debug(fmt.Sprintf("received %d local execution logs to commit", len(localData.Data.ExecutionLogs)))
 
 	if len(localData.Data.ExecutionLogs) > 0 {
-		batchInsertExecutionLogs(logger, db, localData.Data.ExecutionLogs)
-		batchDeleteDeleteExecutionLogs(logger, db, localData.Data.ExecutionLogs)
+		insertErr := shardRepo.InsertExecutionLogs(db, localData.Data.ExecutionLogs)
+		if insertErr != nil {
+			return models.Response{
+				Data:  nil,
+				Error: insertErr.Error(),
+			}
+		}
+		deleteErr := shardRepo.DeleteExecutionLogs(db, localData.Data.ExecutionLogs)
+		if deleteErr != nil {
+			return models.Response{
+				Data:  nil,
+				Error: deleteErr.Error(),
+			}
+		}
 	}
 
 	logger.Debug(fmt.Sprintf("received %d local async tasks to commit", len(localData.Data.AsyncTasks)))
 
 	if len(localData.Data.AsyncTasks) > 0 {
-		batchInsertAsyncTasks(logger, db, localData.Data.AsyncTasks)
-		batchDeleteDeleteAsyncTasks(logger, db, localData.Data.AsyncTasks)
+		insertErr := shardRepo.InsertAsyncTasksLogs(db, localData.Data.AsyncTasks, true)
+		if insertErr != nil {
+			return models.Response{
+				Data:  nil,
+				Error: insertErr.Error(),
+			}
+		}
+		deleteErr := shardRepo.DeleteAsyncTasksLogs(db, localData.Data.AsyncTasks)
+		if deleteErr != nil {
+			return models.Response{
+				Data:  nil,
+				Error: deleteErr.Error(),
+			}
+		}
 	}
 
 	return models.Response{
