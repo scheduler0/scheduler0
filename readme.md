@@ -91,36 +91,37 @@ Replicas:
     NodeId: 3
 ```
 
-| Config       | Description                                                                                                                                                                      |
-|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| LogLevel | Log level can be ERROR, DEBUG, INFO or WARN                                                                                                                                      |
-| Protocol | The protocol in which the nodes used to communicate with each other. Only HTTP is supported.                                                                                     |
-| Host | The host in which the node can be reached by other nodes                                                                                                                         |
-| Port | The port in which the node can be reached by other nodes                                                                                                                         |
-| SecretKey | AES256 secret key used for creating api keys and api secrets for client authentication                                                                                           |
-| AuthUsername | Username used for basic authentication with other nodes                                                                                                                          |
-| AuthPassword | Password used for basic authentication with other nodes                                                                                                                          |
-| MaxMemory | This restricts the how much memory is consumed. Once 70% of the memory specified is reached scheduler0 will stop scheduling jobs on the node and stop executing jobs on the node |
-| Bootstrap | If set to true this node will startup the cluster. Only a single node should have this set to true                                                                               
-| NodeId | The id of the node in the cluster. It should be unique for the node.                                                                                                             
-| RaftAddress | The network address for the node dedicated for raft communication purposes                                                                                                       
-| RaftTransportMaxPool | Maximum number of connection pool raft should use                                                                                                                                
-| RaftTransportTimeout | The raft connection timeout                                                                                                                                                      
-| RaftApplyTimeout | Timeout for replicating data across nodes                                                                                                                                        
-| RaftSnapshotInterval | SnapshotInterval controls how often we check if we should perform a snapshot.                                                                                                    
-| RaftSnapshotThreshold | SnapshotThreshold controls how many outstanding logs there must be before we perform a snapshot.                                                                                 
-| PeerConnectRetryMax | Number of times to retry connection to other nodes                                                                                                                               
-| PeerConnectRetryDelay | Delay between each retry attempt to connect to other nodes                                                                                                                       
-| PeerAuthRequestTimeoutMs | Authentication request time out in seconds                                                                                                                                       
-| JobExecutionTimeout | How long to wait for a job to complete execution before considering it a failed job                                                                                              
-| JobExecutionRetryDelay | How long to wait before retrying a failed job execution                                                                                                                          
-| JobExecutionRetryMax | Maximum number of times to retry executing job                                                                                                                                   
-| MaxWorkers | The number of workers to execute jobs and create new jobs                                                                                                                        
-| MaxQueue | The size of the queues in which workers pick jobs from                                                                                                                           
-| ExecutionLogFetchFanIn | Number of nodes to fetch local execution logs at a time                                                                                                                          
+| Config                           | Description                                                                                                                                                                      |
+|----------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| LogLevel                         | Log level can be ERROR, DEBUG, INFO or WARN                                                                                                                                      |
+| Protocol                         | The protocol in which the nodes used to communicate with each other. Only HTTP is supported.                                                                                     |
+| Host                             | The host in which the node can be reached by other nodes                                                                                                                         |
+| Port                             | The port in which the node can be reached by other nodes                                                                                                                         |
+| SecretKey                        | AES256 secret key used for creating api keys and api secrets for client authentication                                                                                           |
+| AuthUsername                     | Username used for basic authentication with other nodes                                                                                                                          |
+| AuthPassword                     | Password used for basic authentication with other nodes                                                                                                                          |
+| MaxMemory                        | This restricts the how much memory is consumed. Once 70% of the memory specified is reached scheduler0 will stop scheduling jobs on the node and stop executing jobs on the node |
+| Bootstrap                        | If set to true this node will startup the cluster. Only a single node should have this set to true                                                                               
+| NodeId                           | The id of the node in the cluster. It should be unique for the node.                                                                                                             
+| NodeAdvAddress                   | The nodes advertised adderess                                                                                                     
+| RaftAddress                      | The network address for the node dedicated for raft communication purposes                                                                                                       
+| RaftTransportMaxPool             | Maximum number of connection pool raft should use                                                                                                                                
+| RaftTransportTimeout             | The raft connection timeout                                                                                                                                                      
+| RaftApplyTimeout                 | Timeout for replicating data across nodes                                                                                                                                        
+| RaftSnapshotInterval             | SnapshotInterval controls how often we check if we should perform a snapshot.                                                                                                    
+| RaftSnapshotThreshold            | SnapshotThreshold controls how many outstanding logs there must be before we perform a snapshot.                                                                                 
+| PeerConnectRetryMax              | Number of times to retry connection to other nodes                                                                                                                               
+| PeerConnectRetryDelay            | Delay between each retry attempt to connect to other nodes                                                                                                                       
+| PeerAuthRequestTimeoutMs         | Authentication request time out in seconds                                                                                                                                       
+| JobExecutionTimeout              | How long to wait for a job to complete execution before considering it a failed job                                                                                              
+| JobExecutionRetryDelay           | How long to wait before retrying a failed job execution                                                                                                                          
+| JobExecutionRetryMax             | Maximum number of times to retry executing job                                                                                                                                   
+| MaxWorkers                       | The number of workers to execute jobs and create new jobs                                                                                                                        
+| MaxQueue                         | The size of the queues in which workers pick jobs from                                                                                                                           
+| ExecutionLogFetchFanIn           | Number of nodes to fetch local execution logs at a time                                                                                                                          
 | ExecutionLogFetchIntervalSeconds | Time between each attempt to fetch local job execution logs                                                                                                                      
-| HTTPExecutorPayloadMaxSizeMb | Maximum size of payload to send to client expecting job execution                                                                                                                
-| Replicas | A list of all the nodes in the replicas and their addresses                                                                                                                      
+| HTTPExecutorPayloadMaxSizeMb     | Maximum size of payload to send to client expecting job execution                                                                                                                
+| Replicas                         | A list of all the nodes in the replicas and their addresses                                                                                                                      
 
 
 ## Using Docker Compose 
