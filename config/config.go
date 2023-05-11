@@ -41,6 +41,7 @@ type scheduler0Configurations struct {
 	PeerConnectRetryDelaySeconds     uint64     `json:"peerConnectRetryDelay" yaml:"PeerConnectRetryDelaySeconds"`                // Delay between retries for connecting to peers, in seconds
 	Bootstrap                        bool       `json:"bootstrap" yaml:"Bootstrap"`                                               // Whether the scheduler should start in bootstrap mode
 	NodeId                           uint64     `json:"nodeId" yaml:"NodeId"`                                                     // Unique identifier for the scheduler node
+	NodeAdvAddress                   string     `json:"nodeAdvAddress" yaml:"NodeAdvAddress"`                                     // Node Advertised Address
 	RaftAddress                      string     `json:"raftAddress" yaml:"RaftAddress"`                                           // Address used for raft communication
 	RaftTransportMaxPool             uint64     `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`                         // Maximum size of the raft transport pool
 	RaftTransportTimeout             uint64     `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`                         // Timeout for raft transport operations
@@ -62,7 +63,6 @@ type scheduler0Configurations struct {
 	ExecutionLogFetchIntervalSeconds uint64     `json:"executionLogFetchIntervalSeconds" yaml:"ExecutionLogFetchIntervalSeconds"` // Interval between log fetches, in seconds
 	JobInvocationDebounceDelay       uint64     `json:"jobInvocationDebounceDelay" yaml:"JobInvocationDebounceDelay"`             // Delay for debouncing job invocation
 	HTTPExecutorPayloadMaxSizeMb     uint64     `json:"httpExecutorPayloadMaxSizeMb" yaml:"HTTPExecutorPayloadMaxSizeMb"`         // Maximum payload size for HTTP executor, in megabytes
-
 }
 
 var cachedConfig *scheduler0Configurations
@@ -189,6 +189,11 @@ func getConfigFromEnv() *scheduler0Configurations {
 			log.Fatalf("Error parsing SCHEDULER0_NODE_ID: %v", err)
 		}
 		config.NodeId = parsed
+	}
+
+	// Set Node Advertised Address
+	if val, ok := os.LookupEnv("SCHEDULER0_NODE_ADV_ADDRESS"); ok {
+		config.NodeAdvAddress = val
 	}
 
 	// Set RaftAddress

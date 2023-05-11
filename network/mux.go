@@ -16,17 +16,24 @@ const (
 )
 
 type Mux struct {
-	ln net.Listener
-	m  map[byte]*listener
+	ln   net.Listener
+	m    map[byte]*listener
+	addr net.Addr
 
 	logger *log.Logger
 	wg     sync.WaitGroup
 }
 
-func NewMux(ln net.Listener) *Mux {
+func NewMux(ln net.Listener, adv net.Addr) *Mux {
+	addr := adv
+	if addr == nil {
+		addr = ln.Addr()
+	}
+
 	return &Mux{
-		ln: ln,
-		m:  make(map[byte]*listener),
+		ln:   ln,
+		addr: addr,
+		m:    make(map[byte]*listener),
 	}
 }
 
@@ -102,7 +109,7 @@ func (mux *Mux) Listen(header byte) *Layer {
 
 	layer := &Layer{
 		ln:   ln,
-		addr: mux.ln.Addr(),
+		addr: mux.addr,
 	}
 	layer.dialer = NewDialer(header)
 

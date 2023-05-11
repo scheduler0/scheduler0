@@ -1277,8 +1277,11 @@ func getLogsAndTransport(scheduler0Config config.Scheduler0Config) (tm *raft.Net
 		logger.Fatal("failed to listen to tcp net", err)
 	}
 
-	mux := network.NewMux(ln)
+	adv := network.NameAddress{
+		Address: configs.NodeAdvAddress,
+	}
 
+	mux := network.NewMux(ln, adv)
 	go func() {
 		err := mux.Serve()
 		if err != nil {
