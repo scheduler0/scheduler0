@@ -64,7 +64,9 @@ func (controller *asyncTaskController) GetTask(w http.ResponseWriter, r *http.Re
 				return
 			}
 			delErr := controller.asyncTaskService.DeleteSubscriber(taskIdInt, subId)
-			close(taskCh)
+			if taskCh != nil {
+				close(taskCh)
+			}
 			if delErr != nil {
 				controller.logger.Println(fmt.Sprintf("failed to delete subscriber with id %d for task %s: ", taskIdInt, delErr.Error()))
 				return
