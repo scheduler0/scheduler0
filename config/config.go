@@ -22,15 +22,15 @@ type RaftNode struct {
 
 //go:generate mockery --name Scheduler0Config --output ../mocks
 type Scheduler0Config interface {
-	GetConfigurations() *scheduler0Configurations
+	GetConfigurations() *Scheduler0Configurations
 }
 
 func NewScheduler0Config() Scheduler0Config {
-	return &scheduler0Configurations{}
+	return &Scheduler0Configurations{}
 }
 
-// scheduler0Configurations global configurations
-type scheduler0Configurations struct {
+// Scheduler0Configurations global configurations
+type Scheduler0Configurations struct {
 	LogLevel                         string     `json:"logLevel" yaml:"LogLevel"`                                                 // Logging verbosity level
 	Protocol                         string     `json:"protocol" yaml:"Protocol"`                                                 // Communication protocol used
 	Host                             string     `json:"host" yaml:"Host"`                                                         // Host address
@@ -65,12 +65,12 @@ type scheduler0Configurations struct {
 	HTTPExecutorPayloadMaxSizeMb     uint64     `json:"httpExecutorPayloadMaxSizeMb" yaml:"HTTPExecutorPayloadMaxSizeMb"`         // Maximum payload size for HTTP executor, in megabytes
 }
 
-var cachedConfig *scheduler0Configurations
+var cachedConfig *Scheduler0Configurations
 var once sync.Once
 
 // GetConfigurations returns the cached Scheduler0Configurations if it exists,
 // otherwise it reads the configuration file and caches it.
-func (_ scheduler0Configurations) GetConfigurations() *scheduler0Configurations {
+func (_ Scheduler0Configurations) GetConfigurations() *Scheduler0Configurations {
 	// Check if cachedConfig is not nil, then return it
 	if cachedConfig != nil {
 		return cachedConfig
@@ -91,7 +91,7 @@ func (_ scheduler0Configurations) GetConfigurations() *scheduler0Configurations 
 		}
 
 		// Initialize an empty Scheduler0Configurations struct
-		config := scheduler0Configurations{}
+		config := Scheduler0Configurations{}
 
 		// If the error is due to the file not existing, get the configuration from environment variables
 		if os.IsNotExist(err) {
@@ -113,8 +113,8 @@ func (_ scheduler0Configurations) GetConfigurations() *scheduler0Configurations 
 }
 
 // GetConfigFromEnv gets scheduler0 configurations from env
-func getConfigFromEnv() *scheduler0Configurations {
-	config := &scheduler0Configurations{}
+func getConfigFromEnv() *Scheduler0Configurations {
+	config := &Scheduler0Configurations{}
 
 	// Set LogLevel
 	if val, ok := os.LookupEnv("SCHEDULER0_LOGLEVEL"); ok {

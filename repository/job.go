@@ -32,22 +32,6 @@ type Job interface {
 	BatchInsertJobs(jobRepos []models.JobModel) ([]uint64, *utils.GenericError)
 }
 
-const (
-	JobsTableName = "jobs"
-)
-
-const (
-	JobsIdColumn             = "id"
-	ProjectIdColumn          = "project_id"
-	SpecColumn               = "spec"
-	CallbackURLColumn        = "callback_url"
-	DataColumn               = "data"
-	ExecutionTypeColumn      = "execution_type"
-	JobsTimezoneColumn       = "timezone"
-	JobsTimezoneOffsetColumn = "timezone_offset"
-	JobsDateCreatedColumn    = "date_created"
-)
-
 func NewJobRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) Job {
 	return &jobRepo{
 		fsmStore:              store,
@@ -62,18 +46,18 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
-		JobsIdColumn,
-		ProjectIdColumn,
-		SpecColumn,
-		CallbackURLColumn,
-		ExecutionTypeColumn,
-		JobsDateCreatedColumn,
-		JobsTimezoneColumn,
-		JobsTimezoneOffsetColumn,
-		DataColumn,
+		constants.JobsIdColumn,
+		constants.JobsProjectIdColumn,
+		constants.JobsSpecColumn,
+		constants.JobsCallbackURLColumn,
+		constants.JobsExecutionTypeColumn,
+		constants.JobsDateCreatedColumn,
+		constants.JobsTimezoneColumn,
+		constants.JobsTimezoneOffsetColumn,
+		constants.JobsDataColumn,
 	).
-		From(JobsTableName).
-		Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID).
+		From(constants.JobsTableName).
+		Where(fmt.Sprintf("%s = ?", constants.JobsIdColumn), jobModel.ID).
 		RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
@@ -126,18 +110,18 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *u
 		}
 
 		selectBuilder := sq.Select(
-			JobsIdColumn,
-			ProjectIdColumn,
-			SpecColumn,
-			CallbackURLColumn,
-			ExecutionTypeColumn,
-			JobsDateCreatedColumn,
-			JobsTimezoneColumn,
-			JobsTimezoneOffsetColumn,
-			DataColumn,
+			constants.JobsIdColumn,
+			constants.JobsProjectIdColumn,
+			constants.JobsSpecColumn,
+			constants.JobsCallbackURLColumn,
+			constants.JobsExecutionTypeColumn,
+			constants.JobsDateCreatedColumn,
+			constants.JobsTimezoneColumn,
+			constants.JobsTimezoneOffsetColumn,
+			constants.JobsDataColumn,
 		).
-			From(JobsTableName).
-			Where(fmt.Sprintf("%s IN (%s)", JobsIdColumn, paramsPlaceholder), ids...).
+			From(constants.JobsTableName).
+			Where(fmt.Sprintf("%s IN (%s)", constants.JobsIdColumn, paramsPlaceholder), ids...).
 			RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 		rows, err := selectBuilder.Query()
@@ -176,18 +160,18 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) (
 	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
-		JobsIdColumn,
-		ProjectIdColumn,
-		SpecColumn,
-		CallbackURLColumn,
-		ExecutionTypeColumn,
-		JobsDateCreatedColumn,
-		JobsTimezoneColumn,
-		JobsTimezoneOffsetColumn,
-		DataColumn,
+		constants.JobsIdColumn,
+		constants.JobsProjectIdColumn,
+		constants.JobsSpecColumn,
+		constants.JobsCallbackURLColumn,
+		constants.JobsExecutionTypeColumn,
+		constants.JobsDateCreatedColumn,
+		constants.JobsTimezoneColumn,
+		constants.JobsTimezoneOffsetColumn,
+		constants.JobsDataColumn,
 	).
-		From(JobsTableName).
-		Where(fmt.Sprintf("%s BETWEEN ? and ?", JobsIdColumn), lowerBound, upperBound).
+		From(constants.JobsTableName).
+		Where(fmt.Sprintf("%s BETWEEN ? and ?", constants.JobsIdColumn), lowerBound, upperBound).
 		RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
@@ -230,21 +214,21 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit
 	jobs := []models.JobModel{}
 
 	selectBuilder := sq.Select(
-		JobsIdColumn,
-		ProjectIdColumn,
-		SpecColumn,
-		CallbackURLColumn,
-		ExecutionTypeColumn,
-		JobsDateCreatedColumn,
-		JobsTimezoneColumn,
-		JobsTimezoneOffsetColumn,
-		DataColumn,
+		constants.JobsIdColumn,
+		constants.JobsProjectIdColumn,
+		constants.JobsSpecColumn,
+		constants.JobsCallbackURLColumn,
+		constants.JobsExecutionTypeColumn,
+		constants.JobsDateCreatedColumn,
+		constants.JobsTimezoneColumn,
+		constants.JobsTimezoneOffsetColumn,
+		constants.JobsDataColumn,
 	).
-		From(JobsTableName).
+		From(constants.JobsTableName).
 		Offset(offset).
 		Limit(limit).
 		OrderBy(orderBy).
-		Where(fmt.Sprintf("%s = ?", ProjectIdColumn), projectID).
+		Where(fmt.Sprintf("%s = ?", constants.JobsProjectIdColumn), projectID).
 		RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
@@ -291,13 +275,13 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (uint64, *utils.
 		return 0, utils.HTTPGenericError(http.StatusBadRequest, "cannot update cron spec")
 	}
 
-	updateQuery := sq.Update(JobsTableName).
-		Set(CallbackURLColumn, jobModel.CallbackUrl).
-		Set(ExecutionTypeColumn, jobModel.ExecutionType).
-		Set(JobsTimezoneColumn, jobModel.Timezone).
-		Set(JobsTimezoneOffsetColumn, jobModel.TimezoneOffset).
-		Set(DataColumn, jobModel.Data).
-		Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID)
+	updateQuery := sq.Update(constants.JobsTableName).
+		Set(constants.JobsCallbackURLColumn, jobModel.CallbackUrl).
+		Set(constants.JobsExecutionTypeColumn, jobModel.ExecutionType).
+		Set(constants.JobsTimezoneColumn, jobModel.Timezone).
+		Set(constants.JobsTimezoneOffsetColumn, jobModel.TimezoneOffset).
+		Set(constants.JobsDataColumn, jobModel.Data).
+		Where(fmt.Sprintf("%s = ?", constants.JobsIdColumn), jobModel.ID)
 
 	query, params, err := updateQuery.ToSql()
 	if err != nil {
@@ -320,7 +304,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (uint64, *utils.
 
 // DeleteOneByID deletes a job with uuid and returns number of affected row
 func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (uint64, *utils.GenericError) {
-	deleteQuery := sq.Delete(JobsTableName).Where(fmt.Sprintf("%s = ?", JobsIdColumn), jobModel.ID)
+	deleteQuery := sq.Delete(constants.JobsTableName).Where(fmt.Sprintf("%s = ?", constants.JobsIdColumn), jobModel.ID)
 
 	query, params, err := deleteQuery.ToSql()
 	if err != nil {
@@ -346,7 +330,7 @@ func (jobRepo *jobRepo) GetJobsTotalCount() (uint64, *utils.GenericError) {
 	jobRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	countQuery := sq.Select("count(*)").From(JobsTableName).RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
+	countQuery := sq.Select("count(*)").From(constants.JobsTableName).RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 	rows, err := countQuery.Query()
 	if err != nil {
 		return 0, utils.HTTPGenericError(500, err.Error())
@@ -374,8 +358,8 @@ func (jobRepo *jobRepo) GetJobsTotalCountByProjectID(projectID uint64) (uint64, 
 	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	countQuery := sq.Select("count(*)").
-		From(JobsTableName).
-		Where(fmt.Sprintf("%s = ?", ProjectIdColumn), projectID).
+		From(constants.JobsTableName).
+		Where(fmt.Sprintf("%s = ?", constants.JobsProjectIdColumn), projectID).
 		RunWith(jobRepo.fsmStore.GetDataStore().GetOpenConnection())
 	rows, queryErr := countQuery.Query()
 	if queryErr != nil {
@@ -425,14 +409,14 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]uint64, *util
 
 	for _, batch := range batches {
 		query := fmt.Sprintf("INSERT INTO jobs (%s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
-			ProjectIdColumn,
-			SpecColumn,
-			CallbackURLColumn,
-			ExecutionTypeColumn,
-			JobsDateCreatedColumn,
-			JobsTimezoneColumn,
-			JobsTimezoneOffsetColumn,
-			DataColumn,
+			constants.JobsProjectIdColumn,
+			constants.JobsSpecColumn,
+			constants.JobsCallbackURLColumn,
+			constants.JobsExecutionTypeColumn,
+			constants.JobsDateCreatedColumn,
+			constants.JobsTimezoneColumn,
+			constants.JobsTimezoneOffsetColumn,
+			constants.JobsDataColumn,
 		)
 		params := []interface{}{}
 		ids := []uint64{}

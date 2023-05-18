@@ -16,6 +16,7 @@ import (
 	"scheduler0/service/executor"
 	"scheduler0/service/node"
 	"scheduler0/service/queue"
+	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"time"
 )
@@ -43,10 +44,6 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	if err != nil {
 		log.Fatal("failed to set timezone for s")
 	}
-	sqliteDb := db.CreateConnectionFromNewDbIfNonExists(logger)
-	fsmActions := fsm.NewScheduler0RaftActions()
-	fsmStr := fsm.NewFSMStore(logger, fsmActions, sqliteDb)
-
 	dispatcher := utils.NewDispatcher(
 		int64(configs.MaxWorkers),
 		int64(configs.MaxQueue),
@@ -54,6 +51,10 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 			effector(successChannel, errorChannel)
 		},
 	)
+	sqliteDb := db.CreateConnectionFromNewDbIfNonExists(logger)
+	sharedRep := shared_repo.NewSharedRepo(logger, scheduler0Configs)
+	fsmActions := fsm.NewScheduler0RaftActions(sharedRep)
+	fsmStr := fsm.NewFSMStore(logger, fsmActions, sqliteDb)
 
 	//repository
 	credentialRepo := repository.NewCredentialRepo(logger, fsmActions, fsmStr)
@@ -78,6 +79,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 		projectRepo,
 		executionsRepo,
 		jobQueueRepo,
+		sharedRep,
 		asyncTaskManager,
 		dispatcher,
 	)

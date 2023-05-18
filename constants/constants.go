@@ -36,3 +36,75 @@ const (
 	CreateJobAsyncTaskService   = "create_job"   // The name of the asynchronous task service for creating jobs
 	JobExecutorAsyncTaskService = "job_executor" // The name of the asynchronous task service for executing jobs
 )
+
+const (
+	JobsTableName = "jobs"
+)
+
+const (
+	JobsIdColumn             = "id"
+	JobsProjectIdColumn      = "project_id"
+	JobsSpecColumn           = "spec"
+	JobsCallbackURLColumn    = "callback_url"
+	JobsDataColumn           = "data"
+	JobsExecutionTypeColumn  = "execution_type"
+	JobsTimezoneColumn       = "timezone"
+	JobsTimezoneOffsetColumn = "timezone_offset"
+	JobsDateCreatedColumn    = "date_created"
+)
+
+const (
+	ProjectsTableName         = "projects"
+	ProjectsIdColumn          = "id"
+	ProjectsNameColumn        = "name"
+	ProjectsDescriptionColumn = "description"
+	ProjectsDateCreatedColumn = "date_created"
+)
+
+const (
+	JobQueuesTableName        = "job_queues"
+	JobQueueNodeIdColumn      = "node_id"
+	JobQueueLowerBoundJobId   = "lower_bound_job_id"
+	JobQueueUpperBound        = "upper_bound_job_id"
+	JobQueueDateCreatedColumn = "date_created"
+	JobQueueVersion           = "version"
+
+	ExecutionsUnCommittedTableName    = "job_executions_uncommitted"
+	ExecutionsCommittedTableName      = "job_executions_committed"
+	ExecutionsUniqueIdColumn          = "unique_id"
+	ExecutionsStateColumn             = "state"
+	ExecutionsNodeIdColumn            = "node_id"
+	ExecutionsLastExecutionTimeColumn = "last_execution_time"
+	ExecutionsNextExecutionTime       = "next_execution_time"
+	ExecutionsJobIdColumn             = "job_id"
+	ExecutionsDateCreatedColumn       = "date_created"
+	ExecutionsJobQueueVersion         = "job_queue_version"
+	ExecutionsVersion                 = "execution_version"
+)
+
+const (
+	CommittedAsyncTableName   = "async_tasks_committed"
+	UnCommittedAsyncTableName = "async_tasks_uncommitted"
+)
+
+const (
+	AsyncTasksIdColumn          = "id"
+	AsyncTasksRequestIdColumn   = "request_id"
+	AsyncTasksInputColumn       = "input"
+	AsyncTasksOutputColumn      = "output"
+	AsyncTasksStateColumn       = "state"
+	AsyncTasksServiceColumn     = "service"
+	AsyncTasksDateCreatedColumn = "date_created"
+)
+
+const (
+	CredentialTableName = "credentials"
+)
+
+const (
+	CredentialsIdColumn          = "id"
+	CredentialsArchivedColumn    = "archived"
+	CredentialsApiKeyColumn      = "api_key"
+	CredentialsApiSecretColumn   = "api_secret"
+	CredentialsDateCreatedColumn = "date_created"
+)

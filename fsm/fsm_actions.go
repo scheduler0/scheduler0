@@ -289,14 +289,14 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 	logger.Debug(fmt.Sprintf("received %d local execution logs to commit", len(localData.Data.ExecutionLogs)))
 
 	if len(localData.Data.ExecutionLogs) > 0 {
-		insertErr := shardRepo.InsertExecutionLogs(db, localData.Data.ExecutionLogs)
+		insertErr := shardRepo.InsertExecutionLogs(db, true, localData.Data.ExecutionLogs)
 		if insertErr != nil {
 			return models.Response{
 				Data:  nil,
 				Error: insertErr.Error(),
 			}
 		}
-		deleteErr := shardRepo.DeleteExecutionLogs(db, localData.Data.ExecutionLogs)
+		deleteErr := shardRepo.DeleteExecutionLogs(db, false, localData.Data.ExecutionLogs)
 		if deleteErr != nil {
 			return models.Response{
 				Data:  nil,
@@ -308,14 +308,14 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 	logger.Debug(fmt.Sprintf("received %d local async tasks to commit", len(localData.Data.AsyncTasks)))
 
 	if len(localData.Data.AsyncTasks) > 0 {
-		insertErr := shardRepo.InsertAsyncTasksLogs(db, localData.Data.AsyncTasks, true)
+		insertErr := shardRepo.InsertAsyncTasksLogs(db, true, localData.Data.AsyncTasks)
 		if insertErr != nil {
 			return models.Response{
 				Data:  nil,
 				Error: insertErr.Error(),
 			}
 		}
-		deleteErr := shardRepo.DeleteAsyncTasksLogs(db, localData.Data.AsyncTasks)
+		deleteErr := shardRepo.DeleteAsyncTasksLogs(db, false, localData.Data.AsyncTasks)
 		if deleteErr != nil {
 			return models.Response{
 				Data:  nil,

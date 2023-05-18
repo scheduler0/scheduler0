@@ -31,6 +31,7 @@ import (
 	"scheduler0/service/executor"
 	"scheduler0/service/processor"
 	"scheduler0/service/queue"
+	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"strconv"
 	"sync"
@@ -84,6 +85,7 @@ type Node struct {
 	jobQueuesRepo         repository.JobQueuesRepo
 	jobRepo               repository.Job
 	projectRepo           repository.Project
+	sharedRepo            shared_repo.SharedRepo
 	isExistingNode        bool
 	peerObserverChannels  chan raft.Observation
 	asyncTaskManager      *async_task_manager.AsyncTaskManager
@@ -107,6 +109,7 @@ func NewNode(
 	projectRepo repository.Project,
 	executionsRepo repository.ExecutionsRepo,
 	jobQueueRepo repository.JobQueuesRepo,
+	sharedRepo shared_repo.SharedRepo,
 	asyncTaskManager *async_task_manager.AsyncTaskManager,
 	dispatcher *utils.Dispatcher,
 ) *Node {
@@ -148,6 +151,7 @@ func NewNode(
 		scheduler0Config:      scheduler0Config,
 		scheduler0Secrets:     scheduler0Secrets,
 		scheduler0RaftActions: fsmActions,
+		sharedRepo:            sharedRepo,
 	}
 }
 
@@ -230,7 +234,7 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 func (node *Node) ReturnUncommittedLogs(requestId string) {
 	taskId, addErr := node.asyncTaskManager.AddTasks("", requestId, constants.JobExecutorAsyncTaskService)
 	if addErr != nil {
-		node.logger.Error("failed to add new async task for job_executor", addErr)
+		node.logger.Error("failed to add new async task for job_executor", "error", addErr)
 	}
 	node.logger.Debug("added a new task for job_executor, task id", "task-id", taskId)
 
@@ -248,7 +252,7 @@ func (node *Node) ReturnUncommittedLogs(requestId string) {
 		uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
 		uncommittedTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
 		if err != nil {
-			node.logger.Error("failed to uncommitted async tasks request id", requestId, ", error", err.Message)
+			node.logger.Error("failed get uncommitted async tasks request id", requestId, ", error", err.Message)
 			uErr := node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, "")
 			if uErr != nil {
 				node.logger.Error("failed to update async task status with request id", "request id", requestId, ", error", uErr)
@@ -322,243 +326,6 @@ func (node *Node) bootstrapRaftCluster(r *raft.Raft) {
 	}
 }
 
-func (node *Node) getUncommittedLogs() []models.JobExecutionLog {
-	logger := log.New(os.Stderr, "[get-uncommitted-logs] ", log.LstdFlags)
-
-	executionLogs := []models.JobExecutionLog{}
-
-	configs := node.scheduler0Config.GetConfigurations()
-
-	dir, err := os.Getwd()
-	if err != nil {
-		logger.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
-	}
-
-	mainDbPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
-	dataStore := db.NewSqliteDbConnection(node.logger, mainDbPath)
-	conn := dataStore.OpenConnectionToExistingDB()
-	dbConnection := conn.(*sql.DB)
-
-	rows, err := dbConnection.Query(fmt.Sprintf(
-		"select count(*) from %s",
-		fsm.ExecutionsUnCommittedTableName,
-	), configs.NodeId, false)
-	if err != nil {
-		logger.Fatalln("failed to query for the count of uncommitted logs", err.Error())
-	}
-	var count int64 = 0
-	for rows.Next() {
-		scanErr := rows.Scan(&count)
-		if scanErr != nil {
-			logger.Fatalln("failed to scan count value", scanErr.Error())
-		}
-	}
-	if rows.Err() != nil {
-		logger.Fatalln("rows error", rows.Err())
-	}
-	err = rows.Close()
-	if err != nil {
-		logger.Fatalln("failed to close rows", err)
-	}
-
-	rows, err = dbConnection.Query(fmt.Sprintf(
-		"select max(id) as maxId, min(id) as minId from %s",
-		fsm.ExecutionsUnCommittedTableName,
-	), configs.NodeId, false)
-	if err != nil {
-		logger.Fatalln("failed to query for max and min id in uncommitted logs", err.Error())
-	}
-
-	node.logger.Debug(fmt.Sprintf("found %d uncommitted logs", count))
-
-	if count < 1 {
-		return executionLogs
-	}
-
-	var maxId int64 = 0
-	var minId int64 = 0
-	for rows.Next() {
-		scanErr := rows.Scan(&maxId, &minId)
-		if scanErr != nil {
-			logger.Fatalln("failed to scan max and min id  on uncommitted logs", scanErr.Error())
-		}
-	}
-	if rows.Err() != nil {
-		logger.Fatalln("rows error", rows.Err())
-	}
-	err = rows.Close()
-	if err != nil {
-		logger.Fatalln("failed to close rows", err)
-	}
-
-	node.logger.Debug(fmt.Sprintf("found max id %d and min id %d in uncommitted jobs \n", maxId, minId))
-
-	ids := []int64{}
-	for i := minId; i <= maxId; i++ {
-		ids = append(ids, i)
-	}
-
-	batches := utils.Batch[int64](ids, 7)
-
-	for _, batch := range batches {
-		batchIds := []interface{}{batch[0]}
-		params := "?"
-
-		for _, id := range batch[1:] {
-			batchIds = append(batchIds, id)
-			params += ",?"
-		}
-
-		rows, err = dbConnection.Query(fmt.Sprintf(
-			"select  %s, %s, %s, %s, %s, %s, %s from %s where id in (%s)",
-			fsm.ExecutionsUniqueIdColumn,
-			fsm.ExecutionsStateColumn,
-			fsm.ExecutionsNodeIdColumn,
-			fsm.ExecutionsLastExecutionTimeColumn,
-			fsm.ExecutionsNextExecutionTime,
-			fsm.ExecutionsJobIdColumn,
-			fsm.ExecutionsDateCreatedColumn,
-			fsm.ExecutionsUnCommittedTableName,
-			params,
-		), batchIds...)
-		if err != nil {
-			logger.Fatalln("failed to query for the uncommitted logs", err.Error())
-		}
-		for rows.Next() {
-			var jobExecutionLog models.JobExecutionLog
-			scanErr := rows.Scan(
-				&jobExecutionLog.UniqueId,
-				&jobExecutionLog.State,
-				&jobExecutionLog.NodeId,
-				&jobExecutionLog.LastExecutionDatetime,
-				&jobExecutionLog.NextExecutionDatetime,
-				&jobExecutionLog.JobId,
-				&jobExecutionLog.DataCreated,
-			)
-			if scanErr != nil {
-				logger.Fatalln("failed to scan job execution columns", scanErr.Error())
-			}
-			executionLogs = append(executionLogs, jobExecutionLog)
-		}
-		err = rows.Close()
-		if err != nil {
-			logger.Fatalln("failed to close rows", err)
-		}
-	}
-	err = dbConnection.Close()
-	if err != nil {
-		logger.Fatalln("failed to close database connection", err.Error())
-	}
-
-	return executionLogs
-}
-
-func (node *Node) insertUncommittedLogsIntoRecoverDb(executionLogs []models.JobExecutionLog, dbConnection *sql.DB) {
-	logger := log.New(os.Stderr, "[insert-uncommitted-execution-logs-into-recoverDb] ", log.LstdFlags)
-
-	executionLogsBatches := utils.Batch[models.JobExecutionLog](executionLogs, 9)
-
-	for _, executionLogsBatch := range executionLogsBatches {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s) VALUES ",
-			fsm.ExecutionsUnCommittedTableName,
-			fsm.ExecutionsUniqueIdColumn,
-			fsm.ExecutionsStateColumn,
-			fsm.ExecutionsNodeIdColumn,
-			fsm.ExecutionsLastExecutionTimeColumn,
-			fsm.ExecutionsNextExecutionTime,
-			fsm.ExecutionsJobIdColumn,
-			fsm.ExecutionsDateCreatedColumn,
-			fsm.ExecutionsJobQueueVersion,
-			fsm.ExecutionsVersion,
-		)
-
-		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-		params := []interface{}{
-			executionLogsBatch[0].UniqueId,
-			executionLogsBatch[0].State,
-			executionLogsBatch[0].NodeId,
-			executionLogsBatch[0].LastExecutionDatetime,
-			executionLogsBatch[0].NextExecutionDatetime,
-			executionLogsBatch[0].JobId,
-			executionLogsBatch[0].DataCreated,
-			executionLogsBatch[0].JobQueueVersion,
-			executionLogsBatch[0].ExecutionVersion,
-		}
-
-		for _, executionLog := range executionLogsBatch[1:] {
-			params = append(params,
-				executionLog.UniqueId,
-				executionLog.State,
-				executionLog.NodeId,
-				executionLog.LastExecutionDatetime,
-				executionLog.NextExecutionDatetime,
-				executionLog.JobId,
-				executionLog.DataCreated,
-				executionLog.JobQueueVersion,
-				executionLog.ExecutionVersion,
-			)
-			query += ",(?, ?, ?, ?, ?, ?, ?, ?, ?)"
-		}
-
-		query += ";"
-
-		ctx := context.Background()
-		tx, err := dbConnection.BeginTx(ctx, nil)
-		if err != nil {
-			logger.Fatalln("failed to create transaction for batch insertion", err)
-		}
-		_, err = tx.Exec(query, params...)
-		if err != nil {
-			trxErr := tx.Rollback()
-			if trxErr != nil {
-				logger.Fatalln("failed to rollback update transition", trxErr)
-			}
-			logger.Fatalln("failed to insert un committed executions to recovery db", err)
-		}
-		err = tx.Commit()
-		if err != nil {
-			logger.Fatalln("failed to commit transition", err)
-		}
-	}
-}
-
-func (node *Node) insertUncommittedAsyncTaskLogsIntoRecoveryDb(asyncTasks []models.AsyncTask, dbConnection *sql.DB) {
-	logger := log.New(os.Stderr, "[insert-uncommitted-async-task-logs-into-recoverDb] ", log.LstdFlags)
-	batches := utils.Batch[models.AsyncTask](asyncTasks, 5)
-
-	for _, batch := range batches {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)",
-			fsm.UnCommittedAsyncTableName,
-			fsm.AsyncTasksRequestIdColumn,
-			fsm.AsyncTasksInputColumn,
-			fsm.AsyncTasksOutputColumn,
-			fsm.AsyncTasksStateColumn,
-			fsm.AsyncTasksServiceColumn,
-			fsm.AsyncTasksDateCreatedColumn,
-		)
-		params := []interface{}{
-			batch[0].RequestId,
-			batch[0].Input,
-			batch[0].Output,
-			batch[0].State,
-			batch[0].Service,
-			batch[0].DateCreated,
-		}
-
-		for _, row := range batch[1:] {
-			query += ",(?, ?, ?, ?, ?, ?)"
-			params = append(params, row.RequestId, row.Input, row.Output, row.State, row.Service, row.DateCreated)
-		}
-
-		query += ";"
-
-		_, err := dbConnection.Exec(query, params...)
-		if err != nil {
-			logger.Fatalln("failed to insert uncommitted async tasks", err.Error())
-		}
-	}
-}
-
 func (node *Node) recoverRaftState() {
 	logger := log.New(os.Stderr, "[recover-raft-state] ", log.LstdFlags)
 
@@ -604,7 +371,14 @@ func (node *Node) recoverRaftState() {
 		logger.Fatalln(fmt.Errorf("fatal error getting working dir: %s \n", err))
 	}
 
-	executionLogs := node.getUncommittedLogs()
+	mainDbPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
+	dataStore := db.NewSqliteDbConnection(node.logger, mainDbPath)
+	dataStore.OpenConnectionToExistingDB()
+	executionLogs, err := node.sharedRepo.GetExecutionLogs(dataStore, false)
+	if err != nil {
+		logger.Fatalln(fmt.Errorf("failed to get uncommitted execution logs: %s \n", err))
+	}
+
 	uncommittedTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
 	if err != nil {
 		node.logger.Warn("failed to get uncommitted tasks", "error", err)
@@ -616,7 +390,7 @@ func (node *Node) recoverRaftState() {
 		logger.Fatalln(fmt.Errorf("fatal db file creation error: %s \n", err))
 	}
 
-	dataStore := db.NewSqliteDbConnection(node.logger, recoverDbPath)
+	dataStore = db.NewSqliteDbConnection(node.logger, recoverDbPath)
 	conn := dataStore.OpenConnectionToExistingDB()
 	dbConnection := conn.(*sql.DB)
 	defer dbConnection.Close()
@@ -658,11 +432,17 @@ func (node *Node) recoverRaftState() {
 	}
 
 	if len(executionLogs) > 0 {
-		node.insertUncommittedLogsIntoRecoverDb(executionLogs, dbConnection)
+		err = node.sharedRepo.InsertExecutionLogs(dataStore, false, executionLogs)
+		if err != nil {
+			logger.Fatalf("failed to insert uncommitted execution logs", err)
+		}
 	}
 
 	if len(uncommittedTasks) > 0 {
-		node.insertUncommittedAsyncTaskLogsIntoRecoveryDb(uncommittedTasks, dbConnection)
+		err = node.sharedRepo.InsertAsyncTasksLogs(dataStore, false, uncommittedTasks)
+		if err != nil {
+			logger.Fatalf("failed to insert uncommitted async task logs", err)
+		}
 	}
 
 	lastConfiguration := node.getRaftConfiguration()

@@ -11,15 +11,15 @@ const (
 )
 
 type JobExecutionLog struct {
-	Id                    uint64    `json:"id"`
-	UniqueId              string    `json:"uniqueId"`
-	State                 uint64    `json:"state"`
-	NodeId                uint64    `json:"nodeId"`
+	Id                    uint64    `json:"id" fake:"{number:1,100}"`
+	UniqueId              string    `json:"uniqueId" fake:"{regex:[abcdef]{5}}"`
+	State                 uint64    `json:"state" fake:"{number:1,3}"`
+	NodeId                uint64    `json:"nodeId" fake:"{number:1,100}"`
 	LastExecutionDatetime time.Time `json:"lastExecutionDatetime"`
 	NextExecutionDatetime time.Time `json:"nextExecutionDatetime"`
-	JobId                 uint64    `json:"jobId"`
-	JobQueueVersion       uint64    `json:"job_queue_version"`
-	ExecutionVersion      uint64    `json:"execution_version"`
+	JobId                 uint64    `json:"jobId" fake:"{number:1,100}"`
+	JobQueueVersion       uint64    `json:"job_queue_version" fake:"{number:1,100}"`
+	ExecutionVersion      uint64    `json:"execution_version" fake:"{number:1,100}"`
 	DataCreated           time.Time `json:"dataCreated"`
 }
 

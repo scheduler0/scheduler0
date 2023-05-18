@@ -29,16 +29,6 @@ type credentialRepo struct {
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-const (
-	CredentialTableName = "credentials"
-)
-
-const (
-	ArchivedColumn  = "archived"
-	ApiKeyColumn    = "api_key"
-	ApiSecretColumn = "api_secret"
-)
-
 func NewCredentialRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) Credential {
 	return &credentialRepo{
 		fsmStore:              store,
@@ -53,12 +43,12 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 	now := schedulerTime.GetTime(time.Now())
 
 	credential.DateCreated = now
-	insertBuilder := sq.Insert(CredentialTableName).
+	insertBuilder := sq.Insert(constants.CredentialTableName).
 		Columns(
-			ArchivedColumn,
-			ApiKeyColumn,
-			ApiSecretColumn,
-			JobsDateCreatedColumn,
+			constants.CredentialsArchivedColumn,
+			constants.CredentialsApiKeyColumn,
+			constants.CredentialsApiSecretColumn,
+			constants.CredentialsDateCreatedColumn,
 		).
 		Values(
 			credential.Archived,
@@ -93,13 +83,13 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 
 	sqlr := sq.Expr(fmt.Sprintf(
 		"select %s, %s, %s, %s, %s from %s where %s = ?",
-		JobsIdColumn,
-		ArchivedColumn,
-		ApiKeyColumn,
-		ApiSecretColumn,
-		JobsDateCreatedColumn,
-		CredentialTableName,
-		JobsIdColumn,
+		constants.CredentialsIdColumn,
+		constants.CredentialsArchivedColumn,
+		constants.CredentialsApiKeyColumn,
+		constants.CredentialsApiSecretColumn,
+		constants.CredentialsDateCreatedColumn,
+		constants.CredentialTableName,
+		constants.CredentialsIdColumn,
 	), credential.ID)
 
 	sqlString, args, err := sqlr.ToSql()
@@ -133,14 +123,14 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialM
 	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
-		JobsIdColumn,
-		ArchivedColumn,
-		ApiKeyColumn,
-		ApiSecretColumn,
-		JobsDateCreatedColumn,
+		constants.CredentialsIdColumn,
+		constants.CredentialsArchivedColumn,
+		constants.CredentialsApiKeyColumn,
+		constants.CredentialsApiSecretColumn,
+		constants.CredentialsDateCreatedColumn,
 	).
-		From(CredentialTableName).
-		Where(fmt.Sprintf("%s = ?", ApiKeyColumn), credential.ApiKey).
+		From(constants.CredentialTableName).
+		Where(fmt.Sprintf("%s = ?", constants.CredentialsApiKeyColumn), credential.ApiKey).
 		RunWith(credentialRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
@@ -171,7 +161,8 @@ func (credentialRepo *credentialRepo) Count() (uint64, *utils.GenericError) {
 	credentialRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	countQuery := sq.Select("count(*)").From(CredentialTableName).RunWith(credentialRepo.fsmStore.GetDataStore().GetOpenConnection())
+	countQuery := sq.Select("count(*)").From(constants.CredentialTableName).
+		RunWith(credentialRepo.fsmStore.GetDataStore().GetOpenConnection())
 	rows, err := countQuery.Query()
 	if err != nil {
 		return 0, utils.HTTPGenericError(500, err.Error())
@@ -199,13 +190,13 @@ func (credentialRepo *credentialRepo) List(offset uint64, limit uint64, orderBy 
 	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
-		JobsIdColumn,
-		ArchivedColumn,
-		ApiKeyColumn,
-		ApiSecretColumn,
-		JobsDateCreatedColumn,
+		constants.CredentialsIdColumn,
+		constants.CredentialsArchivedColumn,
+		constants.CredentialsApiKeyColumn,
+		constants.CredentialsApiSecretColumn,
+		constants.CredentialsDateCreatedColumn,
 	).
-		From(CredentialTableName).
+		From(constants.CredentialTableName).
 		Offset(offset).
 		Limit(limit).
 		OrderBy(orderBy).
@@ -239,11 +230,11 @@ func (credentialRepo *credentialRepo) List(offset uint64, limit uint64, orderBy 
 
 // UpdateOneByID updates a single credential
 func (credentialRepo *credentialRepo) UpdateOneByID(credential models.CredentialModel) (uint64, *utils.GenericError) {
-	updateQuery := sq.Update(CredentialTableName).
-		Set(ArchivedColumn, credential.Archived).
-		Set(ApiKeyColumn, credential.ApiKey).
-		Set(ApiSecretColumn, credential.ApiSecret).
-		Where(fmt.Sprintf("%s = ?", JobsIdColumn), credential.ID)
+	updateQuery := sq.Update(constants.CredentialTableName).
+		Set(constants.CredentialsArchivedColumn, credential.Archived).
+		Set(constants.CredentialsApiKeyColumn, credential.ApiKey).
+		Set(constants.CredentialsApiSecretColumn, credential.ApiSecret).
+		Where(fmt.Sprintf("%s = ?", constants.CredentialsIdColumn), credential.ID)
 
 	query, params, err := updateQuery.ToSql()
 	if err != nil {
@@ -265,7 +256,7 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 
 // DeleteOneByID deletes a single credential
 func (credentialRepo *credentialRepo) DeleteOneByID(credential models.CredentialModel) (uint64, *utils.GenericError) {
-	deleteQuery := sq.Delete(CredentialTableName).Where(fmt.Sprintf("%s = ?", JobsIdColumn), credential.ID)
+	deleteQuery := sq.Delete(constants.CredentialTableName).Where(fmt.Sprintf("%s = ?", constants.CredentialsIdColumn), credential.ID)
 
 	query, params, err := deleteQuery.ToSql()
 	if err != nil {

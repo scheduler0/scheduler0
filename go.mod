@@ -26,6 +26,7 @@ require (
 require (
 	github.com/armon/go-metrics v0.3.9 // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
+	github.com/brianvoe/gofakeit/v6 v6.21.0 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.13.0 // indirect
