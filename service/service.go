@@ -79,6 +79,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 		projectRepo,
 		executionsRepo,
 		jobQueueRepo,
+		sharedRep,
 		asyncTaskManager,
 		dispatcher,
 	)

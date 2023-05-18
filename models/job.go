@@ -15,14 +15,14 @@ const (
 
 // JobModel job model
 type JobModel struct {
-	ID                uint64    `json:"id,omitempty"`
-	ProjectID         uint64    `json:"project_id,omitempty"`
+	ID                uint64    `json:"id,omitempty" fake:"{number:1,100}"`
+	ProjectID         uint64    `json:"project_id,omitempty" fake:"{number:1,100}"`
 	Spec              string    `json:"spec,omitempty"`
-	CallbackUrl       string    `json:"callback_url,omitempty"`
+	CallbackUrl       string    `json:"callback_url,omitempty" fake:"{randomstring:[https://hello.com,https://world.com]}"`
 	Data              string    `json:"data,omitempty"`
 	ExecutionType     string    `json:"execution_type,omitempty"`
 	LastExecutionDate time.Time `json:"last_execution_date,omitempty"`
-	Timezone          string    `json:"timezone,omitempty"`
+	Timezone          string    `json:"timezone,omitempty" fake:"{randomstring:[utc, America_NewYork]}"`
 	TimezoneOffset    int64     `json:"timezoneOffset,omitempty"`
 	ExecutionId       string    `json:"execution_id,omitempty"`
 	DateCreated       time.Time `json:"date_created,omitempty"`

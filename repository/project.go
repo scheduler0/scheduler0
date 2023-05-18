@@ -31,14 +31,6 @@ type projectRepo struct {
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-const (
-	ProjectsTableName         = "projects"
-	ProjectsIdColumn          = "id"
-	NameColumn                = "name"
-	DescriptionColumn         = "description"
-	ProjectsDateCreatedColumn = "date_created"
-)
-
 func NewProjectRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore, jobRepo Job) Project {
 	return &projectRepo{
 		fsmStore:              store,
@@ -70,11 +62,11 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (uint64,
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
-	query, params, err := sq.Insert(ProjectsTableName).
+	query, params, err := sq.Insert(constants.ProjectsTableName).
 		Columns(
-			NameColumn,
-			DescriptionColumn,
-			ProjectsDateCreatedColumn,
+			constants.ProjectsNameColumn,
+			constants.ProjectsDescriptionColumn,
+			constants.ProjectsDateCreatedColumn,
 		).
 		Values(
 			project.Name,
@@ -111,13 +103,13 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
-		ProjectsIdColumn,
-		NameColumn,
-		DescriptionColumn,
-		ProjectsDateCreatedColumn,
+		constants.ProjectsIdColumn,
+		constants.ProjectsNameColumn,
+		constants.ProjectsDescriptionColumn,
+		constants.ProjectsDateCreatedColumn,
 	).
-		From(ProjectsTableName).
-		Where(fmt.Sprintf("%s = ?", NameColumn), project.Name).
+		From(constants.ProjectsTableName).
+		Where(fmt.Sprintf("%s = ?", constants.ProjectsNameColumn), project.Name).
 		RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
@@ -154,13 +146,13 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
-		ProjectsIdColumn,
-		NameColumn,
-		DescriptionColumn,
-		ProjectsDateCreatedColumn,
+		constants.ProjectsIdColumn,
+		constants.ProjectsNameColumn,
+		constants.ProjectsDescriptionColumn,
+		constants.ProjectsDateCreatedColumn,
 	).
-		From(ProjectsTableName).
-		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID).
+		From(constants.ProjectsTableName).
+		Where(fmt.Sprintf("%s = ?", constants.ProjectsIdColumn), project.ID).
 		RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
@@ -223,13 +215,13 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []uint64) ([]mo
 	}
 
 	selectBuilder := sq.Select(
-		ProjectsIdColumn,
-		NameColumn,
-		DescriptionColumn,
-		ProjectsDateCreatedColumn,
+		constants.ProjectsIdColumn,
+		constants.ProjectsNameColumn,
+		constants.ProjectsDescriptionColumn,
+		constants.ProjectsDateCreatedColumn,
 	).
-		From(ProjectsTableName).
-		Where(fmt.Sprintf("%s in (%s)", ProjectsIdColumn, idParams), projectIdsArgs...).
+		From(constants.ProjectsTableName).
+		Where(fmt.Sprintf("%s in (%s)", constants.ProjectsIdColumn, idParams), projectIdsArgs...).
 		RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 
 	rows, err := selectBuilder.Query()
@@ -266,12 +258,12 @@ func (projectRepo *projectRepo) List(offset uint64, limit uint64) ([]models.Proj
 	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	selectBuilder := sq.Select(
-		ProjectsIdColumn,
-		NameColumn,
-		DescriptionColumn,
-		ProjectsDateCreatedColumn,
+		constants.ProjectsIdColumn,
+		constants.ProjectsNameColumn,
+		constants.ProjectsDescriptionColumn,
+		constants.ProjectsDateCreatedColumn,
 	).
-		From(ProjectsTableName).
+		From(constants.ProjectsTableName).
 		Offset(offset).
 		Limit(limit).
 		RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
@@ -307,7 +299,7 @@ func (projectRepo *projectRepo) Count() (uint64, *utils.GenericError) {
 	projectRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	countQuery := sq.Select("count(*)").From(ProjectsTableName).RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
+	countQuery := sq.Select("count(*)").From(constants.ProjectsTableName).RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 	rows, err := countQuery.Query()
 	defer rows.Close()
 	if err != nil {
@@ -331,9 +323,9 @@ func (projectRepo *projectRepo) Count() (uint64, *utils.GenericError) {
 
 // UpdateOneByID updates a single project
 func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (uint64, *utils.GenericError) {
-	updateQuery := sq.Update(ProjectsTableName).
-		Set(DescriptionColumn, project.Description).
-		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID)
+	updateQuery := sq.Update(constants.ProjectsTableName).
+		Set(constants.ProjectsDescriptionColumn, project.Description).
+		Where(fmt.Sprintf("%s = ?", constants.ProjectsIdColumn), project.ID)
 
 	query, params, err := updateQuery.ToSql()
 	if err != nil {
@@ -365,8 +357,8 @@ func (projectRepo *projectRepo) DeleteOneByID(project models.ProjectModel) (uint
 	}
 
 	deleteQuery := sq.
-		Delete(ProjectsTableName).
-		Where(fmt.Sprintf("%s = ?", ProjectsIdColumn), project.ID)
+		Delete(constants.ProjectsTableName).
+		Where(fmt.Sprintf("%s = ?", constants.ProjectsIdColumn), project.ID)
 
 	query, params, deleteErr := deleteQuery.ToSql()
 	if deleteErr != nil {

@@ -274,22 +274,22 @@ CREATE TABLE IF NOT EXISTS job_queue_versions
 CREATE TABLE IF NOT EXISTS async_tasks_committed
 (
 	id						INTEGER PRIMARY KEY AUTOINCREMENT,
-	request_id 				TEXT,
+	request_id 				TEXT NOT NULL,
 	input  					TEXT NOT NULL,
 	output  				TEXT,
 	state					INTEGER NOT NULL,
-	service					TEXT,
+	service					TEXT NOT NULL,
     date_created  		 	datetime NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS async_tasks_uncommitted
 (
 	id						INTEGER PRIMARY KEY AUTOINCREMENT,
-	request_id 				TEXT,
+	request_id 				TEXT NOT NULL,
 	input  					TEXT NOT NULL,
 	output  				TEXT,
 	state					INTEGER NOT NULL,
-	service					TEXT,
+	service					TEXT NOT NULL,
     date_created  		 	datetime NOT NULL
 );
 `

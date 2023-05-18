@@ -13,21 +13,6 @@ import (
 	"time"
 )
 
-const (
-	CommittedAsyncTableName   = "async_tasks_committed"
-	UnCommittedAsyncTableName = "async_tasks_uncommitted"
-)
-
-const (
-	IdColumn          = "id"
-	RequestIdColumn   = "request_id"
-	InputColumn       = "input"
-	OutputColumn      = "output"
-	StateColumn       = "state"
-	ServiceColumn     = "service"
-	DateCreatedColumn = "date_created"
-)
-
 type asyncTasksRepo struct {
 	context               context.Context
 	fsmStore              fsm.Scheduler0RaftStore
@@ -63,13 +48,21 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
-	table := CommittedAsyncTableName
+	table := constants.CommittedAsyncTableName
 	if !committed {
-		table = UnCommittedAsyncTableName
+		table = constants.UnCommittedAsyncTableName
 	}
 
 	for _, batch := range batches {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)", table, RequestIdColumn, InputColumn, OutputColumn, StateColumn, ServiceColumn, DateCreatedColumn)
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)",
+			table,
+			constants.AsyncTasksRequestIdColumn,
+			constants.AsyncTasksInputColumn,
+			constants.AsyncTasksOutputColumn,
+			constants.AsyncTasksStateColumn,
+			constants.AsyncTasksServiceColumn,
+			constants.AsyncTasksDateCreatedColumn,
+		)
 		params := []interface{}{
 			batch[0].RequestId,
 			batch[0].Input,
@@ -118,10 +111,18 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
-	table := CommittedAsyncTableName
+	table := constants.CommittedAsyncTableName
 
 	for _, batch := range batches {
-		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)", table, RequestIdColumn, InputColumn, OutputColumn, StateColumn, ServiceColumn, DateCreatedColumn)
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)",
+			table,
+			constants.AsyncTasksRequestIdColumn,
+			constants.AsyncTasksInputColumn,
+			constants.AsyncTasksOutputColumn,
+			constants.AsyncTasksStateColumn,
+			constants.AsyncTasksServiceColumn,
+			constants.AsyncTasksDateCreatedColumn,
+		)
 		params := []interface{}{
 			batch[0].RequestId,
 			batch[0].Input,
@@ -161,10 +162,10 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 }
 
 func (repo *asyncTasksRepo) RaftUpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError {
-	updateQuery := sq.Update(CommittedAsyncTableName).
-		Set(StateColumn, state).
-		Set(OutputColumn, output).
-		Where(fmt.Sprintf("%s = ?", IdColumn), task.Id)
+	updateQuery := sq.Update(constants.CommittedAsyncTableName).
+		Set(constants.AsyncTasksStateColumn, state).
+		Set(constants.AsyncTasksOutputColumn, output).
+		Where(fmt.Sprintf("%s = ?", constants.AsyncTasksIdColumn), task.Id)
 
 	query, params, err := updateQuery.ToSql()
 	if err != nil {
@@ -187,10 +188,10 @@ func (repo *asyncTasksRepo) UpdateTaskState(task models.AsyncTask, state models.
 	repo.fsmStore.GetDataStore().ConnectionLock()
 	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	updateQuery := sq.Update(UnCommittedAsyncTableName).
-		Set(StateColumn, state).
-		Set(OutputColumn, output).
-		Where(fmt.Sprintf("%s = ?", IdColumn), task.Id)
+	updateQuery := sq.Update(constants.UnCommittedAsyncTableName).
+		Set(constants.AsyncTasksStateColumn, state).
+		Set(constants.AsyncTasksOutputColumn, output).
+		Where(fmt.Sprintf("%s = ?", constants.AsyncTasksIdColumn), task.Id)
 
 	query, params, err := updateQuery.ToSql()
 	if err != nil {
@@ -215,23 +216,23 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 
 	query := fmt.Sprintf(
 		"select %s, %s, %s, %s, %s, %s, %s from %s union all select %s, %s, %s, %s, %s, %s, %s from %s where %s = ?",
-		IdColumn,
-		RequestIdColumn,
-		InputColumn,
-		OutputColumn,
-		StateColumn,
-		ServiceColumn,
-		DateCreatedColumn,
-		CommittedAsyncTableName,
-		IdColumn,
-		RequestIdColumn,
-		InputColumn,
-		OutputColumn,
-		StateColumn,
-		ServiceColumn,
-		DateCreatedColumn,
-		UnCommittedAsyncTableName,
-		IdColumn,
+		constants.AsyncTasksIdColumn,
+		constants.AsyncTasksRequestIdColumn,
+		constants.AsyncTasksInputColumn,
+		constants.AsyncTasksOutputColumn,
+		constants.AsyncTasksStateColumn,
+		constants.AsyncTasksServiceColumn,
+		constants.AsyncTasksDateCreatedColumn,
+		constants.CommittedAsyncTableName,
+		constants.AsyncTasksIdColumn,
+		constants.AsyncTasksRequestIdColumn,
+		constants.AsyncTasksInputColumn,
+		constants.AsyncTasksOutputColumn,
+		constants.AsyncTasksStateColumn,
+		constants.AsyncTasksServiceColumn,
+		constants.AsyncTasksDateCreatedColumn,
+		constants.UnCommittedAsyncTableName,
+		constants.AsyncTasksIdColumn,
 	)
 
 	rows, err := repo.fsmStore.GetDataStore().GetOpenConnection().Query(query, taskId)
@@ -261,10 +262,10 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 }
 
 func (repo *asyncTasksRepo) countAsyncTasks(committed bool) uint64 {
-	tableName := UnCommittedAsyncTableName
+	tableName := constants.UnCommittedAsyncTableName
 
 	if committed {
-		tableName = CommittedAsyncTableName
+		tableName = constants.CommittedAsyncTableName
 	}
 
 	selectBuilder := sq.Select("count(*)").
@@ -292,10 +293,10 @@ func (repo *asyncTasksRepo) countAsyncTasks(committed bool) uint64 {
 }
 
 func (repo *asyncTasksRepo) getAsyncTasksMinMaxIds(committed bool) (uint64, uint64) {
-	tableName := UnCommittedAsyncTableName
+	tableName := constants.UnCommittedAsyncTableName
 
 	if committed {
-		tableName = CommittedAsyncTableName
+		tableName = constants.CommittedAsyncTableName
 	}
 
 	selectBuilder := sq.Select("min(id)", "max(id)").
@@ -345,14 +346,14 @@ func (repo *asyncTasksRepo) GetAllUnCommittedTasks() ([]models.AsyncTask, *utils
 
 		query := fmt.Sprintf(
 			"select %s, %s, %s, %s, %s, %s, %s from %s where id in (%s)",
-			IdColumn,
-			RequestIdColumn,
-			InputColumn,
-			OutputColumn,
-			StateColumn,
-			ServiceColumn,
-			DateCreatedColumn,
-			UnCommittedAsyncTableName,
+			constants.AsyncTasksIdColumn,
+			constants.AsyncTasksRequestIdColumn,
+			constants.AsyncTasksInputColumn,
+			constants.AsyncTasksOutputColumn,
+			constants.AsyncTasksStateColumn,
+			constants.AsyncTasksServiceColumn,
+			constants.AsyncTasksDateCreatedColumn,
+			constants.UnCommittedAsyncTableName,
 			paramPlaceholders,
 		)
 		rows, err := repo.fsmStore.GetDataStore().GetOpenConnection().Query(query, params...)

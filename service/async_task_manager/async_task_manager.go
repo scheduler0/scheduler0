@@ -35,7 +35,7 @@ func NewAsyncTaskManager(context context.Context, logger hclog.Logger, fsm fsm.S
 	}
 }
 
-func (m *AsyncTaskManager) AddTasks(input, requestId string, service string) ([]uint64, *utils.GenericError) {
+func (m *AsyncTaskManager) AddTasks(input, requestId, service string) ([]uint64, *utils.GenericError) {
 	tasks := []models.AsyncTask{
 		models.AsyncTask{
 			Input:     input,
@@ -112,7 +112,7 @@ func (m *AsyncTaskManager) UpdateTasksById(taskId uint64, state models.AsyncTask
 func (m *AsyncTaskManager) UpdateTasksByRequestId(requestId string, state models.AsyncTaskState, output string) *utils.GenericError {
 	tId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if !ok {
-		m.logger.Error("could not find task id for request id", requestId)
+		m.logger.Error("could not find task id for request id", "request-id", requestId)
 		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find task id for request id %v", requestId))
 	}
 	t, ok := m.task.Load(tId)

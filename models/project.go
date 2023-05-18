@@ -7,9 +7,9 @@ import (
 
 // ProjectModel project model
 type ProjectModel struct {
-	ID          uint64    `json:"id,omitempty"`
-	Name        string    `json:"name,omitempty"`
-	Description string    `json:"description,omitempty"`
+	ID          uint64    `json:"id,omitempty" fake:"{number:1,100}"`
+	Name        string    `json:"name,omitempty" fake:"{regex:[abcdef]{5}}"`
+	Description string    `json:"description,omitempty" fake:"{regex:[abcdef]{5}}"`
 	DateCreated time.Time `json:"date_created,omitempty"`
 }
 
