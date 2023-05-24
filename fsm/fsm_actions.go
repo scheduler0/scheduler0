@@ -26,7 +26,7 @@ type Scheduler0RaftActions interface {
 		commandType constants.Command,
 		sqlString string,
 		nodeId uint64,
-		params []interface{}) (*models.Response, *utils.GenericError)
+		params []interface{}) (*models.Response, error)
 	ApplyRaftLog(
 		logger hclog.Logger,
 		l *raft.Log,
@@ -52,7 +52,7 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 	commandType constants.Command,
 	sqlString string,
 	nodeId uint64,
-	params []interface{}) (*models.Response, *utils.GenericError) {
+	params []interface{}) (*models.Response, error) {
 	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
@@ -85,7 +85,10 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 	}
 
 	if af.Response() != nil {
-		r := af.Response().(models.Response)
+		r, ok := af.Response().(models.Response)
+		if !ok {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "unknown raft response type")
+		}
 		if r.Error != "" {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
 		}
