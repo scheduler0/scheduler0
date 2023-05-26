@@ -11,7 +11,7 @@ import (
 
 // ProjectService project server the layer on top db repos
 type projectService struct {
-	projectRepo repository.Project
+	projectRepo repository.ProjectRepo
 	logger      hclog.Logger
 }
 
@@ -25,7 +25,7 @@ type Project interface {
 	BatchGetProjects(projectIds []uint64) ([]models.ProjectModel, *utils.GenericError)
 }
 
-func NewProjectService(logger hclog.Logger, projectRepo repository.Project) Project {
+func NewProjectService(logger hclog.Logger, projectRepo repository.ProjectRepo) Project {
 	return &projectService{
 		projectRepo: projectRepo,
 		logger:      logger.Named("project-service"),

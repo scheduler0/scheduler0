@@ -31,42 +31,6 @@ type store struct {
 	raft.BatchingFSM
 }
 
-const (
-	JobQueuesTableName        = "job_queues"
-	JobQueueNodeIdColumn      = "node_id"
-	JobQueueLowerBoundJobId   = "lower_bound_job_id"
-	JobQueueUpperBound        = "upper_bound_job_id"
-	JobQueueDateCreatedColumn = "date_created"
-	JobQueueVersion           = "version"
-
-	ExecutionsUnCommittedTableName    = "job_executions_uncommitted"
-	ExecutionsTableName               = "job_executions_committed"
-	ExecutionsUniqueIdColumn          = "unique_id"
-	ExecutionsStateColumn             = "state"
-	ExecutionsNodeIdColumn            = "node_id"
-	ExecutionsLastExecutionTimeColumn = "last_execution_time"
-	ExecutionsNextExecutionTime       = "next_execution_time"
-	ExecutionsJobIdColumn             = "job_id"
-	ExecutionsDateCreatedColumn       = "date_created"
-	ExecutionsJobQueueVersion         = "job_queue_version"
-	ExecutionsVersion                 = "execution_version"
-)
-
-const (
-	CommittedAsyncTableName   = "async_tasks_committed"
-	UnCommittedAsyncTableName = "async_tasks_uncommitted"
-)
-
-const (
-	AsyncTasksIdColumn          = "id"
-	AsyncTasksRequestIdColumn   = "request_id"
-	AsyncTasksInputColumn       = "input"
-	AsyncTasksOutputColumn      = "output"
-	AsyncTasksStateColumn       = "state"
-	AsyncTasksServiceColumn     = "service"
-	AsyncTasksDateCreatedColumn = "date_created"
-)
-
 //go:generate mockery --name Scheduler0RaftStore --output ../mocks
 type Scheduler0RaftStore interface {
 	GetFSM() raft.FSM

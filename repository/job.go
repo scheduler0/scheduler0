@@ -19,7 +19,8 @@ type jobRepo struct {
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-type Job interface {
+//go:generate mockery --name JobRepo --output ../mocks
+type JobRepo interface {
 	GetOneByID(jobModel *models.JobModel) *utils.GenericError
 	BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *utils.GenericError)
 	BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.JobModel, *utils.GenericError)
@@ -32,7 +33,7 @@ type Job interface {
 	BatchInsertJobs(jobRepos []models.JobModel) ([]uint64, *utils.GenericError)
 }
 
-func NewJobRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) Job {
+func NewJobRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) JobRepo {
 	return &jobRepo{
 		fsmStore:              store,
 		scheduler0RaftActions: scheduler0RaftActions,

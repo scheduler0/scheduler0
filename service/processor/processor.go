@@ -18,9 +18,9 @@ import (
 
 // JobProcessor handles executions of jobs
 type JobProcessor struct {
-	jobRepo             repository.Job
-	projectRepo         repository.Project
-	jobExecutionLogRepo repository.ExecutionsRepo
+	jobRepo             repository.JobRepo
+	projectRepo         repository.ProjectRepo
+	jobExecutionLogRepo repository.JobExecutionsRepo
 	jobQueuesRepo       repository.JobQueuesRepo
 	jobQueue            *queue.JobQueue
 	jobExecutor         *executor.JobExecutor
@@ -31,7 +31,7 @@ type JobProcessor struct {
 }
 
 // NewJobProcessor creates a new job processor
-func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.Job, projectRepo repository.Project, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
+func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.JobRepo, projectRepo repository.ProjectRepo, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
 	return &JobProcessor{
 		jobRepo:             jobRepo,
 		projectRepo:         projectRepo,

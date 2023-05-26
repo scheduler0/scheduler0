@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	boltdb "github.com/hashicorp/raft-boltdb/v2"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"log"
 	"math/rand"
@@ -24,7 +23,6 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/models"
 	"scheduler0/network"
-	"scheduler0/protobuffs"
 	"scheduler0/repository"
 	"scheduler0/secrets"
 	"scheduler0/service/async_task_manager"
@@ -83,8 +81,8 @@ type Node struct {
 	jobQueue              *queue.JobQueue
 	jobExecutor           *executor.JobExecutor
 	jobQueuesRepo         repository.JobQueuesRepo
-	jobRepo               repository.Job
-	projectRepo           repository.Project
+	jobRepo               repository.JobRepo
+	projectRepo           repository.ProjectRepo
 	sharedRepo            shared_repo.SharedRepo
 	isExistingNode        bool
 	peerObserverChannels  chan raft.Observation
@@ -105,9 +103,9 @@ func NewNode(
 	fsmActions fsm.Scheduler0RaftActions,
 	jobExecutor *executor.JobExecutor,
 	jobQueue *queue.JobQueue,
-	jobRepo repository.Job,
-	projectRepo repository.Project,
-	executionsRepo repository.ExecutionsRepo,
+	jobRepo repository.JobRepo,
+	projectRepo repository.ProjectRepo,
+	executionsRepo repository.JobExecutionsRepo,
 	jobQueueRepo repository.JobQueuesRepo,
 	sharedRepo shared_repo.SharedRepo,
 	asyncTaskManager *async_task_manager.AsyncTaskManager,
@@ -201,33 +199,20 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 		"number of execution logs", len(localData.ExecutionLogs),
 	)
 
-	data, err := json.Marshal(params)
-	if err != nil {
-		log.Fatalln("failed to marshal json")
-	}
-
 	nodeId, err := utils.GetNodeIdWithServerAddress(peerAddress)
 	if err != nil {
 		log.Fatalln("failed to get node with id for peer address", peerAddress)
 	}
 
-	commitCommand := &protobuffs.Command{
-		Type:       protobuffs.Command_Type(constants.CommandTypeLocalData),
-		Sql:        peerAddress,
-		Data:       data,
-		TargetNode: uint64(nodeId),
-	}
-
-	commitCommandData, err := proto.Marshal(commitCommand)
-	if err != nil {
-		log.Fatalln("failed to marshal json")
-	}
-
-	configs := node.scheduler0Config.GetConfigurations()
-
-	af := node.FsmStore.GetRaft().Apply(commitCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
-	if af.Error() != nil {
-		node.logger.Error("failed to apply local data into raft store", "error", af.Error())
+	_, writeError := node.scheduler0RaftActions.WriteCommandToRaftLog(
+		node.FsmStore.GetRaft(),
+		constants.CommandTypeLocalData,
+		"",
+		uint64(nodeId),
+		[]interface{}{params},
+	)
+	if writeError != nil {
+		node.logger.Error("failed to apply local data into raft store", "error", writeError)
 	}
 }
 

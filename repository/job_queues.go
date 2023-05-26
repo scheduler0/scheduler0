@@ -30,6 +30,7 @@ type jobQueues struct {
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
+//go:generate mockery --name JobQueuesRepo --output ../mocks
 type JobQueuesRepo interface {
 	GetLastJobQueueLogForNode(nodeId uint64, version uint64) []models.JobQueueLog
 	GetLastVersion() uint64

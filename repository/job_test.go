@@ -1,6 +1,6 @@
 package repository_test
 
-//var _ = Describe("Job Repo", func() {
+//var _ = Describe("JobRepo Repo", func() {
 //	pool := db.GetTestDBConnection()
 //	fsmStore := store2.Store{
 //		dataStore: pool,
@@ -43,7 +43,7 @@ package repository_test
 //			}
 //
 //			if id != 0 && id != -1 {
-//				utils.Error(fmt.Sprintf("[ERROR] Project uuid is invalid %v", id))
+//				utils.Error(fmt.Sprintf("[ERROR] ProjectRepo uuid is invalid %v", id))
 //			}
 //		})
 //	})
@@ -74,7 +74,7 @@ package repository_test
 //
 //			_, updateOneError := jobRepo.UpdateOneByID(jobGetManager)
 //			if updateOneError == nil {
-//				utils.Error("[ERROR] Job cron spec should not be replaced")
+//				utils.Error("[ERROR] JobRepo cron spec should not be replaced")
 //			}
 //		})
 //	})
@@ -194,5 +194,5 @@ package repository_test
 //func TestJob_Manager(t *testing.T) {
 //	utils.SetTestScheduler0Configurations()
 //	RegisterFailHandler(Fail)
-//	RunSpecs(t, "Job Repo Suite")
+//	RunSpecs(t, "JobRepo Repo Suite")
 //}

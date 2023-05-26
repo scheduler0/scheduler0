@@ -2,23 +2,18 @@ package queue
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
-	"google.golang.org/protobuf/proto"
 	"log"
 	"math"
 	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/protobuffs"
 	"scheduler0/repository"
-	"scheduler0/service/executor"
 	"scheduler0/utils"
 	"sync"
-	"time"
 )
 
 type JobQueueCommand struct {
@@ -27,7 +22,6 @@ type JobQueueCommand struct {
 }
 
 type JobQueue struct {
-	Executor              *executor.JobExecutor
 	SingleNodeMode        bool
 	jobsQueueRepo         repository.JobQueuesRepo
 	fsm                   fsm.Scheduler0RaftStore
@@ -43,9 +37,8 @@ type JobQueue struct {
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, scheduler0RaftActions fsm.Scheduler0RaftActions, fsm fsm.Scheduler0RaftStore, Executor *executor.JobExecutor, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
+func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, scheduler0RaftActions fsm.Scheduler0RaftActions, fsm fsm.Scheduler0RaftStore, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
 	return &JobQueue{
-		Executor:              Executor,
 		jobsQueueRepo:         jobsQueueRepo,
 		context:               ctx,
 		fsm:                   fsm,
@@ -61,7 +54,7 @@ func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config conf
 
 func (jobQ *JobQueue) AddServers(nodeIds []uint64) {
 	for _, nodeId := range nodeIds {
-		jobQ.allocations[nodeId] = nodeId
+		jobQ.allocations[nodeId] = 0
 	}
 }
 
@@ -133,8 +126,6 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 	}
 
 	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
-	configs := jobQ.schedulerOConfig.GetConfigurations()
-
 	j := 0
 	for j < len(serverAllocations) {
 		server := jobQ.getServerToQueue()
@@ -145,29 +136,19 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 			lastVersion,
 		}
 
-		d, err := json.Marshal(batchRange)
+		_, err := jobQ.scheduler0RaftActions.WriteCommandToRaftLog(
+			jobQ.fsm.GetRaft(),
+			constants.CommandTypeJobQueue,
+			"",
+			server,
+			batchRange,
+		)
+
 		if err != nil {
-			log.Fatalln(err.Error())
-		}
-
-		createCommand := &protobuffs.Command{
-			Type:       protobuffs.Command_Type(constants.CommandTypeJobQueue),
-			Sql:        "",
-			Data:       d,
-			TargetNode: server,
-		}
-
-		createCommandData, err := proto.Marshal(createCommand)
-		if err != nil {
-			log.Fatalln(err.Error())
-		}
-
-		af := jobQ.fsm.GetRaft().Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
-		if af.Error() != nil {
-			if af.Error() == raft.ErrNotLeader {
+			if err == raft.ErrNotLeader {
 				log.Fatalln("raft leader not found")
 			}
-			log.Fatalln(af.Error().Error())
+			log.Fatalln("failed to queue jobs: raft apply error: ", err)
 		}
 		jobQ.allocations[server] += uint64(len(batchRange))
 		j++

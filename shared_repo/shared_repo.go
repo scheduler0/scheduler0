@@ -365,12 +365,12 @@ func (repo *sharedRepo) DeleteAsyncTasksLogs(db db.DataStore, committed bool, as
 	for _, batch := range batches {
 		paramPlaceholder := "?"
 		params := []interface{}{
-			batch[0].Id,
+			batch[0].RequestId,
 		}
 
 		for _, asyncTask := range batch[1:] {
 			paramPlaceholder += ",?"
-			params = append(params, asyncTask.Id)
+			params = append(params, asyncTask.RequestId)
 		}
 
 		ctx := context.Background()
@@ -379,7 +379,7 @@ func (repo *sharedRepo) DeleteAsyncTasksLogs(db db.DataStore, committed bool, as
 			repo.logger.Error("failed to create transaction for delete", "error", err.Error())
 			return err
 		}
-		query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", table, constants.AsyncTasksIdColumn, paramPlaceholder)
+		query := fmt.Sprintf("DELETE FROM %s WHERE %s IN (%s)", table, constants.AsyncTasksRequestIdColumn, paramPlaceholder)
 		_, err = tx.Exec(query, params...)
 		if err != nil {
 			trxErr := tx.Rollback()

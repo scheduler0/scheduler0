@@ -20,6 +20,7 @@ type asyncTasksRepo struct {
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
+//go:generate mockery --name AsyncTasksRepo --output ../mocks
 type AsyncTasksRepo interface {
 	BatchInsert(tasks []models.AsyncTask, committed bool) ([]uint64, *utils.GenericError)
 	RaftBatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError)
