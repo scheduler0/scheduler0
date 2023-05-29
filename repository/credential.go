@@ -12,7 +12,8 @@ import (
 	"time"
 )
 
-type Credential interface {
+//go:generate mockery --name CredentialRepo --output ../mocks
+type CredentialRepo interface {
 	CreateOne(credential models.CredentialModel) (uint64, *utils.GenericError)
 	GetOneID(credential *models.CredentialModel) error
 	GetByAPIKey(credential *models.CredentialModel) *utils.GenericError
@@ -22,14 +23,14 @@ type Credential interface {
 	DeleteOneByID(credential models.CredentialModel) (uint64, *utils.GenericError)
 }
 
-// CredentialRepo Credential
+// CredentialRepo CredentialRepo
 type credentialRepo struct {
 	fsmStore              fsm.Scheduler0RaftStore
 	logger                hclog.Logger
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-func NewCredentialRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) Credential {
+func NewCredentialRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) CredentialRepo {
 	return &credentialRepo{
 		fsmStore:              store,
 		logger:                logger.Named("credential-repo"),

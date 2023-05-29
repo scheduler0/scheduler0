@@ -3,17 +3,15 @@ package executor
 import (
 	"context"
 	"crypto/sha1"
-	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"github.com/robfig/cron"
-	"google.golang.org/protobuf/proto"
 	"math"
 	"scheduler0/config"
 	"scheduler0/constants"
+	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/protobuffs"
 	"scheduler0/repository"
 	"scheduler0/service/executor/executors"
 	"scheduler0/utils"
@@ -26,8 +24,8 @@ type JobExecutor struct {
 	SingleNodeMode        bool
 	context               context.Context
 	pendingJobInvocations []models.JobModel
-	jobRepo               repository.Job
-	jobExecutionsRepo     repository.ExecutionsRepo
+	jobRepo               repository.JobRepo
+	jobExecutionsRepo     repository.JobExecutionsRepo
 	jobQueuesRepo         repository.JobQueuesRepo
 	logger                hclog.Logger
 	cancelReq             context.CancelFunc
@@ -38,9 +36,10 @@ type JobExecutor struct {
 	dispatcher            *utils.Dispatcher
 	scheduledJobs         sync.Map
 	schedulerOConfig      config.Scheduler0Config
+	scheduler0Actions     fsm.Scheduler0RaftActions
 }
 
-func NewJobExecutor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepository repository.Job, executionsRepo repository.ExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo, dispatcher *utils.Dispatcher) *JobExecutor {
+func NewJobExecutor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, scheduler0Actions fsm.Scheduler0RaftActions, jobRepository repository.JobRepo, executionsRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo, dispatcher *utils.Dispatcher) *JobExecutor {
 	reCtx, cancel := context.WithCancel(ctx)
 	return &JobExecutor{
 		pendingJobInvocations: []models.JobModel{},
@@ -56,6 +55,7 @@ func NewJobExecutor(ctx context.Context, logger hclog.Logger, scheduler0Config c
 		debounce:              utils.NewDebounce(),
 		dispatcher:            dispatcher,
 		schedulerOConfig:      scheduler0Config,
+		scheduler0Actions:     scheduler0Actions,
 	}
 }
 
@@ -596,29 +596,21 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.JobMode
 		})
 	}
 
-	peerAddress := utils.GetServerHTTPAddress()
-	params := models.LocalData{
-		ExecutionLogs: executionLogs,
+	params := []interface{}{
+		models.LocalData{
+			ExecutionLogs: executionLogs,
+		},
 	}
 
-	data, err := json.Marshal(params)
+	_, err := jobExecutor.scheduler0Actions.WriteCommandToRaftLog(
+		jobExecutor.Raft,
+		constants.CommandTypeLocalData,
+		"",
+		configs.NodeId,
+		params,
+	)
 	if err != nil {
-		jobExecutor.logger.Error("failed to marshal json")
+		jobExecutor.logger.Error("failed to log execution state in raft", "error", err)
 		return
 	}
-
-	createCommand := &protobuffs.Command{
-		Type:       protobuffs.Command_Type(constants.CommandTypeLocalData),
-		Sql:        peerAddress,
-		Data:       data,
-		TargetNode: configs.NodeId,
-	}
-
-	createCommandData, err := proto.Marshal(createCommand)
-	if err != nil {
-		jobExecutor.logger.Error("failed to marshal json")
-		return
-	}
-
-	_ = jobExecutor.Raft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
 }

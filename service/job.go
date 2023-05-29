@@ -17,8 +17,8 @@ import (
 )
 
 type jobService struct {
-	jobRepo          repository.Job
-	projectRepo      repository.Project
+	jobRepo          repository.JobRepo
+	projectRepo      repository.ProjectRepo
 	Queue            *queue.JobQueue
 	Ctx              context.Context
 	logger           hclog.Logger
@@ -38,9 +38,9 @@ type Job interface {
 func NewJobService(
 	context context.Context,
 	logger hclog.Logger,
-	jobRepo repository.Job,
+	jobRepo repository.JobRepo,
 	queue *queue.JobQueue,
-	projectRepo repository.Project,
+	projectRepo repository.ProjectRepo,
 	dispatcher *utils.Dispatcher,
 	asyncTaskManager *async_task_manager.AsyncTaskManager,
 ) Job {

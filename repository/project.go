@@ -13,7 +13,8 @@ import (
 	"time"
 )
 
-type Project interface {
+//go:generate mockery --name ProjectRepo --output ../mocks
+type ProjectRepo interface {
 	CreateOne(project *models.ProjectModel) (uint64, *utils.GenericError)
 	GetOneByName(project *models.ProjectModel) *utils.GenericError
 	GetOneByID(project *models.ProjectModel) *utils.GenericError
@@ -26,12 +27,12 @@ type Project interface {
 
 type projectRepo struct {
 	fsmStore              fsm.Scheduler0RaftStore
-	jobRepo               Job
+	jobRepo               JobRepo
 	logger                hclog.Logger
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-func NewProjectRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore, jobRepo Job) Project {
+func NewProjectRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore, jobRepo JobRepo) ProjectRepo {
 	return &projectRepo{
 		fsmStore:              store,
 		scheduler0RaftActions: scheduler0RaftActions,

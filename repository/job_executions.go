@@ -31,7 +31,8 @@ const (
 	ExecutionsVersion                 = "execution_version"
 )
 
-type ExecutionsRepo interface {
+//go:generate mockery --name JobExecutionsRepo --output ../mocks
+type JobExecutionsRepo interface {
 	BatchInsert(jobs []models.JobModel, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, executionVersions map[uint64]uint64)
 	CountLastFailedExecutionLogs(jobId uint64, nodeId uint64, executionVersion uint64) uint64
 	CountExecutionLogs(committed bool) uint64

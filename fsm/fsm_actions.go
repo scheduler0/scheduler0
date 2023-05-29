@@ -85,7 +85,10 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 	}
 
 	if af.Response() != nil {
-		r := af.Response().(models.Response)
+		r, ok := af.Response().(models.Response)
+		if !ok {
+			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "unknown raft response type")
+		}
 		if r.Error != "" {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, r.Error)
 		}
@@ -245,19 +248,22 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.Data
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
-	insertBuilder := sq.Insert(JobQueuesTableName).Columns(
-		JobQueueNodeIdColumn,
-		JobQueueLowerBoundJobId,
-		JobQueueUpperBound,
-		JobQueueVersion,
-		JobQueueDateCreatedColumn,
-	).Values(
-		command.TargetNode,
-		lowerBound,
-		upperBound,
-		lastVersion,
-		now,
-	).RunWith(db.GetOpenConnection())
+	insertBuilder := sq.Insert(constants.JobQueuesTableName).
+		Columns(
+			constants.JobQueueNodeIdColumn,
+			constants.JobQueueLowerBoundJobId,
+			constants.JobQueueUpperBound,
+			constants.JobQueueVersion,
+			constants.JobQueueDateCreatedColumn,
+		).
+		Values(
+			command.TargetNode,
+			lowerBound,
+			upperBound,
+			lastVersion,
+			now,
+		).
+		RunWith(db.GetOpenConnection())
 
 	_, err = insertBuilder.Exec()
 	if err != nil {
@@ -277,15 +283,16 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.Data
 }
 
 func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.DataStore, shardRepo shared_repo.SharedRepo) models.Response {
-	localData := models.CommitLocalData{}
-	err := json.Unmarshal(command.Data, &localData)
+	var payload []models.CommitLocalData
+	err := json.Unmarshal(command.Data, &payload)
 	if err != nil {
-		logger.Error("failed to unmarshal local data to commit", err.Error())
+		logger.Error("failed to unmarshal local data to commit", "error", err.Error())
 		return models.Response{
 			Data:  nil,
 			Error: err.Error(),
 		}
 	}
+	localData := payload[0]
 	logger.Debug(fmt.Sprintf("received %d local execution logs to commit", len(localData.Data.ExecutionLogs)))
 
 	if len(localData.Data.ExecutionLogs) > 0 {

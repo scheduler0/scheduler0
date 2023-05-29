@@ -1,6 +1,6 @@
 package repository_test
 
-//var _ = Describe("Project Repo", func() {
+//var _ = Describe("ProjectRepo Repo", func() {
 //	pool := db.GetTestDBConnection()
 //	fsmStore := store2.Store{
 //		dataStore: pool,
@@ -238,5 +238,5 @@ package repository_test
 //func TestProject_Manager(t *testing.T) {
 //	utils.SetTestScheduler0Configurations()
 //	RegisterFailHandler(Fail)
-//	RunSpecs(t, "Project Repo Suite")
+//	RunSpecs(t, "ProjectRepo Repo Suite")
 //}

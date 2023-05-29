@@ -63,6 +63,7 @@ const (
 
 const (
 	JobQueuesTableName        = "job_queues"
+	JobQueueIdColumn          = "id"
 	JobQueueNodeIdColumn      = "node_id"
 	JobQueueLowerBoundJobId   = "lower_bound_job_id"
 	JobQueueUpperBound        = "upper_bound_job_id"

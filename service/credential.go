@@ -21,7 +21,7 @@ type Credential interface {
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 }
 
-func NewCredentialService(Ctx context.Context, logger hclog.Logger, scheduler0Secret secrets.Scheduler0Secrets, repo repository.Credential, dispatcher *utils.Dispatcher) Credential {
+func NewCredentialService(Ctx context.Context, logger hclog.Logger, scheduler0Secret secrets.Scheduler0Secrets, repo repository.CredentialRepo, dispatcher *utils.Dispatcher) Credential {
 	return &credentialService{
 		CredentialRepo:   repo,
 		Ctx:              Ctx,
@@ -32,7 +32,7 @@ func NewCredentialService(Ctx context.Context, logger hclog.Logger, scheduler0Se
 }
 
 type credentialService struct {
-	CredentialRepo   repository.Credential
+	CredentialRepo   repository.CredentialRepo
 	Ctx              context.Context
 	logger           hclog.Logger
 	dispatcher       *utils.Dispatcher
