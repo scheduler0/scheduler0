@@ -86,6 +86,21 @@ func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
 	jobQ.maxId = math.MinInt16
 }
 
+func (jobQ *JobQueue) IncrementQueueVersion() {
+	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
+	_, err := jobQ.scheduler0RaftActions.WriteCommandToRaftLog(
+		jobQ.fsm.GetRaft(),
+		constants.CommandTypeDbExecute,
+		fmt.Sprintf("insert into %s (%s, %s) values (?, ?)",
+			repository.JobQueuesVersionTableName,
+			repository.JobQueueVersion,
+			repository.JobNumberOfActiveNodesVersion,
+		), 0, []interface{}{lastVersion + 1, len(jobQ.allocations)})
+	if err != nil {
+		log.Fatalln("failed to increment job queue version", err)
+	}
+}
+
 func (jobQ *JobQueue) queue(minId, maxId int64) {
 	f := jobQ.fsm.GetRaft().VerifyLeader()
 	if f.Error() != nil {
@@ -93,46 +108,16 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 		return
 	}
 
-	numberOfServers := len(jobQ.allocations) - 1
-	var serverAllocations [][]uint64
-
-	if numberOfServers > 0 {
-		currentServer := 0
-		cycle := int64(math.Ceil(float64((maxId - minId) / int64(numberOfServers))))
-		epoc := minId
-		for epoc <= maxId {
-			if len(serverAllocations) <= currentServer {
-				serverAllocations = append(serverAllocations, []uint64{})
-			}
-
-			lowerBound := epoc
-			upperBound := epoc + cycle
-			serverAllocations[currentServer] = append(serverAllocations[currentServer], uint64(lowerBound))
-			serverAllocations[currentServer] = append(serverAllocations[currentServer], uint64(upperBound))
-
-			epoc = upperBound + 1
-
-			if maxId-upperBound < cycle {
-				upperBound = maxId
-			}
-
-			currentServer += 1
-			if currentServer == numberOfServers {
-				currentServer = 0
-			}
-		}
-	} else {
-		serverAllocations = append(serverAllocations, []uint64{uint64(minId), uint64(maxId)})
-	}
-
+	serverAllocations := jobQ.assignJobRangeToServers(minId, maxId)
 	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
 	j := 0
+
 	for j < len(serverAllocations) {
-		server := jobQ.getServerToQueue()
+		server := jobQ.getNextServerToQueue()
 
 		batchRange := []interface{}{
 			serverAllocations[j][0],
-			serverAllocations[j][len(serverAllocations[j])-1],
+			serverAllocations[j][1],
 			lastVersion,
 		}
 
@@ -150,12 +135,12 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 			}
 			log.Fatalln("failed to queue jobs: raft apply error: ", err)
 		}
-		jobQ.allocations[server] += uint64(len(batchRange))
+		jobQ.allocations[server] += serverAllocations[j][1] - serverAllocations[j][0]
 		j++
 	}
 }
 
-func (jobQ *JobQueue) getServerToQueue() uint64 {
+func (jobQ *JobQueue) getNextServerToQueue() uint64 {
 	configs := jobQ.schedulerOConfig.GetConfigurations()
 
 	var minAllocation uint64 = math.MaxInt64
@@ -175,17 +160,48 @@ func (jobQ *JobQueue) getServerToQueue() uint64 {
 	return minServer
 }
 
-func (jobQ *JobQueue) IncrementQueueVersion() {
-	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
-	_, err := jobQ.scheduler0RaftActions.WriteCommandToRaftLog(
-		jobQ.fsm.GetRaft(),
-		constants.CommandTypeDbExecute,
-		fmt.Sprintf("insert into %s (%s, %s) values (?, ?)",
-			repository.JobQueuesVersionTableName,
-			repository.JobQueueVersion,
-			repository.JobNumberOfActiveNodesVersion,
-		), 0, []interface{}{lastVersion + 1, len(jobQ.allocations)})
-	if err != nil {
-		log.Fatalln("failed to increment job queue version", err)
+func (jobQ *JobQueue) assignJobRangeToServers(minId, maxId int64) [][]uint64 {
+	numberOfServers := len(jobQ.allocations) - 1
+	var serverAllocations [][]uint64
+
+	// Single server case
+	if numberOfServers == 0 {
+		serverAllocations = append(serverAllocations, []uint64{uint64(minId), uint64(maxId)})
 	}
+
+	if numberOfServers > 0 {
+		currentServer := 0
+
+		cycle := int64(math.Ceil(float64((maxId - minId) / int64(numberOfServers))))
+		epoc := minId
+
+		for epoc <= maxId {
+			if len(serverAllocations) <= currentServer {
+				serverAllocations = append(serverAllocations, []uint64{})
+			}
+
+			if epoc == maxId {
+				break
+			}
+
+			lowerBound := epoc
+			upperBound := int64(math.Min(float64(epoc+cycle), float64(maxId)))
+
+			serverAllocations[currentServer] = append(serverAllocations[currentServer], uint64(lowerBound))
+			serverAllocations[currentServer] = append(serverAllocations[currentServer], uint64(upperBound))
+
+			epoc = upperBound + 1
+
+			if maxId-upperBound < cycle {
+				upperBound = maxId
+			}
+
+			currentServer += 1
+			if currentServer == numberOfServers {
+				currentServer = 0
+			}
+		}
+	}
+
+	return serverAllocations
 }
