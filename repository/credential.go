@@ -14,13 +14,13 @@ import (
 
 //go:generate mockery --name CredentialRepo --output ../mocks
 type CredentialRepo interface {
-	CreateOne(credential models.CredentialModel) (uint64, *utils.GenericError)
-	GetOneID(credential *models.CredentialModel) error
-	GetByAPIKey(credential *models.CredentialModel) *utils.GenericError
+	CreateOne(credential models.Credential) (uint64, *utils.GenericError)
+	GetOneID(credential *models.Credential) error
+	GetByAPIKey(credential *models.Credential) *utils.GenericError
 	Count() (uint64, *utils.GenericError)
-	List(offset uint64, limit uint64, orderBy string) ([]models.CredentialModel, *utils.GenericError)
-	UpdateOneByID(credential models.CredentialModel) (uint64, *utils.GenericError)
-	DeleteOneByID(credential models.CredentialModel) (uint64, *utils.GenericError)
+	List(offset uint64, limit uint64, orderBy string) ([]models.Credential, *utils.GenericError)
+	UpdateOneByID(credential models.Credential) (uint64, *utils.GenericError)
+	DeleteOneByID(credential models.Credential) (uint64, *utils.GenericError)
 }
 
 // CredentialRepo CredentialRepo
@@ -39,7 +39,7 @@ func NewCredentialRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0
 }
 
 // CreateOne creates a single credential and returns the uuid
-func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialModel) (uint64, *utils.GenericError) {
+func (credentialRepo *credentialRepo) CreateOne(credential models.Credential) (uint64, *utils.GenericError) {
 	schedulerTime := utils.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
@@ -78,7 +78,7 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.CredentialMode
 }
 
 // GetOneID returns a single credential
-func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialModel) error {
+func (credentialRepo *credentialRepo) GetOneID(credential *models.Credential) error {
 	credentialRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -119,7 +119,7 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.CredentialMode
 }
 
 // GetByAPIKey returns a credential with the matching api key
-func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.CredentialModel) *utils.GenericError {
+func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.Credential) *utils.GenericError {
 	credentialRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -186,7 +186,7 @@ func (credentialRepo *credentialRepo) Count() (uint64, *utils.GenericError) {
 }
 
 // List returns a paginated set of credentials
-func (credentialRepo *credentialRepo) List(offset uint64, limit uint64, orderBy string) ([]models.CredentialModel, *utils.GenericError) {
+func (credentialRepo *credentialRepo) List(offset uint64, limit uint64, orderBy string) ([]models.Credential, *utils.GenericError) {
 	credentialRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer credentialRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -207,10 +207,10 @@ func (credentialRepo *credentialRepo) List(offset uint64, limit uint64, orderBy 
 	if err != nil {
 		return nil, utils.HTTPGenericError(404, err.Error())
 	}
-	credentials := []models.CredentialModel{}
+	credentials := []models.Credential{}
 	defer rows.Close()
 	for rows.Next() {
-		credential := models.CredentialModel{}
+		credential := models.Credential{}
 		err = rows.Scan(
 			&credential.ID,
 			&credential.Archived,
@@ -230,7 +230,7 @@ func (credentialRepo *credentialRepo) List(offset uint64, limit uint64, orderBy 
 }
 
 // UpdateOneByID updates a single credential
-func (credentialRepo *credentialRepo) UpdateOneByID(credential models.CredentialModel) (uint64, *utils.GenericError) {
+func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential) (uint64, *utils.GenericError) {
 	updateQuery := sq.Update(constants.CredentialTableName).
 		Set(constants.CredentialsArchivedColumn, credential.Archived).
 		Set(constants.CredentialsApiKeyColumn, credential.ApiKey).
@@ -256,7 +256,7 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 }
 
 // DeleteOneByID deletes a single credential
-func (credentialRepo *credentialRepo) DeleteOneByID(credential models.CredentialModel) (uint64, *utils.GenericError) {
+func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential) (uint64, *utils.GenericError) {
 	deleteQuery := sq.Delete(constants.CredentialTableName).Where(fmt.Sprintf("%s = ?", constants.CredentialsIdColumn), credential.ID)
 
 	query, params, err := deleteQuery.ToSql()

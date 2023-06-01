@@ -44,7 +44,7 @@ func (credentialController *credentialController) CreateOneCredential(w http.Res
 		return
 	}
 
-	credentialBody := models.CredentialModel{}
+	credentialBody := models.Credential{}
 
 	err = credentialBody.FromJSON(body)
 	if err != nil {
@@ -100,7 +100,7 @@ func (credentialController *credentialController) UpdateOneCredential(w http.Res
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
 		return
 	}
-	credentialBody := models.CredentialModel{
+	credentialBody := models.Credential{
 		ID: uint64(credentialId),
 	}
 

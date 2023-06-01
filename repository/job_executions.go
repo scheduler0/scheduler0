@@ -33,7 +33,7 @@ const (
 
 //go:generate mockery --name JobExecutionsRepo --output ../mocks
 type JobExecutionsRepo interface {
-	BatchInsert(jobs []models.JobModel, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, executionVersions map[uint64]uint64)
+	BatchInsert(jobs []models.Job, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, executionVersions map[uint64]uint64)
 	CountLastFailedExecutionLogs(jobId uint64, nodeId uint64, executionVersion uint64) uint64
 	CountExecutionLogs(committed bool) uint64
 	GetUncommittedExecutionsLogForNode(nodeId uint64) []models.JobExecutionLog
@@ -54,7 +54,7 @@ func NewExecutionsRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0
 	}
 }
 
-func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, jobExecutionVersions map[uint64]uint64) {
+func (repo *executionsRepo) BatchInsert(jobs []models.Job, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, jobExecutionVersions map[uint64]uint64) {
 	repo.fsmStore.GetDataStore().ConnectionLock()
 	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -62,7 +62,7 @@ func (repo *executionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, s
 		return
 	}
 
-	batches := utils.Batch[models.JobModel](jobs, 9)
+	batches := utils.Batch[models.Job](jobs, 9)
 	var returningIds []uint64
 
 	for _, batch := range batches {

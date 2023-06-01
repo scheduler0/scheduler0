@@ -16,13 +16,13 @@ type projectService struct {
 }
 
 type Project interface {
-	CreateOne(project models.ProjectModel) (*models.ProjectModel, *utils.GenericError)
-	UpdateOneByID(project *models.ProjectModel) *utils.GenericError
-	GetOneByID(project *models.ProjectModel) *utils.GenericError
-	GetOneByName(project *models.ProjectModel) *utils.GenericError
-	DeleteOneByID(project models.ProjectModel) *utils.GenericError
+	CreateOne(project models.Project) (*models.Project, *utils.GenericError)
+	UpdateOneByID(project *models.Project) *utils.GenericError
+	GetOneByID(project *models.Project) *utils.GenericError
+	GetOneByName(project *models.Project) *utils.GenericError
+	DeleteOneByID(project models.Project) *utils.GenericError
 	List(offset uint64, limit uint64) (*models.PaginatedProject, *utils.GenericError)
-	BatchGetProjects(projectIds []uint64) ([]models.ProjectModel, *utils.GenericError)
+	BatchGetProjects(projectIds []uint64) ([]models.Project, *utils.GenericError)
 }
 
 func NewProjectService(logger hclog.Logger, projectRepo repository.ProjectRepo) Project {
@@ -33,7 +33,7 @@ func NewProjectService(logger hclog.Logger, projectRepo repository.ProjectRepo) 
 }
 
 // CreateOne creates a new project
-func (projectService *projectService) CreateOne(project models.ProjectModel) (*models.ProjectModel, *utils.GenericError) {
+func (projectService *projectService) CreateOne(project models.Project) (*models.Project, *utils.GenericError) {
 	_, err := projectService.projectRepo.CreateOne(&project)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func (projectService *projectService) CreateOne(project models.ProjectModel) (*m
 	return &project, nil
 }
 
-func (projectService *projectService) UpdateOneByID(project *models.ProjectModel) *utils.GenericError {
+func (projectService *projectService) UpdateOneByID(project *models.Project) *utils.GenericError {
 	if len(project.Name) < 1 {
 		return utils.HTTPGenericError(http.StatusBadRequest, fmt.Sprintf("project name is required"))
 	}
@@ -63,7 +63,7 @@ func (projectService *projectService) UpdateOneByID(project *models.ProjectModel
 	return nil
 }
 
-func (projectService *projectService) GetOneByID(project *models.ProjectModel) *utils.GenericError {
+func (projectService *projectService) GetOneByID(project *models.Project) *utils.GenericError {
 	err := projectService.projectRepo.GetOneByID(project)
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func (projectService *projectService) GetOneByID(project *models.ProjectModel) *
 }
 
 // GetOneByName returns a project that matches the name
-func (projectService *projectService) GetOneByName(project *models.ProjectModel) *utils.GenericError {
+func (projectService *projectService) GetOneByName(project *models.Project) *utils.GenericError {
 	err := projectService.projectRepo.GetOneByName(project)
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func (projectService *projectService) GetOneByName(project *models.ProjectModel)
 }
 
 // DeleteOneByID deletes a single project
-func (projectService *projectService) DeleteOneByID(project models.ProjectModel) *utils.GenericError {
+func (projectService *projectService) DeleteOneByID(project models.Project) *utils.GenericError {
 	count, err := projectService.projectRepo.DeleteOneByID(project)
 	if err != nil {
 		return err
@@ -117,9 +117,9 @@ func (projectService *projectService) List(offset uint64, limit uint64) (*models
 	return &paginatedProjects, nil
 }
 
-func (projectService *projectService) BatchGetProjects(projectIds []uint64) ([]models.ProjectModel, *utils.GenericError) {
+func (projectService *projectService) BatchGetProjects(projectIds []uint64) ([]models.Project, *utils.GenericError) {
 	if len(projectIds) < 1 {
-		return []models.ProjectModel{}, nil
+		return []models.Project{}, nil
 	}
 
 	projects, err := projectService.projectRepo.GetBatchProjectsByIDs(projectIds)

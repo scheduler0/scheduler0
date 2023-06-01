@@ -353,10 +353,10 @@ func Test_Queue_Queue(t *testing.T) {
 
 	go func() {
 		time.Sleep(time.Second * 3)
-		jobs := []models.JobModel{}
+		jobs := []models.Job{}
 		numberOfJEL := 29
 		for i := 0; i < numberOfJEL; i++ {
-			var jobModel models.JobModel
+			var jobModel models.Job
 			gofakeit.Struct(&jobModel)
 			jobModel.ID = uint64(i + 1)
 			jobs = append(jobs, jobModel)

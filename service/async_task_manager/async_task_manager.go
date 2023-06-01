@@ -248,7 +248,7 @@ func (m *AsyncTaskManager) DeleteSubscriber(taskId, subscriberId uint64) *utils.
 }
 
 func (m *AsyncTaskManager) GetUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError) {
-	tasks, err := m.asyncTaskManagerRepo.GetAllUnCommittedTasks()
+	tasks, err := m.asyncTaskManagerRepo.GetAllTasks(false)
 	if err != nil {
 		return nil, err
 	}

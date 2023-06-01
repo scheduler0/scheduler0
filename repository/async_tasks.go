@@ -27,7 +27,7 @@ type AsyncTasksRepo interface {
 	RaftUpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError
 	UpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError
 	GetTask(taskId uint64) (*models.AsyncTask, *utils.GenericError)
-	GetAllUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError)
+	GetAllTasks(committed bool) ([]models.AsyncTask, *utils.GenericError)
 }
 
 func NewAsyncTasksRepo(context context.Context, logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, fsmStore fsm.Scheduler0RaftStore) AsyncTasksRepo {
@@ -106,7 +106,7 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool
 }
 
 func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError) {
-	batches := utils.Batch[models.AsyncTask](tasks, 5)
+	batches := utils.Batch[models.AsyncTask](tasks, 6)
 	results := make([]uint64, 0, len(tasks))
 
 	schedulerTime := utils.GetSchedulerTime()
@@ -132,10 +132,9 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 			batch[0].Service,
 			now,
 		}
-
 		for _, row := range batch[1:] {
 			query += ",(?, ?, ?, ?, ?, ?)"
-			params = append(params, row.RequestId, row.Input, row.Output, 0, now)
+			params = append(params, row.RequestId, row.Input, row.Output, 0, row.Service, now)
 		}
 
 		ids := make([]uint64, 0, len(batch))
@@ -216,7 +215,7 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	query := fmt.Sprintf(
-		"select %s, %s, %s, %s, %s, %s, %s from %s union all select %s, %s, %s, %s, %s, %s, %s from %s where %s = ?",
+		"select %s, %s, %s, %s, %s, %s, %s from %s where %s = ? union select %s, %s, %s, %s, %s, %s, %s from %s where %s = ?",
 		constants.AsyncTasksIdColumn,
 		constants.AsyncTasksRequestIdColumn,
 		constants.AsyncTasksInputColumn,
@@ -225,6 +224,7 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 		constants.AsyncTasksServiceColumn,
 		constants.AsyncTasksDateCreatedColumn,
 		constants.CommittedAsyncTableName,
+		constants.AsyncTasksIdColumn,
 		constants.AsyncTasksIdColumn,
 		constants.AsyncTasksRequestIdColumn,
 		constants.AsyncTasksInputColumn,
@@ -236,7 +236,7 @@ func (repo *asyncTasksRepo) GetTask(taskId uint64) (*models.AsyncTask, *utils.Ge
 		constants.AsyncTasksIdColumn,
 	)
 
-	rows, err := repo.fsmStore.GetDataStore().GetOpenConnection().Query(query, taskId)
+	rows, err := repo.fsmStore.GetDataStore().GetOpenConnection().Query(query, taskId, taskId)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
@@ -325,12 +325,17 @@ func (repo *asyncTasksRepo) getAsyncTasksMinMaxIds(committed bool) (uint64, uint
 	return minId, maxId
 }
 
-func (repo *asyncTasksRepo) GetAllUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError) {
+func (repo *asyncTasksRepo) GetAllTasks(committed bool) ([]models.AsyncTask, *utils.GenericError) {
 	repo.fsmStore.GetDataStore().ConnectionLock()
 	defer repo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	min, max := repo.getAsyncTasksMinMaxIds(false)
-	count := repo.countAsyncTasks(false)
+	table := constants.CommittedAsyncTableName
+	if !committed {
+		table = constants.UnCommittedAsyncTableName
+	}
+
+	min, max := repo.getAsyncTasksMinMaxIds(committed)
+	count := repo.countAsyncTasks(committed)
 	results := make([]models.AsyncTask, 0, count)
 	expandedIds := utils.ExpandIdsRange(min, max)
 
@@ -354,7 +359,7 @@ func (repo *asyncTasksRepo) GetAllUnCommittedTasks() ([]models.AsyncTask, *utils
 			constants.AsyncTasksStateColumn,
 			constants.AsyncTasksServiceColumn,
 			constants.AsyncTasksDateCreatedColumn,
-			constants.UnCommittedAsyncTableName,
+			table,
 			paramPlaceholders,
 		)
 		rows, err := repo.fsmStore.GetDataStore().GetOpenConnection().Query(query, params...)

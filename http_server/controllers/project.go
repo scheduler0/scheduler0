@@ -38,7 +38,7 @@ func (controller *projectController) CreateOneProject(w http.ResponseWriter, r *
 		controller.logger.Fatalln(err)
 	}
 
-	project := models.ProjectModel{}
+	project := models.Project{}
 	err = project.FromJSON(body)
 	if err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusBadRequest, nil)
@@ -63,7 +63,7 @@ func (controller *projectController) GetOneProject(w http.ResponseWriter, r *htt
 		return
 	}
 
-	project := models.ProjectModel{
+	project := models.Project{
 		ID: uint64(projectId),
 	}
 
@@ -119,7 +119,7 @@ func (controller *projectController) DeleteOneProject(w http.ResponseWriter, r *
 		return
 	}
 
-	project := models.ProjectModel{
+	project := models.Project{
 		ID: uint64(projectId),
 	}
 
@@ -145,7 +145,7 @@ func (controller *projectController) UpdateOneProject(w http.ResponseWriter, r *
 	if err != nil {
 		controller.logger.Fatalln(err)
 	}
-	project := models.ProjectModel{}
+	project := models.Project{}
 
 	err = project.FromJSON(body)
 	if err != nil {

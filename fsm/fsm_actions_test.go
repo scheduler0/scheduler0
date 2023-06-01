@@ -79,7 +79,7 @@ func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {
 		t.Fatalf("failed to query credentials table %v", err)
 	}
 	defer rows.Close()
-	var credential models.CredentialModel
+	var credential models.Credential
 	for rows.Next() {
 		scanErr := rows.Scan(
 			&credential.ID,

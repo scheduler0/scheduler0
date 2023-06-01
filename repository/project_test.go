@@ -1,4 +1,4 @@
-package repository_test
+package repository
 
 //var _ = Describe("ProjectRepo Repo", func() {
 //	pool := db.GetTestDBConnection()

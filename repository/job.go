@@ -21,16 +21,16 @@ type jobRepo struct {
 
 //go:generate mockery --name JobRepo --output ../mocks
 type JobRepo interface {
-	GetOneByID(jobModel *models.JobModel) *utils.GenericError
-	BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *utils.GenericError)
-	BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.JobModel, *utils.GenericError)
-	GetJobsPaginated(projectID uint64, offset uint64, limit uint64) ([]models.JobModel, uint64, *utils.GenericError)
+	GetOneByID(jobModel *models.Job) *utils.GenericError
+	BatchGetJobsByID(jobIDs []uint64) ([]models.Job, *utils.GenericError)
+	BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.Job, *utils.GenericError)
+	GetJobsPaginated(projectID uint64, offset uint64, limit uint64) ([]models.Job, uint64, *utils.GenericError)
 	GetJobsTotalCountByProjectID(projectID uint64) (uint64, *utils.GenericError)
 	GetJobsTotalCount() (uint64, *utils.GenericError)
-	DeleteOneByID(jobModel models.JobModel) (uint64, *utils.GenericError)
-	UpdateOneByID(jobModel models.JobModel) (uint64, *utils.GenericError)
-	GetAllByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) ([]models.JobModel, *utils.GenericError)
-	BatchInsertJobs(jobRepos []models.JobModel) ([]uint64, *utils.GenericError)
+	DeleteOneByID(jobModel models.Job) (uint64, *utils.GenericError)
+	UpdateOneByID(jobModel models.Job) (uint64, *utils.GenericError)
+	GetAllByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) ([]models.Job, *utils.GenericError)
+	BatchInsertJobs(jobRepos []models.Job) ([]uint64, *utils.GenericError)
 }
 
 func NewJobRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore) JobRepo {
@@ -42,7 +42,7 @@ func NewJobRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftAct
 }
 
 // GetOneByID returns a single job that matches uuid
-func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericError {
+func (jobRepo *jobRepo) GetOneByID(jobModel *models.Job) *utils.GenericError {
 	jobRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -89,11 +89,11 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.JobModel) *utils.GenericErro
 }
 
 // BatchGetJobsByID returns jobs where uuid in jobUUIDs
-func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *utils.GenericError) {
+func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.Job, *utils.GenericError) {
 	jobRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	jobs := []models.JobModel{}
+	jobs := []models.Job{}
 	batches := utils.Batch[uint64](jobIDs, 1)
 
 	for _, batch := range batches {
@@ -130,7 +130,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *u
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 		}
 		for rows.Next() {
-			job := models.JobModel{}
+			job := models.Job{}
 			scanErr := rows.Scan(
 				&job.ID,
 				&job.ProjectID,
@@ -156,7 +156,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.JobModel, *u
 	return jobs, nil
 }
 
-func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.JobModel, *utils.GenericError) {
+func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.Job, *utils.GenericError) {
 	jobRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -181,9 +181,9 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) (
 	}
 	defer rows.Close()
 
-	jobs := []models.JobModel{}
+	jobs := []models.Job{}
 	for rows.Next() {
-		job := models.JobModel{}
+		job := models.Job{}
 		scanErr := rows.Scan(
 			&job.ID,
 			&job.ProjectID,
@@ -208,11 +208,11 @@ func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) (
 }
 
 // GetAllByProjectID returns paginated set of jobs that are not archived
-func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) ([]models.JobModel, *utils.GenericError) {
+func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) ([]models.Job, *utils.GenericError) {
 	jobRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
-	jobs := []models.JobModel{}
+	jobs := []models.Job{}
 
 	selectBuilder := sq.Select(
 		constants.JobsIdColumn,
@@ -238,7 +238,7 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit
 	}
 	defer rows.Close()
 	for rows.Next() {
-		job := models.JobModel{}
+		job := models.Job{}
 		err = rows.Scan(
 			&job.ID,
 			&job.ProjectID,
@@ -263,8 +263,8 @@ func (jobRepo *jobRepo) GetAllByProjectID(projectID uint64, offset uint64, limit
 }
 
 // UpdateOneByID updates a job and returns number of affected rows
-func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (uint64, *utils.GenericError) {
-	jobPlaceholder := models.JobModel{
+func (jobRepo *jobRepo) UpdateOneByID(jobModel models.Job) (uint64, *utils.GenericError) {
+	jobPlaceholder := models.Job{
 		ID: jobModel.ID,
 	}
 
@@ -304,7 +304,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.JobModel) (uint64, *utils.
 }
 
 // DeleteOneByID deletes a job with uuid and returns number of affected row
-func (jobRepo *jobRepo) DeleteOneByID(jobModel models.JobModel) (uint64, *utils.GenericError) {
+func (jobRepo *jobRepo) DeleteOneByID(jobModel models.Job) (uint64, *utils.GenericError) {
 	deleteQuery := sq.Delete(constants.JobsTableName).Where(fmt.Sprintf("%s = ?", constants.JobsIdColumn), jobModel.ID)
 
 	query, params, err := deleteQuery.ToSql()
@@ -384,7 +384,7 @@ func (jobRepo *jobRepo) GetJobsTotalCountByProjectID(projectID uint64) (uint64, 
 }
 
 // GetJobsPaginated returns a set of jobs starting at offset with the limit
-func (jobRepo *jobRepo) GetJobsPaginated(projectID uint64, offset uint64, limit uint64) ([]models.JobModel, uint64, *utils.GenericError) {
+func (jobRepo *jobRepo) GetJobsPaginated(projectID uint64, offset uint64, limit uint64) ([]models.Job, uint64, *utils.GenericError) {
 	total, err := jobRepo.GetJobsTotalCountByProjectID(projectID)
 
 	if err != nil {
@@ -400,8 +400,8 @@ func (jobRepo *jobRepo) GetJobsPaginated(projectID uint64, offset uint64, limit 
 }
 
 // BatchInsertJobs inserts n number of jobs
-func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.JobModel) ([]uint64, *utils.GenericError) {
-	batches := utils.Batch[models.JobModel](jobs, 6)
+func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.Job) ([]uint64, *utils.GenericError) {
+	batches := utils.Batch[models.Job](jobs, 6)
 
 	returningIds := []uint64{}
 

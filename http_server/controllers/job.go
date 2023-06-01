@@ -91,7 +91,7 @@ func (jobController *jobHTTPController) BatchCreateJobs(w http.ResponseWriter, r
 		return
 	}
 
-	jobs := []models.JobModel{}
+	jobs := []models.Job{}
 	if err := json.Unmarshal(body, &jobs); err != nil {
 		utils.SendJSON(w, err.Error(), false, http.StatusUnprocessableEntity, nil)
 		return
@@ -121,7 +121,7 @@ func (jobController *jobHTTPController) GetOneJob(w http.ResponseWriter, r *http
 		return
 	}
 
-	job := models.JobModel{
+	job := models.Job{
 		ID: uint64(jobID),
 	}
 
@@ -139,7 +139,7 @@ func (jobController *jobHTTPController) UpdateOneJob(w http.ResponseWriter, r *h
 	params := mux.Vars(r)
 
 	body := utils.ExtractBody(w, r)
-	jobBody := models.JobModel{}
+	jobBody := models.Job{}
 	err := jobBody.FromJSON(body)
 
 	jobID, convertErr := strconv.Atoi(params["id"])
@@ -174,7 +174,7 @@ func (jobController *jobHTTPController) DeleteOneJob(w http.ResponseWriter, r *h
 		return
 	}
 
-	job := models.JobModel{
+	job := models.Job{
 		ID: uint64(jobID),
 	}
 

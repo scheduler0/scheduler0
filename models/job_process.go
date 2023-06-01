@@ -5,6 +5,6 @@ import (
 )
 
 type JobProcess struct {
-	Job  *JobModel  `json:"job,omitempty"`
+	Job  *Job       `json:"job,omitempty"`
 	Cron *cron.Cron `json:"cron,omitempty"`
 }

@@ -15,14 +15,14 @@ import (
 
 //go:generate mockery --name ProjectRepo --output ../mocks
 type ProjectRepo interface {
-	CreateOne(project *models.ProjectModel) (uint64, *utils.GenericError)
-	GetOneByName(project *models.ProjectModel) *utils.GenericError
-	GetOneByID(project *models.ProjectModel) *utils.GenericError
-	List(offset uint64, limit uint64) ([]models.ProjectModel, *utils.GenericError)
+	CreateOne(project *models.Project) (uint64, *utils.GenericError)
+	GetOneByName(project *models.Project) *utils.GenericError
+	GetOneByID(project *models.Project) *utils.GenericError
+	List(offset uint64, limit uint64) ([]models.Project, *utils.GenericError)
 	Count() (uint64, *utils.GenericError)
-	UpdateOneByID(project models.ProjectModel) (uint64, *utils.GenericError)
-	DeleteOneByID(project models.ProjectModel) (uint64, *utils.GenericError)
-	GetBatchProjectsByIDs(projectIds []uint64) ([]models.ProjectModel, *utils.GenericError)
+	UpdateOneByID(project models.Project) (uint64, *utils.GenericError)
+	DeleteOneByID(project models.Project) (uint64, *utils.GenericError)
+	GetBatchProjectsByIDs(projectIds []uint64) ([]models.Project, *utils.GenericError)
 }
 
 type projectRepo struct {
@@ -42,7 +42,7 @@ func NewProjectRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0Raf
 }
 
 // CreateOne creates a single project
-func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (uint64, *utils.GenericError) {
+func (projectRepo *projectRepo) CreateOne(project *models.Project) (uint64, *utils.GenericError) {
 	if len(project.Name) < 1 {
 		return 0, utils.HTTPGenericError(http.StatusBadRequest, "name field is required")
 	}
@@ -51,7 +51,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (uint64,
 		return 0, utils.HTTPGenericError(http.StatusBadRequest, "description field is required")
 	}
 
-	projectWithName := models.ProjectModel{
+	projectWithName := models.Project{
 		ID:   0,
 		Name: project.Name,
 	}
@@ -99,7 +99,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.ProjectModel) (uint64,
 }
 
 // GetOneByName returns a project with a matching name
-func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *utils.GenericError {
+func (projectRepo *projectRepo) GetOneByName(project *models.Project) *utils.GenericError {
 	projectRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -142,7 +142,7 @@ func (projectRepo *projectRepo) GetOneByName(project *models.ProjectModel) *util
 }
 
 // GetOneByID returns a project that matches the uuid
-func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.GenericError {
+func (projectRepo *projectRepo) GetOneByID(project *models.Project) *utils.GenericError {
 	projectRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -184,12 +184,12 @@ func (projectRepo *projectRepo) GetOneByID(project *models.ProjectModel) *utils.
 	return nil
 }
 
-func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []uint64) ([]models.ProjectModel, *utils.GenericError) {
+func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []uint64) ([]models.Project, *utils.GenericError) {
 	projectRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
 	if len(projectIds) < 1 {
-		return []models.ProjectModel{}, nil
+		return []models.Project{}, nil
 	}
 
 	cachedProjectIds := map[uint64]uint64{}
@@ -231,9 +231,9 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []uint64) ([]mo
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 	count := 0
-	projects := []models.ProjectModel{}
+	projects := []models.Project{}
 	for rows.Next() {
-		project := models.ProjectModel{}
+		project := models.Project{}
 		err = rows.Scan(
 			&project.ID,
 			&project.Name,
@@ -254,7 +254,7 @@ func (projectRepo *projectRepo) GetBatchProjectsByIDs(projectIds []uint64) ([]mo
 }
 
 // List returns a paginated set of results
-func (projectRepo *projectRepo) List(offset uint64, limit uint64) ([]models.ProjectModel, *utils.GenericError) {
+func (projectRepo *projectRepo) List(offset uint64, limit uint64) ([]models.Project, *utils.GenericError) {
 	projectRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer projectRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -269,14 +269,14 @@ func (projectRepo *projectRepo) List(offset uint64, limit uint64) ([]models.Proj
 		Limit(limit).
 		RunWith(projectRepo.fsmStore.GetDataStore().GetOpenConnection())
 
-	projects := []models.ProjectModel{}
+	projects := []models.Project{}
 	rows, err := selectBuilder.Query()
 	defer rows.Close()
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 	for rows.Next() {
-		project := models.ProjectModel{}
+		project := models.Project{}
 		err = rows.Scan(
 			&project.ID,
 			&project.Name,
@@ -323,7 +323,7 @@ func (projectRepo *projectRepo) Count() (uint64, *utils.GenericError) {
 }
 
 // UpdateOneByID updates a single project
-func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (uint64, *utils.GenericError) {
+func (projectRepo *projectRepo) UpdateOneByID(project models.Project) (uint64, *utils.GenericError) {
 	updateQuery := sq.Update(constants.ProjectsTableName).
 		Set(constants.ProjectsDescriptionColumn, project.Description).
 		Where(fmt.Sprintf("%s = ?", constants.ProjectsIdColumn), project.ID)
@@ -347,7 +347,7 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.ProjectModel) (uint
 }
 
 // DeleteOneByID deletes a single project
-func (projectRepo *projectRepo) DeleteOneByID(project models.ProjectModel) (uint64, *utils.GenericError) {
+func (projectRepo *projectRepo) DeleteOneByID(project models.Project) (uint64, *utils.GenericError) {
 	projectJobs, getAllErr := projectRepo.jobRepo.GetAllByProjectID(project.ID, 0, 1, "id")
 	if getAllErr != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, getAllErr.Error())

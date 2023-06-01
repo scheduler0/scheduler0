@@ -28,11 +28,11 @@ type jobService struct {
 
 type Job interface {
 	GetJobsByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) (*models.PaginatedJob, *utils.GenericError)
-	GetJob(job models.JobModel) (*models.JobModel, *utils.GenericError)
-	BatchInsertJobs(requestId string, jobs []models.JobModel) ([]uint64, *utils.GenericError)
-	UpdateJob(job models.JobModel) (*models.JobModel, *utils.GenericError)
-	DeleteJob(job models.JobModel) *utils.GenericError
-	QueueJobs(jobs []models.JobModel)
+	GetJob(job models.Job) (*models.Job, *utils.GenericError)
+	BatchInsertJobs(requestId string, jobs []models.Job) ([]uint64, *utils.GenericError)
+	UpdateJob(job models.Job) (*models.Job, *utils.GenericError)
+	DeleteJob(job models.Job) *utils.GenericError
+	QueueJobs(jobs []models.Job)
 }
 
 func NewJobService(
@@ -83,7 +83,7 @@ func (jobService *jobService) GetJobsByProjectID(projectID uint64, offset uint64
 }
 
 // GetJob returns a job with ID that matched ID of transformer
-func (jobService *jobService) GetJob(job models.JobModel) (*models.JobModel, *utils.GenericError) {
+func (jobService *jobService) GetJob(job models.Job) (*models.Job, *utils.GenericError) {
 	jobMangerGetOneError := jobService.jobRepo.GetOneByID(&job)
 	if jobMangerGetOneError != nil {
 		return nil, jobMangerGetOneError
@@ -93,7 +93,7 @@ func (jobService *jobService) GetJob(job models.JobModel) (*models.JobModel, *ut
 }
 
 // BatchInsertJobs creates jobs in batches
-func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.JobModel) ([]uint64, *utils.GenericError) {
+func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Job) ([]uint64, *utils.GenericError) {
 	if len(jobs) < 1 {
 		return nil, nil
 	}
@@ -204,8 +204,8 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 }
 
 // UpdateJob updates job with ID in transformer. Note that cron expression of job cannot be updated.
-func (jobService *jobService) UpdateJob(job models.JobModel) (*models.JobModel, *utils.GenericError) {
-	currentJobState := models.JobModel{
+func (jobService *jobService) UpdateJob(job models.Job) (*models.Job, *utils.GenericError) {
+	currentJobState := models.Job{
 		ID: job.ID,
 	}
 	getErr := jobService.jobRepo.GetOneByID(&currentJobState)
@@ -235,7 +235,7 @@ func (jobService *jobService) UpdateJob(job models.JobModel) (*models.JobModel, 
 }
 
 // DeleteJob deletes a job with ID in transformer
-func (jobService *jobService) DeleteJob(job models.JobModel) *utils.GenericError {
+func (jobService *jobService) DeleteJob(job models.Job) *utils.GenericError {
 	err := jobService.jobRepo.GetOneByID(&job)
 	if err != nil {
 		return err
@@ -253,6 +253,6 @@ func (jobService *jobService) DeleteJob(job models.JobModel) *utils.GenericError
 	return nil
 }
 
-func (jobService *jobService) QueueJobs(jobs []models.JobModel) {
+func (jobService *jobService) QueueJobs(jobs []models.Job) {
 	jobService.Queue.Queue(jobs)
 }

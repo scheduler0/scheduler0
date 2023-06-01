@@ -1,8 +1,4 @@
-package repository_test
-
-import (
-	_ "github.com/mattn/go-sqlite3"
-)
+package repository
 
 //
 //func Test_CredentialRepo(t *testing.T) {
