@@ -444,10 +444,6 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.Job) ([]uint64, *utils.Gen
 		query += ";"
 
 		res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
-		if res == nil {
-			return nil, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
-		}
-
 		if applyErr != nil {
 			return nil, applyErr
 		}

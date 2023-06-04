@@ -334,7 +334,7 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.Project) (uint64, *
 	}
 
 	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
-	if err != nil {
+	if applyErr != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
 	if res == nil {

@@ -6,8 +6,8 @@ type JobExecutionLogState uint64
 
 const (
 	ExecutionLogScheduleState JobExecutionLogState = 0
-	ExecutionLogSuccessState                       = 1
-	ExecutionLogFailedState                        = 2
+	ExecutionLogSuccessState  JobExecutionLogState = 1
+	ExecutionLogFailedState   JobExecutionLogState = 2
 )
 
 type JobExecutionLog struct {

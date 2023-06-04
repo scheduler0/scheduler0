@@ -251,8 +251,8 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(uint64)
-	return count, nil
+	count := res.Data[1].(int64)
+	return uint64(count), nil
 }
 
 // DeleteOneByID deletes a single credential
@@ -273,7 +273,7 @@ func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(uint64)
+	count := res.Data[1].(int64)
 
-	return count, nil
+	return uint64(count), nil
 }

@@ -1,242 +1,405 @@
 package repository
 
-//var _ = Describe("ProjectRepo Repo", func() {
-//	pool := db.GetTestDBConnection()
-//	fsmStore := store2.Store{
-//		dataStore: pool,
-//	}
-//	jobRepo := repository2.NewJobRepo(&fsmStore)
-//	projectRepo := repository2.NewProjectRepo(&fsmStore, jobRepo)
-//
-//	BeforeEach(func() {
-//		db.TeardownTestDB()
-//		db.PrepareTestDB()
-//	})
-//
-//	It("Don't create project with name and description empty", func() {
-//		projectModel := models2.ProjectModel{}
-//		_, err := projectRepo.CreateOne(projectModel)
-//		if err == nil {
-//			utils.Error("[ERROR] Cannot create project without name and descriptions")
-//		}
-//		Expect(err).ToNot(BeNil())
-//	})
-//
-//	It("Create project with name and description not empty", func() {
-//		projectFixture := fixtures2.ProjectFixture{}
-//		err := faker.FakeData(&projectFixture)
-//		utils.CheckErr(err)
-//
-//		projectModel := models2.ProjectModel{
-//			Name:        projectFixture.Name,
-//			Description: projectFixture.Description,
-//		}
-//
-//		_, createOneProjectError := projectRepo.CreateOne(projectModel)
-//		if createOneProjectError != nil {
-//			utils.Error(fmt.Sprintf("[ERROR] Error creating project %v", err))
-//		}
-//	})
-//
-//	It("Don't create project with existing name", func() {
-//		projectFixture := fixtures2.ProjectFixture{}
-//		err := faker.FakeData(&projectFixture)
-//		utils.CheckErr(err)
-//
-//		projectManagerOne := models2.ProjectModel{
-//			Name:        projectFixture.Name,
-//			Description: projectFixture.Description,
-//		}
-//
-//		projectManagerTwo := models2.ProjectModel{
-//			Name:        projectFixture.Name,
-//			Description: projectFixture.Description,
-//		}
-//
-//		_, createOneError := projectRepo.CreateOne(projectManagerOne)
-//		if createOneError != nil {
-//			utils.Error(createOneError.Message)
-//		}
-//		Expect(createOneError).To(BeNil())
-//
-//		_, createTwoError := projectRepo.CreateOne(projectManagerTwo)
-//		if createTwoError == nil {
-//			utils.Error(fmt.Sprintf("[ERROR] Cannot create project with existing name"))
-//		}
-//		Expect(createTwoError).ToNot(BeNil())
-//	})
-//
-//	It("Can retrieve a single project by uuid", func() {
-//		projectFixture := fixtures2.ProjectFixture{}
-//		err := faker.FakeData(&projectFixture)
-//		utils.CheckErr(err)
-//
-//		projectModel := models2.ProjectModel{
-//			Name:        projectFixture.Name,
-//			Description: projectFixture.Description,
-//		}
-//		_, projectManagerError := projectRepo.CreateOne(projectModel)
-//		if projectManagerError != nil {
-//			utils.Error(projectManagerError.Message)
-//		}
-//		Expect(projectManagerError).To(BeNil())
-//
-//		projectManagerByName := models2.ProjectModel{
-//			ID: projectModel.ID,
-//		}
-//
-//		projectManagerByNameError := projectRepo.GetOneByID(&projectManagerByName)
-//		if projectManagerByNameError != nil {
-//			utils.Error(fmt.Sprintf("[ERROR] Could not get project %v", err))
-//		}
-//
-//		Expect(projectManagerByName.ID).To(Equal(projectModel.ID))
-//	})
-//
-//	It("Can retrieve a single project by name", func() {
-//		projectFixture := fixtures2.ProjectFixture{}
-//		err := faker.FakeData(&projectFixture)
-//		utils.CheckErr(err)
-//
-//		projectModel := models2.ProjectModel{
-//			Name:        projectFixture.Name,
-//			Description: projectFixture.Description,
-//		}
-//		_, projectManagerError := projectRepo.CreateOne(projectModel)
-//		if projectManagerError != nil {
-//			utils.Error(projectManagerError.Message)
-//		}
-//		Expect(projectManagerError).To(BeNil())
-//
-//		projectByName := models2.ProjectModel{
-//			Name: projectModel.Name,
-//		}
-//
-//		projectManagerByNameError := projectRepo.GetOneByName(&projectByName)
-//		if projectManagerByNameError != nil {
-//			utils.Error(fmt.Sprintf("[ERROR] Could not get project %v", err))
-//		}
-//
-//		Expect(projectByName.ID).To(Equal(projectModel.ID))
-//		Expect(projectByName.Name).To(Equal(projectModel.Name))
-//	})
-//
-//	It("Can update name and description for a project", func() {
-//		projectFixture := fixtures2.ProjectFixture{}
-//		err := faker.FakeData(&projectFixture)
-//		utils.CheckErr(err)
-//
-//		projectModel := models2.ProjectModel{
-//			Name:        projectFixture.Name,
-//			Description: projectFixture.Description,
-//		}
-//		_, createProjectManagerError := projectRepo.CreateOne(projectModel)
-//		if createProjectManagerError != nil {
-//			utils.Error(createProjectManagerError.Message)
-//		}
-//		Expect(createProjectManagerError).To(BeNil())
-//
-//		projectFixture = fixtures2.ProjectFixture{}
-//		err = faker.FakeData(&projectFixture)
-//		utils.CheckErr(err)
-//
-//		projectTwoPlaceholder := models2.ProjectModel{
-//			ID:   projectModel.ID,
-//			Name: projectFixture.Name,
-//		}
-//		_, updateProjectError := projectRepo.UpdateOneByID(projectTwoPlaceholder)
-//		if updateProjectError != nil {
-//			utils.Error(updateProjectError.Message)
-//		}
-//
-//		Expect(projectModel.Name).NotTo(Equal(projectTwoPlaceholder.Name))
-//	})
-//
-//	It("Delete All Projects", func() {
-//		projectFixture := fixtures2.ProjectFixture{}
-//		err := faker.FakeData(&projectFixture)
-//		utils.CheckErr(err)
-//
-//		projectManager := models2.ProjectModel{
-//			Name:        projectFixture.Name,
-//			Description: projectFixture.Description,
-//		}
-//		_, createProjectManagerError := projectRepo.CreateOne(projectManager)
-//		if createProjectManagerError != nil {
-//			utils.Error(createProjectManagerError.Message)
-//		}
-//
-//		rowsAffected, deleteProjectOneError := projectRepo.DeleteOneByID(projectManager)
-//		if deleteProjectOneError != nil || rowsAffected < 1 {
-//			utils.Error(fmt.Sprintf("[ERROR] Cannot delete project one %v", err))
-//		}
-//	})
-//
-//	It("Don't delete project with a job", func() {
-//		projectFixture := fixtures2.ProjectFixture{}
-//		err := faker.FakeData(&projectFixture)
-//		utils.CheckErr(err)
-//
-//		projectManager := models2.ProjectModel{
-//			Name:        projectFixture.Name,
-//			Description: projectFixture.Description,
-//		}
-//		_, createProjectManagerError := projectRepo.CreateOne(projectManager)
-//		if createProjectManagerError != nil {
-//			utils.Error(createProjectManagerError.Message)
-//		}
-//
-//		job := models2.JobModel{
-//			ProjectID:   projectManager.ID,
-//			Spec:        "* * * * *",
-//			CallbackUrl: "https://some-random-url",
-//		}
-//
-//		_, createOneJobError := jobRepo.CreateOne(job)
-//		if err != nil {
-//			utils.Error(fmt.Sprintf("[ERROR] Cannot create job %v", createOneJobError.Message))
-//		}
-//
-//		rowsAffected, deleteOneProjectError := projectRepo.DeleteOneByID(projectManager)
-//		if deleteOneProjectError == nil || rowsAffected > 0 {
-//			utils.Error(fmt.Sprintf("[ERROR] Projects with jobs shouldn't be deleted %v", rowsAffected))
-//		}
-//
-//		rowsAffected, deleteOneJobError := jobRepo.DeleteOneByID(job)
-//		if err != nil || rowsAffected < 1 {
-//			utils.Error(fmt.Sprintf("[ERROR] Could not delete job  %v %v", deleteOneJobError.Message, rowsAffected))
-//		}
-//
-//		rowsAffected, deleteOneProjectError = projectRepo.DeleteOneByID(projectManager)
-//		if err != nil || rowsAffected < 1 {
-//			utils.Error("[ERROR] Could not delete project %v", rowsAffected)
-//		}
-//	})
-//
-//	It("ProjectManager.ListByJobID", func() {
-//		for i := 0; i < 1000; i++ {
-//			project := models2.ProjectModel{
-//				Name:        "project " + strconv.Itoa(i),
-//				Description: "project description " + strconv.Itoa(i),
-//			}
-//
-//			_, err := projectRepo.CreateOne(project)
-//			if err != nil {
-//				utils.Error("[ERROR] failed to create a project ::", err.Message)
-//			}
-//		}
-//
-//		projects, err := projectRepo.List(0, 100)
-//		if err != nil {
-//			utils.Error("[ERROR] failed to fetch projects ::", err.Message)
-//		}
-//
-//		Expect(len(projects)).To(Equal(100))
-//	})
-//})
-//
-//func TestProject_Manager(t *testing.T) {
-//	utils.SetTestScheduler0Configurations()
-//	RegisterFailHandler(Fail)
-//	RunSpecs(t, "ProjectRepo Repo Suite")
-//}
+import (
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/raft"
+	"github.com/stretchr/testify/assert"
+	"io/ioutil"
+	"os"
+	"scheduler0/config"
+	"scheduler0/db"
+	"scheduler0/fsm"
+	"scheduler0/models"
+	"scheduler0/shared_repo"
+	"testing"
+)
+
+func Test_ProjectRepo_GetBatchProjectsByIDs(t *testing.T) {
+	scheduler0config := config.NewScheduler0Config()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "project-repo-test",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          3,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	// Create a new ProjectRepo instance
+	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+
+	// Create projects to retrieve
+	projects := []models.Project{
+		{
+			ID:          1,
+			Name:        "Project 1",
+			Description: "Description 1",
+		},
+		{
+			ID:          2,
+			Name:        "Project 2",
+			Description: "Description 2",
+		},
+		{
+			ID:          3,
+			Name:        "Project 3",
+			Description: "Description 3",
+		},
+	}
+
+	// Insert the projects into the database
+	for _, project := range projects {
+		_, createErr := projectRepo.CreateOne(&project)
+		if createErr != nil {
+			t.Fatal("failed to create project:", createErr)
+		}
+	}
+
+	// Get the projects by their IDs
+	projectIDs := []uint64{1, 3}
+	retrievedProjects, getErr := projectRepo.GetBatchProjectsByIDs(projectIDs)
+	if getErr != nil {
+		t.Fatal("failed to get projects:", getErr)
+	}
+
+	// Assert the number of retrieved projects
+	assert.Equal(t, 2, len(retrievedProjects))
+
+	// Assert the retrieved project IDs and names
+	for _, project := range retrievedProjects {
+		assert.Contains(t, projectIDs, project.ID)
+		assert.Contains(t, []string{"Project 1", "Project 3"}, project.Name)
+	}
+}
+
+func Test_ProjectRepo_List(t *testing.T) {
+	scheduler0config := config.NewScheduler0Config()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "project-repo-test",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          3,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	// Create a new ProjectRepo instance
+	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+
+	// Create projects to retrieve
+	projects := []models.Project{
+		{
+			ID:          1,
+			Name:        "Project 1",
+			Description: "Description 1",
+		},
+		{
+			ID:          2,
+			Name:        "Project 2",
+			Description: "Description 2",
+		},
+		{
+			ID:          3,
+			Name:        "Project 3",
+			Description: "Description 3",
+		},
+	}
+
+	// Insert the projects into the database
+	for _, project := range projects {
+		_, createErr := projectRepo.CreateOne(&project)
+		if createErr != nil {
+			t.Fatal("failed to create project:", createErr)
+		}
+	}
+
+	// Call the List method with offset 1 and limit 2
+	offset := uint64(1)
+	limit := uint64(2)
+	retrievedProjects, listErr := projectRepo.List(offset, limit)
+	if listErr != nil {
+		t.Fatal("failed to list projects:", listErr)
+	}
+
+	// Assert the number of retrieved projects
+	assert.Equal(t, 2, len(retrievedProjects))
+
+	// Assert the retrieved project IDs and names
+	assert.Equal(t, uint64(2), retrievedProjects[0].ID)
+	assert.Equal(t, "Project 2", retrievedProjects[0].Name)
+	assert.Equal(t, "Description 2", retrievedProjects[0].Description)
+	assert.Equal(t, uint64(3), retrievedProjects[1].ID)
+	assert.Equal(t, "Project 3", retrievedProjects[1].Name)
+	assert.Equal(t, "Description 3", retrievedProjects[1].Description)
+}
+
+func Test_ProjectRepo_UpdateOneByID(t *testing.T) {
+	scheduler0config := config.NewScheduler0Config()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "project-repo-test",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          1,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	// Create a new ProjectRepo instance
+	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+
+	// Create a project to update
+	project := models.Project{
+		ID:          1,
+		Name:        "Old Name",
+		Description: "Old Description",
+	}
+
+	// Insert the project into the database
+	_, createErr := projectRepo.CreateOne(&project)
+	if createErr != nil {
+		t.Fatal("failed to create project:", createErr)
+	}
+
+	// Modify the project's properties
+	project.Description = "New Description"
+
+	// Call the UpdateOneByID method to update the project
+	updatedCount, updateErr := projectRepo.UpdateOneByID(project)
+	if updateErr != nil {
+		t.Fatal("failed to update project:", updateErr)
+	}
+
+	// Assert the updated count is 1
+	assert.Equal(t, uint64(1), updatedCount)
+
+	// Retrieve the updated project from the database
+	updatedProject := models.Project{ID: project.ID}
+	getErr := projectRepo.GetOneByID(&updatedProject)
+	if getErr != nil {
+		t.Fatal("failed to get updated project:", getErr)
+	}
+
+	// Assert the updated properties
+	assert.Equal(t, project.Description, updatedProject.Description)
+}
+
+func Test_ProjectRepo_DeleteOneByID(t *testing.T) {
+	scheduler0config := config.NewScheduler0Config()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "project-repo-test",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          1,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	// Create a JobRepo instance
+	jobRepo := NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+
+	// Create a new ProjectRepo instance
+	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+
+	// Create a project to delete
+	project := models.Project{
+		ID:          1,
+		Name:        "Test Project",
+		Description: "Test project description",
+	}
+
+	// Insert the project into the database
+	_, createErr := projectRepo.CreateOne(&project)
+	if createErr != nil {
+		t.Fatal("failed to create project:", createErr)
+	}
+
+	// Create a job associated with the project
+	job := models.Job{
+		ID:        1,
+		ProjectID: project.ID,
+		// Set other job properties...
+	}
+
+	// Insert the job into the database
+	_, insertErr := jobRepo.BatchInsertJobs([]models.Job{job})
+	if insertErr != nil {
+		t.Fatal("failed to insert job:", insertErr)
+	}
+
+	// Try to delete the project (should fail since it has associated jobs)
+	_, deleteErr := projectRepo.DeleteOneByID(project)
+	if deleteErr == nil {
+		t.Fatal("project should not be deleted as it has associated jobs")
+	}
+
+	// Delete the job
+	_, jobDeleteErr := jobRepo.DeleteOneByID(job)
+	if jobDeleteErr != nil {
+		t.Fatal("failed to delete job:", jobDeleteErr)
+	}
+
+	// Delete the project
+	_, projectDeleteErr := projectRepo.DeleteOneByID(project)
+	if projectDeleteErr != nil {
+		t.Fatal("failed to delete project:", projectDeleteErr)
+	}
+
+	// Try to retrieve the deleted project from the database
+	deletedProject := models.Project{ID: project.ID}
+	getErr := projectRepo.GetOneByID(&deletedProject)
+	if getErr == nil {
+		t.Fatal("project should not exist after deletion")
+	}
+}
+
+func Test_ProjectRepo_Count(t *testing.T) {
+	scheduler0config := config.NewScheduler0Config()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "project-repo-test",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          3,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	// Create a new ProjectRepo instance
+	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+
+	// Create projects for testing
+	projects := []models.Project{
+		{
+			ID:          1,
+			Name:        "Project 1",
+			Description: "Description 1",
+		},
+		{
+			ID:          2,
+			Name:        "Project 2",
+			Description: "Description 2",
+		},
+		{
+			ID:          3,
+			Name:        "Project 3",
+			Description: "Description 3",
+		},
+	}
+
+	// Insert the projects into the database
+	for _, project := range projects {
+		_, createErr := projectRepo.CreateOne(&project)
+		if createErr != nil {
+			t.Fatalf("Failed to create project: %v", createErr)
+		}
+	}
+
+	// Call the Count method
+	count, countErr := projectRepo.Count()
+	if countErr != nil {
+		t.Fatalf("Failed to count projects: %v", countErr)
+	}
+
+	// Assert the count is equal to the number of projects
+	expectedCount := uint64(len(projects))
+	assert.Equal(t, expectedCount, count)
+}
