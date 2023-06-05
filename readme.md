@@ -3,6 +3,7 @@
 </p>
 
 [![Coverage Status](https://coveralls.io/repos/github/scheduler0/scheduler0/badge.svg?branch=main)](https://coveralls.io/github/scheduler0/scheduler0?branch=main)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/scheduler0/scheduler0/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/scheduler0/scheduler0/tree/main)
 
 # Scheduler0
 

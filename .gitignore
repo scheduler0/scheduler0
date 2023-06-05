@@ -25,3 +25,6 @@ recover.db
 
 # VSCode
 .vscode
+
+
+coverage.out
