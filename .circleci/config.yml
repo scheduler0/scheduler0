@@ -1,0 +1,21 @@
+version: 2.1
+jobs:
+  build-and-test:
+    docker:
+      - image: circleci/golang:1.17
+
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: go get -t -v ./...
+
+      - run:
+          name: Run tests
+          command: go test -v -coverprofile=coverage.out ./...
+
+      - run:
+          name: Upload coverage to Coveralls
+          command: |
+            curl -sL https://github.com/mattn/goveralls/releases/latest/download/goveralls_linux_amd64.tar.gz | tar xvz
+            ./goveralls -coverprofile=coverage.out -service=circle-ci -repotoken $brw

@@ -249,7 +249,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.Job) {
 				cachedJobExecutionsLog, _ := jobExecutor.executions.Load(job.ID)
 				cachedJobExecutionLog := (cachedJobExecutionsLog).(models.MemJobExecution)
 
-				if executionLogsMap[job.ID].State == models.ExecutionLogSuccessState ||
+				if models.JobExecutionLogState(executionLogsMap[job.ID].State) == models.ExecutionLogSuccessState ||
 					(cachedJobExecutionLog.FailCount == 0 &&
 						cachedJobExecutionLog.LastState == models.ExecutionLogFailedState) {
 					lastExecutionVersions[job.ID] = executionLogsMap[job.ID].ExecutionVersion + 1
@@ -426,7 +426,7 @@ func (jobExecutor *JobExecutor) createInMemExecutionsForJobsIfNotExist(jobs []mo
 
 	for _, jobId := range jobsNotInExecution {
 		failCounts := 0
-		if lastExecutionVersionsForNewJobs[jobId].State == models.ExecutionLogFailedState {
+		if models.JobExecutionLogState(lastExecutionVersionsForNewJobs[jobId].State) == models.ExecutionLogFailedState {
 			failCounts = int(jobExecutor.jobExecutionsRepo.CountLastFailedExecutionLogs(jobId, configs.NodeId, lastExecutionVersionsForNewJobs[jobId].ExecutionVersion))
 		}
 
