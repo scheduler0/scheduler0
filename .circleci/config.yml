@@ -18,4 +18,4 @@ jobs:
 
       - run:
           name: Upload coverage to Coveralls
-          command: /home/ubuntu/.go_workspace/bin/goveralls -coverprofile=./coverage.out -service=circle-ci -repotoken $COVERALLS_TOKENralls -coverprofile=./coverage.out -service=circle-ci -repotoken=$COVERALLS_TOKEN
+          command: ./goveralls -coverprofile=./coverage.out -service=circle-ci -repotoken $COVERALLS_TOKENralls -coverprofile=./coverage.out -service=circle-ci -repotoken=$COVERALLS_TOKEN
