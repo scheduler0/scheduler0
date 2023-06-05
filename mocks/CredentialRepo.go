@@ -42,21 +42,21 @@ func (_m *CredentialRepo) Count() (uint64, *utils.GenericError) {
 }
 
 // CreateOne provides a mock function with given fields: credential
-func (_m *CredentialRepo) CreateOne(credential models.CredentialModel) (uint64, *utils.GenericError) {
+func (_m *CredentialRepo) CreateOne(credential models.Credential) (uint64, *utils.GenericError) {
 	ret := _m.Called(credential)
 
 	var r0 uint64
 	var r1 *utils.GenericError
-	if rf, ok := ret.Get(0).(func(models.CredentialModel) (uint64, *utils.GenericError)); ok {
+	if rf, ok := ret.Get(0).(func(models.Credential) (uint64, *utils.GenericError)); ok {
 		return rf(credential)
 	}
-	if rf, ok := ret.Get(0).(func(models.CredentialModel) uint64); ok {
+	if rf, ok := ret.Get(0).(func(models.Credential) uint64); ok {
 		r0 = rf(credential)
 	} else {
 		r0 = ret.Get(0).(uint64)
 	}
 
-	if rf, ok := ret.Get(1).(func(models.CredentialModel) *utils.GenericError); ok {
+	if rf, ok := ret.Get(1).(func(models.Credential) *utils.GenericError); ok {
 		r1 = rf(credential)
 	} else {
 		if ret.Get(1) != nil {
@@ -68,21 +68,21 @@ func (_m *CredentialRepo) CreateOne(credential models.CredentialModel) (uint64, 
 }
 
 // DeleteOneByID provides a mock function with given fields: credential
-func (_m *CredentialRepo) DeleteOneByID(credential models.CredentialModel) (uint64, *utils.GenericError) {
+func (_m *CredentialRepo) DeleteOneByID(credential models.Credential) (uint64, *utils.GenericError) {
 	ret := _m.Called(credential)
 
 	var r0 uint64
 	var r1 *utils.GenericError
-	if rf, ok := ret.Get(0).(func(models.CredentialModel) (uint64, *utils.GenericError)); ok {
+	if rf, ok := ret.Get(0).(func(models.Credential) (uint64, *utils.GenericError)); ok {
 		return rf(credential)
 	}
-	if rf, ok := ret.Get(0).(func(models.CredentialModel) uint64); ok {
+	if rf, ok := ret.Get(0).(func(models.Credential) uint64); ok {
 		r0 = rf(credential)
 	} else {
 		r0 = ret.Get(0).(uint64)
 	}
 
-	if rf, ok := ret.Get(1).(func(models.CredentialModel) *utils.GenericError); ok {
+	if rf, ok := ret.Get(1).(func(models.Credential) *utils.GenericError); ok {
 		r1 = rf(credential)
 	} else {
 		if ret.Get(1) != nil {
@@ -94,11 +94,11 @@ func (_m *CredentialRepo) DeleteOneByID(credential models.CredentialModel) (uint
 }
 
 // GetByAPIKey provides a mock function with given fields: credential
-func (_m *CredentialRepo) GetByAPIKey(credential *models.CredentialModel) *utils.GenericError {
+func (_m *CredentialRepo) GetByAPIKey(credential *models.Credential) *utils.GenericError {
 	ret := _m.Called(credential)
 
 	var r0 *utils.GenericError
-	if rf, ok := ret.Get(0).(func(*models.CredentialModel) *utils.GenericError); ok {
+	if rf, ok := ret.Get(0).(func(*models.Credential) *utils.GenericError); ok {
 		r0 = rf(credential)
 	} else {
 		if ret.Get(0) != nil {
@@ -110,11 +110,11 @@ func (_m *CredentialRepo) GetByAPIKey(credential *models.CredentialModel) *utils
 }
 
 // GetOneID provides a mock function with given fields: credential
-func (_m *CredentialRepo) GetOneID(credential *models.CredentialModel) error {
+func (_m *CredentialRepo) GetOneID(credential *models.Credential) error {
 	ret := _m.Called(credential)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*models.CredentialModel) error); ok {
+	if rf, ok := ret.Get(0).(func(*models.Credential) error); ok {
 		r0 = rf(credential)
 	} else {
 		r0 = ret.Error(0)
@@ -124,19 +124,19 @@ func (_m *CredentialRepo) GetOneID(credential *models.CredentialModel) error {
 }
 
 // List provides a mock function with given fields: offset, limit, orderBy
-func (_m *CredentialRepo) List(offset uint64, limit uint64, orderBy string) ([]models.CredentialModel, *utils.GenericError) {
+func (_m *CredentialRepo) List(offset uint64, limit uint64, orderBy string) ([]models.Credential, *utils.GenericError) {
 	ret := _m.Called(offset, limit, orderBy)
 
-	var r0 []models.CredentialModel
+	var r0 []models.Credential
 	var r1 *utils.GenericError
-	if rf, ok := ret.Get(0).(func(uint64, uint64, string) ([]models.CredentialModel, *utils.GenericError)); ok {
+	if rf, ok := ret.Get(0).(func(uint64, uint64, string) ([]models.Credential, *utils.GenericError)); ok {
 		return rf(offset, limit, orderBy)
 	}
-	if rf, ok := ret.Get(0).(func(uint64, uint64, string) []models.CredentialModel); ok {
+	if rf, ok := ret.Get(0).(func(uint64, uint64, string) []models.Credential); ok {
 		r0 = rf(offset, limit, orderBy)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]models.CredentialModel)
+			r0 = ret.Get(0).([]models.Credential)
 		}
 	}
 
@@ -152,21 +152,21 @@ func (_m *CredentialRepo) List(offset uint64, limit uint64, orderBy string) ([]m
 }
 
 // UpdateOneByID provides a mock function with given fields: credential
-func (_m *CredentialRepo) UpdateOneByID(credential models.CredentialModel) (uint64, *utils.GenericError) {
+func (_m *CredentialRepo) UpdateOneByID(credential models.Credential) (uint64, *utils.GenericError) {
 	ret := _m.Called(credential)
 
 	var r0 uint64
 	var r1 *utils.GenericError
-	if rf, ok := ret.Get(0).(func(models.CredentialModel) (uint64, *utils.GenericError)); ok {
+	if rf, ok := ret.Get(0).(func(models.Credential) (uint64, *utils.GenericError)); ok {
 		return rf(credential)
 	}
-	if rf, ok := ret.Get(0).(func(models.CredentialModel) uint64); ok {
+	if rf, ok := ret.Get(0).(func(models.Credential) uint64); ok {
 		r0 = rf(credential)
 	} else {
 		r0 = ret.Get(0).(uint64)
 	}
 
-	if rf, ok := ret.Get(1).(func(models.CredentialModel) *utils.GenericError); ok {
+	if rf, ok := ret.Get(1).(func(models.Credential) *utils.GenericError); ok {
 		r1 = rf(credential)
 	} else {
 		if ret.Get(1) != nil {

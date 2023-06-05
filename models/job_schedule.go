@@ -3,6 +3,6 @@ package models
 import "time"
 
 type JobSchedule struct {
-	Job           JobModel
-	ExecutionTime time.Time
+	Job           Job       `json:"job"`
+	ExecutionTime time.Time `json:"executionTime"`
 }

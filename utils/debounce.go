@@ -23,6 +23,10 @@ func (d *Debounce) Debounce(ctx context.Context, delay uint64, effector func()) 
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
+	if delay < 500 {
+		panic("delay cannot be less than 500 secs")
+	}
+
 	d.threshold = time.Now().Add(time.Duration(delay) * time.Millisecond)
 	d.once.Do(func() {
 		go func() {
@@ -33,7 +37,6 @@ func (d *Debounce) Debounce(ctx context.Context, delay uint64, effector func()) 
 				d.ticker.Stop()
 				d.once = sync.Once{}
 			}()
-
 			d.ticker = time.NewTicker(time.Duration(500) * time.Millisecond)
 
 			for {

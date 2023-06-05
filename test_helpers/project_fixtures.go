@@ -13,7 +13,7 @@ import (
 func InsertFakeProjects(n int, conn *sql.DB, t *testing.T) []int64 {
 	var ids []int64
 	for i := 0; i < n; i++ {
-		var p models.ProjectModel
+		var p models.Project
 		gofakeit.Struct(&p)
 		p.DateCreated = time.Now()
 		params := []interface{}{

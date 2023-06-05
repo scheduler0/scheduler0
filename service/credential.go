@@ -13,10 +13,10 @@ import (
 
 // Credential service layer for credentials
 type Credential interface {
-	CreateNewCredential(credentialTransformer models.CredentialModel) (uint64, *utils.GenericError)
-	FindOneCredentialByID(id uint64) (*models.CredentialModel, error)
-	UpdateOneCredential(credentialTransformer models.CredentialModel) (*models.CredentialModel, error)
-	DeleteOneCredential(id uint64) (*models.CredentialModel, error)
+	CreateNewCredential(credentialTransformer models.Credential) (uint64, *utils.GenericError)
+	FindOneCredentialByID(id uint64) (*models.Credential, error)
+	UpdateOneCredential(credentialTransformer models.Credential) (*models.Credential, error)
+	DeleteOneCredential(id uint64) (*models.Credential, error)
 	ListCredentials(offset uint64, limit uint64, orderBy string) (*models.PaginatedCredential, *utils.GenericError)
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 }
@@ -40,7 +40,7 @@ type credentialService struct {
 }
 
 // CreateNewCredential creates a new credentials
-func (credentialService *credentialService) CreateNewCredential(credentialTransformer models.CredentialModel) (uint64, *utils.GenericError) {
+func (credentialService *credentialService) CreateNewCredential(credentialTransformer models.Credential) (uint64, *utils.GenericError) {
 	credentials := credentialService.scheduler0Secret.GetSecrets()
 
 	apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
@@ -65,8 +65,8 @@ func (credentialService *credentialService) CreateNewCredential(credentialTransf
 }
 
 // FindOneCredentialByID searches for credential by uuid
-func (credentialService *credentialService) FindOneCredentialByID(id uint64) (*models.CredentialModel, error) {
-	credentialDto := models.CredentialModel{ID: id}
+func (credentialService *credentialService) FindOneCredentialByID(id uint64) (*models.Credential, error) {
+	credentialDto := models.Credential{ID: id}
 	if err := credentialService.CredentialRepo.GetOneID(&credentialDto); err != nil {
 		return nil, err
 	} else {
@@ -75,8 +75,8 @@ func (credentialService *credentialService) FindOneCredentialByID(id uint64) (*m
 }
 
 // UpdateOneCredential updates a single credential
-func (credentialService *credentialService) UpdateOneCredential(credential models.CredentialModel) (*models.CredentialModel, error) {
-	credentialPlaceholder := models.CredentialModel{
+func (credentialService *credentialService) UpdateOneCredential(credential models.Credential) (*models.Credential, error) {
+	credentialPlaceholder := models.Credential{
 		ID: credential.ID,
 	}
 	err := credentialService.CredentialRepo.GetOneID(&credentialPlaceholder)
@@ -104,8 +104,8 @@ func (credentialService *credentialService) UpdateOneCredential(credential model
 }
 
 // DeleteOneCredential deletes a single credential
-func (credentialService *credentialService) DeleteOneCredential(id uint64) (*models.CredentialModel, error) {
-	credentialDto := models.CredentialModel{ID: id}
+func (credentialService *credentialService) DeleteOneCredential(id uint64) (*models.Credential, error) {
+	credentialDto := models.Credential{ID: id}
 	if _, err := credentialService.CredentialRepo.DeleteOneByID(credentialDto); err != nil {
 		return nil, err
 	} else {
@@ -138,7 +138,7 @@ func (credentialService *credentialService) ListCredentials(offset uint64, limit
 
 // ValidateServerAPIKey authenticates incoming request from servers
 func (credentialService *credentialService) ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError) {
-	credentialManager := models.CredentialModel{
+	credentialManager := models.Credential{
 		ApiKey: apiKey,
 	}
 

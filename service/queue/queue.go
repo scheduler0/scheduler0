@@ -17,7 +17,7 @@ import (
 )
 
 type JobQueueCommand struct {
-	job      models.JobModel
+	job      models.Job
 	serverId string
 }
 
@@ -64,7 +64,7 @@ func (jobQ *JobQueue) RemoveServers(nodeIds []uint64) {
 	}
 }
 
-func (jobQ *JobQueue) Queue(jobs []models.JobModel) {
+func (jobQ *JobQueue) Queue(jobs []models.Job) {
 	jobQ.mtx.Lock()
 	defer jobQ.mtx.Unlock()
 

@@ -419,14 +419,14 @@ func (node *Node) recoverRaftState() {
 	if len(executionLogs) > 0 {
 		err = node.sharedRepo.InsertExecutionLogs(dataStore, false, executionLogs)
 		if err != nil {
-			logger.Fatalf("failed to insert uncommitted execution logs", err)
+			logger.Fatal("failed to insert uncommitted execution logs", err)
 		}
 	}
 
 	if len(uncommittedTasks) > 0 {
 		err = node.sharedRepo.InsertAsyncTasksLogs(dataStore, false, uncommittedTasks)
 		if err != nil {
-			logger.Fatalf("failed to insert uncommitted async task logs", err)
+			logger.Fatal("failed to insert uncommitted async task logs", err)
 		}
 	}
 
@@ -573,7 +573,7 @@ func (node *Node) handleLeaderChange() {
 func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
 	for _, asyncTask := range asyncTasks {
 		if asyncTask.State == models.AsyncTaskInProgress && asyncTask.Service == constants.CreateJobAsyncTaskService {
-			var jobsPayload []models.JobModel
+			var jobsPayload []models.Job
 			err := json.Unmarshal([]byte(asyncTask.Input), &jobsPayload)
 			if err != nil {
 				node.logger.Error("failed to string -> json convert jobs payload from async task with id", "id", asyncTask.Id, "error", err.Error())

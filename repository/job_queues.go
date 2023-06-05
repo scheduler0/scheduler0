@@ -55,6 +55,7 @@ func (repo *jobQueues) GetLastJobQueueLogForNode(nodeId uint64, version uint64) 
 		JobQueueNodeIdColumn,
 		JobQueueLowerBoundJobId,
 		JobQueueUpperBound,
+		JobQueueVersion,
 		JobQueueDateCreatedColumn,
 	).
 		From(JobQueuesTableName).
@@ -75,6 +76,7 @@ func (repo *jobQueues) GetLastJobQueueLogForNode(nodeId uint64, version uint64) 
 			&queueLog.NodeId,
 			&queueLog.LowerBoundJobId,
 			&queueLog.UpperBoundJobId,
+			&queueLog.Version,
 			&queueLog.DateCreated,
 		)
 		if scanErr != nil {

@@ -125,7 +125,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 
 		jobProcessor.logger.Debug(fmt.Sprintf("recovered %d jobs", len(jobsFromDb)))
 
-		var jobsToSchedule []models.JobModel
+		var jobsToSchedule []models.Job
 
 		for _, job := range jobsFromDb {
 			var lastJobState models.JobExecutionLog

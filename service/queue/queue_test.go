@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"github.com/brianvoe/gofakeit/v6"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"github.com/stretchr/testify/assert"
@@ -11,6 +12,7 @@ import (
 	"scheduler0/config"
 	"scheduler0/db"
 	"scheduler0/fsm"
+	"scheduler0/models"
 	"scheduler0/repository"
 	"scheduler0/shared_repo"
 	"testing"
@@ -314,4 +316,80 @@ func Test_assignJobRangeToServers_multi_server(t *testing.T) {
 	assert.Equal(t, len(assignments), 3)
 	assert.Equal(t, assignments[0][0], uint64(11))
 	assert.Equal(t, assignments[2][1], uint64(29))
+}
+
+func Test_Queue_Queue(t *testing.T) {
+	ctx := context.Background()
+	scheduler0config := config.NewScheduler0Config()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "queue-test",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobQueue := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          5,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+	jobQueue.AddServers([]uint64{1, 2, 3, 4, 5})
+
+	go func() {
+		time.Sleep(time.Second * 3)
+		jobs := []models.Job{}
+		numberOfJEL := 29
+		for i := 0; i < numberOfJEL; i++ {
+			var jobModel models.Job
+			gofakeit.Struct(&jobModel)
+			jobModel.ID = uint64(i + 1)
+			jobs = append(jobs, jobModel)
+		}
+		jobQueue.Queue(jobs)
+	}()
+
+	var actualAllocations = map[uint64][]int64{}
+
+	for {
+		queue := <-scheduler0Store.GetQueueJobsChannel()
+		actualAllocations[queue[0].(uint64)] = []int64{
+			queue[1].(int64),
+			queue[2].(int64),
+		}
+		if len(actualAllocations) == 4 {
+			break
+		}
+	}
+	var minId = math.MaxInt
+	var maxId = math.MinInt
+
+	time.Sleep(time.Second * 1)
+
+	for serverId, allocation := range actualAllocations {
+		minId = int(math.Min(float64(allocation[0]), float64(minId)))
+		maxId = int(math.Max(float64(allocation[1]), float64(maxId)))
+		assert.Equal(t, jobQueue.allocations[serverId], uint64(allocation[1]-allocation[0]))
+	}
+
+	assert.Equal(t, len(actualAllocations), 4)
+	assert.Equal(t, minId, 1)
+	assert.Equal(t, maxId, 29)
+	assert.Equal(t, jobQueue.maxId, int64(math.MinInt16))
+	assert.Equal(t, jobQueue.minId, int64(math.MaxInt64))
 }

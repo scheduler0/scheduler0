@@ -35,7 +35,7 @@ var credentialCmd = &cobra.Command{
 		configs := config.NewScheduler0Config().GetConfigurations()
 		credentials := secrets.NewScheduler0Secrets().GetSecrets()
 
-		credentialModel := models.CredentialModel{}
+		credentialModel := models.Credential{}
 		data, err := credentialModel.ToJSON()
 		if err != nil {
 			logger.Fatalln(err)

@@ -14,7 +14,7 @@ type ExecutionsRepo struct {
 }
 
 // BatchInsert provides a mock function with given fields: jobs, nodeId, state, jobQueueVersion, executionVersions
-func (_m *ExecutionsRepo) BatchInsert(jobs []models.JobModel, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, executionVersions map[uint64]uint64) {
+func (_m *ExecutionsRepo) BatchInsert(jobs []models.Job, nodeId uint64, state models.JobExecutionLogState, jobQueueVersion uint64, executionVersions map[uint64]uint64) {
 	_m.Called(jobs, nodeId, state, jobQueueVersion, executionVersions)
 }
 

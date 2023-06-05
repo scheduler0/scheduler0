@@ -21,7 +21,7 @@ type HTTPExecutionHandler struct {
 }
 
 type HTTPExecutor interface {
-	ExecuteHTTPJob(pendingJobs []*models.JobModel) error
+	ExecuteHTTPJob(pendingJobs []*models.Job) error
 }
 
 func NewHTTTPExecutor(logger hclog.Logger) *HTTPExecutionHandler {
@@ -30,20 +30,20 @@ func NewHTTTPExecutor(logger hclog.Logger) *HTTPExecutionHandler {
 	}
 }
 
-func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, dispatcher *utils.Dispatcher, pendingJobs []models.JobModel, onSuccess func(jobs []models.JobModel), onFailure func(jobs []models.JobModel)) ([]models.JobModel, []models.JobModel) {
-	urlJobCache := map[string][]models.JobModel{}
+func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, dispatcher *utils.Dispatcher, pendingJobs []models.Job, onSuccess func(jobs []models.Job), onFailure func(jobs []models.Job)) ([]models.Job, []models.Job) {
+	urlJobCache := map[string][]models.Job{}
 
 	for _, pj := range pendingJobs {
 		if pJs, ok := urlJobCache[pj.CallbackUrl]; !ok {
-			urlJobCache[pj.CallbackUrl] = []models.JobModel{}
+			urlJobCache[pj.CallbackUrl] = []models.Job{}
 			urlJobCache[pj.CallbackUrl] = append(pJs, pj)
 		} else {
 			urlJobCache[pj.CallbackUrl] = append(pJs, pj)
 		}
 	}
 
-	failedJobs := []models.JobModel{}
-	successJobs := []models.JobModel{}
+	failedJobs := []models.Job{}
+	successJobs := []models.Job{}
 
 	for rurl, uJc := range urlJobCache {
 
@@ -96,8 +96,8 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 	return successJobs, failedJobs
 }
 
-func (httpExecutor *HTTPExecutionHandler) unwrapBatch(data []byte) []models.JobModel {
-	fj := []models.JobModel{}
+func (httpExecutor *HTTPExecutionHandler) unwrapBatch(data []byte) []models.Job {
+	fj := []models.Job{}
 	err := json.Unmarshal(data, &fj)
 	if err != nil {
 		httpExecutor.logger.Error("failed to marshal failed jobs: ", err.Error())

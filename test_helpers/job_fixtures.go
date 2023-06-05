@@ -13,7 +13,7 @@ import (
 func InsertFakeJobs(n int, projectIds []int64, conn *sql.DB, t *testing.T) []int64 {
 	var ids []int64
 	for i := 0; i < n; i++ {
-		var j models.JobModel
+		var j models.Job
 		gofakeit.Struct(&j)
 		j.DateCreated = time.Now()
 		j.ProjectID = uint64(projectIds[i%len(projectIds)])

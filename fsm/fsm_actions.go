@@ -177,6 +177,10 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 				Error: err.Error(),
 			}
 		}
+		return models.Response{
+			Data:  nil,
+			Error: err.Error(),
+		}
 	}
 
 	err = tx.Commit()
@@ -207,6 +211,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 	rowsAffected, err := exec.RowsAffected()
 	if err != nil {
 		logger.Error("failed to get number of rows affected", "error", err.Error())
+
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
 			logger.Error("failed to roll back transaction", "error", rollBackErr.Error())
