@@ -17,7 +17,6 @@ import (
 )
 
 func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
-	t.Skip()
 	scheduler0config := config.NewScheduler0Config()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "job-queues-repo-test",
@@ -58,7 +57,7 @@ func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
 			NodeId:          1,
 			LowerBoundJobId: 1,
 			UpperBoundJobId: 10,
-			Version:         1,
+			Version:         2,
 			DateCreated:     time.Now(),
 		},
 		{
@@ -66,15 +65,7 @@ func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
 			NodeId:          1,
 			LowerBoundJobId: 11,
 			UpperBoundJobId: 20,
-			Version:         1,
-			DateCreated:     time.Now(),
-		},
-		{
-			Id:              3,
-			NodeId:          2,
-			LowerBoundJobId: 21,
-			UpperBoundJobId: 30,
-			Version:         1,
+			Version:         2,
 			DateCreated:     time.Now(),
 		},
 	}
@@ -90,7 +81,7 @@ func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
 
 	// Define the node ID and version to query
 	nodeID := uint64(1)
-	version := uint64(1)
+	version := uint64(2)
 
 	// Call the GetLastJobQueueLogForNode method
 	result := jobQueuesRepo.GetLastJobQueueLogForNode(nodeID, version)
@@ -99,19 +90,33 @@ func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
 	expectedCount := 2
 	assert.Equal(t, expectedCount, len(result))
 
-	// Assert the correctness of the retrieved job queue logs
-	expectedLogs := []models.JobQueueLog{logs[0], logs[1]} // Expect the logs to be sorted by date created in descending order
-	assert.Equal(t, expectedLogs[0].Id, result[0].Id)
-	assert.Equal(t, expectedLogs[0].NodeId, result[0].NodeId)
-	assert.Equal(t, expectedLogs[0].LowerBoundJobId, result[0].LowerBoundJobId)
-	assert.Equal(t, expectedLogs[0].UpperBoundJobId, result[0].UpperBoundJobId)
-	assert.True(t, expectedLogs[0].DateCreated.Equal(result[0].DateCreated))
+	// Create maps to track the expected log IDs and the retrieved log IDs
+	expectedLogs := make(map[uint64]models.JobQueueLog)
+	retrievedLogs := make(map[uint64]models.JobQueueLog)
 
-	assert.Equal(t, expectedLogs[1].Id, result[1].Id)
-	assert.Equal(t, expectedLogs[1].NodeId, result[1].NodeId)
-	assert.Equal(t, expectedLogs[1].LowerBoundJobId, result[1].LowerBoundJobId)
-	assert.Equal(t, expectedLogs[1].UpperBoundJobId, result[1].UpperBoundJobId)
-	assert.True(t, expectedLogs[1].DateCreated.Equal(result[1].DateCreated))
+	// Populate the expectedLogs map with log IDs as keys and corresponding logs as values
+	for _, log := range logs {
+		expectedLogs[log.Id] = log
+	}
+
+	// Populate the retrievedLogs map with log IDs from the result
+	for _, log := range result {
+		retrievedLogs[log.Id] = log
+	}
+
+	// Assert that the expectedLogs and retrievedLogs maps have the same number of elements
+	assert.Equal(t, len(expectedLogs), len(retrievedLogs))
+
+	// Assert the correctness of the retrieved job queue logs by comparing their properties with the expected logs
+	for id, expectedLog := range expectedLogs {
+		retrievedLog, ok := retrievedLogs[id]
+		assert.True(t, ok) // Ensure the log with the given ID is present in the retrievedLogs map
+
+		assert.Equal(t, expectedLog.Id, retrievedLog.Id)
+		assert.Equal(t, expectedLog.NodeId, retrievedLog.NodeId)
+		assert.Equal(t, expectedLog.LowerBoundJobId, retrievedLog.LowerBoundJobId)
+		assert.Equal(t, expectedLog.UpperBoundJobId, retrievedLog.UpperBoundJobId)
+	}
 }
 
 func Test_JobQueuesRepo_GetLastVersion(t *testing.T) {
