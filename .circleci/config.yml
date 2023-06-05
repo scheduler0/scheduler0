@@ -8,7 +8,7 @@ jobs:
       - checkout
       - run:
           name: Install dependencies
-          command: go get -t -v ./...
+          command: go get -v ./...
 
       - run:
           name: Run tests
