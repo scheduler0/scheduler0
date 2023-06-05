@@ -12,10 +12,6 @@ jobs:
 
       - run:
           name: Run tests
-          command: go test -v -coverprofile=coverage.out ./...
-
-      - run:
-          name: Upload coverage to Coveralls
           command: |
-            curl -sL https://github.com/mattn/goveralls/releases/latest/download/goveralls_linux_amd64.tar.gz | tar xvz
-            ./goveralls -coverprofile=coverage.out -service=circle-ci -repotoken $brw
+            go test -v -coverprofile=coverage.out ./... | curl -sL https://github.com/mattn/goveralls/releases/latest/download/goveralls_linux_amd64.tar.gz | tar xvz
+              ./goveralls -coverprofile=coverage.out -service=circle-ci -repotoken $brw

@@ -2,6 +2,8 @@
     <img src="./logo.png" height="250" />
 </p>
 
+[![Coverage Status](https://coveralls.io/repos/github/scheduler0/scheduler0/badge.svg?branch=main)](https://coveralls.io/github/scheduler0/scheduler0?branch=main)
+
 # Scheduler0
 
 A cloud-native distributed cron-job server based on Raft distributed consensus and sqlite.
