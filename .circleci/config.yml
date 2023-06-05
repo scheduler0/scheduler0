@@ -3,15 +3,19 @@ jobs:
   build:
     docker:
       - image: cimg/go:1.18
-
     steps:
       - checkout
+
       - run:
           name: Install dependencies
-          command: go get ./...
+          command: go get -t -v ./...
 
       - run:
           name: Run tests
           command: |
-            go test -v -coverprofile=coverage.out ./... | curl -sL https://github.com/mattn/goveralls/releases/latest/download/goveralls_linux_amd64.tar.gz | tar xvz
-              ./goveralls -coverprofile=coverage.out -service=circle-ci -repotoken $brw
+            go install github.com/mattn/goveralls@latest
+            go test -v -cover -race -coverprofile=/home/ubuntu/coverage.out
+
+      - run:
+          name: Upload coverage to Coveralls
+          command: /home/ubuntu/.go_workspace/bin/goveralls -coverprofile=/home/ubuntu/coverage.out -service=circle-ci -repotoken $COVERALLS_TOKENralls -coverprofile=/home/ubuntu/coverage.out -service=circle-ci -repotoken=$COVERALLS_TOKEN
