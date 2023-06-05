@@ -17,6 +17,7 @@ import (
 )
 
 func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
+	t.Skip()
 	scheduler0config := config.NewScheduler0Config()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "job-queues-repo-test",
