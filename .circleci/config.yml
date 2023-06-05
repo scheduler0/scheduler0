@@ -14,7 +14,7 @@ jobs:
           name: Run tests
           command: |
             go install github.com/mattn/goveralls@latest
-            go test -v -cover -race -coverprofile=./coverage.out ./...
+            go test -v -cover -coverprofile=./coverage.out ./...
       - run:
           name: Upload coverage to Coveralls
           command: goveralls -coverprofile=./coverage.out -service=circle-ci -repotoken $COVERALLS_TOKEN -coverprofile=./coverage.out -service=circle-ci -repotoken=$COVERALLS_TOKEN

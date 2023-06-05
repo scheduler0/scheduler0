@@ -22,21 +22,17 @@ func TestDebounce(t *testing.T) {
 	debounce.Debounce(ctx, delay, effector)
 
 	// Wait for a duration shorter than the delay
-	select {
-	case <-time.After(time.Duration(delay/2) * time.Millisecond):
-		// Assert that effector has not been called yet
-		if effectorCalled {
-			t.Error("Effector was called too early")
-		}
+	time.Sleep(time.Duration(delay/2) * time.Millisecond)
+	// Assert that effector has not been called yet
+	if effectorCalled {
+		t.Error("Effector was called too early")
 	}
 
 	// Wait for a duration longer than the delay
-	select {
-	case <-time.After(time.Duration(delay) * time.Millisecond):
-		// Assert that effector has been called
-		if !effectorCalled {
-			t.Error("Effector was not called")
-		}
+	time.Sleep(time.Duration(delay) * time.Millisecond)
+	// Assert that effector has been called
+	if !effectorCalled {
+		t.Error("Effector was not called")
 	}
 
 	// Reset the flag
