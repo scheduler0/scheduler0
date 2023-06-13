@@ -60,7 +60,7 @@ func Start() {
 	router.HandleFunc("/credentials/{id}", credentialController.UpdateOneCredential).Methods(http.MethodPut)
 	router.HandleFunc("/credentials/{id}", credentialController.DeleteOneCredential).Methods(http.MethodDelete)
 
-	// Job Endpoint
+	// JobService Endpoint
 	router.HandleFunc("/jobs", jobController.BatchCreateJobs).Methods(http.MethodPost)
 	router.HandleFunc("/jobs", jobController.ListJobs).Methods(http.MethodGet)
 	router.HandleFunc("/jobs/{id}", jobController.GetOneJob).Methods(http.MethodGet)

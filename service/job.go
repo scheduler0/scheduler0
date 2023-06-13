@@ -10,8 +10,6 @@ import (
 	"scheduler0/constants"
 	"scheduler0/models"
 	"scheduler0/repository"
-	"scheduler0/service/async_task_manager"
-	"scheduler0/service/queue"
 	"scheduler0/utils"
 	"time"
 )
@@ -19,14 +17,15 @@ import (
 type jobService struct {
 	jobRepo          repository.JobRepo
 	projectRepo      repository.ProjectRepo
-	Queue            *queue.JobQueue
+	Queue            *JobQueue
 	Ctx              context.Context
 	logger           hclog.Logger
 	dispatcher       *utils.Dispatcher
-	asyncTaskManager *async_task_manager.AsyncTaskManager
+	asyncTaskManager *AsyncTaskManager
 }
 
-type Job interface {
+//go:generate mockery --name JobService --output ../mocks
+type JobService interface {
 	GetJobsByProjectID(projectID uint64, offset uint64, limit uint64, orderBy string) (*models.PaginatedJob, *utils.GenericError)
 	GetJob(job models.Job) (*models.Job, *utils.GenericError)
 	BatchInsertJobs(requestId string, jobs []models.Job) ([]uint64, *utils.GenericError)
@@ -39,11 +38,11 @@ func NewJobService(
 	context context.Context,
 	logger hclog.Logger,
 	jobRepo repository.JobRepo,
-	queue *queue.JobQueue,
+	queue *JobQueue,
 	projectRepo repository.ProjectRepo,
 	dispatcher *utils.Dispatcher,
-	asyncTaskManager *async_task_manager.AsyncTaskManager,
-) Job {
+	asyncTaskManager *AsyncTaskManager,
+) JobService {
 	service := &jobService{
 		jobRepo:          jobRepo,
 		projectRepo:      projectRepo,

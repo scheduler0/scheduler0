@@ -11,8 +11,9 @@ import (
 	"scheduler0/utils"
 )
 
-// Credential service layer for credentials
-type Credential interface {
+// CredentialService service layer for credentials
+//go:generate mockery --name CredentialService --output ../mocks
+type CredentialService interface {
 	CreateNewCredential(credentialTransformer models.Credential) (uint64, *utils.GenericError)
 	FindOneCredentialByID(id uint64) (*models.Credential, error)
 	UpdateOneCredential(credentialTransformer models.Credential) (*models.Credential, error)
@@ -21,7 +22,7 @@ type Credential interface {
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 }
 
-func NewCredentialService(Ctx context.Context, logger hclog.Logger, scheduler0Secret secrets.Scheduler0Secrets, repo repository.CredentialRepo, dispatcher *utils.Dispatcher) Credential {
+func NewCredentialService(Ctx context.Context, logger hclog.Logger, scheduler0Secret secrets.Scheduler0Secrets, repo repository.CredentialRepo, dispatcher *utils.Dispatcher) CredentialService {
 	return &credentialService{
 		CredentialRepo:   repo,
 		Ctx:              Ctx,

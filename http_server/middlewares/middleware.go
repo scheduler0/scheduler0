@@ -10,7 +10,6 @@ import (
 	"scheduler0/constants/headers"
 	"scheduler0/secrets"
 	"scheduler0/service"
-	"scheduler0/service/node"
 	"scheduler0/utils"
 	"strings"
 	"sync"
@@ -27,7 +26,7 @@ type middlewareHandler struct {
 
 type MiddlewareHandler interface {
 	ContextMiddleware(next http.Handler) http.Handler
-	AuthMiddleware(credentialService service.Credential) func(next http.Handler) http.Handler
+	AuthMiddleware(credentialService service.CredentialService) func(next http.Handler) http.Handler
 }
 
 func NewMiddlewareHandler(logger *log.Logger, scheduler0Secret secrets.Scheduler0Secrets, scheduler0Config config.Scheduler0Config) *middlewareHandler {
@@ -49,7 +48,7 @@ func (m *middlewareHandler) ContextMiddleware(next http.Handler) http.Handler {
 }
 
 // AuthMiddleware authentication middleware
-func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential) func(next http.Handler) http.Handler {
+func (m *middlewareHandler) AuthMiddleware(credentialService service.CredentialService) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			paths := strings.Split(r.URL.Path, "/")
@@ -90,7 +89,7 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.Credential)
 	}
 }
 
-func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *node.Node) func(next http.Handler) http.Handler {
+func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *service.Node) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			paths := strings.Split(r.URL.Path, "/")

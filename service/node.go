@@ -1,4 +1,4 @@
-package node
+package service
 
 import (
 	"context"
@@ -25,10 +25,6 @@ import (
 	"scheduler0/network"
 	"scheduler0/repository"
 	"scheduler0/secrets"
-	"scheduler0/service/async_task_manager"
-	"scheduler0/service/executor"
-	"scheduler0/service/processor"
-	"scheduler0/service/queue"
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"strconv"
@@ -77,16 +73,16 @@ type Node struct {
 	ctx                   context.Context
 	logger                hclog.Logger
 	mtx                   sync.Mutex
-	jobProcessor          *processor.JobProcessor
-	jobQueue              *queue.JobQueue
-	jobExecutor           *executor.JobExecutor
+	jobProcessor          *JobProcessor
+	jobQueue              *JobQueue
+	jobExecutor           *JobExecutor
 	jobQueuesRepo         repository.JobQueuesRepo
 	jobRepo               repository.JobRepo
 	projectRepo           repository.ProjectRepo
 	sharedRepo            shared_repo.SharedRepo
 	isExistingNode        bool
 	peerObserverChannels  chan raft.Observation
-	asyncTaskManager      *async_task_manager.AsyncTaskManager
+	asyncTaskManager      *AsyncTaskManager
 	dispatcher            *utils.Dispatcher
 	fanIns                sync.Map // models.PeerFanIn
 	fanInCh               chan models.PeerFanIn
@@ -101,14 +97,14 @@ func NewNode(
 	scheduler0Config config.Scheduler0Config,
 	scheduler0Secrets secrets.Scheduler0Secrets,
 	fsmActions fsm.Scheduler0RaftActions,
-	jobExecutor *executor.JobExecutor,
-	jobQueue *queue.JobQueue,
+	jobExecutor *JobExecutor,
+	jobQueue *JobQueue,
 	jobRepo repository.JobRepo,
 	projectRepo repository.ProjectRepo,
 	executionsRepo repository.JobExecutionsRepo,
 	jobQueueRepo repository.JobQueuesRepo,
 	sharedRepo shared_repo.SharedRepo,
-	asyncTaskManager *async_task_manager.AsyncTaskManager,
+	asyncTaskManager *AsyncTaskManager,
 	dispatcher *utils.Dispatcher,
 ) *Node {
 	nodeServiceLogger := logger.Named("node-service")
@@ -134,7 +130,7 @@ func NewNode(
 		acceptClientWrites:    false,
 		State:                 Cold,
 		ctx:                   ctx,
-		jobProcessor:          processor.NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
+		jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
 		jobQueue:              jobQueue,
 		jobExecutor:           jobExecutor,
 		jobRepo:               jobRepo,

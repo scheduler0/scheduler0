@@ -1,4 +1,4 @@
-package processor
+package service
 
 import (
 	"context"
@@ -9,8 +9,6 @@ import (
 	"scheduler0/config"
 	"scheduler0/models"
 	"scheduler0/repository"
-	"scheduler0/service/executor"
-	"scheduler0/service/queue"
 	"scheduler0/utils"
 	"sync"
 	"time"
@@ -22,8 +20,8 @@ type JobProcessor struct {
 	projectRepo         repository.ProjectRepo
 	jobExecutionLogRepo repository.JobExecutionsRepo
 	jobQueuesRepo       repository.JobQueuesRepo
-	jobQueue            *queue.JobQueue
-	jobExecutor         *executor.JobExecutor
+	jobQueue            *JobQueue
+	jobExecutor         *JobExecutor
 	logger              hclog.Logger
 	mtx                 sync.Mutex
 	ctx                 context.Context
@@ -31,7 +29,7 @@ type JobProcessor struct {
 }
 
 // NewJobProcessor creates a new job processor
-func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.JobRepo, projectRepo repository.ProjectRepo, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
+func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.JobRepo, projectRepo repository.ProjectRepo, jobQueue *JobQueue, jobExecutor *JobExecutor, jobExecutionLogRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
 	return &JobProcessor{
 		jobRepo:             jobRepo,
 		projectRepo:         projectRepo,

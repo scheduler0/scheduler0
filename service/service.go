@@ -12,10 +12,6 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/repository"
 	"scheduler0/secrets"
-	"scheduler0/service/async_task_manager"
-	"scheduler0/service/executor"
-	"scheduler0/service/node"
-	"scheduler0/service/queue"
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"time"
@@ -23,13 +19,13 @@ import (
 
 type Service struct {
 	Dispatcher         *utils.Dispatcher
-	JobService         Job
-	ProjectService     Project
-	CredentialService  Credential
-	JobExecutorService *executor.JobExecutor
-	NodeService        *node.Node
-	JobQueueService    *queue.JobQueue
-	AsyncTaskManager   *async_task_manager.AsyncTaskManager
+	JobService         JobService
+	ProjectService     ProjectService
+	CredentialService  CredentialService
+	JobExecutorService *JobExecutor
+	NodeService        *Node
+	JobQueueService    *JobQueue
+	AsyncTaskManager   *AsyncTaskManager
 }
 
 func NewService(ctx context.Context, logger hclog.Logger) *Service {
@@ -64,8 +60,8 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, fsmActions, fsmStr)
 	asyncTaskRepo := repository.NewAsyncTasksRepo(serviceCtx, logger, fsmActions, fsmStr)
 
-	asyncTaskManager := async_task_manager.NewAsyncTaskManager(serviceCtx, logger, fsmStr, asyncTaskRepo)
-	jobExecutor := executor.NewJobExecutor(
+	asyncTaskManager := NewAsyncTaskManager(serviceCtx, logger, fsmStr, asyncTaskRepo)
+	jobExecutor := NewJobExecutor(
 		serviceCtx,
 		logger,
 		scheduler0Configs,
@@ -75,8 +71,8 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 		jobQueueRepo,
 		dispatcher,
 	)
-	jobQueue := queue.NewJobQueue(serviceCtx, logger, scheduler0Configs, fsmActions, fsmStr, jobQueueRepo)
-	nodeService := node.NewNode(
+	jobQueue := NewJobQueue(serviceCtx, logger, scheduler0Configs, fsmActions, fsmStr, jobQueueRepo)
+	nodeService := NewNode(
 		serviceCtx,
 		logger,
 		scheduler0Configs,

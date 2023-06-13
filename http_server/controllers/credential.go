@@ -20,11 +20,11 @@ type CredentialHTTPController interface {
 }
 
 type credentialController struct {
-	credentialService service.Credential
+	credentialService service.CredentialService
 	logger            *log.Logger
 }
 
-func NewCredentialController(logger *log.Logger, credentialService service.Credential) CredentialHTTPController {
+func NewCredentialController(logger *log.Logger, credentialService service.CredentialService) CredentialHTTPController {
 	return &credentialController{
 		credentialService: credentialService,
 		logger:            logger,

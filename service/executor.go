@@ -1,4 +1,4 @@
-package executor
+package service
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/models"
 	"scheduler0/repository"
-	"scheduler0/service/executor/executors"
+	"scheduler0/service/executors"
 	"scheduler0/utils"
 	"sync"
 	"time"

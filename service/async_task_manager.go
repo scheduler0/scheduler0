@@ -1,4 +1,4 @@
-package async_task_manager
+package service
 
 import (
 	"context"

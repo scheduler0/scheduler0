@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/service/async_task_manager"
+	"scheduler0/service"
 	"scheduler0/utils"
 )
 
@@ -18,10 +18,10 @@ type AsyncTaskController interface {
 type asyncTaskController struct {
 	fsmStore         fsm.Scheduler0RaftStore
 	logger           *log.Logger
-	asyncTaskService *async_task_manager.AsyncTaskManager
+	asyncTaskService *service.AsyncTaskManager
 }
 
-func NewAsyncTaskController(logger *log.Logger, fsmStore fsm.Scheduler0RaftStore, asyncTaskService *async_task_manager.AsyncTaskManager) AsyncTaskController {
+func NewAsyncTaskController(logger *log.Logger, fsmStore fsm.Scheduler0RaftStore, asyncTaskService *service.AsyncTaskManager) AsyncTaskController {
 	controller := asyncTaskController{
 		fsmStore:         fsmStore,
 		logger:           logger,
