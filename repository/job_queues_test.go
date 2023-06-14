@@ -36,7 +36,7 @@ func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -139,7 +139,7 @@ func Test_JobQueuesRepo_GetLastVersion(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,

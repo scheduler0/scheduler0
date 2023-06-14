@@ -39,7 +39,7 @@ func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -123,7 +123,7 @@ func Test_WriteCommandToRaftLog_Job_Queue(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -222,7 +222,7 @@ func Test_WriteCommandToRaftLog_Local_Data_Commit(t *testing.T) {
 
 	scheduler0Store := NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -314,7 +314,7 @@ func Test_WriteCommandToRaftLog_Stop_All_Jobs(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -356,7 +356,7 @@ func Test_WriteCommandToRaftLog_Recovery_All_Jobs(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,

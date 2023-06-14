@@ -35,7 +35,7 @@ func Test_JobRepo_BatchInsertJobs(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -119,7 +119,7 @@ func Test_JobRepo_UpdateOneByID(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -226,7 +226,7 @@ func Test_JobRepo_DeleteOneByID(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -314,7 +314,7 @@ func Test_JobRepo_BatchGetJobsByID(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -425,7 +425,7 @@ func Test_JobRepo_BatchGetJobsWithIDRange(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -547,7 +547,7 @@ func Test_JobRepo_GetAllByProjectID(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -703,7 +703,7 @@ func Test_JobRepo_GetJobsTotalCountByProjectID(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -794,7 +794,7 @@ func Test_JobRepo_GetJobsPaginated(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,

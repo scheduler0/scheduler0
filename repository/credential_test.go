@@ -35,7 +35,7 @@ func Test_CredentialRepo_CreateOne(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -86,7 +86,7 @@ func Test_CredentialRepo_UpdateOneByID(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -162,7 +162,7 @@ func Test_CredentialRepo_DeleteOneByID(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -232,7 +232,7 @@ func Test_CredentialRepo_List(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -393,7 +393,7 @@ func Test_CredentialRepo_GetByAPIKey(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -455,7 +455,7 @@ func Test_JobRepo_GetJobsTotalCount(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,

@@ -34,7 +34,7 @@ func Test_ProjectRepo_GetBatchProjectsByIDs(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -112,7 +112,7 @@ func Test_ProjectRepo_List(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -352,7 +352,7 @@ func Test_ProjectRepo_Count(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,

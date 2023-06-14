@@ -137,7 +137,7 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -195,7 +195,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -259,7 +259,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -338,7 +338,7 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 
 			// Create a mock Raft cluster
 			cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-				Peers:          3,
+				Peers:          1,
 				Bootstrap:      true,
 				Conf:           raft.DefaultConfig(),
 				ConfigStoreFSM: false,

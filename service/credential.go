@@ -14,7 +14,7 @@ import (
 // CredentialService service layer for credentials
 //go:generate mockery --name CredentialService --output ../mocks
 type CredentialService interface {
-	CreateNewCredential(credentialTransformer models.Credential) (uint64, *utils.GenericError)
+	CreateNewCredential(credentialModel models.Credential) (uint64, *utils.GenericError)
 	FindOneCredentialByID(id uint64) (*models.Credential, error)
 	UpdateOneCredential(credentialTransformer models.Credential) (*models.Credential, error)
 	DeleteOneCredential(id uint64) (*models.Credential, error)
@@ -41,15 +41,15 @@ type credentialService struct {
 }
 
 // CreateNewCredential creates a new credentials
-func (credentialService *credentialService) CreateNewCredential(credentialTransformer models.Credential) (uint64, *utils.GenericError) {
+func (credentialService *credentialService) CreateNewCredential(credential models.Credential) (uint64, *utils.GenericError) {
 	credentials := credentialService.scheduler0Secret.GetSecrets()
 
 	apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
-	credentialTransformer.ApiKey = apiKey
-	credentialTransformer.ApiSecret = apiSecret
+	credential.ApiKey = apiKey
+	credential.ApiSecret = apiSecret
 
 	successData, errorData := credentialService.dispatcher.BlockQueue(func(successChannel chan any, errorChannel chan any) {
-		newCredentialId, err := credentialService.CredentialRepo.CreateOne(credentialTransformer)
+		newCredentialId, err := credentialService.CredentialRepo.CreateOne(credential)
 		if err != nil {
 			errorChannel <- err
 			return
