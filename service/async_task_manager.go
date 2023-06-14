@@ -122,6 +122,7 @@ func (m *AsyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 	}
 	myT := t.(models.AsyncTask)
 	myT.State = state
+	myT.Output = output
 	m.task.Store(myT.Id, myT)
 	if m.SingleNodeMode {
 		err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)

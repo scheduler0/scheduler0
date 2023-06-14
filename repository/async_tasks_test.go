@@ -233,7 +233,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 	}
 
 	// Verify that the task state has been updated
-	assert.Equal(t, int(updatedTask.State), models.AsyncTaskInProgress)
+	assert.Equal(t, updatedTask.State, models.AsyncTaskInProgress)
 }
 
 func Test_AsyncTask_UpdateTaskState(t *testing.T) {
@@ -298,7 +298,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 	}
 
 	// Verify that the task state has been updated
-	assert.Equal(t, int(updatedTask.State), models.AsyncTaskSuccess)
+	assert.Equal(t, updatedTask.State, models.AsyncTaskSuccess)
 }
 
 func Test_AsyncTask_GetAllTasks(t *testing.T) {
