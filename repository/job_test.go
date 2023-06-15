@@ -288,7 +288,7 @@ func Test_JobRepo_DeleteOneByID(t *testing.T) {
 		ID: 1,
 	}
 	getErr := jobRepo.GetOneByID(&deletedJob)
-	if getErr != nil {
+	if getErr == nil {
 		t.Fatal("expected job to be deleted, but it was found in the database", getErr)
 	}
 	assert.Equal(t, deletedJob.CallbackUrl, "")
