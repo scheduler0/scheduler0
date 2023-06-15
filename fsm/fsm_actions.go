@@ -74,7 +74,7 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	af := rft.Apply(createCommandData, time.Duration(90)*time.Minute).(raft.ApplyFuture)
+	af := rft.Apply(createCommandData, time.Duration(15)*time.Second).(raft.ApplyFuture)
 	if af.Error() != nil {
 		if af.Error() == raft.ErrNotLeader {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "server not raft leader")

@@ -16,12 +16,13 @@ import (
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"testing"
+	"time"
 )
 
 func Test_JobService_BatchInsertJobs(t *testing.T) {
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "job-service-test",
-		Level: hclog.LevelFromString("DEBUG"),
+		Level: hclog.LevelFromString("ERROR"),
 	})
 
 	// Create a temporary SQLite database file
@@ -78,7 +79,10 @@ func Test_JobService_BatchInsertJobs(t *testing.T) {
 
 	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 	// Create a new JobService instance
-	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	service := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+
+	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
 	jobs := []models.Job{
@@ -110,16 +114,23 @@ func Test_JobService_BatchInsertJobs(t *testing.T) {
 	}
 
 	// Call the BatchInsertJobs method of the job service
-	taskIds, batchErr := jobService.BatchInsertJobs("request123", jobs)
+	taskIds, batchErr := service.BatchInsertJobs("request123", jobs)
 	if batchErr != nil {
 		t.Fatalf("Failed to insert jobs: %v", batchErr)
 	}
 
+	time.Sleep(time.Second * time.Duration(2))
+
 	assert.Equal(t, taskIds[0], uint64(1))
+
+	jobsMap := map[uint64]models.Job{}
+	for _, job := range jobs {
+		jobsMap[job.ID] = job
+	}
 
 	// Assert the correctness of the job state after insertion
 	for _, job := range jobs {
-		retrievedJob, getErr := jobService.GetJob(job)
+		retrievedJob, getErr := service.GetJob(job)
 		if getErr != nil {
 			t.Fatalf("Failed to get job: %v", getErr)
 		}
