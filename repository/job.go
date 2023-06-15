@@ -68,7 +68,7 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.Job) *utils.GenericError {
 	defer rows.Close()
 	count := 0
 	for rows.Next() {
-		err = rows.Scan(
+		scanErr := rows.Scan(
 			&jobModel.ID,
 			&jobModel.ProjectID,
 			&jobModel.Spec,
@@ -79,12 +79,17 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.Job) *utils.GenericError {
 			&jobModel.TimezoneOffset,
 			&jobModel.Data,
 		)
+		if scanErr != nil {
+			return utils.HTTPGenericError(http.StatusInternalServerError, scanErr.Error())
+		}
 		count += 1
 	}
 	if rows.Err() != nil {
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
-
+	if count == 0 {
+		return utils.HTTPGenericError(http.StatusNotFound, "job cannot be found")
+	}
 	return nil
 }
 
