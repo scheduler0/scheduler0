@@ -16,7 +16,7 @@ import (
 type CredentialService interface {
 	CreateNewCredential(credentialModel models.Credential) (uint64, *utils.GenericError)
 	FindOneCredentialByID(id uint64) (*models.Credential, error)
-	UpdateOneCredential(credentialTransformer models.Credential) (*models.Credential, error)
+	UpdateOneCredential(credentialModel models.Credential) (*models.Credential, error)
 	DeleteOneCredential(id uint64) (*models.Credential, error)
 	ListCredentials(offset uint64, limit uint64, orderBy string) (*models.PaginatedCredential, *utils.GenericError)
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
@@ -77,6 +77,10 @@ func (credentialService *credentialService) FindOneCredentialByID(id uint64) (*m
 
 // UpdateOneCredential updates a single credential
 func (credentialService *credentialService) UpdateOneCredential(credential models.Credential) (*models.Credential, error) {
+	if len(credential.ApiKey) < 1 || len(credential.ApiSecret) < 1 {
+		return nil, utils.HTTPGenericError(http.StatusBadRequest, "api_key or api_secret cannot be empty")
+	}
+
 	credentialPlaceholder := models.Credential{
 		ID: credential.ID,
 	}
