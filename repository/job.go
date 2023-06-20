@@ -406,7 +406,7 @@ func (jobRepo *jobRepo) GetJobsPaginated(projectID uint64, offset uint64, limit 
 
 // BatchInsertJobs inserts n number of jobs
 func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.Job) ([]uint64, *utils.GenericError) {
-	batches := utils.Batch[models.Job](jobs, 6)
+	batches := utils.Batch[models.Job](jobs, 8)
 
 	returningIds := []uint64{}
 

@@ -39,7 +39,16 @@ type JobExecutor struct {
 	scheduler0Actions     fsm.Scheduler0RaftActions
 }
 
-func NewJobExecutor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, scheduler0Actions fsm.Scheduler0RaftActions, jobRepository repository.JobRepo, executionsRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo, dispatcher *utils.Dispatcher) *JobExecutor {
+func NewJobExecutor(
+	ctx context.Context,
+	logger hclog.Logger,
+	scheduler0Config config.Scheduler0Config,
+	scheduler0Actions fsm.Scheduler0RaftActions,
+	jobRepository repository.JobRepo,
+	executionsRepo repository.JobExecutionsRepo,
+	jobQueuesRepo repository.JobQueuesRepo,
+	dispatcher *utils.Dispatcher,
+) *JobExecutor {
 	reCtx, cancel := context.WithCancel(ctx)
 	return &JobExecutor{
 		pendingJobInvocations: []models.Job{},
@@ -154,7 +163,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.Job) {
 
 		jobLastLog := executionLogsMap[job.ID]
 
-		if jobLastLog.State == uint64(models.ExecutionLogScheduleState) {
+		if jobLastLog.State == models.ExecutionLogScheduleState {
 			jobs[i].LastExecutionDate = jobLastLog.LastExecutionDatetime
 			jobs[i].ExecutionId = jobLastLog.UniqueId
 
@@ -165,7 +174,16 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.Job) {
 			if now.Before(executionTime) {
 				jobExecutor.ScheduleProcess(jobs[i], executionTime)
 			} else {
-				jobExecutor.ScheduleProcess(jobs[i], jobLastLog.NextExecutionDatetime)
+				newExecTime := schedule.Next(now)
+				uniqueId := fmt.Sprintf(
+					"%v-%v-%v-%v",
+					job.ProjectID,
+					job.ID,
+					job.LastExecutionDate.String(),
+					newExecTime.String(),
+				)
+				jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
+				jobExecutor.ScheduleProcess(jobs[i], newExecTime)
 			}
 
 			jobExecutor.executions.Store(job.ID, models.MemJobExecution{
@@ -177,7 +195,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.Job) {
 			})
 		}
 
-		if jobLastLog.State == uint64(models.ExecutionLogSuccessState) {
+		if jobLastLog.State == models.ExecutionLogSuccessState {
 			jobs[i].LastExecutionDate = jobLastLog.NextExecutionDatetime
 			executionTime := schedule.Next(jobLastLog.NextExecutionDatetime)
 			uniqueId := fmt.Sprintf(
@@ -198,7 +216,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.Job) {
 			})
 		}
 
-		if jobLastLog.State == uint64(models.ExecutionLogFailedState) {
+		if jobLastLog.State == models.ExecutionLogFailedState {
 			failCounts := jobExecutor.jobExecutionsRepo.CountLastFailedExecutionLogs(job.ID, configs.NodeId, jobLastLog.ExecutionVersion)
 			if failCounts < uint64(configs.JobExecutionRetryMax) {
 				jobs[i].LastExecutionDate = jobLastLog.LastExecutionDatetime
@@ -284,12 +302,9 @@ func (jobExecutor *JobExecutor) StopAll() {
 }
 
 func (jobExecutor *JobExecutor) ScheduleProcess(job models.Job, executeTime time.Time) {
-	schedulerTime := utils.GetSchedulerTime()
-	now := schedulerTime.GetTime(time.Now())
-	execTime := now.Add(executeTime.Sub(job.LastExecutionDate))
 	jobExecutor.scheduledJobs.Store(job.ID, models.JobSchedule{
 		Job:           job,
-		ExecutionTime: execTime,
+		ExecutionTime: executeTime,
 	})
 }
 
@@ -586,7 +601,7 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.Job, st
 		executionLogs = append(executionLogs, models.JobExecutionLog{
 			JobId:                 job.ID,
 			UniqueId:              job.ExecutionId,
-			State:                 uint64(state),
+			State:                 state,
 			NodeId:                configs.NodeId,
 			LastExecutionDatetime: job.LastExecutionDate,
 			NextExecutionDatetime: executionTime,

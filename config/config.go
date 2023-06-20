@@ -9,7 +9,6 @@ import (
 	"path"
 	"scheduler0/constants"
 	"strconv"
-	"sync"
 )
 
 // RaftNode represents a node in a raft cluster, providing the necessary
@@ -66,47 +65,39 @@ type Scheduler0Configurations struct {
 }
 
 var cachedConfig *Scheduler0Configurations
-var once sync.Once
 
 // GetConfigurations returns the cached Scheduler0Configurations if it exists,
 // otherwise it reads the configuration file and caches it.
 func (_ Scheduler0Configurations) GetConfigurations() *Scheduler0Configurations {
-	// Check if cachedConfig is not nil, then return it
-	if cachedConfig != nil {
-		return cachedConfig
+	// Ensure that the configuration is read and cached only once
+	// Get the binary path
+	binPath := getBinPath()
+
+	// Create a new file system
+	fs := afero.NewOsFs()
+	// Read the configuration file
+	data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
+	// If there is an error and it's not due to the file not existing, panic
+	if err != nil && !os.IsNotExist(err) {
+		panic(err)
 	}
 
-	// Ensure that the configuration is read and cached only once
-	once.Do(func() {
-		// Get the binary path
-		binPath := getBinPath()
+	// Initialize an empty Scheduler0Configurations struct
+	config := Scheduler0Configurations{}
 
-		// Create a new file system
-		fs := afero.NewOsFs()
-		// Read the configuration file
-		data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
-		// If there is an error and it's not due to the file not existing, panic
-		if err != nil && !os.IsNotExist(err) {
-			panic(err)
-		}
+	// If the error is due to the file not existing, get the configuration from environment variables
+	if os.IsNotExist(err) {
+		config = *getConfigFromEnv()
+	}
 
-		// Initialize an empty Scheduler0Configurations struct
-		config := Scheduler0Configurations{}
-
-		// If the error is due to the file not existing, get the configuration from environment variables
-		if os.IsNotExist(err) {
-			config = *getConfigFromEnv()
-		}
-
-		// Unmarshal the YAML data into the config struct
-		err = yaml.Unmarshal(data, &config)
-		// If there is an error in unmarshaling, panic
-		if err != nil {
-			panic(err)
-		}
-		// Cache the configuration
-		cachedConfig = &config
-	})
+	// Unmarshal the YAML data into the config struct
+	err = yaml.Unmarshal(data, &config)
+	// If there is an error in unmarshaling, panic
+	if err != nil {
+		panic(err)
+	}
+	// Cache the configuration
+	cachedConfig = &config
 
 	// Return the cached configuration
 	return cachedConfig

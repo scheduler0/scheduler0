@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"sync"
 	"time"
 )
 
@@ -9,19 +8,8 @@ type SchedulerTime struct {
 	loc *time.Location
 }
 
-var cachedSchedulerTime *SchedulerTime
-var once sync.Once
-
 func GetSchedulerTime() *SchedulerTime {
-	if cachedSchedulerTime != nil {
-		return cachedSchedulerTime
-	}
-
-	once.Do(func() {
-		cachedSchedulerTime = &SchedulerTime{}
-	})
-
-	return cachedSchedulerTime
+	return &SchedulerTime{}
 }
 
 func (schedulerTime *SchedulerTime) SetTimezone(tz string) error {
