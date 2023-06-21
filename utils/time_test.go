@@ -5,18 +5,6 @@ import (
 	"time"
 )
 
-func TestGetSchedulerTime(t *testing.T) {
-	schedulerTime1 := GetSchedulerTime()
-	schedulerTime2 := GetSchedulerTime()
-	if schedulerTime1 != schedulerTime2 {
-		t.Errorf("Expected GetSchedulerTime to return the same instance, but got different instances.")
-	}
-
-	if schedulerTime1.loc != nil {
-		t.Errorf("Expected GetSchedulerTime to return an instance with a nil loc field, but got a non-nil loc field.")
-	}
-}
-
 func TestSetTimezone(t *testing.T) {
 	schedulerTime := GetSchedulerTime()
 

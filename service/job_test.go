@@ -683,10 +683,14 @@ func Test_JobService_QueueJobs(t *testing.T) {
 		}
 	}
 
+	os.Setenv("SCHEDULER0_NODE_ID", "2")
+	defer os.Remove("SCHEDULER0_NODE_ID")
 	// Call the QueueJobs method of the job service
 	jobService.QueueJobs(jobs)
 
 	time.Sleep(time.Duration(3) * time.Second)
 
-	assert.Equal(t, queueRepo.allocations[1], uint64(1))
+	allocations := queueRepo.GetJobAllocations()
+
+	assert.Equal(t, allocations[1], uint64(1))
 }

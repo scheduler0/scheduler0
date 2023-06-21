@@ -53,12 +53,18 @@ func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config conf
 }
 
 func (jobQ *JobQueue) AddServers(nodeIds []uint64) {
+	jobQ.mtx.Lock()
+	defer jobQ.mtx.Unlock()
+
 	for _, nodeId := range nodeIds {
 		jobQ.allocations[nodeId] = 0
 	}
 }
 
 func (jobQ *JobQueue) RemoveServers(nodeIds []uint64) {
+	jobQ.mtx.Lock()
+	defer jobQ.mtx.Unlock()
+
 	for _, nodeId := range nodeIds {
 		delete(jobQ.allocations, nodeId)
 	}
@@ -87,6 +93,9 @@ func (jobQ *JobQueue) Queue(jobs []models.Job) {
 }
 
 func (jobQ *JobQueue) IncrementQueueVersion() {
+	jobQ.mtx.Lock()
+	defer jobQ.mtx.Unlock()
+
 	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
 	_, err := jobQ.scheduler0RaftActions.WriteCommandToRaftLog(
 		jobQ.fsm.GetRaft(),
@@ -157,6 +166,7 @@ func (jobQ *JobQueue) getNextServerToQueue() uint64 {
 			minServer = server
 		}
 	}
+
 	return minServer
 }
 
@@ -204,4 +214,11 @@ func (jobQ *JobQueue) assignJobRangeToServers(minId, maxId int64) [][]uint64 {
 	}
 
 	return serverAllocations
+}
+
+func (jobQ *JobQueue) GetJobAllocations() map[uint64]uint64 {
+	jobQ.mtx.Lock()
+	defer jobQ.mtx.Unlock()
+
+	return jobQ.allocations
 }
