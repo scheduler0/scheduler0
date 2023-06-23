@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/sha1"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
@@ -13,6 +12,7 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/models"
 	"scheduler0/repository"
+	"scheduler0/scheduler0time"
 	"scheduler0/service/executors"
 	"scheduler0/utils"
 	"sync"
@@ -35,7 +35,7 @@ type JobExecutor struct {
 	debounce              *utils.Debounce
 	dispatcher            *utils.Dispatcher
 	scheduledJobs         sync.Map
-	schedulerOConfig      config.Scheduler0Config
+	scheduler0Config      config.Scheduler0Config
 	scheduler0Actions     fsm.Scheduler0RaftActions
 }
 
@@ -47,8 +47,7 @@ func NewJobExecutor(
 	jobRepository repository.JobRepo,
 	executionsRepo repository.JobExecutionsRepo,
 	jobQueuesRepo repository.JobQueuesRepo,
-	dispatcher *utils.Dispatcher,
-) *JobExecutor {
+	dispatcher *utils.Dispatcher) *JobExecutor {
 	reCtx, cancel := context.WithCancel(ctx)
 	return &JobExecutor{
 		pendingJobInvocations: []models.Job{},
@@ -63,13 +62,13 @@ func NewJobExecutor(
 		executions:            sync.Map{},
 		debounce:              utils.NewDebounce(),
 		dispatcher:            dispatcher,
-		schedulerOConfig:      scheduler0Config,
+		scheduler0Config:      scheduler0Config,
 		scheduler0Actions:     scheduler0Actions,
 	}
 }
 
 func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
-	configs := jobExecutor.schedulerOConfig.GetConfigurations()
+	configs := jobExecutor.scheduler0Config.GetConfigurations()
 
 	serverId := jobQueueParams[0].(uint64)
 	lowerBound := jobQueueParams[1].(int64)
@@ -121,106 +120,103 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.Job) {
 	if len(jobs) < 1 {
 		return
 	}
-	configs := jobExecutor.schedulerOConfig.GetConfigurations()
+	configs := jobExecutor.scheduler0Config.GetConfigurations()
 
 	jobIds := make([]uint64, 0, len(jobs))
-
 	for _, job := range jobs {
 		jobIds = append(jobIds, job.ID)
 	}
 
 	executionLogsMap := jobExecutor.jobExecutionsRepo.GetLastExecutionLogForJobIds(jobIds)
-	sha := sha1.New()
 
 	for i, job := range jobs {
-		schedule, parseErr := cron.Parse(jobs[i].Spec)
-		if parseErr != nil {
-			jobExecutor.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
-			return
-		}
+		// First execution of the job
 		if _, ok := executionLogsMap[job.ID]; !ok {
-			jobs[i].LastExecutionDate = job.DateCreated
-			executionTime := schedule.Next(jobs[i].LastExecutionDate)
-			uniqueId := fmt.Sprintf(
-				"%v-%v-%v-%v",
-				job.ProjectID,
-				job.ID,
-				job.LastExecutionDate.String(),
-				executionTime.String(),
-			)
-			jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-			jobExecutor.ScheduleProcess(jobs[i], executionTime)
-
+			dateCreatedInLocal, err := jobs[i].ConvertTimeToJobTimezone(job.DateCreated)
+			if err != nil {
+				jobExecutor.logger.Error(fmt.Sprintf("failed to convert date created time for job with id %d error=%s", job.ID, err.Error()))
+				continue
+			}
+			jobs[i].LastExecutionDate = *dateCreatedInLocal
+			nextExecutionTime, err := jobs[i].GetNextExecutionTime()
+			if err != nil {
+				jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution time for job with id %d error=%s", job.ID, err.Error()))
+				continue
+			}
+			executionId, err := jobs[i].GetNextExecutionId()
+			if err != nil {
+				jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution id for job with id %d error=%s", job.ID, err.Error()))
+				continue
+			}
+			jobs[i].ExecutionId = executionId
+			jobExecutor.ScheduleProcess(jobs[i])
 			jobExecutor.executions.Store(job.ID, models.MemJobExecution{
 				ExecutionVersion:      1,
 				FailCount:             0,
 				LastState:             models.ExecutionLogScheduleState,
 				LastExecutionDatetime: job.DateCreated,
-				NextExecutionDatetime: executionTime,
+				NextExecutionDatetime: *nextExecutionTime,
 			})
 			continue
 		}
 
 		jobLastLog := executionLogsMap[job.ID]
 
+		// Upon a recovery when the job never executed; it's last state would be models.ExecutionLogScheduleState
+		// We simply re-schedule the job
 		if jobLastLog.State == models.ExecutionLogScheduleState {
 			jobs[i].LastExecutionDate = jobLastLog.LastExecutionDatetime
 			jobs[i].ExecutionId = jobLastLog.UniqueId
-
-			schedulerTime := utils.GetSchedulerTime()
-			now := schedulerTime.GetTime(time.Now())
-
-			executionTime := schedule.Next(jobLastLog.LastExecutionDatetime)
-			if now.Before(executionTime) {
-				jobExecutor.ScheduleProcess(jobs[i], executionTime)
-			} else {
-				newExecTime := schedule.Next(now)
-				uniqueId := fmt.Sprintf(
-					"%v-%v-%v-%v",
-					job.ProjectID,
-					job.ID,
-					job.LastExecutionDate.String(),
-					newExecTime.String(),
-				)
-				jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-				jobExecutor.ScheduleProcess(jobs[i], newExecTime)
+			nextExecutionTime, err := jobs[i].GetNextExecutionTime()
+			if err != nil {
+				jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution time for job with id %d error=%s", job.ID, err.Error()))
+				continue
 			}
-
+			jobExecutor.ScheduleProcess(jobs[i])
 			jobExecutor.executions.Store(job.ID, models.MemJobExecution{
 				ExecutionVersion:      jobLastLog.ExecutionVersion,
 				FailCount:             0,
 				LastState:             models.ExecutionLogScheduleState,
 				LastExecutionDatetime: job.LastExecutionDate,
-				NextExecutionDatetime: executionTime,
+				NextExecutionDatetime: *nextExecutionTime,
 			})
 		}
 
+		// The job executed success the last time, so now we reschedule it
 		if jobLastLog.State == models.ExecutionLogSuccessState {
 			jobs[i].LastExecutionDate = jobLastLog.NextExecutionDatetime
-			executionTime := schedule.Next(jobLastLog.NextExecutionDatetime)
-			uniqueId := fmt.Sprintf(
-				"%v-%v-%v-%v",
-				job.ProjectID,
-				job.ID,
-				jobLastLog.NextExecutionDatetime.String(),
-				executionTime.String(),
-			)
-			jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-			jobExecutor.ScheduleProcess(jobs[i], executionTime)
+			nextExecutionTime, err := jobs[i].GetNextExecutionTime()
+			if err != nil {
+				jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution time for job with id %d error=%s", job.ID, err.Error()))
+				continue
+			}
+			uniqueId, err := jobs[i].GetNextExecutionId()
+			if err != nil {
+				jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution id for job with id %d error=%s", job.ID, err.Error()))
+				continue
+			}
+			jobs[i].ExecutionId = uniqueId
+			jobExecutor.ScheduleProcess(jobs[i])
 			jobExecutor.executions.Store(job.ID, models.MemJobExecution{
 				ExecutionVersion:      jobLastLog.ExecutionVersion,
 				FailCount:             0,
 				LastState:             models.ExecutionLogSuccessState,
 				LastExecutionDatetime: jobLastLog.NextExecutionDatetime,
-				NextExecutionDatetime: executionTime,
+				NextExecutionDatetime: *nextExecutionTime,
 			})
 		}
 
+		// The job failed the last time it executed, so we are trying it
 		if jobLastLog.State == models.ExecutionLogFailedState {
 			failCounts := jobExecutor.jobExecutionsRepo.CountLastFailedExecutionLogs(job.ID, configs.NodeId, jobLastLog.ExecutionVersion)
 			if failCounts < uint64(configs.JobExecutionRetryMax) {
 				jobs[i].LastExecutionDate = jobLastLog.LastExecutionDatetime
-				jobs[i].ExecutionId = jobLastLog.UniqueId
+				uniqueId, err := jobs[i].GetNextExecutionId()
+				if err != nil {
+					jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution id for job with id %d error=%s", job.ID, err.Error()))
+					continue
+				}
+				jobs[i].ExecutionId = uniqueId
 				jobExecutor.executions.Store(job.ID, models.MemJobExecution{
 					ExecutionVersion:      jobLastLog.ExecutionVersion,
 					FailCount:             failCounts,
@@ -228,32 +224,29 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.Job) {
 					LastExecutionDatetime: jobLastLog.LastExecutionDatetime,
 					NextExecutionDatetime: jobLastLog.NextExecutionDatetime,
 				})
-				schedulerTime := utils.GetSchedulerTime()
-				now := schedulerTime.GetTime(time.Now())
-
-				if now.Before(jobLastLog.NextExecutionDatetime) {
-					jobExecutor.ScheduleProcess(jobs[i], jobLastLog.NextExecutionDatetime)
-					continue
-				}
+				jobExecutor.ScheduleProcess(jobs[i])
 			}
 
+			// After all retry attempts for the failed job
 			jobs[i].LastExecutionDate = jobLastLog.NextExecutionDatetime
-			executionTime := schedule.Next(jobLastLog.NextExecutionDatetime)
-			uniqueId := fmt.Sprintf(
-				"%v-%v-%v-%v",
-				job.ProjectID,
-				job.ID,
-				jobLastLog.LastExecutionDatetime.String(),
-				executionTime.String(),
-			)
-			jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-			jobExecutor.ScheduleProcess(jobs[i], executionTime)
+			nextExecutionTime, err := jobs[i].GetNextExecutionTime()
+			if err != nil {
+				jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution time for job with id %d error=%s", job.ID, err.Error()))
+				continue
+			}
+			uniqueId, err := jobs[i].GetNextExecutionId()
+			if err != nil {
+				jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution id for job with id %d error=%s", job.ID, err.Error()))
+				continue
+			}
+			jobs[i].ExecutionId = uniqueId
+			jobExecutor.ScheduleProcess(jobs[i])
 			jobExecutor.executions.Store(job.ID, models.MemJobExecution{
 				ExecutionVersion:      jobLastLog.ExecutionVersion,
 				FailCount:             0,
 				LastState:             models.ExecutionLogFailedState,
 				LastExecutionDatetime: jobLastLog.NextExecutionDatetime,
-				NextExecutionDatetime: executionTime,
+				NextExecutionDatetime: *nextExecutionTime,
 			})
 		}
 	}
@@ -266,8 +259,7 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.Job) {
 			if _, ok := executionLogsMap[job.ID]; ok {
 				cachedJobExecutionsLog, _ := jobExecutor.executions.Load(job.ID)
 				cachedJobExecutionLog := (cachedJobExecutionsLog).(models.MemJobExecution)
-
-				if models.JobExecutionLogState(executionLogsMap[job.ID].State) == models.ExecutionLogSuccessState ||
+				if executionLogsMap[job.ID].State == models.ExecutionLogSuccessState ||
 					(cachedJobExecutionLog.FailCount == 0 &&
 						cachedJobExecutionLog.LastState == models.ExecutionLogFailedState) {
 					lastExecutionVersions[job.ID] = executionLogsMap[job.ID].ExecutionVersion + 1
@@ -301,16 +293,29 @@ func (jobExecutor *JobExecutor) StopAll() {
 	jobExecutor.ListenForJobsToInvoke()
 }
 
-func (jobExecutor *JobExecutor) ScheduleProcess(job models.Job, executeTime time.Time) {
+func (jobExecutor *JobExecutor) ScheduleProcess(job models.Job) {
+	schedulerTime := scheduler0time.GetSchedulerTime()
+	now := schedulerTime.GetTime(time.Now())
+	nowInJobTimezone, err := job.ConvertTimeToJobTimezone(now)
+	if err != nil {
+		jobExecutor.logger.Error(fmt.Sprintf("failed to convert date created time for job with id %d error=%s", job.ID, err.Error()))
+		return
+	}
+	nextExecutionDateLocal, err := job.GetNextExecutionTime()
+	if err != nil {
+		jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution time for job with id %d error=%s", job.ID, err.Error()))
+		return
+	}
+	executionJobTimezone := nowInJobTimezone.Add(nextExecutionDateLocal.Sub(job.LastExecutionDate))
 	jobExecutor.scheduledJobs.Store(job.ID, models.JobSchedule{
 		Job:           job,
-		ExecutionTime: executeTime,
+		ExecutionTime: schedulerTime.GetTime(executionJobTimezone),
 	})
 }
 
 func (jobExecutor *JobExecutor) ListenForJobsToInvoke() {
 	ticker := time.NewTicker(time.Duration(1) * time.Second)
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 
 	go func() {
 		for {
@@ -336,7 +341,7 @@ func (jobExecutor *JobExecutor) GetUncommittedLogs() []models.JobExecutionLog {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	configs := jobExecutor.schedulerOConfig.GetConfigurations()
+	configs := jobExecutor.scheduler0Config.GetConfigurations()
 	executionLogs := jobExecutor.jobExecutionsRepo.GetUncommittedExecutionsLogForNode(configs.NodeId)
 
 	return executionLogs
@@ -350,12 +355,11 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.Job, newState models.Jo
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	configs := jobExecutor.schedulerOConfig.GetConfigurations()
+	configs := jobExecutor.scheduler0Config.GetConfigurations()
 
 	jobsToReschedule := make([]models.Job, 0, len(jobs))
 
 	for i, job := range jobs {
-
 		cachedJobExecutionsLog, _ := jobExecutor.executions.Load(job.ID)
 		lastExecution := (cachedJobExecutionsLog).(models.MemJobExecution)
 
@@ -376,30 +380,25 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.Job, newState models.Jo
 		} else {
 			executionVersion += 1
 		}
-
-		sha := sha1.New()
-		schedule, parseErr := cron.Parse(job.Spec)
-		if parseErr != nil {
-			jobExecutor.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
-			return
-		}
-		executionTime := schedule.Next(lastExecution.NextExecutionDatetime)
-		uniqueId := fmt.Sprintf(
-			"%v-%v-%v-%v",
-			job.ProjectID,
-			job.ID,
-			lastExecution.NextExecutionDatetime.String(),
-			executionTime.String(),
-		)
 		jobs[i].LastExecutionDate = lastExecution.NextExecutionDatetime
-		jobs[i].ExecutionId = fmt.Sprintf("%x", sha.Sum([]byte(uniqueId)))
-		jobExecutor.ScheduleProcess(jobs[i], executionTime)
+		executionId, err := jobs[i].GetNextExecutionId()
+		if err != nil {
+			jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution id for job with id %d error=%s", job.ID, err.Error()))
+			continue
+		}
+		executionTime, err := jobs[i].GetNextExecutionTime()
+		if err != nil {
+			jobExecutor.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", err.Error()))
+			continue
+		}
+		jobs[i].ExecutionId = executionId
+		jobExecutor.ScheduleProcess(jobs[i])
 		jobExecutor.executions.Store(job.ID, models.MemJobExecution{
 			ExecutionVersion:      executionVersion,
 			FailCount:             0,
 			LastState:             newState,
 			LastExecutionDatetime: lastExecution.NextExecutionDatetime,
-			NextExecutionDatetime: executionTime,
+			NextExecutionDatetime: *executionTime,
 		})
 		jobsToReschedule = append(jobsToReschedule, jobs[i])
 	}
@@ -437,11 +436,11 @@ func (jobExecutor *JobExecutor) createInMemExecutionsForJobsIfNotExist(jobs []mo
 
 	lastExecutionVersionsForNewJobs := jobExecutor.jobExecutionsRepo.GetLastExecutionLogForJobIds(jobsNotInExecution)
 
-	configs := jobExecutor.schedulerOConfig.GetConfigurations()
+	configs := jobExecutor.scheduler0Config.GetConfigurations()
 
 	for _, jobId := range jobsNotInExecution {
 		failCounts := 0
-		if models.JobExecutionLogState(lastExecutionVersionsForNewJobs[jobId].State) == models.ExecutionLogFailedState {
+		if lastExecutionVersionsForNewJobs[jobId].State == models.ExecutionLogFailedState {
 			failCounts = int(jobExecutor.jobExecutionsRepo.CountLastFailedExecutionLogs(jobId, configs.NodeId, lastExecutionVersionsForNewJobs[jobId].ExecutionVersion))
 		}
 
@@ -459,11 +458,9 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.Job) {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
 
-	configs := jobExecutor.schedulerOConfig.GetConfigurations()
-
 	jobExecutor.pendingJobInvocations = append(jobExecutor.pendingJobInvocations, pendingJob)
 
-	jobExecutor.debounce.Debounce(jobExecutor.context, configs.JobInvocationDebounceDelay, func() {
+	jobExecutor.debounce.Debounce(jobExecutor.context, 500, func() {
 		jobExecutor.mtx.Lock()
 		defer jobExecutor.mtx.Unlock()
 
@@ -525,7 +522,7 @@ func (jobExecutor *JobExecutor) invokeJob(pendingJob models.Job) {
 }
 
 func (jobExecutor *JobExecutor) handleSuccessJobs(successfulJobs []models.Job) {
-	configs := jobExecutor.schedulerOConfig.GetConfigurations()
+	configs := jobExecutor.scheduler0Config.GetConfigurations()
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
 	jobIds := make([]uint64, 0, len(successfulJobs))
 	for _, successfulJob := range successfulJobs {
@@ -552,7 +549,7 @@ func (jobExecutor *JobExecutor) handleSuccessJobs(successfulJobs []models.Job) {
 }
 
 func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.Job) {
-	configs := jobExecutor.schedulerOConfig.GetConfigurations()
+	configs := jobExecutor.scheduler0Config.GetConfigurations()
 	for _, erroredJob := range erroredJobs {
 		jobExecutor.logger.Error(fmt.Sprintf("failed to execute job %v", erroredJob.ID))
 	}
@@ -584,7 +581,7 @@ func (jobExecutor *JobExecutor) handleFailedJobs(erroredJobs []models.Job) {
 }
 
 func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.Job, state models.JobExecutionLogState, executionVersions map[uint64]uint64) {
-	configs := jobExecutor.schedulerOConfig.GetConfigurations()
+	configs := jobExecutor.scheduler0Config.GetConfigurations()
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
 
 	executionLogs := make([]models.JobExecutionLog, 0, len(jobs))
@@ -596,7 +593,7 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.Job, st
 			return
 		}
 		executionTime := schedule.Next(job.LastExecutionDate)
-		schedulerTime := utils.GetSchedulerTime()
+		schedulerTime := scheduler0time.GetSchedulerTime()
 		now := schedulerTime.GetTime(time.Now())
 		executionLogs = append(executionLogs, models.JobExecutionLog{
 			JobId:                 job.ID,
@@ -616,7 +613,6 @@ func (jobExecutor *JobExecutor) logJobExecutionStateInRaft(jobs []models.Job, st
 			ExecutionLogs: executionLogs,
 		},
 	}
-
 	_, err := jobExecutor.scheduler0Actions.WriteCommandToRaftLog(
 		jobExecutor.Raft,
 		constants.CommandTypeLocalData,

@@ -15,6 +15,7 @@ import (
 	"scheduler0/fsm"
 	"scheduler0/models"
 	"scheduler0/repository"
+	"scheduler0/scheduler0time"
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"testing"
@@ -513,7 +514,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		t.Fatal("cron spec error", parseErr)
 	}
 
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 	lastTime := now
 	nextTime := schedule.Next(lastTime)
@@ -691,7 +692,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		t.Fatal("cron spec error", parseErr)
 	}
 
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 	nextTime := schedule.Next(now)
 	prevNextTime := nextTime.Add(-nextTime.Sub(now))

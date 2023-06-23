@@ -44,7 +44,6 @@ type Scheduler0Configurations struct {
 	RaftAddress                      string     `json:"raftAddress" yaml:"RaftAddress"`                                           // Address used for raft communication
 	RaftTransportMaxPool             uint64     `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`                         // Maximum size of the raft transport pool
 	RaftTransportTimeout             uint64     `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`                         // Timeout for raft transport operations
-	RaftApplyTimeout                 uint64     `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`                                 // Timeout for applying raft log entries
 	RaftSnapshotInterval             uint64     `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`                         // Interval between raft snapshots
 	RaftSnapshotThreshold            uint64     `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`                       // Threshold for raft snapshot creation
 	RaftHeartbeatTimeout             uint64     `json:"raftHeartbeatTimeout" yaml:"RaftHeartbeatTimeout"`                         // Timeout for raft heartbeat
@@ -56,11 +55,9 @@ type Scheduler0Configurations struct {
 	JobExecutionRetryMax             uint64     `json:"jobExecutionRetryMax" yaml:"JobExecutionRetryMax"`                         // Maximum number of retries for job execution
 	MaxWorkers                       uint64     `json:"maxWorkers" yaml:"MaxWorkers"`                                             // Maximum number of concurrent workers
 	MaxQueue                         uint64     `json:"maxQueue" yaml:"MaxQueue"`                                                 // Maximum size of the job queue
-	JobQueueDebounceDelay            uint64     `json:"jobQueueDebounceDelay" yaml:"JobQueueDebounceDelay"`                       // Delay for debouncing the job queue
 	MaxMemory                        uint64     `json:"maxMemory" yaml:"MaxMemory"`                                               // Maximum amount of memory to be used by the scheduler
 	ExecutionLogFetchFanIn           uint64     `json:"executionLogFetchFanIn" yaml:"ExecutionLogFetchFanIn"`                     // Fan-in factor for fetching execution logs
 	ExecutionLogFetchIntervalSeconds uint64     `json:"executionLogFetchIntervalSeconds" yaml:"ExecutionLogFetchIntervalSeconds"` // Interval between log fetches, in seconds
-	JobInvocationDebounceDelay       uint64     `json:"jobInvocationDebounceDelay" yaml:"JobInvocationDebounceDelay"`             // Delay for debouncing job invocation
 	HTTPExecutorPayloadMaxSizeMb     uint64     `json:"httpExecutorPayloadMaxSizeMb" yaml:"HTTPExecutorPayloadMaxSizeMb"`         // Maximum payload size for HTTP executor, in megabytes
 }
 
@@ -210,15 +207,6 @@ func getConfigFromEnv() *Scheduler0Configurations {
 		config.RaftTransportTimeout = parsed
 	}
 
-	// Set RaftApplyTimeout
-	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_APPLY_TIMEOUT"); ok {
-		parsed, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			log.Fatalf("Error parsing SCHEDULER0_RAFT_APPLY_TIMEOUT: %v", err)
-		}
-		config.RaftApplyTimeout = parsed
-	}
-
 	// Set RaftSnapshotInterval
 	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_SNAPSHOT_INTERVAL"); ok {
 		parsed, err := strconv.ParseUint(val, 10, 64)
@@ -309,15 +297,6 @@ func getConfigFromEnv() *Scheduler0Configurations {
 		config.MaxWorkers = parsed
 	}
 
-	// Set JobQueueDebounceDelay
-	if val, ok := os.LookupEnv("SCHEDULER0_JOB_QUEUE_DEBOUNCE_DELAY"); ok {
-		parsed, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			log.Fatalf("Error parsing SCHEDULER0_JOB_QUEUE_DEBOUNCE_DELAY: %v", err)
-		}
-		config.JobQueueDebounceDelay = parsed
-	}
-
 	// Set MaxMemory
 	if val, ok := os.LookupEnv("SCHEDULER0_MAX_MEMORY"); ok {
 		parsed, err := strconv.ParseUint(val, 10, 64)
@@ -343,15 +322,6 @@ func getConfigFromEnv() *Scheduler0Configurations {
 			log.Fatalf("Error parsing SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS: %v", err)
 		}
 		config.ExecutionLogFetchIntervalSeconds = parsed
-	}
-
-	// Set JobInvocationDebounceDelay
-	if val, ok := os.LookupEnv("SCHEDULER0_JOB_INVOCATION_DEBOUNCE_DELAY"); ok {
-		parsed, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			log.Fatalf("Error parsing SCHEDULER0_JOB_INVOCATION_DEBOUNCE_DELAY: %v", err)
-		}
-		config.JobInvocationDebounceDelay = parsed
 	}
 
 	// Set HTTPExecutorPayloadMaxSizeMb

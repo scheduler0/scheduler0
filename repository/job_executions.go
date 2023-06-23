@@ -9,6 +9,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	"scheduler0/scheduler0time"
 	"scheduler0/utils"
 	"time"
 )
@@ -94,7 +95,7 @@ func (repo *executionsRepo) BatchInsert(jobs []models.Job, nodeId uint64, state 
 				repo.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 			}
 			executionTime := schedule.Next(jobs[i].LastExecutionDate)
-			schedulerTime := utils.GetSchedulerTime()
+			schedulerTime := scheduler0time.GetSchedulerTime()
 			now := schedulerTime.GetTime(time.Now())
 			params = append(params,
 				job.ExecutionId,

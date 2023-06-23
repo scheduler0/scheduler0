@@ -47,7 +47,7 @@ func (controller *peerController) ExecutionLogs(w http.ResponseWriter, r *http.R
 
 	controller.peer.ReturnUncommittedLogs(requestId.(string))
 
-	w.Header().Set("Location", fmt.Sprintf("/async-tasks/%s", requestId))
+	w.Header().Set("Location", fmt.Sprintf("/v1/async-tasks/%s", requestId))
 
 	utils.SendJSON(w, nil, true, http.StatusAccepted, nil)
 	return

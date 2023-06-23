@@ -11,6 +11,7 @@ import (
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/repository"
+	"scheduler0/scheduler0time"
 	"scheduler0/secrets"
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
@@ -35,7 +36,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 
 	serviceCtx, cancelServiceContext := context.WithCancel(ctx)
 
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	err := schedulerTime.SetTimezone("UTC")
 	if err != nil {
 		log.Fatal("failed to set timezone for s")
@@ -72,6 +73,9 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 		dispatcher,
 	)
 	jobQueue := NewJobQueue(serviceCtx, logger, scheduler0Configs, fsmActions, fsmStr, jobQueueRepo)
+
+	nodeHTTPClient := NewHTTPClient(logger, scheduler0Configs, scheduler0Secrets)
+
 	nodeService := NewNode(
 		serviceCtx,
 		logger,
@@ -87,6 +91,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 		sharedRep,
 		asyncTaskManager,
 		dispatcher,
+		nodeHTTPClient,
 	)
 
 	nodeService.FsmStore = fsmStr

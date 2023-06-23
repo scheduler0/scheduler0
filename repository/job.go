@@ -8,6 +8,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	"scheduler0/scheduler0time"
 	"scheduler0/utils"
 	"time"
 )
@@ -410,7 +411,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.Job) ([]uint64, *utils.Gen
 
 	returningIds := []uint64{}
 
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
 	for _, batch := range batches {

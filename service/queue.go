@@ -190,10 +190,6 @@ func (jobQ *JobQueue) assignJobRangeToServers(minId, maxId int64) [][]uint64 {
 				serverAllocations = append(serverAllocations, []uint64{})
 			}
 
-			if epoc == maxId {
-				break
-			}
-
 			lowerBound := epoc
 			upperBound := int64(math.Min(float64(epoc+cycle), float64(maxId)))
 

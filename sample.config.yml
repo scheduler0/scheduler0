@@ -8,7 +8,6 @@ NodeId: 1
 RaftAddress: 127.0.0.1:7070
 RaftTransportMaxPool: 100
 RaftTransportTimeout: 1
-RaftApplyTimeout: 2
 RaftSnapshotInterval: 1
 RaftSnapshotThreshold: 1
 PeerConnectRetryMax: 2
@@ -17,10 +16,8 @@ PeerAuthRequestTimeoutMs: 2
 JobExecutionTimeout: 30
 JobExecutionRetryDelay: 1
 JobExecutionRetryMax: 2
-JobInvocationDebounceDelay: 100
 MaxWorkers: 1
 MaxQueue: 1
-JobQueueDebounceDelay: 2
 ExecutionLogFetchFanIn: 2
 ExecutionLogFetchInterval: 2
 HTTPExecutorPayloadMaxSizeMb: 2

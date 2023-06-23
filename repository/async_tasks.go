@@ -9,6 +9,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	"scheduler0/scheduler0time"
 	"scheduler0/utils"
 	"time"
 )
@@ -46,7 +47,7 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool
 	batches := utils.Batch[models.AsyncTask](tasks, 5)
 	results := make([]uint64, 0, len(tasks))
 
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
 	table := constants.CommittedAsyncTableName
@@ -109,7 +110,7 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 	batches := utils.Batch[models.AsyncTask](tasks, 6)
 	results := make([]uint64, 0, len(tasks))
 
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
 	table := constants.CommittedAsyncTableName

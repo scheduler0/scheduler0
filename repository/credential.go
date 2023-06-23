@@ -8,6 +8,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	"scheduler0/scheduler0time"
 	"scheduler0/utils"
 	"time"
 )
@@ -40,7 +41,7 @@ func NewCredentialRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0
 
 // CreateOne creates a single credential and returns the uuid
 func (credentialRepo *credentialRepo) CreateOne(credential models.Credential) (uint64, *utils.GenericError) {
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
 	credential.DateCreated = now

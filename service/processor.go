@@ -9,7 +9,7 @@ import (
 	"scheduler0/config"
 	"scheduler0/models"
 	"scheduler0/repository"
-	"scheduler0/utils"
+	"scheduler0/scheduler0time"
 	"sync"
 	"time"
 )
@@ -145,7 +145,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 				return
 			}
 
-			schedulerTime := utils.GetSchedulerTime()
+			schedulerTime := scheduler0time.GetSchedulerTime()
 			now := schedulerTime.GetTime(time.Now())
 
 			executionTime := schedule.Next(lastJobState.LastExecutionDatetime)
@@ -160,7 +160,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 			// While 60 minutes is quite an unlike delay in a close it's not impossible
 			if now.Before(executionTime) && lastJobState.State == models.ExecutionLogScheduleState {
 				jobProcessor.logger.Debug(fmt.Sprintf("quick recovered job %d", job.ID))
-				jobProcessor.jobExecutor.ScheduleProcess(job, executionTime)
+				jobProcessor.jobExecutor.ScheduleProcess(job)
 			} else {
 				jobsToSchedule = append(jobsToSchedule, job)
 			}
