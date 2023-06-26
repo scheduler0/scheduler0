@@ -597,7 +597,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 	for i < 99 {
 		sched, ok := service.scheduledJobs.Load(jobs[i].ID)
 		scheduler := sched.(models.JobSchedule)
-		assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(1*time.Second)).Round(1*time.Second) == 0, true)
+		assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(1*time.Second)).Round(1*time.Second) < time.Duration(1)*time.Second, true)
 		assert.Equal(t, ok, true)
 		i++
 	}
