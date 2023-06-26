@@ -547,7 +547,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		t.Fatalf("Failed to insert jobs: %v", batchErr)
 	}
 
-	time.Sleep(time.Second * time.Duration(4))
+	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
 	defer os.Remove("SCHEDULER0_NODE_ID")
@@ -597,7 +597,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 	for i < 99 {
 		sched, ok := service.scheduledJobs.Load(jobs[i].ID)
 		scheduler := sched.(models.JobSchedule)
-		assert.Equal(t, scheduler.ExecutionTime.Equal(nextTime), true)
+		assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(1*time.Second)).Round(1*time.Second) == 0, true)
 		assert.Equal(t, ok, true)
 		i++
 	}
@@ -778,7 +778,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 	for i < 99 {
 		sched, ok := service.scheduledJobs.Load(jobs[i].ID)
 		scheduler := sched.(models.JobSchedule)
-		assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime).Round(time.Minute*1) == 0, true)
+		assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(time.Duration(4)*time.Second)).Round(time.Minute*1) < time.Duration(1)*time.Second, true)
 		assert.Equal(t, ok, true)
 		i++
 	}

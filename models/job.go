@@ -78,7 +78,7 @@ func (jobModel *Job) GetNextExecutionTime() (*time.Time, error) {
 	now := schedulerTime.GetTime(time.Now())
 	currentTime := lastExecutionDateLocal
 
-	for now.After(currentTime) {
+	for now.Sub(currentTime).Round(time.Minute*time.Duration(1)) > 1 {
 		currentTime = schedule.Next(currentTime)
 	}
 
