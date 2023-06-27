@@ -8,6 +8,8 @@ import (
 	"github.com/robfig/cron"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
+	"net"
+	"net/http"
 	"os"
 	"scheduler0/config"
 	"scheduler0/constants"
@@ -999,4 +1001,172 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			i++
 		}
 	}
+}
+
+func Test_ListenForJobsToInvoke(t *testing.T) {
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "job-service-test",
+		Level: hclog.LevelFromString("trace"),
+	})
+
+	// Create a temporary SQLite database file
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	// Create a new SQLite database connection
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+
+	scheduler0config := config.NewScheduler0Config()
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+
+	// Create a new FSM store
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          1,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	ctx := context.Background()
+
+	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := repository.NewExecutionsRepo(
+		logger,
+		scheduler0RaftActions,
+		scheduler0Store,
+	)
+
+	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
+		effector(successCh, errorCh)
+	}
+
+	dispatcher := utils.NewDispatcher(
+		int64(1),
+		int64(1),
+		callback,
+	)
+
+	dispatcher.Run()
+
+	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	// Create a new JobService instance
+	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+
+	service := NewJobExecutor(
+		ctx,
+		logger,
+		scheduler0config,
+		scheduler0RaftActions,
+		jobRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		dispatcher,
+	)
+
+	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.ListenForNotifications()
+
+	// Define the input jobs
+	jobs := []models.Job{}
+
+	schedule, parseErr := cron.Parse("@every 1m")
+	if parseErr != nil {
+		t.Fatal("cron spec error", parseErr)
+	}
+
+	schedulerTime := scheduler0time.GetSchedulerTime()
+	now := schedulerTime.GetTime(time.Now())
+	nextTime := schedule.Next(now)
+
+	jobExecuted := false
+	callbackUrl := ""
+
+	go func() {
+		ln, err := net.Listen("tcp", "127.0.0.1:")
+		if err != nil {
+			t.Fatal("failed to create tcp listener", err)
+		}
+		testMux := http.NewServeMux()
+		testMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+			t.Log("executing test job")
+			jobExecuted = true
+		})
+		callbackUrl = ln.Addr().String()
+		err = http.Serve(ln, testMux)
+		if err != nil {
+			t.Fatal("failed to listen and serve http request", err)
+		}
+		time.Sleep(1*time.Minute + 2*time.Second)
+		ln.Close()
+	}()
+
+	time.Sleep(1 * time.Second)
+
+	if callbackUrl == "" {
+		t.Fatal("callback url is empty string", callbackUrl)
+	}
+
+	job := models.Job{
+		ID:            uint64(1),
+		Spec:          "@every 1h",
+		Timezone:      "America/New_York",
+		ProjectID:     1,
+		ExecutionType: "http",
+		CallbackUrl:   fmt.Sprintf("http://%s", callbackUrl),
+	}
+
+	jobs = []models.Job{job}
+
+	// Create the projects using the project repo
+	project := models.Project{
+		ID:          1,
+		Name:        fmt.Sprintf("Project %d", 1),
+		Description: fmt.Sprintf("Project %d description", 1),
+	}
+	_, createErr := projectRepo.CreateOne(&project)
+	if createErr != nil {
+		t.Fatalf("Failed to create project: %v", createErr)
+	}
+
+	// Call the BatchInsertJobs method of the job service
+	_, batchErr := jobService.BatchInsertJobs("request123", jobs)
+	if batchErr != nil {
+		t.Fatalf("Failed to insert jobs: %v", batchErr)
+	}
+
+	time.Sleep(time.Second * time.Duration(1))
+
+	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
+	defer os.Remove("SCHEDULER0_NODE_ID")
+	if serr != nil {
+		t.Fatal("failed to set env", serr)
+	}
+
+	service.ListenForJobsToInvoke()
+
+	service.scheduledJobs.Store(1, models.JobSchedule{
+		Job:           job,
+		ExecutionTime: schedulerTime.GetTime(nextTime),
+	})
+
+	time.Sleep(1*time.Minute + 2*time.Second)
+	assert.Equal(t, true, jobExecuted)
 }

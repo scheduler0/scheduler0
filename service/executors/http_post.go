@@ -65,13 +65,13 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 						}
 
 						req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
-						req.Header.Set("Content-Type", "application/json")
-						req.Header.Set("x-payload-chunk-id", strconv.FormatInt(int64(chunkId), 10))
 						if err != nil {
-							httpExecutor.logger.Error("failed to create request: ", err.Error())
+							httpExecutor.logger.Error("failed to create request: ", "error", err.Error())
 							onFailure(httpExecutor.unwrapBatch(b))
 							return err
 						}
+						req.Header.Set("Content-Type", "application/json")
+						req.Header.Set("x-payload-chunk-id", strconv.FormatInt(int64(chunkId), 10))
 
 						res, err := httpClient.Do(req)
 						if err != nil {

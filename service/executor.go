@@ -393,6 +393,7 @@ func (jobExecutor *JobExecutor) reschedule(jobs []models.Job, newState models.Jo
 			jobExecutor.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", err.Error()))
 			continue
 		}
+
 		jobs[i].ExecutionId = executionId
 		jobExecutor.ScheduleProcess(jobs[i])
 		jobExecutor.executions.Store(job.ID, models.MemJobExecution{
@@ -449,7 +450,7 @@ func (jobExecutor *JobExecutor) createInMemExecutionsForJobsIfNotExist(jobs []mo
 		jobExecutor.executions.Store(jobId, models.MemJobExecution{
 			ExecutionVersion:      lastExecutionVersionsForNewJobs[jobId].ExecutionVersion,
 			FailCount:             uint64(failCounts),
-			LastState:             models.JobExecutionLogState(lastExecutionVersionsForNewJobs[jobId].State),
+			LastState:             lastExecutionVersionsForNewJobs[jobId].State,
 			LastExecutionDatetime: lastExecutionVersionsForNewJobs[jobId].LastExecutionDatetime,
 			NextExecutionDatetime: lastExecutionVersionsForNewJobs[jobId].NextExecutionDatetime,
 		})
