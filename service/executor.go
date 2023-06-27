@@ -166,8 +166,17 @@ func (jobExecutor *JobExecutor) ScheduleJobs(jobs []models.Job) {
 		// We simply re-schedule the job
 		if jobLastLog.State == models.ExecutionLogScheduleState {
 			jobs[i].LastExecutionDate = jobLastLog.LastExecutionDatetime
-			jobs[i].ExecutionId = jobLastLog.UniqueId
 			nextExecutionTime, err := jobs[i].GetNextExecutionTime()
+			if nextExecutionTime.Sub(jobLastLog.NextExecutionDatetime).Round(time.Duration(1)*time.Minute) < 1 {
+				jobs[i].ExecutionId = jobLastLog.UniqueId
+			} else {
+				uniqueId, err := jobs[i].GetNextExecutionId()
+				if err != nil {
+					jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution id for job with id %d error=%s", job.ID, err.Error()))
+					continue
+				}
+				jobs[i].ExecutionId = uniqueId
+			}
 			if err != nil {
 				jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution time for job with id %d error=%s", job.ID, err.Error()))
 				continue
@@ -295,21 +304,14 @@ func (jobExecutor *JobExecutor) StopAll() {
 
 func (jobExecutor *JobExecutor) ScheduleProcess(job models.Job) {
 	schedulerTime := scheduler0time.GetSchedulerTime()
-	now := schedulerTime.GetTime(time.Now())
-	nowInJobTimezone, err := job.ConvertTimeToJobTimezone(now)
-	if err != nil {
-		jobExecutor.logger.Error(fmt.Sprintf("failed to convert date created time for job with id %d error=%s", job.ID, err.Error()))
-		return
-	}
 	nextExecutionDateLocal, err := job.GetNextExecutionTime()
 	if err != nil {
 		jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution time for job with id %d error=%s", job.ID, err.Error()))
 		return
 	}
-	executionJobTimezone := nowInJobTimezone.Add(nextExecutionDateLocal.Sub(job.LastExecutionDate))
 	jobExecutor.scheduledJobs.Store(job.ID, models.JobSchedule{
 		Job:           job,
-		ExecutionTime: schedulerTime.GetTime(executionJobTimezone),
+		ExecutionTime: schedulerTime.GetTime(*nextExecutionDateLocal),
 	})
 }
 

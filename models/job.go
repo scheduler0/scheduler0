@@ -72,13 +72,17 @@ func (jobModel *Job) GetNextExecutionTime() (*time.Time, error) {
 		}
 		lastExecutionDateLocal = *dateCreatedInLocal
 	} else {
-		lastExecutionDateLocal = jobModel.LastExecutionDate
+		dateCreatedInLocal, err := jobModel.ConvertTimeToJobTimezone(jobModel.LastExecutionDate)
+		if err != nil {
+			return nil, err
+		}
+		lastExecutionDateLocal = *dateCreatedInLocal
 	}
 	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 	currentTime := lastExecutionDateLocal
 
-	for now.Sub(currentTime).Round(time.Minute*time.Duration(1)) > 1 {
+	for now.Sub(currentTime).Round(time.Minute*time.Duration(1)) > 1 && currentTime.Before(now) {
 		currentTime = schedule.Next(currentTime)
 	}
 
