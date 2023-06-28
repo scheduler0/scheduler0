@@ -125,10 +125,10 @@ func (repo *executionsRepo) BatchInsert(jobs []models.Job, nodeId uint64, state 
 		if err != nil {
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
-				repo.logger.Error("failed to rollback failed batch insertion execute ", err)
+				repo.logger.Error("failed to rollback failed batch insertion execute ", "error", err)
 				return
 			} else {
-				repo.logger.Error("failed to execute batch insertion", err)
+				repo.logger.Error("failed to execute batch insertion", "error", err)
 				return
 			}
 		}
@@ -142,10 +142,10 @@ func (repo *executionsRepo) BatchInsert(jobs []models.Job, nodeId uint64, state 
 		if err != nil {
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
-				repo.logger.Error("failed to rollback, failed batch insertion execute, failed to get last inserted id", err)
+				repo.logger.Error("failed to rollback, failed batch insertion execute, failed to get last inserted id", "error", err)
 				return
 			} else {
-				repo.logger.Error("failed to execute batch insertion, failed to get last inserted id", err)
+				repo.logger.Error("failed to execute batch insertion, failed to get last inserted id", "error", err)
 				return
 			}
 		}

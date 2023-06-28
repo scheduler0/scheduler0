@@ -261,7 +261,6 @@ func Test_WriteCommandToRaftLog_Local_Data_Commit(t *testing.T) {
 	}
 
 	params := models.CommitLocalData{
-		Address: "",
 		Data: models.LocalData{
 			ExecutionLogs: jobExecutionLogs,
 			AsyncTasks:    asyncTasks,

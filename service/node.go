@@ -186,8 +186,7 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 	}
 
 	params := models.CommitLocalData{
-		Address: peerAddress,
-		Data:    localData,
+		Data: localData,
 	}
 
 	node.logger.Debug("committing local data from peer",
