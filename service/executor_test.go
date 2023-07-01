@@ -1456,3 +1456,126 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	uncommittedExecutionLogsCount := service.jobExecutionsRepo.CountExecutionLogs(true)
 	assert.Equal(t, 1, int(uncommittedExecutionLogsCount))
 }
+
+func Test_StopAll(t *testing.T) {
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "job-service-test",
+		Level: hclog.LevelFromString("trace"),
+	})
+
+	// Create a temporary SQLite database file
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	// Create a new SQLite database connection
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+
+	scheduler0config := config.NewScheduler0Config()
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+
+	// Create a new FSM store
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          1,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	ctx := context.Background()
+
+	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := repository.NewExecutionsRepo(
+		logger,
+		scheduler0RaftActions,
+		scheduler0Store,
+	)
+
+	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
+		effector(successCh, errorCh)
+	}
+
+	dispatcher := utils.NewDispatcher(
+		int64(1),
+		int64(1),
+		callback,
+	)
+
+	dispatcher.Run()
+
+	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	// Create a new JobService instance
+	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+
+	service := NewJobExecutor(
+		ctx,
+		logger,
+		scheduler0config,
+		scheduler0RaftActions,
+		jobRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		dispatcher,
+	)
+
+	service.Raft = scheduler0Store.GetRaft()
+
+	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.ListenForNotifications()
+
+	// Define the input jobs
+	jobs := []models.Job{}
+	job := models.Job{
+		ID:            uint64(1),
+		Spec:          "@every 1h",
+		Timezone:      "America/New_York",
+		ProjectID:     1,
+		ExecutionType: "http",
+		CallbackUrl:   "http://%s",
+	}
+
+	jobs = []models.Job{job}
+
+	// Create the projects using the project repo
+	project := models.Project{
+		ID:          1,
+		Name:        fmt.Sprintf("Project %d", 1),
+		Description: fmt.Sprintf("Project %d description", 1),
+	}
+	_, createErr := projectRepo.CreateOne(&project)
+	if createErr != nil {
+		t.Fatalf("Failed to create project: %v", createErr)
+	}
+
+	// Call the BatchInsertJobs method of the job service
+	_, batchErr := jobService.BatchInsertJobs("request123", jobs)
+	if batchErr != nil {
+		t.Fatalf("Failed to insert jobs: %v", batchErr)
+	}
+
+	time.Sleep(time.Second * time.Duration(1))
+
+	oldContext := service.context
+	service.StopAll()
+
+	if oldContext == service.context {
+		t.Fatal("context should be replaced")
+	}
+}
