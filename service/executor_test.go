@@ -522,7 +522,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		// Define the input jobs
 		jobs := []models.Job{}
 
-		schedule, parseErr := cron.Parse("@every 1h")
+		schedule, parseErr := cron.Parse("@every 1m")
 		if parseErr != nil {
 			t.Fatal("cron spec error", parseErr)
 		}
@@ -536,7 +536,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		for i < 100 {
 			jobs = append(jobs, models.Job{
 				ID:        uint64(i),
-				Spec:      "@every 1h",
+				Spec:      "@every 1m",
 				Timezone:  "America/New_York",
 				ProjectID: 1,
 			})
@@ -610,7 +610,8 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		for i < 99 {
 			sched, ok := service.scheduledJobs.Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
-			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(1*time.Second)).Round(1*time.Second) < time.Duration(1)*time.Second, true)
+			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime).Round(1*time.Second) < time.Duration(1)*time.Second, true)
+			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime).Round(1*time.Second) > time.Duration(-1)*time.Second, true)
 			assert.Equal(t, ok, true)
 			i++
 		}
