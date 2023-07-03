@@ -194,7 +194,6 @@ func (repo *sharedRepo) InsertExecutionLogs(db db.DataStore, committed bool, job
 			constants.ExecutionsVersion,
 		)
 
-		fmt.Println("executionLogsBatch[0].LastExecutionDatetime", executionLogsBatch[0].LastExecutionDatetime)
 		query += "(?, ?, ?, ?, ?, ?, ?, ?, ?)"
 		params := []interface{}{
 			executionLogsBatch[0].UniqueId,
