@@ -3,8 +3,11 @@ package utils
 import (
 	"bytes"
 	"encoding/binary"
+	"github.com/hashicorp/raft"
+	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"math"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -207,4 +210,22 @@ func TestExpandIdsRange(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_GetNodeServerAddressWithRaftAddress(t *testing.T) {
+	os.Setenv("SCHEDULER0_REPLICAS", `[{"nodeId":1, "address":"localhost:1234", "raft_address":"localhost:6789"}]`)
+	defer os.Remove("SCHEDULER0_REPLICAS")
+
+	raftServerAddress := raft.ServerAddress("localhost:6789")
+	nodeServerAddress := GetNodeServerAddressWithRaftAddress(raftServerAddress)
+	assert.Equal(t, nodeServerAddress, "localhost:1234")
+}
+
+func Test_GetNodeIdWithRaftAddress(t *testing.T) {
+	os.Setenv("SCHEDULER0_REPLICAS", `[{"nodeId":1, "address":"localhost:1234", "raft_address":"localhost:6789"}]`)
+	defer os.Remove("SCHEDULER0_REPLICAS")
+
+	nodeId, err := GetNodeIdWithServerAddress("localhost:1234")
+	assert.Equal(t, err, nil)
+	assert.Equal(t, int64(1), nodeId)
 }

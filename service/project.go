@@ -15,7 +15,8 @@ type projectService struct {
 	logger      hclog.Logger
 }
 
-type Project interface {
+//go:generate mockery --name ProjectService --output ../mocks
+type ProjectService interface {
 	CreateOne(project models.Project) (*models.Project, *utils.GenericError)
 	UpdateOneByID(project *models.Project) *utils.GenericError
 	GetOneByID(project *models.Project) *utils.GenericError
@@ -25,7 +26,7 @@ type Project interface {
 	BatchGetProjects(projectIds []uint64) ([]models.Project, *utils.GenericError)
 }
 
-func NewProjectService(logger hclog.Logger, projectRepo repository.ProjectRepo) Project {
+func NewProjectService(logger hclog.Logger, projectRepo repository.ProjectRepo) ProjectService {
 	return &projectService{
 		projectRepo: projectRepo,
 		logger:      logger.Named("project-service"),

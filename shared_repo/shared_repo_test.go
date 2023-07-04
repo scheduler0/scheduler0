@@ -4,8 +4,6 @@ import (
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
-	"os"
 	"scheduler0/config"
 	"scheduler0/db"
 	"scheduler0/models"
@@ -21,17 +19,8 @@ func Test_GetUncommittedExecutionLogs_Returns_Uncommitted_Execution_Logs(t *test
 	})
 
 	sharedRepo := NewSharedRepo(logger, scheduler0config)
-
-	tempFile, err := ioutil.TempFile("", "test-db.db")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tempFile.Name())
-
-	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.OpenConnectionToExistingDB()
+	sqliteDb := db.GetDBMEMConnection(logger)
 	sqliteDb.RunMigration()
-
 	conn := sqliteDb.GetOpenConnection()
 
 	projectIds := test_helpers.InsertFakeProjects(1, conn, t)
@@ -63,17 +52,10 @@ func Test_InsertToCommittedExecutionLogs(t *testing.T) {
 
 	sharedRepo := NewSharedRepo(logger, scheduler0config)
 
-	tempFile, err := ioutil.TempFile("", "test-db.db")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tempFile.Name())
-
-	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.OpenConnectionToExistingDB()
+	sqliteDb := db.GetDBMEMConnection(logger)
 	sqliteDb.RunMigration()
-
 	conn := sqliteDb.GetOpenConnection()
+
 	projectIds := test_helpers.InsertFakeProjects(1, conn, t)
 	jobIds := test_helpers.InsertFakeJobs(1, projectIds, conn, t)
 
@@ -89,7 +71,7 @@ func Test_InsertToCommittedExecutionLogs(t *testing.T) {
 		jobExecutionLogs = append(jobExecutionLogs, uce)
 	}
 
-	err = sharedRepo.InsertExecutionLogs(sqliteDb, true, jobExecutionLogs)
+	err := sharedRepo.InsertExecutionLogs(sqliteDb, true, jobExecutionLogs)
 	if err != nil {
 		t.Fatalf("Failed to insert committed job execution logs: %v", err)
 	}
@@ -111,17 +93,10 @@ func Test_DeleteUncommittedExecutionLogs(t *testing.T) {
 
 	sharedRepo := NewSharedRepo(logger, scheduler0config)
 
-	tempFile, err := ioutil.TempFile("", "test-db.db")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tempFile.Name())
-
-	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.OpenConnectionToExistingDB()
+	sqliteDb := db.GetDBMEMConnection(logger)
 	sqliteDb.RunMigration()
-
 	conn := sqliteDb.GetOpenConnection()
+
 	projectIds := test_helpers.InsertFakeProjects(1, conn, t)
 	jobIds := test_helpers.InsertFakeJobs(1, projectIds, conn, t)
 
@@ -137,7 +112,7 @@ func Test_DeleteUncommittedExecutionLogs(t *testing.T) {
 		jobExecutionLogs = append(jobExecutionLogs, uce)
 	}
 
-	err = sharedRepo.InsertExecutionLogs(sqliteDb, false, jobExecutionLogs)
+	err := sharedRepo.InsertExecutionLogs(sqliteDb, false, jobExecutionLogs)
 	if err != nil {
 		t.Fatalf("Failed to insert committed job execution logs: %v", err)
 	}
@@ -168,21 +143,12 @@ func Test_InsertAsyncTasksLogs(t *testing.T) {
 	})
 
 	sharedRepo := NewSharedRepo(logger, scheduler0config)
-
-	tempFile, err := ioutil.TempFile("", "test-db.db")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tempFile.Name())
-
-	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.OpenConnectionToExistingDB()
+	sqliteDb := db.GetDBMEMConnection(logger)
 	sqliteDb.RunMigration()
-
 	conn := sqliteDb.GetOpenConnection()
 	numberOfJEL := 20
 	asyncTasks := test_helpers.CreateFakeAsyncTasks(numberOfJEL, conn, t)
-	err = sharedRepo.InsertAsyncTasksLogs(sqliteDb, true, asyncTasks)
+	err := sharedRepo.InsertAsyncTasksLogs(sqliteDb, true, asyncTasks)
 	if err != nil {
 		t.Fatalf("Failed to insert async tasks: %v", err)
 	}
@@ -199,20 +165,12 @@ func Test_DeleteAsyncTasksLogs(t *testing.T) {
 
 	sharedRepo := NewSharedRepo(logger, scheduler0config)
 
-	tempFile, err := ioutil.TempFile("", "test-db.db")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tempFile.Name())
-
-	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.OpenConnectionToExistingDB()
+	sqliteDb := db.GetDBMEMConnection(logger)
 	sqliteDb.RunMigration()
-
 	conn := sqliteDb.GetOpenConnection()
 	numberOfJEL := 20
 	asyncTasks := test_helpers.CreateFakeAsyncTasks(numberOfJEL, conn, t)
-	err = sharedRepo.InsertAsyncTasksLogs(sqliteDb, false, asyncTasks)
+	err := sharedRepo.InsertAsyncTasksLogs(sqliteDb, false, asyncTasks)
 	if err != nil {
 		t.Fatalf("Failed to insert async tasks: %v", err)
 	}

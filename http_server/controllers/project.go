@@ -13,7 +13,7 @@ import (
 )
 
 type projectController struct {
-	projectService service.Project
+	projectService service.ProjectService
 	logger         *log.Logger
 }
 
@@ -25,7 +25,7 @@ type ProjectHTTPController interface {
 	UpdateOneProject(w http.ResponseWriter, r *http.Request)
 }
 
-func NewProjectController(logger *log.Logger, projectService service.Project) ProjectHTTPController {
+func NewProjectController(logger *log.Logger, projectService service.ProjectService) ProjectHTTPController {
 	return &projectController{
 		projectService: projectService,
 		logger:         logger,

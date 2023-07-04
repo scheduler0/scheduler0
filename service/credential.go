@@ -11,17 +11,18 @@ import (
 	"scheduler0/utils"
 )
 
-// Credential service layer for credentials
-type Credential interface {
-	CreateNewCredential(credentialTransformer models.Credential) (uint64, *utils.GenericError)
+// CredentialService service layer for credentials
+//go:generate mockery --name CredentialService --output ../mocks
+type CredentialService interface {
+	CreateNewCredential(credentialModel models.Credential) (uint64, *utils.GenericError)
 	FindOneCredentialByID(id uint64) (*models.Credential, error)
-	UpdateOneCredential(credentialTransformer models.Credential) (*models.Credential, error)
+	UpdateOneCredential(credentialModel models.Credential) (*models.Credential, error)
 	DeleteOneCredential(id uint64) (*models.Credential, error)
 	ListCredentials(offset uint64, limit uint64, orderBy string) (*models.PaginatedCredential, *utils.GenericError)
 	ValidateServerAPIKey(apiKey string, apiSecret string) (bool, *utils.GenericError)
 }
 
-func NewCredentialService(Ctx context.Context, logger hclog.Logger, scheduler0Secret secrets.Scheduler0Secrets, repo repository.CredentialRepo, dispatcher *utils.Dispatcher) Credential {
+func NewCredentialService(Ctx context.Context, logger hclog.Logger, scheduler0Secret secrets.Scheduler0Secrets, repo repository.CredentialRepo, dispatcher *utils.Dispatcher) CredentialService {
 	return &credentialService{
 		CredentialRepo:   repo,
 		Ctx:              Ctx,
@@ -40,15 +41,15 @@ type credentialService struct {
 }
 
 // CreateNewCredential creates a new credentials
-func (credentialService *credentialService) CreateNewCredential(credentialTransformer models.Credential) (uint64, *utils.GenericError) {
+func (credentialService *credentialService) CreateNewCredential(credential models.Credential) (uint64, *utils.GenericError) {
 	credentials := credentialService.scheduler0Secret.GetSecrets()
 
 	apiKey, apiSecret := utils.GenerateApiAndSecretKey(credentials.SecretKey)
-	credentialTransformer.ApiKey = apiKey
-	credentialTransformer.ApiSecret = apiSecret
+	credential.ApiKey = apiKey
+	credential.ApiSecret = apiSecret
 
 	successData, errorData := credentialService.dispatcher.BlockQueue(func(successChannel chan any, errorChannel chan any) {
-		newCredentialId, err := credentialService.CredentialRepo.CreateOne(credentialTransformer)
+		newCredentialId, err := credentialService.CredentialRepo.CreateOne(credential)
 		if err != nil {
 			errorChannel <- err
 			return
@@ -76,6 +77,10 @@ func (credentialService *credentialService) FindOneCredentialByID(id uint64) (*m
 
 // UpdateOneCredential updates a single credential
 func (credentialService *credentialService) UpdateOneCredential(credential models.Credential) (*models.Credential, error) {
+	if len(credential.ApiKey) < 1 || len(credential.ApiSecret) < 1 {
+		return nil, utils.HTTPGenericError(http.StatusBadRequest, "api_key or api_secret cannot be empty")
+	}
+
 	credentialPlaceholder := models.Credential{
 		ID: credential.ID,
 	}

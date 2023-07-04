@@ -1,4 +1,4 @@
-package node
+package service
 
 import (
 	"context"
@@ -13,22 +13,16 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"net/http"
 	"os"
 	"path/filepath"
 	"scheduler0/config"
 	"scheduler0/constants"
-	"scheduler0/constants/headers"
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/models"
 	"scheduler0/network"
 	"scheduler0/repository"
 	"scheduler0/secrets"
-	"scheduler0/service/async_task_manager"
-	"scheduler0/service/executor"
-	"scheduler0/service/processor"
-	"scheduler0/service/queue"
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"strconv"
@@ -77,22 +71,23 @@ type Node struct {
 	ctx                   context.Context
 	logger                hclog.Logger
 	mtx                   sync.Mutex
-	jobProcessor          *processor.JobProcessor
-	jobQueue              *queue.JobQueue
-	jobExecutor           *executor.JobExecutor
+	jobProcessor          *JobProcessor
+	jobQueue              *JobQueue
+	jobExecutor           *JobExecutor
 	jobQueuesRepo         repository.JobQueuesRepo
 	jobRepo               repository.JobRepo
 	projectRepo           repository.ProjectRepo
 	sharedRepo            shared_repo.SharedRepo
 	isExistingNode        bool
 	peerObserverChannels  chan raft.Observation
-	asyncTaskManager      *async_task_manager.AsyncTaskManager
+	asyncTaskManager      *AsyncTaskManager
 	dispatcher            *utils.Dispatcher
 	fanIns                sync.Map // models.PeerFanIn
 	fanInCh               chan models.PeerFanIn
 	scheduler0Config      config.Scheduler0Config
 	scheduler0Secrets     secrets.Scheduler0Secrets
 	scheduler0RaftActions fsm.Scheduler0RaftActions
+	nodeHTTPClient        NodeClient
 }
 
 func NewNode(
@@ -101,15 +96,16 @@ func NewNode(
 	scheduler0Config config.Scheduler0Config,
 	scheduler0Secrets secrets.Scheduler0Secrets,
 	fsmActions fsm.Scheduler0RaftActions,
-	jobExecutor *executor.JobExecutor,
-	jobQueue *queue.JobQueue,
+	jobExecutor *JobExecutor,
+	jobQueue *JobQueue,
 	jobRepo repository.JobRepo,
 	projectRepo repository.ProjectRepo,
 	executionsRepo repository.JobExecutionsRepo,
 	jobQueueRepo repository.JobQueuesRepo,
 	sharedRepo shared_repo.SharedRepo,
-	asyncTaskManager *async_task_manager.AsyncTaskManager,
+	asyncTaskManager *AsyncTaskManager,
 	dispatcher *utils.Dispatcher,
+	nodeHTTPClient NodeClient,
 ) *Node {
 	nodeServiceLogger := logger.Named("node-service")
 
@@ -134,7 +130,7 @@ func NewNode(
 		acceptClientWrites:    false,
 		State:                 Cold,
 		ctx:                   ctx,
-		jobProcessor:          processor.NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
+		jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
 		jobQueue:              jobQueue,
 		jobExecutor:           jobExecutor,
 		jobRepo:               jobRepo,
@@ -150,6 +146,7 @@ func NewNode(
 		scheduler0Secrets:     scheduler0Secrets,
 		scheduler0RaftActions: fsmActions,
 		sharedRepo:            sharedRepo,
+		nodeHTTPClient:        nodeHTTPClient,
 	}
 }
 
@@ -189,8 +186,7 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 	}
 
 	params := models.CommitLocalData{
-		Address: peerAddress,
-		Data:    localData,
+		Data: localData,
 	}
 
 	node.logger.Debug("committing local data from peer",
@@ -458,7 +454,7 @@ func (node *Node) recoverRaftState() {
 	}
 }
 
-func (node *Node) authenticateWithPeersInConfig(logger hclog.Logger) map[string]Status {
+func (node *Node) authenticateWithPeersInConfig() map[string]Status {
 	node.logger.Info("authenticating with nodes...")
 
 	configs := node.scheduler0Config.GetConfigurations()
@@ -473,8 +469,9 @@ func (node *Node) authenticateWithPeersInConfig(logger hclog.Logger) map[string]
 			go func(rep config.RaftNode, res map[string]Status, wg *sync.WaitGroup, wrlck *sync.Mutex) {
 				wrlck.Lock()
 				err := utils.RetryOnError(func() error {
-					if peerStatus, err := node.connectNode(logger, rep); err == nil {
+					if peerStatus, err := node.nodeHTTPClient.ConnectNode(rep); err == nil {
 						results[rep.Address] = *peerStatus
+						node.logger.Info("successfully authenticated with", "node-address", rep.RaftAddress)
 					} else {
 						return err
 					}
@@ -615,7 +612,7 @@ func (node *Node) authRaftConfiguration() raft.Configuration {
 	defer node.mtx.Unlock()
 
 	configs := node.scheduler0Config.GetConfigurations()
-	results := node.authenticateWithPeersInConfig(node.logger)
+	results := node.authenticateWithPeersInConfig()
 	servers := []raft.Server{
 		{
 			ID:       raft.ServerID(strconv.FormatUint(configs.NodeId, 10)),
@@ -839,95 +836,12 @@ func (node *Node) fanInLocalDataFromPeers() {
 				}
 			}
 
-			go node.fetchUncommittedLogsFromPeersPhase1(ctx, phase1)
-			go node.fetchUncommittedLogsFromPeersPhase2(ctx, phase2)
+			go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
+			go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
 			go node.commitFetchedUnCommittedLogs(phase3)
 		case <-node.ctx.Done():
 			cancelFunc()
 			return
-		}
-	}
-}
-
-func (node *Node) fetchUncommittedLogsFromPeersPhase1(ctx context.Context, peerFanIns []models.PeerFanIn) {
-	for _, peerFanIn := range peerFanIns {
-		httpClient := &http.Client{}
-		httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/execution-logs", peerFanIn.PeerHTTPAddress), nil)
-		if reqErr != nil {
-			node.logger.Error("failed to create request to execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", reqErr.Error())
-		} else {
-			httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
-			httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
-			secret := node.scheduler0Secrets.GetSecrets()
-			httpRequest.SetBasicAuth(secret.AuthUsername, secret.AuthPassword)
-			res, err := httpClient.Do(httpRequest)
-			if err != nil {
-				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
-			} else {
-				if res.StatusCode == http.StatusAccepted {
-					location := res.Header.Get("Location")
-					peerFanIn.RequestId = location
-					closeErr := res.Body.Close()
-					if closeErr != nil {
-						node.logger.Error("failed to close body", "error", closeErr.Error())
-					}
-					peerFanIn.State = models.PeerFanInStateGetRequestId
-					node.fanIns.Store(peerFanIn.PeerHTTPAddress, peerFanIn)
-					node.logger.Info("successfully fetch execution logs from", "node address", peerFanIn.PeerHTTPAddress)
-				} else {
-					node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
-				}
-			}
-		}
-	}
-}
-
-func (node *Node) fetchUncommittedLogsFromPeersPhase2(ctx context.Context, peerFanIns []models.PeerFanIn) {
-	for _, peerFanIn := range peerFanIns {
-		httpClient := &http.Client{}
-		httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s%s", peerFanIn.PeerHTTPAddress, peerFanIn.RequestId), nil)
-		if reqErr != nil {
-			node.logger.Error("failed to create request to execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", reqErr.Error())
-		} else {
-			httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
-			httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
-			secret := node.scheduler0Secrets.GetSecrets()
-			httpRequest.SetBasicAuth(secret.AuthUsername, secret.AuthPassword)
-			res, err := httpClient.Do(httpRequest)
-			if err != nil {
-				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
-			} else {
-				if res.StatusCode == http.StatusOK {
-					data, readErr := io.ReadAll(res.Body)
-					if readErr != nil {
-						node.logger.Error("failed to read uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "error", readErr.Error())
-					} else {
-						var asyncTaskRes models.AsyncTaskRes
-						marshalErr := json.Unmarshal([]byte(data), &asyncTaskRes)
-						if marshalErr != nil {
-							node.logger.Error("failed to read uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
-						} else {
-							var localData models.LocalData
-							marshalErr = json.Unmarshal([]byte(asyncTaskRes.Data.Output), &localData)
-							if marshalErr != nil {
-								node.logger.Error("failed to read uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
-							} else {
-								peerFanIn.Data = localData
-								closeErr := res.Body.Close()
-								if closeErr != nil {
-									node.logger.Error("failed to close body", "error", closeErr.Error())
-								} else {
-									peerFanIn.State = models.PeerFanInStateGetExecutionsLogs
-									node.fanIns.Store(peerFanIn.PeerHTTPAddress, peerFanIn)
-									node.logger.Info("successfully fetch execution logs from", "node address", peerFanIn.PeerHTTPAddress)
-								}
-							}
-						}
-					}
-				} else {
-					node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
-				}
-			}
 		}
 	}
 }
@@ -938,85 +852,6 @@ func (node *Node) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
 		node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 		node.fanInCh <- peerFanIn
 	}
-}
-
-func (node *Node) connectNode(logger hclog.Logger, rep config.RaftNode) (*Status, error) {
-	configs := node.scheduler0Config.GetConfigurations()
-	httpClient := http.Client{
-		Timeout: time.Duration(configs.PeerAuthRequestTimeoutMs) * time.Millisecond,
-	}
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/peer-handshake", rep.Address), nil)
-	if err != nil {
-		logger.Error("failed to create request", "error", err)
-		return nil, err
-	}
-	req.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
-	req.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
-	credentials := node.scheduler0Secrets.GetSecrets()
-	req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
-
-	start := time.Now()
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		logger.Error("failed to send request", "error", err.Error())
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	connectionTime := time.Since(start)
-
-	if resp.StatusCode == http.StatusOK {
-		data, ioErr := io.ReadAll(resp.Body)
-		if ioErr != nil {
-			logger.Error("failed to response", "error:", ioErr.Error())
-			return nil, ioErr
-		}
-
-		body := Response{}
-
-		unMarshalErr := json.Unmarshal(data, &body)
-		if unMarshalErr != nil {
-			logger.Error("failed to unmarshal response ", "error", unMarshalErr.Error())
-			return nil, unMarshalErr
-		}
-
-		logger.Info("successfully authenticated", "replica-address", rep.Address)
-
-		return &Status{
-			IsAlive:            true,
-			IsAuth:             true,
-			IsLeader:           body.Data.IsLeader,
-			LastConnectionTime: connectionTime,
-		}, nil
-	}
-
-	logger.Error("could not authenticate", "replica-address", rep.Address, " status code:", resp.StatusCode)
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		return &Status{
-			IsAlive:            true,
-			IsAuth:             false,
-			IsLeader:           false,
-			LastConnectionTime: connectionTime,
-		}, nil
-	}
-
-	if resp.StatusCode == http.StatusServiceUnavailable {
-		return &Status{
-			IsAlive:            false,
-			IsAuth:             false,
-			IsLeader:           false,
-			LastConnectionTime: connectionTime,
-		}, nil
-	}
-
-	return &Status{
-		IsAlive:            false,
-		IsAuth:             false,
-		IsLeader:           false,
-		LastConnectionTime: connectionTime,
-	}, nil
 }
 
 func getLogsAndTransport(scheduler0Config config.Scheduler0Config) (tm *raft.NetworkTransport, ldb *boltdb.BoltStore, sdb *boltdb.BoltStore, fss *raft.FileSnapshotStore, err error) {

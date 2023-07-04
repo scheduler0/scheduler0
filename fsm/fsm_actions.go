@@ -14,6 +14,7 @@ import (
 	"scheduler0/db"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
+	"scheduler0/scheduler0time"
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"time"
@@ -74,9 +75,7 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	configs := config.NewScheduler0Config().GetConfigurations()
-
-	af := rft.Apply(createCommandData, time.Second*time.Duration(configs.RaftApplyTimeout)).(raft.ApplyFuture)
+	af := rft.Apply(createCommandData, time.Duration(15)*time.Second).(raft.ApplyFuture)
 	if af.Error() != nil {
 		if af.Error() == raft.ErrNotLeader {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "server not raft leader")
@@ -250,7 +249,7 @@ func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.Data
 	upperBound := jobIds[1].(float64)
 	lastVersion := jobIds[2].(float64)
 
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
 	insertBuilder := sq.Insert(constants.JobQueuesTableName).

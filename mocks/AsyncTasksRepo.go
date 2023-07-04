@@ -43,25 +43,25 @@ func (_m *AsyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool) 
 	return r0, r1
 }
 
-// GetAllUnCommittedTasks provides a mock function with given fields:
-func (_m *AsyncTasksRepo) GetAllUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError) {
-	ret := _m.Called()
+// GetAllTasks provides a mock function with given fields: committed
+func (_m *AsyncTasksRepo) GetAllTasks(committed bool) ([]models.AsyncTask, *utils.GenericError) {
+	ret := _m.Called(committed)
 
 	var r0 []models.AsyncTask
 	var r1 *utils.GenericError
-	if rf, ok := ret.Get(0).(func() ([]models.AsyncTask, *utils.GenericError)); ok {
-		return rf()
+	if rf, ok := ret.Get(0).(func(bool) ([]models.AsyncTask, *utils.GenericError)); ok {
+		return rf(committed)
 	}
-	if rf, ok := ret.Get(0).(func() []models.AsyncTask); ok {
-		r0 = rf()
+	if rf, ok := ret.Get(0).(func(bool) []models.AsyncTask); ok {
+		r0 = rf(committed)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]models.AsyncTask)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func() *utils.GenericError); ok {
-		r1 = rf()
+	if rf, ok := ret.Get(1).(func(bool) *utils.GenericError); ok {
+		r1 = rf(committed)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*utils.GenericError)

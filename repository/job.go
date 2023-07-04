@@ -8,6 +8,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	"scheduler0/scheduler0time"
 	"scheduler0/utils"
 	"time"
 )
@@ -68,7 +69,7 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.Job) *utils.GenericError {
 	defer rows.Close()
 	count := 0
 	for rows.Next() {
-		err = rows.Scan(
+		scanErr := rows.Scan(
 			&jobModel.ID,
 			&jobModel.ProjectID,
 			&jobModel.Spec,
@@ -79,12 +80,17 @@ func (jobRepo *jobRepo) GetOneByID(jobModel *models.Job) *utils.GenericError {
 			&jobModel.TimezoneOffset,
 			&jobModel.Data,
 		)
+		if scanErr != nil {
+			return utils.HTTPGenericError(http.StatusInternalServerError, scanErr.Error())
+		}
 		count += 1
 	}
 	if rows.Err() != nil {
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
-
+	if count == 0 {
+		return utils.HTTPGenericError(http.StatusNotFound, "job cannot be found")
+	}
 	return nil
 }
 
@@ -401,11 +407,11 @@ func (jobRepo *jobRepo) GetJobsPaginated(projectID uint64, offset uint64, limit 
 
 // BatchInsertJobs inserts n number of jobs
 func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.Job) ([]uint64, *utils.GenericError) {
-	batches := utils.Batch[models.Job](jobs, 6)
+	batches := utils.Batch[models.Job](jobs, 8)
 
 	returningIds := []uint64{}
 
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
 	for _, batch := range batches {

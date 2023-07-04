@@ -1,4 +1,4 @@
-package processor
+package service
 
 import (
 	"context"
@@ -9,9 +9,7 @@ import (
 	"scheduler0/config"
 	"scheduler0/models"
 	"scheduler0/repository"
-	"scheduler0/service/executor"
-	"scheduler0/service/queue"
-	"scheduler0/utils"
+	"scheduler0/scheduler0time"
 	"sync"
 	"time"
 )
@@ -22,8 +20,8 @@ type JobProcessor struct {
 	projectRepo         repository.ProjectRepo
 	jobExecutionLogRepo repository.JobExecutionsRepo
 	jobQueuesRepo       repository.JobQueuesRepo
-	jobQueue            *queue.JobQueue
-	jobExecutor         *executor.JobExecutor
+	jobQueue            *JobQueue
+	jobExecutor         *JobExecutor
 	logger              hclog.Logger
 	mtx                 sync.Mutex
 	ctx                 context.Context
@@ -31,7 +29,7 @@ type JobProcessor struct {
 }
 
 // NewJobProcessor creates a new job processor
-func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.JobRepo, projectRepo repository.ProjectRepo, jobQueue *queue.JobQueue, jobExecutor *executor.JobExecutor, jobExecutionLogRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
+func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.JobRepo, projectRepo repository.ProjectRepo, jobQueue *JobQueue, jobExecutor *JobExecutor, jobExecutionLogRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
 	return &JobProcessor{
 		jobRepo:             jobRepo,
 		projectRepo:         projectRepo,
@@ -147,7 +145,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 				return
 			}
 
-			schedulerTime := utils.GetSchedulerTime()
+			schedulerTime := scheduler0time.GetSchedulerTime()
 			now := schedulerTime.GetTime(time.Now())
 
 			executionTime := schedule.Next(lastJobState.LastExecutionDatetime)
@@ -160,9 +158,9 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 			// comparing the execution time on the schedule by recalculating it against it's time.
 			// Time clocks are sources of distributed systems errors and a monotonic clock should always be preferred.
 			// While 60 minutes is quite an unlike delay in a close it's not impossible
-			if now.Before(executionTime) && lastJobState.State == uint64(models.ExecutionLogScheduleState) {
+			if now.Before(executionTime) && lastJobState.State == models.ExecutionLogScheduleState {
 				jobProcessor.logger.Debug(fmt.Sprintf("quick recovered job %d", job.ID))
-				jobProcessor.jobExecutor.ScheduleProcess(job, executionTime)
+				jobProcessor.jobExecutor.ScheduleProcess(job)
 			} else {
 				jobsToSchedule = append(jobsToSchedule, job)
 			}

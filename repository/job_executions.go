@@ -9,6 +9,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	"scheduler0/scheduler0time"
 	"scheduler0/utils"
 	"time"
 )
@@ -94,7 +95,7 @@ func (repo *executionsRepo) BatchInsert(jobs []models.Job, nodeId uint64, state 
 				repo.logger.Error(fmt.Sprintf("failed to parse job cron spec %s", parseErr.Error()))
 			}
 			executionTime := schedule.Next(jobs[i].LastExecutionDate)
-			schedulerTime := utils.GetSchedulerTime()
+			schedulerTime := scheduler0time.GetSchedulerTime()
 			now := schedulerTime.GetTime(time.Now())
 			params = append(params,
 				job.ExecutionId,
@@ -124,10 +125,10 @@ func (repo *executionsRepo) BatchInsert(jobs []models.Job, nodeId uint64, state 
 		if err != nil {
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
-				repo.logger.Error("failed to rollback failed batch insertion execute ", err)
+				repo.logger.Error("failed to rollback failed batch insertion execute ", "error", err)
 				return
 			} else {
-				repo.logger.Error("failed to execute batch insertion", err)
+				repo.logger.Error("failed to execute batch insertion", "error", err)
 				return
 			}
 		}
@@ -141,10 +142,10 @@ func (repo *executionsRepo) BatchInsert(jobs []models.Job, nodeId uint64, state 
 		if err != nil {
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
-				repo.logger.Error("failed to rollback, failed batch insertion execute, failed to get last inserted id", err)
+				repo.logger.Error("failed to rollback, failed batch insertion execute, failed to get last inserted id", "error", err)
 				return
 			} else {
-				repo.logger.Error("failed to execute batch insertion, failed to get last inserted id", err)
+				repo.logger.Error("failed to execute batch insertion, failed to get last inserted id", "error", err)
 				return
 			}
 		}

@@ -8,6 +8,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	"scheduler0/scheduler0time"
 	"scheduler0/utils"
 	"time"
 )
@@ -40,7 +41,7 @@ func NewCredentialRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0
 
 // CreateOne creates a single credential and returns the uuid
 func (credentialRepo *credentialRepo) CreateOne(credential models.Credential) (uint64, *utils.GenericError) {
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
 	credential.DateCreated = now
@@ -103,17 +104,25 @@ func (credentialRepo *credentialRepo) GetOneID(credential *models.Credential) er
 		return err
 	}
 	defer rows.Close()
+	var count = 0
 	for rows.Next() {
-		err = rows.Scan(
+		scanErr := rows.Scan(
 			&credential.ID,
 			&credential.Archived,
 			&credential.ApiKey,
 			&credential.ApiSecret,
 			&credential.DateCreated,
 		)
+		if scanErr != nil {
+			return scanErr
+		}
+		count += 1
 	}
 	if rows.Err() != nil {
 		return err
+	}
+	if count == 0 {
+		return utils.HTTPGenericError(http.StatusNotFound, "credential not found")
 	}
 	return nil
 }
@@ -139,20 +148,25 @@ func (credentialRepo *credentialRepo) GetByAPIKey(credential *models.Credential)
 		return utils.HTTPGenericError(404, err.Error())
 	}
 	defer rows.Close()
+	var count = 0
 	for rows.Next() {
-		err = rows.Scan(
+		scanErr := rows.Scan(
 			&credential.ID,
 			&credential.Archived,
 			&credential.ApiKey,
 			&credential.ApiSecret,
 			&credential.DateCreated,
 		)
-		if err != nil {
+		if scanErr != nil {
 			return utils.HTTPGenericError(500, err.Error())
 		}
+		count += 1
 	}
 	if rows.Err() != nil {
 		return utils.HTTPGenericError(500, err.Error())
+	}
+	if count == 0 {
+		return utils.HTTPGenericError(http.StatusNotFound, "credential doesn't exist")
 	}
 	return nil
 }

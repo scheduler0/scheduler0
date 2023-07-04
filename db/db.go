@@ -18,6 +18,7 @@ type dataStore struct {
 	dbFilePath string
 	fileLock   sync.Mutex
 
+	isInMemDb      bool
 	connectionLock sync.Mutex
 	connection     *sql.DB
 
@@ -42,6 +43,7 @@ func NewSqliteDbConnection(logger hclog.Logger, dbFilePath string) DataStore {
 	return &dataStore{
 		dbFilePath: dbFilePath,
 		logger:     logger,
+		isInMemDb:  false,
 	}
 }
 
@@ -109,21 +111,24 @@ func (db *dataStore) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx,
 }
 
 func (db *dataStore) RunMigration() {
-	fs := afero.NewOsFs()
 
-	err := fs.Remove(db.dbFilePath)
-	if err != nil && !os.IsNotExist(err) {
-		log.Fatalln(fmt.Errorf("Fatal failed to remove db file path error: %s \n", err))
+	if !db.isInMemDb {
+		fs := afero.NewOsFs()
+
+		err := fs.Remove(db.dbFilePath)
+		if err != nil && !os.IsNotExist(err) {
+			log.Fatalln(fmt.Errorf("Fatal failed to remove db file path error: %s \n", err))
+		}
+		_, err = fs.Create(db.dbFilePath)
+		if err != nil {
+			log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
+		}
+
+		datastore := NewSqliteDbConnection(db.logger, db.dbFilePath)
+		db.connection = datastore.OpenConnectionToExistingDB().(*sql.DB)
 	}
-	_, err = fs.Create(db.dbFilePath)
-	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
-	}
 
-	datastore := NewSqliteDbConnection(db.logger, db.dbFilePath)
-	conn := datastore.OpenConnectionToExistingDB()
-
-	dbConnection := conn.(*sql.DB)
+	dbConnection := db.connection
 
 	trx, dbConnErr := dbConnection.Begin()
 	if dbConnErr != nil {
@@ -181,6 +186,7 @@ func GetDBMEMConnection(logger hclog.Logger) DataStore {
 		logger.Error("ping error: failed to create in memory db: %v", err)
 	}
 	return &dataStore{
+		isInMemDb:  true,
 		connection: conn,
 	}
 }

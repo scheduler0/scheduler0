@@ -1,6 +1,6 @@
 <p align="center">
     <img src="./logo.png" height="250" />
-     <br />       
+     <br /><br />   
     <a href='https://coveralls.io/github/scheduler0/scheduler0?branch=main'><img src='https://coveralls.io/repos/github/scheduler0/scheduler0/badge.svg?branch=main&service=github' alt='Coverage Status' /></a>
     <a href='https://dl.circleci.com/status-badge/redirect/gh/scheduler0/scheduler0/tree/main'><img src='https://dl.circleci.com/status-badge/img/gh/scheduler0/scheduler0/tree/main.svg?style=svg' alt='Coverage Status' /></a>
 </p>
@@ -69,7 +69,6 @@ NodeId: 1
 RaftAddress: 127.0.0.1:7071
 RaftTransportMaxPool: 100
 RaftTransportTimeout: 1
-RaftApplyTimeout: 2
 RaftSnapshotInterval: 60
 RaftSnapshotThreshold: 100
 PeerConnectRetryMax: 2
@@ -111,7 +110,6 @@ Replicas:
 | RaftAddress                      | The network address for the node dedicated for raft communication purposes                                                                                                       
 | RaftTransportMaxPool             | Maximum number of connection pool raft should use                                                                                                                                
 | RaftTransportTimeout             | The raft connection timeout                                                                                                                                                      
-| RaftApplyTimeout                 | Timeout for replicating data across nodes                                                                                                                                        
 | RaftSnapshotInterval             | SnapshotInterval controls how often we check if we should perform a snapshot.                                                                                                    
 | RaftSnapshotThreshold            | SnapshotThreshold controls how many outstanding logs there must be before we perform a snapshot.                                                                                 
 | PeerConnectRetryMax              | Number of times to retry connection to other nodes                                                                                                                               
@@ -176,7 +174,7 @@ axiosInstance.interceptors.request.use(request => {
 
 async function createProject() {
     const { data: { data } } = await axiosInstance
-        .post('/projects', {
+        .post('/v1/projects', {
             name: "sample project",
             description: "my calendar project"
         });
@@ -200,7 +198,7 @@ async function createJobs(projectID) {
 
         try {
             const {data: {data}} = await axiosInstance
-                .post('/jobs', payload);
+                .post('/v1/jobs', payload);
             payload = []
         } catch (err) {
             console.error(err)

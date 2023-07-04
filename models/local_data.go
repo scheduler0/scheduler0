@@ -6,6 +6,5 @@ type LocalData struct {
 }
 
 type CommitLocalData struct {
-	Address string    `json:"address"`
-	Data    LocalData `json:"data"`
+	Data LocalData `json:"data"`
 }

@@ -54,37 +54,37 @@ func Start() {
 	router.Use(middleware.EnsureRaftLeaderMiddleware(serv.NodeService))
 
 	// Credentials Endpoint
-	router.HandleFunc("/credentials", credentialController.CreateOneCredential).Methods(http.MethodPost)
-	router.HandleFunc("/credentials", credentialController.ListCredentials).Methods(http.MethodGet)
-	router.HandleFunc("/credentials/{id}", credentialController.GetOneCredential).Methods(http.MethodGet)
-	router.HandleFunc("/credentials/{id}", credentialController.UpdateOneCredential).Methods(http.MethodPut)
-	router.HandleFunc("/credentials/{id}", credentialController.DeleteOneCredential).Methods(http.MethodDelete)
+	router.HandleFunc("/v1/credentials", credentialController.CreateOneCredential).Methods(http.MethodPost)
+	router.HandleFunc("/v1/credentials", credentialController.ListCredentials).Methods(http.MethodGet)
+	router.HandleFunc("/v1/credentials/{id}", credentialController.GetOneCredential).Methods(http.MethodGet)
+	router.HandleFunc("/v1/credentials/{id}", credentialController.UpdateOneCredential).Methods(http.MethodPut)
+	router.HandleFunc("/v1/credentials/{id}", credentialController.DeleteOneCredential).Methods(http.MethodDelete)
 
-	// Job Endpoint
-	router.HandleFunc("/jobs", jobController.BatchCreateJobs).Methods(http.MethodPost)
-	router.HandleFunc("/jobs", jobController.ListJobs).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{id}", jobController.GetOneJob).Methods(http.MethodGet)
-	router.HandleFunc("/jobs/{id}", jobController.UpdateOneJob).Methods(http.MethodPut)
-	router.HandleFunc("/jobs/{id}", jobController.DeleteOneJob).Methods(http.MethodDelete)
+	// JobService Endpoint
+	router.HandleFunc("/v1/jobs", jobController.BatchCreateJobs).Methods(http.MethodPost)
+	router.HandleFunc("/v1/jobs", jobController.ListJobs).Methods(http.MethodGet)
+	router.HandleFunc("/v1/jobs/{id}", jobController.GetOneJob).Methods(http.MethodGet)
+	router.HandleFunc("/v1/jobs/{id}", jobController.UpdateOneJob).Methods(http.MethodPut)
+	router.HandleFunc("/v1/jobs/{id}", jobController.DeleteOneJob).Methods(http.MethodDelete)
 
 	// Projects Endpoint
-	router.HandleFunc("/projects", projectController.CreateOneProject).Methods(http.MethodPost)
-	router.HandleFunc("/projects", projectController.ListProjects).Methods(http.MethodGet)
-	router.HandleFunc("/projects/{id}", projectController.GetOneProject).Methods(http.MethodGet)
-	router.HandleFunc("/projects/{id}", projectController.UpdateOneProject).Methods(http.MethodPut)
-	router.HandleFunc("/projects/{id}", projectController.DeleteOneProject).Methods(http.MethodDelete)
+	router.HandleFunc("/v1/projects", projectController.CreateOneProject).Methods(http.MethodPost)
+	router.HandleFunc("/v1/projects", projectController.ListProjects).Methods(http.MethodGet)
+	router.HandleFunc("/v1/projects/{id}", projectController.GetOneProject).Methods(http.MethodGet)
+	router.HandleFunc("/v1/projects/{id}", projectController.UpdateOneProject).Methods(http.MethodPut)
+	router.HandleFunc("/v1/projects/{id}", projectController.DeleteOneProject).Methods(http.MethodDelete)
 
 	// Healthcheck Endpoint
-	router.HandleFunc("/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
+	router.HandleFunc("/v1/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
 
 	// Node Endpoints
-	router.HandleFunc("/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
-	router.HandleFunc("/execution-logs", peerController.ExecutionLogs).Methods(http.MethodGet)
+	router.HandleFunc("/v1/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
+	router.HandleFunc("/v1/execution-logs", peerController.ExecutionLogs).Methods(http.MethodGet)
 
 	// AsyncTask
-	router.HandleFunc("/async-tasks/{id}", asyncTaskController.GetTask).Methods(http.MethodGet)
+	router.HandleFunc("/v1/async-tasks/{id}", asyncTaskController.GetTask).Methods(http.MethodGet)
 
-	router.PathPrefix("/api-docs/").Handler(http.StripPrefix("/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
+	router.PathPrefix("/v1/api-docs/").Handler(http.StripPrefix("/v1/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 
 	logger.Println("Server is running on port", configs.Port)
 	go func() {

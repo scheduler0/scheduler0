@@ -1,4 +1,4 @@
-package queue
+package service
 
 import (
 	"context"
@@ -103,7 +103,7 @@ func Test_Queue_IncrementQueueVersion(t *testing.T) {
 	jobQueue := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -143,7 +143,7 @@ func Test_getNextServerToQueue(t *testing.T) {
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 	jobQueue := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -192,7 +192,7 @@ func Test_queue(t *testing.T) {
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 	jobQueue := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          5,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -299,7 +299,7 @@ func Test_assignJobRangeToServers_multi_server(t *testing.T) {
 	jobQueue := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          4,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -316,6 +316,47 @@ func Test_assignJobRangeToServers_multi_server(t *testing.T) {
 	assert.Equal(t, len(assignments), 3)
 	assert.Equal(t, assignments[0][0], uint64(11))
 	assert.Equal(t, assignments[2][1], uint64(29))
+}
+
+func Test_assignJobRangeToServers_one_job(t *testing.T) {
+	ctx := context.Background()
+	scheduler0config := config.NewScheduler0Config()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "queue-test",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobQueue := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          1,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+	jobQueue.AddServers([]uint64{1, 2, 3, 4})
+
+	assignments := jobQueue.assignJobRangeToServers(1, 1)
+
+	assert.Equal(t, len(assignments), 1)
+	assert.Equal(t, assignments[0][0], uint64(1))
 }
 
 func Test_Queue_Queue(t *testing.T) {
@@ -339,7 +380,7 @@ func Test_Queue_Queue(t *testing.T) {
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 	jobQueue := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          5,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,

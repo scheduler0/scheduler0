@@ -9,6 +9,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	"scheduler0/scheduler0time"
 	"scheduler0/utils"
 	"time"
 )
@@ -60,7 +61,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.Project) (uint64, *uti
 	if projectWithName.ID > 0 {
 		return 0, utils.HTTPGenericError(http.StatusBadRequest, fmt.Sprintf("another project exist with the same name, project with id %v has the same name", projectWithName.ID))
 	}
-	schedulerTime := utils.GetSchedulerTime()
+	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
 	query, params, err := sq.Insert(constants.ProjectsTableName).

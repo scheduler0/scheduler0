@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"scheduler0/config"
 	"scheduler0/fsm"
-	"scheduler0/service/node"
+	"scheduler0/service"
 	"scheduler0/utils"
 )
 
@@ -19,10 +19,10 @@ type peerController struct {
 	scheduler0Config config.Scheduler0Config
 	fsmStore         fsm.Scheduler0RaftStore
 	logger           *log.Logger
-	peer             *node.Node
+	peer             *service.Node
 }
 
-func NewPeerController(logger *log.Logger, scheduler0Config config.Scheduler0Config, fsmStore fsm.Scheduler0RaftStore, peer *node.Node) PeerController {
+func NewPeerController(logger *log.Logger, scheduler0Config config.Scheduler0Config, fsmStore fsm.Scheduler0RaftStore, peer *service.Node) PeerController {
 	controller := peerController{
 		scheduler0Config: scheduler0Config,
 		fsmStore:         fsmStore,
@@ -35,7 +35,7 @@ func NewPeerController(logger *log.Logger, scheduler0Config config.Scheduler0Con
 func (controller *peerController) Handshake(w http.ResponseWriter, r *http.Request) {
 	configs := controller.scheduler0Config.GetConfigurations()
 
-	res := node.Res{
+	res := service.Res{
 		IsLeader: configs.Bootstrap,
 	}
 
@@ -47,7 +47,7 @@ func (controller *peerController) ExecutionLogs(w http.ResponseWriter, r *http.R
 
 	controller.peer.ReturnUncommittedLogs(requestId.(string))
 
-	w.Header().Set("Location", fmt.Sprintf("/async-tasks/%s", requestId))
+	w.Header().Set("Location", fmt.Sprintf("/v1/async-tasks/%s", requestId))
 
 	utils.SendJSON(w, nil, true, http.StatusAccepted, nil)
 	return

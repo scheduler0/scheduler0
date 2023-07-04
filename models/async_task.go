@@ -6,9 +6,9 @@ type AsyncTaskState uint64
 
 const (
 	AsyncTaskNotStated  AsyncTaskState = 0
-	AsyncTaskInProgress                = 1
-	AsyncTaskSuccess                   = 2
-	AsyncTaskFail                      = 3
+	AsyncTaskInProgress AsyncTaskState = 1
+	AsyncTaskSuccess    AsyncTaskState = 2
+	AsyncTaskFail       AsyncTaskState = 3
 )
 
 type AsyncTask struct {

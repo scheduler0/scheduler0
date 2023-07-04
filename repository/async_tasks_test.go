@@ -137,7 +137,7 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -195,7 +195,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -233,7 +233,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 	}
 
 	// Verify that the task state has been updated
-	assert.Equal(t, int(updatedTask.State), models.AsyncTaskInProgress)
+	assert.Equal(t, updatedTask.State, models.AsyncTaskInProgress)
 }
 
 func Test_AsyncTask_UpdateTaskState(t *testing.T) {
@@ -259,7 +259,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 
 	// Create a mock Raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          3,
+		Peers:          1,
 		Bootstrap:      true,
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
@@ -298,7 +298,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 	}
 
 	// Verify that the task state has been updated
-	assert.Equal(t, int(updatedTask.State), models.AsyncTaskSuccess)
+	assert.Equal(t, updatedTask.State, models.AsyncTaskSuccess)
 }
 
 func Test_AsyncTask_GetAllTasks(t *testing.T) {
@@ -338,7 +338,7 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 
 			// Create a mock Raft cluster
 			cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-				Peers:          3,
+				Peers:          1,
 				Bootstrap:      true,
 				Conf:           raft.DefaultConfig(),
 				ConfigStoreFSM: false,

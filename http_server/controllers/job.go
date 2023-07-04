@@ -14,8 +14,8 @@ import (
 
 // HTTPController http request handler for /job requests
 type jobHTTPController struct {
-	jobService     service.Job
-	projectService service.Project
+	jobService     service.JobService
+	projectService service.ProjectService
 	logger         *log.Logger
 }
 
@@ -27,7 +27,7 @@ type JobHTTPController interface {
 	DeleteOneJob(w http.ResponseWriter, r *http.Request)
 }
 
-func NewJoBHTTPController(logger *log.Logger, jobService service.Job, projectService service.Project) JobHTTPController {
+func NewJoBHTTPController(logger *log.Logger, jobService service.JobService, projectService service.ProjectService) JobHTTPController {
 	controller := &jobHTTPController{
 		jobService:     jobService,
 		projectService: projectService,

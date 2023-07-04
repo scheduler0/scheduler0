@@ -9,7 +9,6 @@ import (
 	"path"
 	"scheduler0/constants"
 	"strconv"
-	"sync"
 )
 
 // RaftNode represents a node in a raft cluster, providing the necessary
@@ -45,7 +44,6 @@ type Scheduler0Configurations struct {
 	RaftAddress                      string     `json:"raftAddress" yaml:"RaftAddress"`                                           // Address used for raft communication
 	RaftTransportMaxPool             uint64     `json:"raftTransportMaxPool" yaml:"RaftTransportMaxPool"`                         // Maximum size of the raft transport pool
 	RaftTransportTimeout             uint64     `json:"raftTransportTimeout" yaml:"RaftTransportTimeout"`                         // Timeout for raft transport operations
-	RaftApplyTimeout                 uint64     `json:"raftApplyTimeout" yaml:"RaftApplyTimeout"`                                 // Timeout for applying raft log entries
 	RaftSnapshotInterval             uint64     `json:"raftSnapshotInterval" yaml:"RaftSnapshotInterval"`                         // Interval between raft snapshots
 	RaftSnapshotThreshold            uint64     `json:"raftSnapshotThreshold" yaml:"RaftSnapshotThreshold"`                       // Threshold for raft snapshot creation
 	RaftHeartbeatTimeout             uint64     `json:"raftHeartbeatTimeout" yaml:"RaftHeartbeatTimeout"`                         // Timeout for raft heartbeat
@@ -57,56 +55,46 @@ type Scheduler0Configurations struct {
 	JobExecutionRetryMax             uint64     `json:"jobExecutionRetryMax" yaml:"JobExecutionRetryMax"`                         // Maximum number of retries for job execution
 	MaxWorkers                       uint64     `json:"maxWorkers" yaml:"MaxWorkers"`                                             // Maximum number of concurrent workers
 	MaxQueue                         uint64     `json:"maxQueue" yaml:"MaxQueue"`                                                 // Maximum size of the job queue
-	JobQueueDebounceDelay            uint64     `json:"jobQueueDebounceDelay" yaml:"JobQueueDebounceDelay"`                       // Delay for debouncing the job queue
 	MaxMemory                        uint64     `json:"maxMemory" yaml:"MaxMemory"`                                               // Maximum amount of memory to be used by the scheduler
 	ExecutionLogFetchFanIn           uint64     `json:"executionLogFetchFanIn" yaml:"ExecutionLogFetchFanIn"`                     // Fan-in factor for fetching execution logs
 	ExecutionLogFetchIntervalSeconds uint64     `json:"executionLogFetchIntervalSeconds" yaml:"ExecutionLogFetchIntervalSeconds"` // Interval between log fetches, in seconds
-	JobInvocationDebounceDelay       uint64     `json:"jobInvocationDebounceDelay" yaml:"JobInvocationDebounceDelay"`             // Delay for debouncing job invocation
 	HTTPExecutorPayloadMaxSizeMb     uint64     `json:"httpExecutorPayloadMaxSizeMb" yaml:"HTTPExecutorPayloadMaxSizeMb"`         // Maximum payload size for HTTP executor, in megabytes
 }
 
 var cachedConfig *Scheduler0Configurations
-var once sync.Once
 
 // GetConfigurations returns the cached Scheduler0Configurations if it exists,
 // otherwise it reads the configuration file and caches it.
 func (_ Scheduler0Configurations) GetConfigurations() *Scheduler0Configurations {
-	// Check if cachedConfig is not nil, then return it
-	if cachedConfig != nil {
-		return cachedConfig
+	// Ensure that the configuration is read and cached only once
+	// Get the binary path
+	binPath := getBinPath()
+
+	// Create a new file system
+	fs := afero.NewOsFs()
+	// Read the configuration file
+	data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
+	// If there is an error and it's not due to the file not existing, panic
+	if err != nil && !os.IsNotExist(err) {
+		panic(err)
 	}
 
-	// Ensure that the configuration is read and cached only once
-	once.Do(func() {
-		// Get the binary path
-		binPath := getBinPath()
+	// Initialize an empty Scheduler0Configurations struct
+	config := Scheduler0Configurations{}
 
-		// Create a new file system
-		fs := afero.NewOsFs()
-		// Read the configuration file
-		data, err := afero.ReadFile(fs, binPath+"/"+constants.ConfigFileName)
-		// If there is an error and it's not due to the file not existing, panic
-		if err != nil && !os.IsNotExist(err) {
-			panic(err)
-		}
+	// If the error is due to the file not existing, get the configuration from environment variables
+	if os.IsNotExist(err) {
+		config = *getConfigFromEnv()
+	}
 
-		// Initialize an empty Scheduler0Configurations struct
-		config := Scheduler0Configurations{}
-
-		// If the error is due to the file not existing, get the configuration from environment variables
-		if os.IsNotExist(err) {
-			config = *getConfigFromEnv()
-		}
-
-		// Unmarshal the YAML data into the config struct
-		err = yaml.Unmarshal(data, &config)
-		// If there is an error in unmarshaling, panic
-		if err != nil {
-			panic(err)
-		}
-		// Cache the configuration
-		cachedConfig = &config
-	})
+	// Unmarshal the YAML data into the config struct
+	err = yaml.Unmarshal(data, &config)
+	// If there is an error in unmarshaling, panic
+	if err != nil {
+		panic(err)
+	}
+	// Cache the configuration
+	cachedConfig = &config
 
 	// Return the cached configuration
 	return cachedConfig
@@ -219,15 +207,6 @@ func getConfigFromEnv() *Scheduler0Configurations {
 		config.RaftTransportTimeout = parsed
 	}
 
-	// Set RaftApplyTimeout
-	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_APPLY_TIMEOUT"); ok {
-		parsed, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			log.Fatalf("Error parsing SCHEDULER0_RAFT_APPLY_TIMEOUT: %v", err)
-		}
-		config.RaftApplyTimeout = parsed
-	}
-
 	// Set RaftSnapshotInterval
 	if val, ok := os.LookupEnv("SCHEDULER0_RAFT_SNAPSHOT_INTERVAL"); ok {
 		parsed, err := strconv.ParseUint(val, 10, 64)
@@ -318,15 +297,6 @@ func getConfigFromEnv() *Scheduler0Configurations {
 		config.MaxWorkers = parsed
 	}
 
-	// Set JobQueueDebounceDelay
-	if val, ok := os.LookupEnv("SCHEDULER0_JOB_QUEUE_DEBOUNCE_DELAY"); ok {
-		parsed, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			log.Fatalf("Error parsing SCHEDULER0_JOB_QUEUE_DEBOUNCE_DELAY: %v", err)
-		}
-		config.JobQueueDebounceDelay = parsed
-	}
-
 	// Set MaxMemory
 	if val, ok := os.LookupEnv("SCHEDULER0_MAX_MEMORY"); ok {
 		parsed, err := strconv.ParseUint(val, 10, 64)
@@ -352,15 +322,6 @@ func getConfigFromEnv() *Scheduler0Configurations {
 			log.Fatalf("Error parsing SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS: %v", err)
 		}
 		config.ExecutionLogFetchIntervalSeconds = parsed
-	}
-
-	// Set JobInvocationDebounceDelay
-	if val, ok := os.LookupEnv("SCHEDULER0_JOB_INVOCATION_DEBOUNCE_DELAY"); ok {
-		parsed, err := strconv.ParseUint(val, 10, 64)
-		if err != nil {
-			log.Fatalf("Error parsing SCHEDULER0_JOB_INVOCATION_DEBOUNCE_DELAY: %v", err)
-		}
-		config.JobInvocationDebounceDelay = parsed
 	}
 
 	// Set HTTPExecutorPayloadMaxSizeMb
