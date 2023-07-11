@@ -1103,7 +1103,8 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	go func() {
 		ln, err := net.Listen("tcp", "127.0.0.1:")
 		if err != nil {
-			t.Fatal("failed to create tcp listener", err)
+			t.Error("failed to create tcp listener", err)
+			return
 		}
 		testMux := http.NewServeMux()
 		testMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
@@ -1113,7 +1114,8 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 		callbackUrl = ln.Addr().String()
 		err = http.Serve(ln, testMux)
 		if err != nil {
-			t.Fatal("failed to listen and serve http request", err)
+			t.Error("failed to listen and serve http request", err)
+			return
 		}
 		time.Sleep(1*time.Minute + 2*time.Second)
 		ln.Close()

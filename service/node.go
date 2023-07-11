@@ -134,7 +134,6 @@ func NewNode(
 		jobQueue:              jobQueue,
 		jobExecutor:           jobExecutor,
 		jobRepo:               jobRepo,
-		projectRepo:           projectRepo,
 		isExistingNode:        exists,
 		peerObserverChannels:  make(chan raft.Observation, numReplicas),
 		asyncTaskManager:      asyncTaskManager,
@@ -764,10 +763,6 @@ func (node *Node) stopAcceptingClientWriteRequest() {
 func (node *Node) beginAcceptingClientRequest() {
 	node.acceptRequest = true
 	node.logger.Info("being accepting client requests")
-}
-
-func (node *Node) stopAcceptingClientRequest() {
-	node.acceptRequest = false
 }
 
 func (node *Node) CanAcceptClientWriteRequest() bool {
