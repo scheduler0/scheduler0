@@ -11,9 +11,10 @@ workflows:
           repo: "${AWS_ECR_REPO}"
           region: "${AWS_DEFAULT_REGION}"
           tag: "${CIRCLE_SHA1}"
+      - build-and-test
 
 jobs:
-  build:
+  build-and-test:
     docker:
       - image: cimg/go:1.18
     steps:
