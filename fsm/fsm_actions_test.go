@@ -32,7 +32,7 @@ func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
@@ -116,7 +116,7 @@ func Test_WriteCommandToRaftLog_Job_Queue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
@@ -213,7 +213,7 @@ func Test_WriteCommandToRaftLog_Local_Data_Commit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.OpenConnectionToExistingDB()
@@ -306,7 +306,7 @@ func Test_WriteCommandToRaftLog_Stop_All_Jobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
@@ -348,7 +348,7 @@ func Test_WriteCommandToRaftLog_Recovery_All_Jobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()

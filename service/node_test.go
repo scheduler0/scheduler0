@@ -28,7 +28,7 @@ func Test_CanAcceptRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())

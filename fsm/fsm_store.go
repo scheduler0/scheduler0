@@ -148,7 +148,7 @@ func (s *store) Restore(r io.ReadCloser) error {
 		return fmt.Errorf("Fatal error getting working dir: %s \n", err)
 	}
 	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
-	if err := os.Unsetenv(dbFilePath); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(dbFilePath); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if b != nil {

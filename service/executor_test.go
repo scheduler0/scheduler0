@@ -35,7 +35,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -171,7 +171,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -304,7 +304,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -449,7 +449,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		if err != nil {
 			t.Fatalf("Failed to create temp file: %v", err)
 		}
-		defer os.Unsetenv(tempFile.Name())
+		defer os.Remove(tempFile.Name())
 
 		// Create a new SQLite database connection
 		sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -640,7 +640,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		if err != nil {
 			t.Fatalf("Failed to create temp file: %v", err)
 		}
-		defer os.Unsetenv(tempFile.Name())
+		defer os.Remove(tempFile.Name())
 
 		// Create a new SQLite database connection
 		sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -833,7 +833,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		if err != nil {
 			t.Fatalf("Failed to create temp file: %v", err)
 		}
-		defer os.Unsetenv(tempFile.Name())
+		defer os.Remove(tempFile.Name())
 
 		// Create a new SQLite database connection
 		sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -1015,7 +1015,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -1185,7 +1185,7 @@ func Test_handleFailedJobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -1343,7 +1343,7 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -1471,7 +1471,7 @@ func Test_StopAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())

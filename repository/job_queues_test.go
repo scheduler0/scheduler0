@@ -28,7 +28,7 @@ func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
@@ -131,7 +131,7 @@ func Test_JobQueuesRepo_GetLastVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()

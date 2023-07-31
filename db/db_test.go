@@ -18,7 +18,7 @@ func TestNewSqliteDbConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := NewSqliteDbConnection(logger, tempFile.Name())
 	if sqliteDb == nil {
@@ -36,7 +36,7 @@ func TestOpenConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := NewSqliteDbConnection(logger, tempFile.Name())
 	conn := sqliteDb.OpenConnectionToExistingDB()
@@ -56,7 +56,7 @@ func TestSerialize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()

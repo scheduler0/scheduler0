@@ -29,7 +29,7 @@ func Test_AsyncTask_BatchInsert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
@@ -80,7 +80,7 @@ func Test_AsyncTask_GetTask(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create temp file: %v", err)
 			}
-			defer os.Unsetenv(tempFile.Name())
+			defer os.Remove(tempFile.Name())
 			sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 			sqliteDb.RunMigration()
 			sqliteDb.OpenConnectionToExistingDB()
@@ -127,7 +127,7 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
@@ -185,7 +185,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
@@ -249,7 +249,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Unsetenv(tempFile.Name())
+	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
@@ -328,7 +328,7 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create temp file: %v", err)
 			}
-			defer os.Unsetenv(tempFile.Name())
+			defer os.Remove(tempFile.Name())
 
 			sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 			sqliteDb.RunMigration()
