@@ -27,7 +27,7 @@ func Test_ProjectService_CreateOne(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -92,7 +92,7 @@ func Test_ProjectService_UpdateOneByID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -173,7 +173,7 @@ func Test_ProjectService_GetOneByID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -244,7 +244,7 @@ func Test_ProjectService_GetOneByName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -315,7 +315,7 @@ func Test_ProjectService_DeleteOneByID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -390,7 +390,7 @@ func Test_ProjectService_List(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -492,7 +492,7 @@ func Test_ProjectService_BatchGetProjects(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())

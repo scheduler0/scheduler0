@@ -28,7 +28,7 @@ func Test_JobExecutionsRepo_BatchInsert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
@@ -139,7 +139,7 @@ func Test_JobExecutionsRepo_GetLastExecutionLogForJobIds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
@@ -240,7 +240,7 @@ func Test_JobExecutionsRepo_CountLastFailedExecutionLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
@@ -335,7 +335,7 @@ func Test_JobExecutionsRepo_CountExecutionLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
@@ -428,7 +428,7 @@ func Test_JobExecutionsRepo_GetUncommittedExecutionsLogForNode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()

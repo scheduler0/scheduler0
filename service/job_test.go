@@ -30,7 +30,7 @@ func Test_JobService_BatchInsertJobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -152,7 +152,7 @@ func Test_JobService_UpdateJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -259,7 +259,7 @@ func Test_JobService_DeleteJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -361,7 +361,7 @@ func Test_JobService_GetJobsByProjectID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -497,7 +497,7 @@ func Test_JobService_GetJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -601,7 +601,7 @@ func Test_JobService_QueueJobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -684,7 +684,7 @@ func Test_JobService_QueueJobs(t *testing.T) {
 	}
 
 	os.Setenv("SCHEDULER0_NODE_ID", "2")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	// Call the QueueJobs method of the job service
 	jobService.QueueJobs(jobs)
 

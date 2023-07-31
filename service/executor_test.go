@@ -35,7 +35,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -143,7 +143,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -171,7 +171,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -275,7 +275,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -304,7 +304,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -408,7 +408,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 	time.Sleep(time.Second * time.Duration(4))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "2")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -449,7 +449,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		if err != nil {
 			t.Fatalf("Failed to create temp file: %v", err)
 		}
-		defer os.Remove(tempFile.Name())
+		defer os.Unsetenv(tempFile.Name())
 
 		// Create a new SQLite database connection
 		sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -563,7 +563,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		time.Sleep(time.Second * time.Duration(1))
 
 		serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-		defer os.Remove("SCHEDULER0_NODE_ID")
+		defer os.Unsetenv("SCHEDULER0_NODE_ID")
 		if serr != nil {
 			t.Fatal("failed to set env", serr)
 		}
@@ -640,7 +640,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		if err != nil {
 			t.Fatalf("Failed to create temp file: %v", err)
 		}
-		defer os.Remove(tempFile.Name())
+		defer os.Unsetenv(tempFile.Name())
 
 		// Create a new SQLite database connection
 		sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -757,7 +757,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		time.Sleep(time.Second * time.Duration(4))
 
 		serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-		defer os.Remove("SCHEDULER0_NODE_ID")
+		defer os.Unsetenv("SCHEDULER0_NODE_ID")
 		if serr != nil {
 			t.Fatal("failed to set env", serr)
 		}
@@ -833,7 +833,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		if err != nil {
 			t.Fatalf("Failed to create temp file: %v", err)
 		}
-		defer os.Remove(tempFile.Name())
+		defer os.Unsetenv(tempFile.Name())
 
 		// Create a new SQLite database connection
 		sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -950,7 +950,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		time.Sleep(time.Second * time.Duration(4))
 
 		serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-		defer os.Remove("SCHEDULER0_NODE_ID")
+		defer os.Unsetenv("SCHEDULER0_NODE_ID")
 		if serr != nil {
 			t.Fatal("failed to set env", serr)
 		}
@@ -1015,7 +1015,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -1158,7 +1158,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -1185,7 +1185,7 @@ func Test_handleFailedJobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -1288,13 +1288,13 @@ func Test_handleFailedJobs(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
 
 	serr = os.Setenv("SCHEDULER0_JOB_EXECUTION_RETRY_MAX", "2")
-	defer os.Remove("SCHEDULER0_JOB_EXECUTION_RETRY_MAX")
+	defer os.Unsetenv("SCHEDULER0_JOB_EXECUTION_RETRY_MAX")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -1343,7 +1343,7 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
@@ -1448,7 +1448,7 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -1471,7 +1471,7 @@ func Test_StopAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer os.Unsetenv(tempFile.Name())
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())

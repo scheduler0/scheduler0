@@ -447,7 +447,7 @@ func (node *Node) recoverRaftState() {
 		logger.Fatalf("log compaction failed: %v", err)
 	}
 
-	err = os.Remove(recoverDbPath)
+	err = os.Unsetenv(recoverDbPath)
 	if err != nil {
 		logger.Fatalf("failed to delete recovery db: %v", err)
 	}
