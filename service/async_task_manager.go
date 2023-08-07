@@ -183,11 +183,16 @@ func (m *AsyncTaskManager) GetTaskBlocking(taskId uint64) (chan models.AsyncTask
 		m.logger.Error("failed to get async task", "error", err.Message)
 		return nil, 0, err
 	}
+	var taskCh = make(chan models.AsyncTask, 1)
+
+	if task.State == models.AsyncTaskSuccess {
+		taskCh <- *task
+		return taskCh, 0, nil
+	}
+
 	if task.State != models.AsyncTaskInProgress && task.State != models.AsyncTaskNotStated {
 		return nil, 0, nil
 	}
-
-	var taskCh = make(chan models.AsyncTask, 1)
 
 	subs, addErr := m.AddSubscriber(taskId, func(task models.AsyncTask) {
 		taskCh <- task

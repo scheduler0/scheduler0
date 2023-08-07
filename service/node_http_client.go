@@ -110,7 +110,6 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase2(ctx context.Con
 			}
 		}
 	}
-
 }
 
 func (client nodeHTTPClient) ConnectNode(rep config.RaftNode) (*Status, error) {

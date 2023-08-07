@@ -179,38 +179,6 @@ func (node *Node) Boostrap() {
 	node.listenOnInputQueues(node.FsmStore)
 }
 
-func (node *Node) commitLocalData(peerAddress string, localData models.LocalData) {
-	if node.FsmStore.GetRaft() == nil {
-		log.Fatalln("raft is not set on job executors")
-	}
-
-	params := models.CommitLocalData{
-		Data: localData,
-	}
-
-	node.logger.Debug("committing local data from peer",
-		"address", peerAddress,
-		"number of async tasks", len(localData.AsyncTasks),
-		"number of execution logs", len(localData.ExecutionLogs),
-	)
-
-	nodeId, err := utils.GetNodeIdWithServerAddress(peerAddress)
-	if err != nil {
-		log.Fatalln("failed to get node with id for peer address", peerAddress)
-	}
-
-	_, writeError := node.scheduler0RaftActions.WriteCommandToRaftLog(
-		node.FsmStore.GetRaft(),
-		constants.CommandTypeLocalData,
-		"",
-		uint64(nodeId),
-		[]interface{}{params},
-	)
-	if writeError != nil {
-		node.logger.Error("failed to apply local data into raft store", "error", writeError)
-	}
-}
-
 func (node *Node) ReturnUncommittedLogs(requestId string) {
 	taskId, addErr := node.asyncTaskManager.AddTasks("", requestId, constants.JobExecutorAsyncTaskService)
 	if addErr != nil {
@@ -258,6 +226,46 @@ func (node *Node) ReturnUncommittedLogs(requestId string) {
 			return
 		}
 	})
+}
+
+func (node *Node) CanAcceptClientWriteRequest() bool {
+	return node.acceptClientWrites
+}
+
+func (node *Node) CanAcceptRequest() bool {
+	return node.acceptRequest
+}
+
+func (node *Node) commitLocalData(peerAddress string, localData models.LocalData) {
+	if node.FsmStore.GetRaft() == nil {
+		log.Fatalln("raft is not set on job executors")
+	}
+
+	params := models.CommitLocalData{
+		Data: localData,
+	}
+
+	node.logger.Debug("committing local data from peer",
+		"address", peerAddress,
+		"number of async tasks", len(localData.AsyncTasks),
+		"number of execution logs", len(localData.ExecutionLogs),
+	)
+
+	nodeId, err := utils.GetNodeIdWithServerAddress(peerAddress)
+	if err != nil {
+		log.Fatalln("failed to get node with id for peer address", peerAddress)
+	}
+
+	_, writeError := node.scheduler0RaftActions.WriteCommandToRaftLog(
+		node.FsmStore.GetRaft(),
+		constants.CommandTypeLocalData,
+		"",
+		uint64(nodeId),
+		[]interface{}{params},
+	)
+	if writeError != nil {
+		node.logger.Error("failed to apply local data into raft store", "error", writeError)
+	}
 }
 
 func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
@@ -763,14 +771,6 @@ func (node *Node) stopAcceptingClientWriteRequest() {
 func (node *Node) beginAcceptingClientRequest() {
 	node.acceptRequest = true
 	node.logger.Info("being accepting client requests")
-}
-
-func (node *Node) CanAcceptClientWriteRequest() bool {
-	return node.acceptClientWrites
-}
-
-func (node *Node) CanAcceptRequest() bool {
-	return node.acceptRequest
 }
 
 func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
