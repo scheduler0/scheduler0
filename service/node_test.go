@@ -24,6 +24,13 @@ import (
 )
 
 func Test_CanAcceptRequest(t *testing.T) {
+	t.Cleanup(func() {
+		err := os.RemoveAll("./raft_data")
+		if err != nil {
+			fmt.Println("failed to remove raft_data dir for test", err)
+		}
+	})
+
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "job-service-test",
 		Level: hclog.LevelFromString("trace"),
@@ -127,6 +134,13 @@ func Test_CanAcceptRequest(t *testing.T) {
 }
 
 func Test_CanAcceptClientWriteRequest(t *testing.T) {
+	t.Cleanup(func() {
+		err := os.RemoveAll("./raft_data")
+		if err != nil {
+			fmt.Println("failed to remove raft_data dir for test", err)
+		}
+	})
+
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "job-service-test",
 		Level: hclog.LevelFromString("trace"),
@@ -233,6 +247,15 @@ func Test_CanAcceptClientWriteRequest(t *testing.T) {
 }
 
 func Test_ReturnUncommittedLogs(t *testing.T) {
+	t.Cleanup(func() {
+		err := os.RemoveAll("./raft_data")
+		if err != nil {
+			fmt.Println("failed to remove raft_data dir for test", err)
+		}
+	})
+
+	bctx := context.Background()
+	ctx, cancler := context.WithCancel(bctx)
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "job-service-test",
 		Level: hclog.LevelFromString("trace"),
@@ -270,8 +293,6 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 	})
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
-
-	ctx := context.Background()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -402,11 +423,10 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 
 	time.Sleep(time.Second * time.Duration(2))
 
-	tashCh, _, getTaskBlErr := asyncTaskManager.GetTaskWithRequestIdBlocking(requestId)
-	if getTaskBlErr != nil {
-		t.Fatal("failed update an async task", getTaskBlErr)
+	task, getTaskErr := asyncTaskManager.GetTaskWithRequestIdNonBlocking(requestId)
+	if getTaskErr != nil {
+		t.Fatal("failed update an async task", getTaskErr)
 	}
-	task := <-tashCh
 	data := []byte(task.Output)
 	var asyncTaskRes models.LocalData
 	marshalErr := json.Unmarshal(data, &asyncTaskRes)
@@ -418,4 +438,5 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 	assert.Equal(t, task.RequestId, requestId)
 	assert.Equal(t, task.State, models.AsyncTaskSuccess)
 	assert.Equal(t, len(asyncTaskRes.ExecutionLogs), len(uncommittedExecutionsLogs))
+	cancler()
 }

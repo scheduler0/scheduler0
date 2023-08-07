@@ -177,7 +177,8 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 }
 
 func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
-	ctx := context.Background()
+	bctx := context.Background()
+	ctx, cancler := context.WithCancel(bctx)
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),
@@ -238,6 +239,7 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 	}
 	time.Sleep(time.Second * 1)
 	assert.Equal(t, executed, true)
+	cancler()
 }
 
 func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {

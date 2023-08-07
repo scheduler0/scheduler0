@@ -49,6 +49,14 @@ resource "aws_dynamodb_table" "terraform_locks" {
   }
 }
 
+module "security_groups" {
+  source = "./security_groups"
+}
+
 module "ecr" {
   source = "./ecr"
+}
+
+module "ecs" {
+  source = "./ecs"
 }
