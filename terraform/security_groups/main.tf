@@ -1,8 +1,10 @@
 # Create a new security group for our ecs instances
 resource "aws_security_group" "scheduler0_ecs_cluster_security_group" {
+  count = length(data.aws_vpcs.svpcs.ids)
+
   name        = var.security_group_name
   description = "Allow inbound traffic"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = data.aws_vpc.svpc[count.index].id
 
   ingress {
     from_port   = var.cluster_ingress_from_port

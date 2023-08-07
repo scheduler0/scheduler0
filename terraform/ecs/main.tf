@@ -23,11 +23,13 @@ resource "aws_launch_configuration" "ecs" {
 
 # Create an auto scaling group
 resource "aws_autoscaling_group" "ecs" {
+  count = length(data.aws_vpcs.svpcs.ids)
+
   desired_capacity     = 2
   launch_configuration = aws_launch_configuration.ecs.id
   max_size             = 2
   min_size             = 0
-  vpc_zone_identifier  = [data.aws_subnet_ids.default.id]
+  vpc_zone_identifier  = [data.aws_subnet.default[count.index].id]
 
   lifecycle {
     create_before_destroy = true
