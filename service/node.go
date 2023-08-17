@@ -158,6 +158,7 @@ func (node *Node) Boostrap() {
 	}
 
 	configs := node.scheduler0Config.GetConfigurations()
+	fmt.Println("node.FsmStore", node.FsmStore)
 	rft := node.newRaft(node.FsmStore.GetFSM())
 	if configs.Bootstrap && !node.isExistingNode {
 		node.bootstrapRaftCluster(rft)
@@ -253,7 +254,7 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 
 	nodeId, err := utils.GetNodeIdWithServerAddress(peerAddress)
 	if err != nil {
-		log.Fatalln("failed to get node with id for peer address", peerAddress)
+		log.Fatalln("failed to get node id for raft address", peerAddress)
 	}
 
 	_, writeError := node.scheduler0RaftActions.WriteCommandToRaftLog(
@@ -540,7 +541,7 @@ func (node *Node) handleLeaderChange() {
 		for _, server := range servers {
 			nodeId, err := utils.GetNodeIdWithRaftAddress(server.Address)
 			if err != nil {
-				log.Fatalln("failed to get node with id for peer address", server.Address)
+				log.Fatalln("failed to get node id for raft address", server.Address)
 			}
 			nodeIds = append(nodeIds, uint64(nodeId))
 		}
@@ -675,7 +676,7 @@ func (node *Node) getRaftConfiguration() raft.Configuration {
 	return cfg
 }
 
-func (node *Node) getRandomFanInPeerHTTPAddresses() []string {
+func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) []string {
 	configs := node.scheduler0Config.GetConfigurations()
 	numReplicas := len(configs.Replicas)
 	servers := make([]raft.ServerAddress, 0, numReplicas)
@@ -689,7 +690,9 @@ func (node *Node) getRandomFanInPeerHTTPAddresses() []string {
 
 	if uint64(len(servers)) < configs.ExecutionLogFetchFanIn {
 		for _, server := range servers {
-			httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(server))
+			if ok := excludeList[string(server)]; !ok {
+				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(server))
+			}
 		}
 	} else {
 		shuffledServers := servers
@@ -705,8 +708,14 @@ func (node *Node) getRandomFanInPeerHTTPAddresses() []string {
 		}
 
 		for i := 0; i < len(shuffledServers); i++ {
-			httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i]))
+			if _, ok := excludeList[string(shuffledServers[i])]; !ok {
+				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i]))
+			}
 		}
+	}
+
+	if len(httpAddresses) > int(configs.ExecutionLogFetchFanIn) {
+		return httpAddresses[:configs.ExecutionLogFetchFanIn]
 	}
 
 	return httpAddresses
@@ -774,22 +783,22 @@ func (node *Node) beginAcceptingClientRequest() {
 }
 
 func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
-	httpAddresses := node.getRandomFanInPeerHTTPAddresses()
+	excludeList := map[string]bool{}
+	node.fanIns.Range(func(key, value any) bool {
+		excludeList[key.(string)] = true
+		return true
+	})
+	httpAddresses := node.getRandomFanInPeerHTTPAddresses(excludeList)
 	peerFanIns := make([]models.PeerFanIn, 0, len(httpAddresses))
 	for _, httpAddress := range httpAddresses {
-		var peerFanIn models.PeerFanIn
-		storeFanIn, ok := node.fanIns.Load(httpAddress)
+		_, ok := node.fanIns.Load(httpAddress)
 		if !ok {
 			newFanIn := models.PeerFanIn{
 				PeerHTTPAddress: httpAddress,
 				State:           models.PeerFanInStateNotStated,
 			}
 			node.fanIns.Store(httpAddress, newFanIn)
-			peerFanIn = newFanIn
 			peerFanIns = append(peerFanIns, newFanIn)
-		} else {
-			peerFanIn = storeFanIn.(models.PeerFanIn)
-			peerFanIns = append(peerFanIns, peerFanIn)
 		}
 	}
 	return peerFanIns
@@ -831,9 +840,29 @@ func (node *Node) fanInLocalDataFromPeers() {
 				}
 			}
 
-			go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
-			go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
-			go node.commitFetchedUnCommittedLogs(phase3)
+			node.fanIns.Range(func(key, value any) bool {
+				fanIn := value.(models.PeerFanIn)
+				if fanIn.State == models.PeerFanInStateNotStated {
+					phase1 = append(phase1, fanIn)
+				}
+				if fanIn.State == models.PeerFanInStateGetRequestId {
+					phase2 = append(phase2, fanIn)
+				}
+				if fanIn.State == models.PeerFanInStateGetExecutionsLogs {
+					phase3 = append(phase3, fanIn)
+				}
+				return true
+			})
+
+			if len(phase1) > 0 {
+				go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
+			}
+			if len(phase2) > 0 {
+				go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
+			}
+			if len(phase3) > 0 {
+				go node.commitFetchedUnCommittedLogs(phase3)
+			}
 		case <-node.ctx.Done():
 			cancelFunc()
 			return
@@ -869,7 +898,7 @@ func getLogsAndTransport(scheduler0Config config.Scheduler0Config) (tm *raft.Net
 	}
 	ln, err := net.Listen("tcp", configs.RaftAddress)
 	if err != nil {
-		logger.Fatal("failed to listen to tcp net", err)
+		logger.Fatalf("failed to listen to tcp net. raft address %v. %v", configs.RaftAddress, err)
 	}
 
 	adv := network.NameAddress{

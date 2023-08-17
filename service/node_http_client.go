@@ -35,6 +35,7 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase1(ctx context.Con
 		httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/v1/execution-logs", peerFanIn.PeerHTTPAddress), nil)
 		if reqErr != nil {
 			node.logger.Error("failed to create request to execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", reqErr.Error())
+			node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 		} else {
 			httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
 			httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
@@ -43,6 +44,7 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase1(ctx context.Con
 			res, err := httpClient.Do(httpRequest)
 			if err != nil {
 				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
+				node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 			} else {
 				if res.StatusCode == http.StatusAccepted {
 					location := res.Header.Get("Location")
@@ -50,12 +52,15 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase1(ctx context.Con
 					closeErr := res.Body.Close()
 					if closeErr != nil {
 						node.logger.Error("failed to close body", "error", closeErr.Error())
+						node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
+						return
 					}
 					peerFanIn.State = models.PeerFanInStateGetRequestId
 					node.fanIns.Store(peerFanIn.PeerHTTPAddress, peerFanIn)
 					node.logger.Info("successfully fetch execution logs from", "node address", peerFanIn.PeerHTTPAddress)
 				} else {
 					node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
+					node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 				}
 			}
 		}
@@ -76,25 +81,30 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase2(ctx context.Con
 			res, err := httpClient.Do(httpRequest)
 			if err != nil {
 				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
+				node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 			} else {
 				if res.StatusCode == http.StatusOK {
 					data, readErr := io.ReadAll(res.Body)
 					if readErr != nil {
 						node.logger.Error("failed to read uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "error", readErr.Error())
+						node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 					} else {
 						var asyncTaskRes models.AsyncTaskRes
 						marshalErr := json.Unmarshal([]byte(data), &asyncTaskRes)
 						if marshalErr != nil {
+							node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 							node.logger.Error("failed to read uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
 						} else {
 							var localData models.LocalData
 							marshalErr = json.Unmarshal([]byte(asyncTaskRes.Data.Output), &localData)
 							if marshalErr != nil {
+								node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 								node.logger.Error("failed to read uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
 							} else {
 								peerFanIn.Data = localData
 								closeErr := res.Body.Close()
 								if closeErr != nil {
+									node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 									node.logger.Error("failed to close body", "error", closeErr.Error())
 								} else {
 									peerFanIn.State = models.PeerFanInStateGetExecutionsLogs
@@ -106,6 +116,7 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase2(ctx context.Con
 					}
 				} else {
 					node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
+					node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 				}
 			}
 		}
