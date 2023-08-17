@@ -693,7 +693,7 @@ func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) [
 
 	if uint64(len(servers)) < configs.ExecutionLogFetchFanIn {
 		for _, server := range servers {
-			if ok := excludeList[string(server)]; !ok {
+			if ok := excludeList[utils.GetNodeServerAddressWithRaftAddress(server)]; !ok {
 				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(server))
 			}
 		}

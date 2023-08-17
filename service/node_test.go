@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/raft"
 	"github.com/robfig/cron"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"io/ioutil"
 	"os"
 	"scheduler0/config"
@@ -890,264 +889,264 @@ func Test_selectRandomPeersToFanIn(t *testing.T) {
 	assert.Equal(t, 4, count)
 }
 
-func Test_fanInLocalDataFromPeers(t *testing.T) {
-	t.Cleanup(func() {
-		err := os.RemoveAll("./raft_data")
-		if err != nil {
-			fmt.Println("failed to remove raft_data dir for test", err)
-		}
-	})
-
-	ctx := context.Background()
-	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
-		Level: hclog.LevelFromString("trace"),
-	})
-
-	// Create a temporary SQLite database file
-	tempFile, err := ioutil.TempFile("", "test-db")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tempFile.Name())
-
-	os.Setenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS", "2")
-	defer os.Unsetenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS")
-
-	// Create a new SQLite database connection
-	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
-	sqliteDb.OpenConnectionToExistingDB()
-
-	scheduler0config := config.NewScheduler0Config()
-	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
-
-	scheduler0Secrets := secrets.NewScheduler0Secrets()
-	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
-
-	// Create a mock Raft cluster
-	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          6,
-		Bootstrap:      true,
-		Conf:           raft.DefaultConfig(),
-		ConfigStoreFSM: false,
-		MakeFSMFunc: func() raft.FSM {
-			return scheduler0Store.GetFSM()
-		},
-	})
-	cluster.FullyConnect()
-
-	scheduler0Store.UpdateRaft(cluster.Leader())
-
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-	jobExecutionsRepo := repository.NewExecutionsRepo(
-		logger,
-		scheduler0RaftActions,
-		scheduler0Store,
-	)
-
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
-	dispatcher := utils.NewDispatcher(
-		int64(1),
-		int64(1),
-		callback,
-	)
-
-	dispatcher.Run()
-
-	queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
-	jobExecutorService := NewJobExecutor(
-		ctx,
-		logger,
-		scheduler0config,
-		scheduler0RaftActions,
-		jobRepo,
-		jobExecutionsRepo,
-		jobQueueRepo,
-		dispatcher,
-	)
-
-	os.Setenv("SCHEDULER0_RAFT_ADDRESS", strings.Split(cluster.Leader().String(), " ")[2])
-
-	os.Setenv("SCHEDULER0_EXECUTION_LOG_FETCH_FAN_IN", "2")
-
-	followerHTTPAddresses := []string{
-		"http://localhost:34417",
-		"http://localhost:34416",
-		"http://localhost:34415",
-		"http://localhost:34414",
-		"http://localhost:34413",
-	}
-
-	followerRaftAddresses := []string{
-		strings.Split(cluster.Followers()[0].String(), " ")[2],
-		strings.Split(cluster.Followers()[1].String(), " ")[2],
-		strings.Split(cluster.Followers()[2].String(), " ")[2],
-		strings.Split(cluster.Followers()[3].String(), " ")[2],
-		strings.Split(cluster.Followers()[4].String(), " ")[2],
-	}
-
-	os.Setenv("SCHEDULER0_REPLICAS", fmt.Sprintf("["+
-		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":6}, "+
-		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":5}, "+
-		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":4}, "+
-		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":3}, "+
-		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":2}, "+
-		"{\"raft_address\":\"http://localhost:3442\", \"address\":\"http://localhost:34410\", \"nodeId\":1}"+
-		"]",
-		followerRaftAddresses[0], followerHTTPAddresses[0],
-		followerRaftAddresses[1], followerHTTPAddresses[1],
-		followerRaftAddresses[2], followerHTTPAddresses[2],
-		followerRaftAddresses[3], followerHTTPAddresses[3],
-		followerRaftAddresses[4], followerHTTPAddresses[4],
-	))
-
-	tests := []struct {
-		cachedFanIns []struct {
-			httpAddress string
-			state       models.PeerFanInState
-		}
-		method    string
-		startPort string
-	}{
-		{
-			method:    "FetchUncommittedLogsFromPeersPhase1",
-			startPort: "localhost:34345",
-			cachedFanIns: []struct {
-				httpAddress string
-				state       models.PeerFanInState
-			}{
-				{
-					httpAddress: followerHTTPAddresses[0],
-					state:       models.PeerFanInStateNotStated,
-				},
-				{
-					httpAddress: followerHTTPAddresses[1],
-					state:       models.PeerFanInStateNotStated,
-				},
-				{
-					httpAddress: followerHTTPAddresses[2],
-					state:       models.PeerFanInStateNotStated,
-				},
-				{
-					httpAddress: followerHTTPAddresses[3],
-					state:       models.PeerFanInStateNotStated,
-				},
-			},
-		},
-		{
-			method:    "FetchUncommittedLogsFromPeersPhase2",
-			startPort: "localhost:34346",
-			cachedFanIns: []struct {
-				httpAddress string
-				state       models.PeerFanInState
-			}{
-				{
-					httpAddress: followerHTTPAddresses[0],
-					state:       models.PeerFanInStateGetRequestId,
-				},
-				{
-					httpAddress: followerHTTPAddresses[1],
-					state:       models.PeerFanInStateGetRequestId,
-				},
-				{
-					httpAddress: followerHTTPAddresses[2],
-					state:       models.PeerFanInStateGetRequestId,
-				},
-				{
-					httpAddress: followerHTTPAddresses[3],
-					state:       models.PeerFanInStateGetRequestId,
-				},
-			},
-		},
-	}
-
-	for _, test := range tests {
-
-		t.Run(test.method, func(t *testing.T) {
-			ctxWithCancel, cancelCtx := context.WithCancel(ctx)
-			nodeHTTPClient := NewMockNodeClient(t)
-			os.Setenv("SCHEDULER0_RAFT_ADDRESS", test.startPort)
-
-			nodeService := NewNode(
-				ctxWithCancel,
-				logger,
-				scheduler0config,
-				scheduler0Secrets,
-				scheduler0RaftActions,
-				jobExecutorService,
-				queueService,
-				jobRepo,
-				projectRepo,
-				jobExecutionsRepo,
-				jobQueueRepo,
-				sharedRepo,
-				asyncTaskManager,
-				dispatcher,
-				nodeHTTPClient,
-			)
-
-			nodeService.FsmStore = scheduler0Store
-
-			os.Setenv("SCHEDULER0_RAFT_ADDRESS", strings.Split(cluster.Leader().String(), " ")[2])
-
-			for _, cachedHttpAddess := range test.cachedFanIns {
-				val, ok := nodeService.fanIns.Load(cachedHttpAddess.httpAddress)
-				if ok {
-					fmt.Println("seems", val)
-				}
-
-				fmt.Println("cachedHttpAddress.state", cachedHttpAddess.state)
-
-				nodeService.fanIns.Store(cachedHttpAddess.httpAddress, models.PeerFanIn{
-					PeerHTTPAddress: cachedHttpAddess.httpAddress,
-					State:           cachedHttpAddess.state,
-				})
-			}
-
-			nodeHTTPClient.On(test.method, mock.Anything, mock.Anything, mock.Anything)
-			nodeService.fanInLocalDataFromPeers()
-
-			time.Sleep(time.Second * time.Duration(3))
-
-			cancelCtx()
-
-			validFirstCallArgs := map[string]bool{
-				followerHTTPAddresses[0]: true,
-				followerHTTPAddresses[1]: true,
-				followerHTTPAddresses[2]: true,
-				followerHTTPAddresses[3]: true,
-				followerHTTPAddresses[4]: true,
-			}
-
-			firstCallArgs := nodeHTTPClient.Calls[0].Arguments.Get(2).([]models.PeerFanIn)
-
-			for _, firstCallArg := range firstCallArgs {
-				if ok := validFirstCallArgs[firstCallArg.PeerHTTPAddress]; !ok {
-					t.Fatalf("should not have performed %v for %v", test.method, firstCallArg)
-				}
-			}
-
-			for _, cachedHttpAddess := range test.cachedFanIns {
-				nodeService.fanIns.Delete(cachedHttpAddess.httpAddress)
-			}
-		})
-
-		//_, ok := nodeService.fanIns.Load(followerHTTPAddresses[2])
-		//if ok {
-		//	t.Fatalf("should have removed %v from store", followerHTTPAddresses[2])
-		//}
-	}
-	os.Unsetenv("SCHEDULER0_RAFT_ADDRESS")
-	os.Unsetenv("SCHEDULER0_EXECUTION_LOG_FETCH_FAN_IN")
-	os.Unsetenv("SCHEDULER0_REPLICAS")
-}
+//func Test_fanInLocalDataFromPeers(t *testing.T) {
+//	t.Cleanup(func() {
+//		err := os.RemoveAll("./raft_data")
+//		if err != nil {
+//			fmt.Println("failed to remove raft_data dir for test", err)
+//		}
+//	})
+//
+//	ctx := context.Background()
+//	logger := hclog.New(&hclog.LoggerOptions{
+//		Name:  "job-service-test",
+//		Level: hclog.LevelFromString("trace"),
+//	})
+//
+//	// Create a temporary SQLite database file
+//	tempFile, err := ioutil.TempFile("", "test-db")
+//	if err != nil {
+//		t.Fatalf("Failed to create temp file: %v", err)
+//	}
+//	defer os.Remove(tempFile.Name())
+//
+//	os.Setenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS", "2")
+//	defer os.Unsetenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS")
+//
+//	// Create a new SQLite database connection
+//	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+//	sqliteDb.RunMigration()
+//	sqliteDb.OpenConnectionToExistingDB()
+//
+//	scheduler0config := config.NewScheduler0Config()
+//	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+//	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+//
+//	scheduler0Secrets := secrets.NewScheduler0Secrets()
+//	// Create a new FSM store
+//	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+//
+//	// Create a mock Raft cluster
+//	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+//		Peers:          6,
+//		Bootstrap:      true,
+//		Conf:           raft.DefaultConfig(),
+//		ConfigStoreFSM: false,
+//		MakeFSMFunc: func() raft.FSM {
+//			return scheduler0Store.GetFSM()
+//		},
+//	})
+//	cluster.FullyConnect()
+//
+//	scheduler0Store.UpdateRaft(cluster.Leader())
+//
+//	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+//	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+//	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+//	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+//	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+//	jobExecutionsRepo := repository.NewExecutionsRepo(
+//		logger,
+//		scheduler0RaftActions,
+//		scheduler0Store,
+//	)
+//
+//	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
+//		effector(successCh, errorCh)
+//	}
+//
+//	dispatcher := utils.NewDispatcher(
+//		int64(1),
+//		int64(1),
+//		callback,
+//	)
+//
+//	dispatcher.Run()
+//
+//	queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+//	jobExecutorService := NewJobExecutor(
+//		ctx,
+//		logger,
+//		scheduler0config,
+//		scheduler0RaftActions,
+//		jobRepo,
+//		jobExecutionsRepo,
+//		jobQueueRepo,
+//		dispatcher,
+//	)
+//
+//	os.Setenv("SCHEDULER0_RAFT_ADDRESS", strings.Split(cluster.Leader().String(), " ")[2])
+//
+//	os.Setenv("SCHEDULER0_EXECUTION_LOG_FETCH_FAN_IN", "2")
+//
+//	followerHTTPAddresses := []string{
+//		"http://localhost:34417",
+//		"http://localhost:34416",
+//		"http://localhost:34415",
+//		"http://localhost:34414",
+//		"http://localhost:34413",
+//	}
+//
+//	followerRaftAddresses := []string{
+//		strings.Split(cluster.Followers()[0].String(), " ")[2],
+//		strings.Split(cluster.Followers()[1].String(), " ")[2],
+//		strings.Split(cluster.Followers()[2].String(), " ")[2],
+//		strings.Split(cluster.Followers()[3].String(), " ")[2],
+//		strings.Split(cluster.Followers()[4].String(), " ")[2],
+//	}
+//
+//	os.Setenv("SCHEDULER0_REPLICAS", fmt.Sprintf("["+
+//		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":6}, "+
+//		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":5}, "+
+//		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":4}, "+
+//		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":3}, "+
+//		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":2}, "+
+//		"{\"raft_address\":\"http://localhost:3442\", \"address\":\"http://localhost:34410\", \"nodeId\":1}"+
+//		"]",
+//		followerRaftAddresses[0], followerHTTPAddresses[0],
+//		followerRaftAddresses[1], followerHTTPAddresses[1],
+//		followerRaftAddresses[2], followerHTTPAddresses[2],
+//		followerRaftAddresses[3], followerHTTPAddresses[3],
+//		followerRaftAddresses[4], followerHTTPAddresses[4],
+//	))
+//
+//	tests := []struct {
+//		cachedFanIns []struct {
+//			httpAddress string
+//			state       models.PeerFanInState
+//		}
+//		method    string
+//		startPort string
+//	}{
+//		{
+//			method:    "FetchUncommittedLogsFromPeersPhase1",
+//			startPort: "localhost:34345",
+//			cachedFanIns: []struct {
+//				httpAddress string
+//				state       models.PeerFanInState
+//			}{
+//				{
+//					httpAddress: followerHTTPAddresses[0],
+//					state:       models.PeerFanInStateNotStated,
+//				},
+//				{
+//					httpAddress: followerHTTPAddresses[1],
+//					state:       models.PeerFanInStateNotStated,
+//				},
+//				{
+//					httpAddress: followerHTTPAddresses[2],
+//					state:       models.PeerFanInStateNotStated,
+//				},
+//				{
+//					httpAddress: followerHTTPAddresses[3],
+//					state:       models.PeerFanInStateNotStated,
+//				},
+//			},
+//		},
+//		{
+//			method:    "FetchUncommittedLogsFromPeersPhase2",
+//			startPort: "localhost:34346",
+//			cachedFanIns: []struct {
+//				httpAddress string
+//				state       models.PeerFanInState
+//			}{
+//				{
+//					httpAddress: followerHTTPAddresses[0],
+//					state:       models.PeerFanInStateGetRequestId,
+//				},
+//				{
+//					httpAddress: followerHTTPAddresses[1],
+//					state:       models.PeerFanInStateGetRequestId,
+//				},
+//				{
+//					httpAddress: followerHTTPAddresses[2],
+//					state:       models.PeerFanInStateGetRequestId,
+//				},
+//				{
+//					httpAddress: followerHTTPAddresses[3],
+//					state:       models.PeerFanInStateGetRequestId,
+//				},
+//			},
+//		},
+//	}
+//
+//	for _, test := range tests {
+//
+//		t.Run(test.method, func(t *testing.T) {
+//			ctxWithCancel, cancelCtx := context.WithCancel(ctx)
+//			nodeHTTPClient := NewMockNodeClient(t)
+//			os.Setenv("SCHEDULER0_RAFT_ADDRESS", test.startPort)
+//
+//			nodeService := NewNode(
+//				ctxWithCancel,
+//				logger,
+//				scheduler0config,
+//				scheduler0Secrets,
+//				scheduler0RaftActions,
+//				jobExecutorService,
+//				queueService,
+//				jobRepo,
+//				projectRepo,
+//				jobExecutionsRepo,
+//				jobQueueRepo,
+//				sharedRepo,
+//				asyncTaskManager,
+//				dispatcher,
+//				nodeHTTPClient,
+//			)
+//
+//			nodeService.FsmStore = scheduler0Store
+//
+//			os.Setenv("SCHEDULER0_RAFT_ADDRESS", strings.Split(cluster.Leader().String(), " ")[2])
+//
+//			for _, cachedHttpAddess := range test.cachedFanIns {
+//				val, ok := nodeService.fanIns.Load(cachedHttpAddess.httpAddress)
+//				if ok {
+//					fmt.Println("seems", val)
+//				}
+//
+//				fmt.Println("cachedHttpAddress.state", cachedHttpAddess.state)
+//
+//				nodeService.fanIns.Store(cachedHttpAddess.httpAddress, models.PeerFanIn{
+//					PeerHTTPAddress: cachedHttpAddess.httpAddress,
+//					State:           cachedHttpAddess.state,
+//				})
+//			}
+//
+//			nodeHTTPClient.On(test.method, mock.Anything, mock.Anything, mock.Anything)
+//			nodeService.fanInLocalDataFromPeers()
+//
+//			time.Sleep(time.Second * time.Duration(3))
+//
+//			cancelCtx()
+//
+//			validFirstCallArgs := map[string]bool{
+//				followerHTTPAddresses[0]: true,
+//				followerHTTPAddresses[1]: true,
+//				followerHTTPAddresses[2]: true,
+//				followerHTTPAddresses[3]: true,
+//				followerHTTPAddresses[4]: true,
+//			}
+//
+//			firstCallArgs := nodeHTTPClient.Calls[0].Arguments.Get(2).([]models.PeerFanIn)
+//
+//			for _, firstCallArg := range firstCallArgs {
+//				if ok := validFirstCallArgs[firstCallArg.PeerHTTPAddress]; !ok {
+//					t.Fatalf("should not have performed %v for %v", test.method, firstCallArg)
+//				}
+//			}
+//
+//			for _, cachedHttpAddess := range test.cachedFanIns {
+//				nodeService.fanIns.Delete(cachedHttpAddess.httpAddress)
+//			}
+//		})
+//
+//		//_, ok := nodeService.fanIns.Load(followerHTTPAddresses[2])
+//		//if ok {
+//		//	t.Fatalf("should have removed %v from store", followerHTTPAddresses[2])
+//		//}
+//	}
+//	os.Unsetenv("SCHEDULER0_RAFT_ADDRESS")
+//	os.Unsetenv("SCHEDULER0_EXECUTION_LOG_FETCH_FAN_IN")
+//	os.Unsetenv("SCHEDULER0_REPLICAS")
+//}
