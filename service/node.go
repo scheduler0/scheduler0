@@ -688,6 +688,9 @@ func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) [
 		}
 	}
 
+	fmt.Println("servers", servers)
+	fmt.Println("configs.ExecutionLogFetchFanIn", configs.ExecutionLogFetchFanIn)
+
 	if uint64(len(servers)) < configs.ExecutionLogFetchFanIn {
 		for _, server := range servers {
 			if ok := excludeList[string(server)]; !ok {
@@ -708,11 +711,12 @@ func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) [
 		}
 
 		for i := 0; i < len(shuffledServers); i++ {
-			if _, ok := excludeList[string(shuffledServers[i])]; !ok {
+			if _, ok := excludeList[utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i])]; !ok {
 				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i]))
 			}
 		}
 	}
+	fmt.Println("httpAddresses", httpAddresses)
 
 	if len(httpAddresses) > int(configs.ExecutionLogFetchFanIn) {
 		return httpAddresses[:configs.ExecutionLogFetchFanIn]
@@ -788,6 +792,7 @@ func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
 		excludeList[key.(string)] = true
 		return true
 	})
+	fmt.Println("excludeList", excludeList)
 	httpAddresses := node.getRandomFanInPeerHTTPAddresses(excludeList)
 	peerFanIns := make([]models.PeerFanIn, 0, len(httpAddresses))
 	for _, httpAddress := range httpAddresses {

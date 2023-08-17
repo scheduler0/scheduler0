@@ -835,7 +835,7 @@ func Test_selectRandomPeersToFanIn(t *testing.T) {
 		nodeHTTPClient,
 	)
 
-	os.Setenv("SCHEDULER0_RAFT_ADDRESS", strings.Split(cluster.Leader().String(), " ")[2])
+	os.Setenv("SCHEDULER0_RAFT_ADDRESS", "http://localhost:3442")
 	defer os.Unsetenv("SCHEDULER0_RAFT_ADDRESS")
 
 	os.Setenv("SCHEDULER0_EXECUTION_LOG_FETCH_FAN_IN", "2")
@@ -877,6 +877,8 @@ func Test_selectRandomPeersToFanIn(t *testing.T) {
 	nodeService.fanIns.Store(followerHTTPAddresses[1], models.PeerFanIn{
 		PeerHTTPAddress: followerHTTPAddresses[1],
 	})
+
+	os.Setenv("SCHEDULER0_RAFT_ADDRESS", strings.Split(cluster.Leader().String(), " ")[2])
 
 	peerFanIns := nodeService.selectRandomPeersToFanIn()
 	count := 0
