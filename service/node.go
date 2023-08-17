@@ -563,7 +563,7 @@ func (node *Node) handleLeaderChange() {
 			}
 			node.commitLocalData(utils.GetServerHTTPAddress(), localData)
 			node.handleUncommittedAsyncTasks(uncommittedAsyncTasks)
-			go node.fanInLocalDataFromPeers()
+			node.fanInLocalDataFromPeers()
 		} else {
 			if node.isExistingNode {
 				node.jobProcessor.RecoverJobs()
@@ -810,69 +810,71 @@ func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
 }
 
 func (node *Node) fanInLocalDataFromPeers() {
-	configs := node.scheduler0Config.GetConfigurations()
-	ticker := time.NewTicker(time.Duration(configs.ExecutionLogFetchIntervalSeconds) * time.Second)
-	ctx, cancelFunc := context.WithCancel(node.ctx)
+	go func() {
+		configs := node.scheduler0Config.GetConfigurations()
+		ticker := time.NewTicker(time.Duration(configs.ExecutionLogFetchIntervalSeconds) * time.Second)
+		ctx, cancelFunc := context.WithCancel(node.ctx)
 
-	var currentContext context.Context
-	var currentContextCancelFunc func()
+		var currentContext context.Context
+		var currentContextCancelFunc func()
 
-	for {
-		select {
-		case <-ticker.C:
-			if currentContext != nil {
-				currentContextCancelFunc()
-				ctx, cancelFunc = context.WithCancel(context.Background())
-				currentContext = ctx
-				currentContextCancelFunc = cancelFunc
+		for {
+			select {
+			case <-ticker.C:
+				if currentContext != nil {
+					currentContextCancelFunc()
+					ctx, cancelFunc = context.WithCancel(context.Background())
+					currentContext = ctx
+					currentContextCancelFunc = cancelFunc
+				}
+
+				peers := node.selectRandomPeersToFanIn()
+
+				phase1 := make([]models.PeerFanIn, 0, len(peers))
+				phase2 := make([]models.PeerFanIn, 0, len(peers))
+				phase3 := make([]models.PeerFanIn, 0, len(peers))
+
+				for _, peer := range peers {
+					if peer.State == models.PeerFanInStateNotStated {
+						phase1 = append(phase1, peer)
+					}
+					if peer.State == models.PeerFanInStateGetRequestId {
+						phase2 = append(phase2, peer)
+					}
+					if peer.State == models.PeerFanInStateGetExecutionsLogs {
+						phase3 = append(phase3, peer)
+					}
+				}
+
+				node.fanIns.Range(func(key, value any) bool {
+					fanIn := value.(models.PeerFanIn)
+					if fanIn.State == models.PeerFanInStateNotStated {
+						phase1 = append(phase1, fanIn)
+					}
+					if fanIn.State == models.PeerFanInStateGetRequestId {
+						phase2 = append(phase2, fanIn)
+					}
+					if fanIn.State == models.PeerFanInStateGetExecutionsLogs {
+						phase3 = append(phase3, fanIn)
+					}
+					return true
+				})
+
+				if len(phase1) > 0 {
+					go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
+				}
+				if len(phase2) > 0 {
+					go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
+				}
+				if len(phase3) > 0 {
+					go node.commitFetchedUnCommittedLogs(phase3)
+				}
+			case <-node.ctx.Done():
+				cancelFunc()
+				return
 			}
-
-			peers := node.selectRandomPeersToFanIn()
-
-			phase1 := make([]models.PeerFanIn, 0, len(peers))
-			phase2 := make([]models.PeerFanIn, 0, len(peers))
-			phase3 := make([]models.PeerFanIn, 0, len(peers))
-
-			for _, peer := range peers {
-				if peer.State == models.PeerFanInStateNotStated {
-					phase1 = append(phase1, peer)
-				}
-				if peer.State == models.PeerFanInStateGetRequestId {
-					phase2 = append(phase2, peer)
-				}
-				if peer.State == models.PeerFanInStateGetExecutionsLogs {
-					phase3 = append(phase3, peer)
-				}
-			}
-
-			node.fanIns.Range(func(key, value any) bool {
-				fanIn := value.(models.PeerFanIn)
-				if fanIn.State == models.PeerFanInStateNotStated {
-					phase1 = append(phase1, fanIn)
-				}
-				if fanIn.State == models.PeerFanInStateGetRequestId {
-					phase2 = append(phase2, fanIn)
-				}
-				if fanIn.State == models.PeerFanInStateGetExecutionsLogs {
-					phase3 = append(phase3, fanIn)
-				}
-				return true
-			})
-
-			if len(phase1) > 0 {
-				go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
-			}
-			if len(phase2) > 0 {
-				go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
-			}
-			if len(phase3) > 0 {
-				go node.commitFetchedUnCommittedLogs(phase3)
-			}
-		case <-node.ctx.Done():
-			cancelFunc()
-			return
 		}
-	}
+	}()
 }
 
 func (node *Node) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {

@@ -1115,7 +1115,7 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 			}
 
 			nodeHTTPClient.On(test.method, mock.Anything, mock.Anything, mock.Anything)
-			go nodeService.fanInLocalDataFromPeers()
+			nodeService.fanInLocalDataFromPeers()
 
 			time.Sleep(time.Second * time.Duration(3))
 
