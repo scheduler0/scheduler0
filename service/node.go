@@ -710,6 +710,8 @@ func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) [
 			lastIndex -= 1
 		}
 
+		fmt.Println("shuffledServers", shuffledServers)
+
 		for i := 0; i < len(shuffledServers); i++ {
 			if _, ok := excludeList[utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i])]; !ok {
 				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i]))
