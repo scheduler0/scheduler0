@@ -1101,13 +1101,6 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 			nodeService.FsmStore = scheduler0Store
 
 			for _, cachedHttpAddess := range test.cachedFanIns {
-				val, ok := nodeService.fanIns.Load(cachedHttpAddess.httpAddress)
-				if ok {
-					fmt.Println("seems", val)
-				}
-
-				fmt.Println("cachedHttpAddress.state", cachedHttpAddess.state)
-
 				nodeService.fanIns.Store(cachedHttpAddess.httpAddress, models.PeerFanIn{
 					PeerHTTPAddress: cachedHttpAddess.httpAddress,
 					State:           cachedHttpAddess.state,

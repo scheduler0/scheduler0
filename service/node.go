@@ -114,13 +114,13 @@ func NewNode(
 	configs := scheduler0Config.GetConfigurations()
 	dirPath = fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	utils.MakeDirIfNotExist(dirPath)
+	numReplicas := len(configs.Replicas)
+
 	if _, ok := os.LookupEnv("TEST_ENV"); !ok {
 		tm, ldb, sdb, fss, err := getLogsAndTransport(scheduler0Config)
 		if err != nil {
 			log.Fatal("failed essentials for Node", err)
 		}
-		numReplicas := len(configs.Replicas)
-
 		return &Node{
 			TransportManager:      tm,
 			LogDb:                 ldb,
@@ -148,8 +148,6 @@ func NewNode(
 			nodeHTTPClient:        nodeHTTPClient,
 		}
 	} else {
-		numReplicas := len(configs.Replicas)
-		fmt.Println("Not getLogsAndTransport")
 		return &Node{
 			logger:                nodeServiceLogger,
 			acceptClientWrites:    false,
@@ -714,9 +712,6 @@ func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) [
 		}
 	}
 
-	fmt.Println("servers", servers)
-	fmt.Println("configs.ExecutionLogFetchFanIn", configs.ExecutionLogFetchFanIn)
-
 	if uint64(len(servers)) < configs.ExecutionLogFetchFanIn {
 		for _, server := range servers {
 			if ok := excludeList[utils.GetNodeServerAddressWithRaftAddress(server)]; !ok {
@@ -736,16 +731,12 @@ func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) [
 			lastIndex -= 1
 		}
 
-		fmt.Println("shuffledServers", shuffledServers)
-
 		for i := 0; i < len(shuffledServers); i++ {
 			if _, ok := excludeList[utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i])]; !ok {
 				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i]))
 			}
 		}
 	}
-	fmt.Println("httpAddresses", httpAddresses)
-
 	if len(httpAddresses) > int(configs.ExecutionLogFetchFanIn) {
 		return httpAddresses[:configs.ExecutionLogFetchFanIn]
 	}
@@ -820,7 +811,6 @@ func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
 		excludeList[key.(string)] = true
 		return true
 	})
-	fmt.Println("excludeList", excludeList)
 	httpAddresses := node.getRandomFanInPeerHTTPAddresses(excludeList)
 	peerFanIns := make([]models.PeerFanIn, 0, len(httpAddresses))
 	for _, httpAddress := range httpAddresses {
