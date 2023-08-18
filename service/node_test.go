@@ -897,7 +897,7 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 			fmt.Println("failed to remove raft_data dir for test", err)
 		}
 	})
-
+	os.Setenv("TEST_ENV", "1")
 	ctx := context.Background()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "job-service-test",

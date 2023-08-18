@@ -114,38 +114,64 @@ func NewNode(
 	configs := scheduler0Config.GetConfigurations()
 	dirPath = fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	utils.MakeDirIfNotExist(dirPath)
-	tm, ldb, sdb, fss, err := getLogsAndTransport(scheduler0Config)
-	if err != nil {
-		log.Fatal("failed essentials for Node", err)
-	}
+	if _, ok := os.LookupEnv("TEST_ENV"); !ok {
+		tm, ldb, sdb, fss, err := getLogsAndTransport(scheduler0Config)
+		if err != nil {
+			log.Fatal("failed essentials for Node", err)
+		}
+		numReplicas := len(configs.Replicas)
 
-	numReplicas := len(configs.Replicas)
-
-	return &Node{
-		TransportManager:      tm,
-		LogDb:                 ldb,
-		StoreDb:               sdb,
-		FileSnapShot:          fss,
-		logger:                nodeServiceLogger,
-		acceptClientWrites:    false,
-		State:                 Cold,
-		ctx:                   ctx,
-		jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
-		jobQueue:              jobQueue,
-		jobExecutor:           jobExecutor,
-		jobRepo:               jobRepo,
-		isExistingNode:        exists,
-		peerObserverChannels:  make(chan raft.Observation, numReplicas),
-		asyncTaskManager:      asyncTaskManager,
-		dispatcher:            dispatcher,
-		fanIns:                sync.Map{},
-		fanInCh:               make(chan models.PeerFanIn),
-		acceptRequest:         false,
-		scheduler0Config:      scheduler0Config,
-		scheduler0Secrets:     scheduler0Secrets,
-		scheduler0RaftActions: fsmActions,
-		sharedRepo:            sharedRepo,
-		nodeHTTPClient:        nodeHTTPClient,
+		return &Node{
+			TransportManager:      tm,
+			LogDb:                 ldb,
+			StoreDb:               sdb,
+			FileSnapShot:          fss,
+			logger:                nodeServiceLogger,
+			acceptClientWrites:    false,
+			State:                 Cold,
+			ctx:                   ctx,
+			jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
+			jobQueue:              jobQueue,
+			jobExecutor:           jobExecutor,
+			jobRepo:               jobRepo,
+			isExistingNode:        exists,
+			peerObserverChannels:  make(chan raft.Observation, numReplicas),
+			asyncTaskManager:      asyncTaskManager,
+			dispatcher:            dispatcher,
+			fanIns:                sync.Map{},
+			fanInCh:               make(chan models.PeerFanIn),
+			acceptRequest:         false,
+			scheduler0Config:      scheduler0Config,
+			scheduler0Secrets:     scheduler0Secrets,
+			scheduler0RaftActions: fsmActions,
+			sharedRepo:            sharedRepo,
+			nodeHTTPClient:        nodeHTTPClient,
+		}
+	} else {
+		numReplicas := len(configs.Replicas)
+		fmt.Println("Not getLogsAndTransport")
+		return &Node{
+			logger:                nodeServiceLogger,
+			acceptClientWrites:    false,
+			State:                 Cold,
+			ctx:                   ctx,
+			jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
+			jobQueue:              jobQueue,
+			jobExecutor:           jobExecutor,
+			jobRepo:               jobRepo,
+			isExistingNode:        exists,
+			peerObserverChannels:  make(chan raft.Observation, numReplicas),
+			asyncTaskManager:      asyncTaskManager,
+			dispatcher:            dispatcher,
+			fanIns:                sync.Map{},
+			fanInCh:               make(chan models.PeerFanIn),
+			acceptRequest:         false,
+			scheduler0Config:      scheduler0Config,
+			scheduler0Secrets:     scheduler0Secrets,
+			scheduler0RaftActions: fsmActions,
+			sharedRepo:            sharedRepo,
+			nodeHTTPClient:        nodeHTTPClient,
+		}
 	}
 }
 
