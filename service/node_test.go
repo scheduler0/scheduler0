@@ -704,8 +704,8 @@ func Test_getRandomFanInPeerHTTPAddresses(t *testing.T) {
 	}, {
 		Name: "Not Empty Exclude List",
 		ExcludeList: map[string]bool{
-			followerRaftAddresses[0]: true,
-			followerRaftAddresses[1]: true,
+			followerHTTPAddresses[0]: true,
+			followerHTTPAddresses[1]: true,
 		},
 	}}
 
@@ -1133,7 +1133,7 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 				strings.Split(cluster.Leader().String(), " ")[2],
 			))
 
-			//nodeService.fanInLocalDataFromPeers()
+			nodeService.fanInLocalDataFromPeers()
 
 			time.Sleep(time.Second * time.Duration(3))
 
