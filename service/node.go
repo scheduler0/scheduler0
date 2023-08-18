@@ -889,13 +889,13 @@ func (node *Node) fanInLocalDataFromPeers() {
 				})
 
 				if len(phase1) > 0 {
-					node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
+					go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
 				}
 				if len(phase2) > 0 {
-					node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
+					go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
 				}
 				if len(phase3) > 0 {
-					node.commitFetchedUnCommittedLogs(phase3)
+					go node.commitFetchedUnCommittedLogs(phase3)
 				}
 			case <-node.ctx.Done():
 				cancelFunc()
