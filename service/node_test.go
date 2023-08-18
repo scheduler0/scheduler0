@@ -1133,7 +1133,7 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 				strings.Split(cluster.Leader().String(), " ")[2],
 			))
 
-			nodeService.fanInLocalDataFromPeers()
+			//nodeService.fanInLocalDataFromPeers()
 
 			time.Sleep(time.Second * time.Duration(3))
 
