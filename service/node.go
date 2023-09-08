@@ -189,7 +189,7 @@ func (node *Node) Boostrap() {
 	}
 	node.FsmStore.UpdateRaft(rft)
 	node.jobExecutor.Raft = rft
-	go node.handleLeaderChange()
+	node.handleLeaderChange()
 
 	myObserver := raft.NewObserver(node.peerObserverChannels, true, func(o *raft.Observation) bool {
 		_, peerObservation := o.Data.(raft.PeerObservation)
@@ -198,8 +198,8 @@ func (node *Node) Boostrap() {
 	})
 
 	rft.RegisterObserver(myObserver)
-	go node.listenToObserverChannel()
-	go node.listenToFanInChannel()
+	node.listenToObserverChannel()
+	node.listenToFanInChannel()
 	node.beginAcceptingClientRequest()
 	node.listenOnInputQueues(node.FsmStore)
 }
@@ -532,7 +532,7 @@ func (node *Node) stopAllJobsOnAllNodes() {
 		nil,
 	)
 	if applyErr != nil {
-		log.Fatalln("failed to apply job update states ", applyErr)
+		log.Fatalln("failed to apply job update states", applyErr)
 	}
 }
 
@@ -541,62 +541,69 @@ func (node *Node) recoverJobsOnNode(peerId raft.ServerID) {
 	if err != nil {
 		panic(err)
 	}
-	peerIdNum := uint64(num)
 	_, applyErr := node.scheduler0RaftActions.WriteCommandToRaftLog(
 		node.FsmStore.GetRaft(),
 		constants.CommandTypeRecoverJobs,
 		"",
-		peerIdNum,
+		num,
 		nil,
 	)
 	if applyErr != nil {
-		log.Fatalln("failed to apply job update states ", applyErr)
+		log.Fatalln("failed to apply job update states", applyErr)
 	}
 }
 
 func (node *Node) handleLeaderChange() {
-	select {
-	case <-node.FsmStore.GetRaft().LeaderCh():
-		node.stopAcceptingClientWriteRequest()
-		node.stopAllJobsOnAllNodes()
-		configuration := node.FsmStore.GetRaft().GetConfiguration().Configuration()
-		servers := configuration.Servers
-		nodeIds := []uint64{}
-		for _, server := range servers {
-			nodeId, err := utils.GetNodeIdWithRaftAddress(server.Address)
-			if err != nil {
-				log.Fatalln("failed to get node id for raft address", server.Address)
+	go func() {
+		select {
+		case isLeader := <-node.FsmStore.GetRaft().LeaderCh():
+			node.stopAcceptingClientWriteRequest()
+			configuration := node.FsmStore.GetRaft().GetConfiguration().Configuration()
+			servers := configuration.Servers
+			nodeIds := []uint64{}
+			for _, server := range servers {
+				nodeId, err := utils.GetNodeIdWithRaftAddress(server.Address)
+				if err != nil {
+					log.Fatalln("failed to get node id for raft address", server.Address)
+				}
+				nodeIds = append(nodeIds, uint64(nodeId))
 			}
-			nodeIds = append(nodeIds, uint64(nodeId))
+			node.jobQueue.RemoveServers(nodeIds)
+
+			if isLeader {
+				node.jobQueue.AddServers(nodeIds)
+				node.stopAllJobsOnAllNodes()
+
+				node.jobQueue.SingleNodeMode = len(servers) == 1
+				node.jobExecutor.SingleNodeMode = node.jobQueue.SingleNodeMode
+				node.SingleNodeMode = node.jobQueue.SingleNodeMode
+				node.asyncTaskManager.SingleNodeMode = node.jobQueue.SingleNodeMode
+				if !node.SingleNodeMode {
+					uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
+					uncommittedAsyncTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
+					if err != nil {
+						log.Fatalln("failed to get uncommitted async tasks after leader selection", "error", err.Error())
+					}
+					localData := models.LocalData{
+						ExecutionLogs: uncommittedLogs,
+						AsyncTasks:    uncommittedAsyncTasks,
+					}
+					node.commitLocalData(utils.GetServerHTTPAddress(), localData)
+					node.handleUncommittedAsyncTasks(uncommittedAsyncTasks)
+					node.fanInLocalDataFromPeers()
+				} else {
+					if node.isExistingNode {
+						node.jobProcessor.RecoverJobs()
+					} else {
+						node.jobProcessor.StartJobs()
+					}
+					node.beginAcceptingClientWriteRequest()
+				}
+			}
+		case <-node.ctx.Done():
+			return
 		}
-		node.jobQueue.RemoveServers(nodeIds)
-		node.jobQueue.AddServers(nodeIds)
-		node.jobQueue.SingleNodeMode = len(servers) == 1
-		node.jobExecutor.SingleNodeMode = node.jobQueue.SingleNodeMode
-		node.SingleNodeMode = node.jobQueue.SingleNodeMode
-		node.asyncTaskManager.SingleNodeMode = node.jobQueue.SingleNodeMode
-		if !node.SingleNodeMode {
-			uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
-			uncommittedAsyncTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
-			if err != nil {
-				log.Fatalln("failed to get uncommitted async tasks after leader selection", "error", err.Error())
-			}
-			localData := models.LocalData{
-				ExecutionLogs: uncommittedLogs,
-				AsyncTasks:    uncommittedAsyncTasks,
-			}
-			node.commitLocalData(utils.GetServerHTTPAddress(), localData)
-			node.handleUncommittedAsyncTasks(uncommittedAsyncTasks)
-			node.fanInLocalDataFromPeers()
-		} else {
-			if node.isExistingNode {
-				node.jobProcessor.RecoverJobs()
-			} else {
-				node.jobProcessor.StartJobs()
-			}
-			node.beginAcceptingClientWriteRequest()
-		}
-	}
+	}()
 }
 
 func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
@@ -745,26 +752,28 @@ func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) [
 }
 
 func (node *Node) listenToObserverChannel() {
-	for {
-		select {
-		case o := <-node.peerObserverChannels:
-			peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
-			resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
+	go func() {
+		for {
+			select {
+			case o := <-node.peerObserverChannels:
+				peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
+				resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
 
-			if isPeerObservation && !peerObservation.Removed {
-				node.logger.Debug("A new node joined the cluster")
+				if isPeerObservation && !peerObservation.Removed {
+					node.logger.Debug("A new node joined the cluster")
+				}
+				if isPeerObservation && peerObservation.Removed {
+					node.logger.Debug("A node got removed from the cluster")
+				}
+				if isResumedHeartbeatObservation {
+					node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
+					node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
+				}
+			case <-node.ctx.Done():
+				return
 			}
-			if isPeerObservation && peerObservation.Removed {
-				node.logger.Debug("A node got removed from the cluster")
-			}
-			if isResumedHeartbeatObservation {
-				node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
-				node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
-			}
-		case <-node.ctx.Done():
-			return
 		}
-	}
+	}()
 }
 
 func (node *Node) listenToFanInChannel() {
