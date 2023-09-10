@@ -53,11 +53,6 @@ type LogsFetchResponse struct {
 
 type State int
 
-const (
-	Cold          State = 0
-	Bootstrapping       = 1
-)
-
 type Node struct {
 	TransportManager      *raft.NetworkTransport
 	LogDb                 *boltdb.BoltStore
@@ -65,7 +60,6 @@ type Node struct {
 	FileSnapShot          *raft.FileSnapshotStore
 	acceptClientWrites    bool
 	acceptRequest         bool
-	State                 State
 	FsmStore              fsm.Scheduler0RaftStore
 	SingleNodeMode        bool
 	ctx                   context.Context
@@ -128,7 +122,6 @@ func NewNode(
 			FileSnapShot:          fss,
 			logger:                nodeServiceLogger,
 			acceptClientWrites:    false,
-			State:                 Cold,
 			ctx:                   ctx,
 			jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
 			jobQueue:              jobQueue,
@@ -151,7 +144,6 @@ func NewNode(
 		return &Node{
 			logger:                nodeServiceLogger,
 			acceptClientWrites:    false,
-			State:                 Cold,
 			ctx:                   ctx,
 			jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
 			jobQueue:              jobQueue,
@@ -174,8 +166,6 @@ func NewNode(
 }
 
 func (node *Node) Boostrap() {
-	node.State = Bootstrapping
-
 	if node.isExistingNode {
 		node.logger.Info("discovered existing raft dir")
 		node.recoverRaftState()
@@ -198,8 +188,6 @@ func (node *Node) Boostrap() {
 	})
 
 	rft.RegisterObserver(myObserver)
-	node.listenToObserverChannel()
-	node.listenToFanInChannel()
 	node.beginAcceptingClientRequest()
 	node.listenOnInputQueues(node.FsmStore)
 }
@@ -608,15 +596,20 @@ func (node *Node) handleLeaderChange() {
 
 func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
 	for _, asyncTask := range asyncTasks {
-		if asyncTask.State == models.AsyncTaskInProgress && asyncTask.Service == constants.CreateJobAsyncTaskService {
+		if asyncTask.State == models.AsyncTaskNotStated || asyncTask.State == models.AsyncTaskInProgress && asyncTask.Service == constants.CreateJobAsyncTaskService {
 			var jobsPayload []models.Job
 			err := json.Unmarshal([]byte(asyncTask.Input), &jobsPayload)
 			if err != nil {
-				node.logger.Error("failed to string -> json convert jobs payload from async task with id", "id", asyncTask.Id, "error", err.Error())
+				node.logger.Error("failed to convert jobs payload from async task with id", "id", asyncTask.Id, "error", err.Error())
 			}
-			jobIds, err := node.jobRepo.BatchInsertJobs(jobsPayload)
-			if err != nil {
-				node.logger.Error("failed to create jobs from async task with id", "id", asyncTask.Id, "error", err.Error())
+			jobIds, batchInsertErr := node.jobRepo.BatchInsertJobs(jobsPayload)
+			if batchInsertErr != nil {
+				node.logger.Error("failed to create jobs from async task with id", "id", asyncTask.Id, "error", batchInsertErr.Error())
+			}
+			resObj := utils.Response{Data: jobIds, Success: true}
+			updateTaskErr := node.asyncTaskManager.UpdateTasksByRequestId(asyncTask.RequestId, models.AsyncTaskSuccess, string(resObj.ToJSON()))
+			if updateTaskErr != nil {
+				node.logger.Error("failed to update state of uncommitted async task", "error", updateTaskErr)
 			}
 			node.logger.Info("successfully created jobs from async task with id", "id", asyncTask.Id, "job-ids", jobIds)
 		}
@@ -625,23 +618,6 @@ func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
 			if err != nil {
 				node.logger.Error("failed to update state of uncommitted job executor async tasks to success", "error", err.Message)
 			}
-		}
-	}
-}
-
-func (node *Node) listenOnInputQueues(fsmStr fsm.Scheduler0RaftStore) {
-	node.logger.Info("begin listening input queues")
-
-	for {
-		select {
-		case job := <-fsmStr.GetQueueJobsChannel():
-			node.jobExecutor.QueueExecutions(job)
-		case _ = <-fsmStr.GetRecoverJobsChannel():
-			node.jobProcessor.RecoverJobs()
-		case _ = <-fsmStr.GetStopAllJobsChannel():
-			node.jobExecutor.StopAll()
-		case <-node.ctx.Done():
-			return
 		}
 	}
 }
@@ -751,52 +727,46 @@ func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) [
 	return httpAddresses
 }
 
-func (node *Node) listenToObserverChannel() {
-	go func() {
-		for {
-			select {
-			case o := <-node.peerObserverChannels:
-				peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
-				resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
-
-				if isPeerObservation && !peerObservation.Removed {
-					node.logger.Debug("A new node joined the cluster")
-				}
-				if isPeerObservation && peerObservation.Removed {
-					node.logger.Debug("A node got removed from the cluster")
-				}
-				if isResumedHeartbeatObservation {
-					node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
-					node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
-				}
-			case <-node.ctx.Done():
-				return
-			}
-		}
-	}()
-}
-
-func (node *Node) listenToFanInChannel() {
+func (node *Node) listenOnInputQueues(fsmStr fsm.Scheduler0RaftStore) {
+	node.logger.Info("begin listening input queues")
 	configs := node.scheduler0Config.GetConfigurations()
 	completedFanIns := make(map[string]models.PeerFanIn)
 	mtx := sync.Mutex{}
 
-	go func() {
-		for {
-			select {
-			case peerFanIn := <-node.fanInCh:
-				mtx.Lock()
-				completedFanIns[peerFanIn.PeerHTTPAddress] = peerFanIn
-				if len(completedFanIns) == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
-					node.jobProcessor.StartJobs()
-					node.beginAcceptingClientWriteRequest()
-				}
-				mtx.Unlock()
-			case <-node.ctx.Done():
-				return
+	for {
+		select {
+		case o := <-node.peerObserverChannels:
+			peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
+			resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
+
+			if isPeerObservation && !peerObservation.Removed {
+				node.logger.Debug("A new node joined the cluster")
 			}
+			if isPeerObservation && peerObservation.Removed {
+				node.logger.Debug("A node got removed from the cluster")
+			}
+			if isResumedHeartbeatObservation {
+				node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
+				node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
+			}
+		case peerFanIn := <-node.fanInCh:
+			mtx.Lock()
+			completedFanIns[peerFanIn.PeerHTTPAddress] = peerFanIn
+			if len(completedFanIns) == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
+				node.jobProcessor.StartJobs()
+				node.beginAcceptingClientWriteRequest()
+			}
+			mtx.Unlock()
+		case job := <-fsmStr.GetQueueJobsChannel():
+			node.jobExecutor.QueueExecutions(job)
+		case _ = <-fsmStr.GetRecoverJobsChannel():
+			node.jobProcessor.RecoverJobs()
+		case _ = <-fsmStr.GetStopAllJobsChannel():
+			node.jobExecutor.StopAll()
+		case <-node.ctx.Done():
+			return
 		}
-	}()
+	}
 }
 
 func (node *Node) beginAcceptingClientWriteRequest() {

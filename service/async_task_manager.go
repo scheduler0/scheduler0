@@ -133,6 +133,7 @@ func (m *AsyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 	} else {
 		f := m.fsm.GetRaft().VerifyLeader()
 		if f.Error() != nil {
+			m.logger.Error("error updating async task with request id, cannot verify raft leadership. raft-error:", f.Error())
 			err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
 			if err != nil {
 				m.logger.Error("could not update task with id", requestId)

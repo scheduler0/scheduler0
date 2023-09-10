@@ -1375,3 +1375,504 @@ func Test_handleLeaderChange(t *testing.T) {
 
 	cancelCtx()
 }
+
+func Test_commitFetchedUnCommittedLogs(t *testing.T) {
+	t.Cleanup(func() {
+		err := os.RemoveAll("./raft_data")
+		if err != nil {
+			fmt.Println("failed to remove raft_data dir for test", err)
+		}
+	})
+	os.Setenv("TEST_ENV", "1")
+	defer os.Unsetenv("TEST_ENV")
+	ctx := context.Background()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "job-service-test",
+		Level: hclog.LevelFromString("trace"),
+	})
+
+	// Create a temporary SQLite database file
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	os.Setenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS", "2")
+	defer os.Unsetenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS")
+
+	// Create a new SQLite database connection
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+
+	scheduler0config := config.NewScheduler0Config()
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+
+	scheduler0Secrets := secrets.NewScheduler0Secrets()
+	// Create a new FSM store
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          2,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := repository.NewExecutionsRepo(
+		logger,
+		scheduler0RaftActions,
+		scheduler0Store,
+	)
+
+	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
+		effector(successCh, errorCh)
+	}
+
+	dispatcher := utils.NewDispatcher(
+		int64(1),
+		int64(1),
+		callback,
+	)
+
+	queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	jobExecutorService := NewJobExecutor(
+		ctx,
+		logger,
+		scheduler0config,
+		scheduler0RaftActions,
+		jobRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		dispatcher,
+	)
+
+	leaderRaftAddress := strings.Split(cluster.Leader().String(), " ")[2]
+	os.Setenv("SCHEDULER0_RAFT_ADDRESS", leaderRaftAddress)
+	defer os.Unsetenv("SCHEDULER0_RAFT_ADDRESS")
+
+	followerHTTPAddresses := []string{
+		"http://localhost:34416",
+	}
+
+	followerRaftAddresses := []string{
+		strings.Split(cluster.Followers()[0].String(), " ")[2],
+	}
+	leaderHttpAddress := "http://localhost:34410"
+
+	ctxWithCancel := context.Background()
+	nodeHTTPClient := NewMockNodeClient(t)
+	os.Setenv("SCHEDULER0_REPLICAS", fmt.Sprintf("["+
+		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":2}, "+
+		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":1}]",
+		followerRaftAddresses[0], followerHTTPAddresses[0],
+		leaderRaftAddress, leaderHttpAddress,
+	))
+	defer os.Unsetenv("SCHEDULER0_REPLICAS")
+
+	nodeService := NewNode(
+		ctxWithCancel,
+		logger,
+		scheduler0config,
+		scheduler0Secrets,
+		scheduler0RaftActions,
+		jobExecutorService,
+		queueService,
+		jobRepo,
+		projectRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		sharedRepo,
+		asyncTaskManager,
+		dispatcher,
+		nodeHTTPClient,
+	)
+
+	nodeService.FsmStore = scheduler0Store
+
+	nodeService.fanIns.Store(followerHTTPAddresses[0], models.PeerFanIn{
+		PeerHTTPAddress: followerHTTPAddresses[0],
+		State:           models.PeerFanInStateComplete,
+	})
+
+	var receivedFanIn models.PeerFanIn
+	go func() {
+		for {
+			select {
+			case fanedInPeer := <-nodeService.fanInCh:
+				receivedFanIn = fanedInPeer
+			}
+		}
+	}()
+
+	nodeService.commitFetchedUnCommittedLogs([]models.PeerFanIn{
+		{
+			PeerHTTPAddress: followerHTTPAddresses[0],
+			State:           models.PeerFanInStateComplete,
+		},
+	})
+
+	time.Sleep(time.Second * time.Duration(2))
+
+	_, found := nodeService.fanIns.Load(followerHTTPAddresses[0])
+	assert.Equal(t, false, found)
+	assert.Equal(t, int(receivedFanIn.State), models.PeerFanInStateComplete)
+	assert.Equal(t, receivedFanIn.PeerHTTPAddress, followerHTTPAddresses[0])
+}
+
+func Test_handleUncommittedAsyncTasks(t *testing.T) {
+	t.Cleanup(func() {
+		err := os.RemoveAll("./raft_data")
+		if err != nil {
+			fmt.Println("failed to remove raft_data dir for test", err)
+		}
+	})
+	os.Setenv("TEST_ENV", "1")
+	defer os.Unsetenv("TEST_ENV")
+	ctx := context.Background()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "job-service-test",
+		Level: hclog.LevelFromString("trace"),
+	})
+
+	// Create a temporary SQLite database file
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	os.Setenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS", "2")
+	defer os.Unsetenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS")
+
+	// Create a new SQLite database connection
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+
+	scheduler0config := config.NewScheduler0Config()
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+
+	scheduler0Secrets := secrets.NewScheduler0Secrets()
+	// Create a new FSM store
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          2,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := repository.NewExecutionsRepo(
+		logger,
+		scheduler0RaftActions,
+		scheduler0Store,
+	)
+
+	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
+		effector(successCh, errorCh)
+	}
+
+	dispatcher := utils.NewDispatcher(
+		int64(1),
+		int64(1),
+		callback,
+	)
+
+	dispatcher.Run()
+
+	queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	jobExecutorService := NewJobExecutor(
+		ctx,
+		logger,
+		scheduler0config,
+		scheduler0RaftActions,
+		jobRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		dispatcher,
+	)
+
+	leaderRaftAddress := strings.Split(cluster.Leader().String(), " ")[2]
+	os.Setenv("SCHEDULER0_RAFT_ADDRESS", leaderRaftAddress)
+	defer os.Unsetenv("SCHEDULER0_RAFT_ADDRESS")
+
+	followerHTTPAddresses := []string{
+		"http://localhost:34416",
+	}
+
+	followerRaftAddresses := []string{
+		strings.Split(cluster.Followers()[0].String(), " ")[2],
+	}
+	leaderHttpAddress := "http://localhost:34410"
+
+	ctxWithCancel := context.Background()
+	nodeHTTPClient := NewMockNodeClient(t)
+	os.Setenv("SCHEDULER0_REPLICAS", fmt.Sprintf("["+
+		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":2}, "+
+		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":1}]",
+		followerRaftAddresses[0], followerHTTPAddresses[0],
+		leaderRaftAddress, leaderHttpAddress,
+	))
+	defer os.Unsetenv("SCHEDULER0_REPLICAS")
+
+	nodeService := NewNode(
+		ctxWithCancel,
+		logger,
+		scheduler0config,
+		scheduler0Secrets,
+		scheduler0RaftActions,
+		jobExecutorService,
+		queueService,
+		jobRepo,
+		projectRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		sharedRepo,
+		asyncTaskManager,
+		dispatcher,
+		nodeHTTPClient,
+	)
+
+	nodeService.FsmStore = scheduler0Store
+
+	project := models.Project{
+		ID:          1,
+		Name:        fmt.Sprintf("Project %d", 1),
+		Description: fmt.Sprintf("Project %d description", 1),
+	}
+	projectId, createErr := projectRepo.CreateOne(&project)
+	if createErr != nil {
+		t.Fatalf("Failed to create project: %v", createErr)
+	}
+
+	fmt.Println("projectId", projectId)
+
+	createJobJsonPayload := "[{" +
+		"\"spec\": \"@every 1m\"," +
+		"\"project_id\": 1," +
+		"\"execution_type\": \"http\"," +
+		"\"data\": \"{}\"," +
+		"\"timezone\": \"America/New_York\"," +
+		"\"callback_url\": \"http://localhost:3000/callback\"" +
+		"}]"
+
+	asyncTaskManager.ListenForNotifications()
+	ids, createTErr := asyncTaskManager.AddTasks(createJobJsonPayload, "request-id-1", "create_job")
+	if createTErr != nil {
+		t.Fatalf("failed to create async task error: %v", createTErr)
+	}
+
+	nodeService.handleUncommittedAsyncTasks([]models.AsyncTask{
+		{
+			RequestId: "request-id-1",
+			Service:   "create_job",
+			Input:     createJobJsonPayload,
+		},
+	})
+
+	time.Sleep(time.Second * 1)
+
+	taskCh, _, getTErr := asyncTaskManager.GetTaskBlocking(ids[0])
+	if getTErr != nil {
+		t.Fatalf("failed to get task error: %v", getTErr)
+	}
+
+	time.Sleep(time.Second * 1)
+
+	var taskRes models.AsyncTask
+	go func() {
+		taskRes = <-taskCh
+	}()
+
+	time.Sleep(time.Second * 1)
+
+	var jobRes utils.Response
+	umerr := json.Unmarshal([]byte(taskRes.Output), &jobRes)
+	if umerr != nil {
+		t.Fatalf("failed to unmarshal job error: %v", umerr)
+	}
+
+	jobIds := jobRes.Data.([]interface{})
+
+	assert.Equal(t, float64(1), jobIds[0])
+}
+
+func Test_authRaftConfiguration(t *testing.T) {
+	t.Cleanup(func() {
+		err := os.RemoveAll("./raft_data")
+		if err != nil {
+			fmt.Println("failed to remove raft_data dir for test", err)
+		}
+	})
+	os.Setenv("TEST_ENV", "1")
+	defer os.Unsetenv("TEST_ENV")
+	ctx := context.Background()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "job-service-test",
+		Level: hclog.LevelFromString("trace"),
+	})
+
+	// Create a temporary SQLite database file
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	// Create a new SQLite database connection
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+
+	scheduler0config := config.NewScheduler0Config()
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+
+	scheduler0Secrets := secrets.NewScheduler0Secrets()
+	// Create a new FSM store
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock Raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          2,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := repository.NewExecutionsRepo(
+		logger,
+		scheduler0RaftActions,
+		scheduler0Store,
+	)
+
+	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
+		effector(successCh, errorCh)
+	}
+
+	dispatcher := utils.NewDispatcher(
+		int64(1),
+		int64(1),
+		callback,
+	)
+
+	dispatcher.Run()
+
+	queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	jobExecutorService := NewJobExecutor(
+		ctx,
+		logger,
+		scheduler0config,
+		scheduler0RaftActions,
+		jobRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		dispatcher,
+	)
+
+	leaderRaftAddress := strings.Split(cluster.Leader().String(), " ")[2]
+	os.Setenv("SCHEDULER0_RAFT_ADDRESS", leaderRaftAddress)
+	defer os.Unsetenv("SCHEDULER0_RAFT_ADDRESS")
+
+	followerHTTPAddresses := []string{
+		"http://localhost:34416",
+	}
+
+	followerRaftAddresses := []string{
+		strings.Split(cluster.Followers()[0].String(), " ")[2],
+	}
+	leaderHttpAddress := "http://localhost:34410"
+
+	ctxWithCancel := context.Background()
+	nodeHTTPClient := NewMockNodeClient(t)
+	os.Setenv("SCHEDULER0_REPLICAS", fmt.Sprintf("["+
+		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":2}, "+
+		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":1}]",
+		followerRaftAddresses[0], followerHTTPAddresses[0],
+		leaderRaftAddress, leaderHttpAddress,
+	))
+	defer os.Unsetenv("SCHEDULER0_REPLICAS")
+
+	nodeService := NewNode(
+		ctxWithCancel,
+		logger,
+		scheduler0config,
+		scheduler0Secrets,
+		scheduler0RaftActions,
+		jobExecutorService,
+		queueService,
+		jobRepo,
+		projectRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		sharedRepo,
+		asyncTaskManager,
+		dispatcher,
+		nodeHTTPClient,
+	)
+
+	nodeService.FsmStore = scheduler0Store
+
+	status := Status{
+		IsAuth:   true,
+		IsAlive:  true,
+		IsLeader: false,
+	}
+	nodeHTTPClient.On("ConnectNode", mock.Anything).Return(&status, nil)
+
+	os.Setenv("SCHEDULER0_PORT", "34410")
+	defer os.Unsetenv("SCHEDULER0_PORT")
+	os.Setenv("SCHEDULER0_PROTOCOL", "http")
+	defer os.Unsetenv("SCHEDULER0_PROTOCOL")
+	os.Setenv("SCHEDULER0_HOST", "localhost")
+	defer os.Unsetenv("SCHEDULER0_HOST")
+
+	cfg := nodeService.authRaftConfiguration()
+
+	time.Sleep(time.Second * 1)
+	firstCallArgs := nodeHTTPClient.Calls[0].Arguments.Get(0).(config.RaftNode)
+
+	assert.Equal(t, 2, len(cfg.Servers))
+	assert.Equal(t, followerRaftAddresses[0], string(cfg.Servers[1].Address))
+	assert.Equal(t, firstCallArgs.Address, followerHTTPAddresses[0])
+}

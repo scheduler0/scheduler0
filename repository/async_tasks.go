@@ -173,13 +173,9 @@ func (repo *asyncTasksRepo) RaftUpdateTaskState(task models.AsyncTask, state mod
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := repo.scheduler0RaftActions.WriteCommandToRaftLog(repo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	_, applyErr := repo.scheduler0RaftActions.WriteCommandToRaftLog(repo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
 	if err != nil {
 		return applyErr
-	}
-
-	if res == nil {
-		return utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
 	return nil
@@ -199,13 +195,9 @@ func (repo *asyncTasksRepo) UpdateTaskState(task models.AsyncTask, state models.
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := repo.fsmStore.GetDataStore().GetOpenConnection().Exec(query, params...)
+	_, applyErr := repo.fsmStore.GetDataStore().GetOpenConnection().Exec(query, params...)
 	if err != nil {
 		return utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
-	}
-
-	if res == nil {
-		return utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
 	return nil
