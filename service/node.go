@@ -172,7 +172,6 @@ func (node *Node) Boostrap() {
 	}
 
 	configs := node.scheduler0Config.GetConfigurations()
-	fmt.Println("node.FsmStore", node.FsmStore)
 	rft := node.newRaft(node.FsmStore.GetFSM())
 	if configs.Bootstrap && !node.isExistingNode {
 		node.bootstrapRaftCluster(rft)

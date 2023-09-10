@@ -1678,11 +1678,11 @@ func Test_handleUncommittedAsyncTasks(t *testing.T) {
 
 	createJobJsonPayload := "[{" +
 		"\"spec\": \"@every 1m\"," +
-		"\"project_id\": 1," +
-		"\"execution_type\": \"http\"," +
+		"\"projectId\": 1," +
+		"\"executionType\": \"http\"," +
 		"\"data\": \"{}\"," +
 		"\"timezone\": \"America/New_York\"," +
-		"\"callback_url\": \"http://localhost:3000/callback\"" +
+		"\"callbackUrl\": \"http://localhost:3000/callback\"" +
 		"}]"
 
 	asyncTaskManager.ListenForNotifications()
