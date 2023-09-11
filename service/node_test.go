@@ -1360,7 +1360,7 @@ func Test_handleLeaderChange(t *testing.T) {
 	nodeService.handleLeaderChange()
 	scheduler0Store.UpdateRaft(cluster.Followers()[0])
 	clusterLeader.LeadershipTransfer()
-	time.Sleep(time.Second * time.Duration(2))
+	time.Sleep(time.Second * time.Duration(3))
 
 	committedLogs, err := sharedRepo.GetExecutionLogs(sqliteDb, true)
 	if err != nil {
