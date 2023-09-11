@@ -49,7 +49,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -102,7 +102,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -154,9 +154,9 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		int64(2),
 	})
 
-	_, ok := service.scheduledJobs.Load(jobs[0].ID)
+	_, ok := service.GetScheduledJobs().Load(jobs[0].ID)
 	assert.Equal(t, ok, true)
-	_, ok = service.scheduledJobs.Load(jobs[1].ID)
+	_, ok = service.GetScheduledJobs().Load(jobs[1].ID)
 	assert.Equal(t, ok, true)
 }
 
@@ -185,7 +185,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -238,7 +238,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -287,7 +287,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 
 	i = 0
 	for i < constants.JobMaxBatchSize+99 {
-		_, ok := service.scheduledJobs.Load(jobs[i].ID)
+		_, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 		assert.Equal(t, ok, true)
 		i++
 	}
@@ -318,7 +318,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -371,7 +371,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -421,7 +421,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 
 	i = 0
 	for i < constants.JobMaxBatchSize+99 {
-		_, ok := service.scheduledJobs.Load(jobs[i].ID)
+		_, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 		assert.Equal(t, ok, false)
 		i++
 	}
@@ -463,7 +463,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		// Create a new FSM store
 		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-		// Create a mock Raft cluster
+		// Create a mock raft cluster
 		cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 			Peers:          1,
 			Bootstrap:      true,
@@ -516,7 +516,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			dispatcher,
 		)
 
-		asyncTaskManager.SingleNodeMode = true
+		asyncTaskManager.SetSingleNodeMode(true)
 		asyncTaskManager.ListenForNotifications()
 
 		// Define the input jobs
@@ -608,7 +608,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		i = 0
 		for i < 99 {
-			sched, ok := service.scheduledJobs.Load(jobs[i].ID)
+			sched, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
 			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime).Round(1*time.Second) < time.Duration(1)*time.Second, true)
 			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime).Round(1*time.Second) > time.Duration(-1)*time.Second, true)
@@ -654,7 +654,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		// Create a new FSM store
 		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-		// Create a mock Raft cluster
+		// Create a mock raft cluster
 		cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 			Peers:          1,
 			Bootstrap:      true,
@@ -707,7 +707,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			dispatcher,
 		)
 
-		asyncTaskManager.SingleNodeMode = true
+		asyncTaskManager.SetSingleNodeMode(true)
 		asyncTaskManager.ListenForNotifications()
 
 		// Define the input jobs
@@ -802,7 +802,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		i = 0
 		for i < 99 {
-			sched, ok := service.scheduledJobs.Load(jobs[i].ID)
+			sched, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
 			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(time.Duration(4)*time.Second)).Round(time.Minute*1) < time.Duration(1)*time.Second, true)
 			assert.Equal(t, ok, true)
@@ -847,7 +847,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		// Create a new FSM store
 		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-		// Create a mock Raft cluster
+		// Create a mock raft cluster
 		cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 			Peers:          1,
 			Bootstrap:      true,
@@ -900,7 +900,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			dispatcher,
 		)
 
-		asyncTaskManager.SingleNodeMode = true
+		asyncTaskManager.SetSingleNodeMode(true)
 		asyncTaskManager.ListenForNotifications()
 
 		// Define the input jobs
@@ -995,7 +995,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		i = 0
 		for i < 99 {
-			sched, ok := service.scheduledJobs.Load(jobs[i].ID)
+			sched, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
 			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(time.Duration(4)*time.Second)).Round(time.Minute*1) < time.Duration(1)*time.Second, true)
 			assert.Equal(t, ok, true)
@@ -1029,7 +1029,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -1082,7 +1082,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -1165,7 +1165,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 
 	service.ListenForJobsToInvoke()
 
-	service.scheduledJobs.Store(1, models.JobSchedule{
+	service.GetScheduledJobs().Store(1, models.JobSchedule{
 		Job:           job,
 		ExecutionTime: schedulerTime.GetTime(nextTime),
 	})
@@ -1199,7 +1199,7 @@ func Test_handleFailedJobs(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -1252,7 +1252,7 @@ func Test_handleFailedJobs(t *testing.T) {
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -1309,7 +1309,7 @@ func Test_handleFailedJobs(t *testing.T) {
 	nextTime := schedule.Next(now)
 	lastTime := nextTime.Add(-nextTime.Sub(now))
 
-	service.jobExecutionsCache.Store(uint64(1), models.MemJobExecution{
+	service.GetExecutionsCache().Store(uint64(1), models.MemJobExecution{
 		ExecutionVersion:      1,
 		FailCount:             0,
 		LastState:             models.ExecutionLogFailedState,
@@ -1317,18 +1317,18 @@ func Test_handleFailedJobs(t *testing.T) {
 		NextExecutionDatetime: nextTime,
 	})
 
-	service.Raft = scheduler0Store.GetRaft()
+	service.UpdateRaft(scheduler0Store.GetRaft())
 	service.handleFailedJobs([]models.Job{job})
 
 	time.Sleep(time.Second * 2)
 
-	exec, ok := service.jobExecutionsCache.Load(uint64(1))
+	exec, ok := service.GetExecutionsCache().Load(uint64(1))
 	if !ok {
 		t.Fatal("should store job execution in cache")
 	}
 	cachedJobExecutionLog := (exec).(models.MemJobExecution)
 	assert.Equal(t, 1, int(cachedJobExecutionLog.FailCount))
-	uncommittedExecutionLogsCount := service.jobExecutionsRepo.CountExecutionLogs(false)
+	uncommittedExecutionLogsCount := jobExecutionsRepo.CountExecutionLogs(false)
 	assert.Equal(t, 1, int(uncommittedExecutionLogsCount))
 }
 
@@ -1357,7 +1357,7 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -1410,9 +1410,9 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 		dispatcher,
 	)
 
-	service.Raft = scheduler0Store.GetRaft()
+	service.UpdateRaft(scheduler0Store.GetRaft())
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -1456,7 +1456,7 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	service.logJobExecutionStateInRaft(jobs, models.ExecutionLogScheduleState, map[uint64]uint64{1: 1})
 	time.Sleep(time.Second * time.Duration(1))
 
-	uncommittedExecutionLogsCount := service.jobExecutionsRepo.CountExecutionLogs(true)
+	uncommittedExecutionLogsCount := jobExecutionsRepo.CountExecutionLogs(true)
 	assert.Equal(t, 1, int(uncommittedExecutionLogsCount))
 }
 
@@ -1485,7 +1485,7 @@ func Test_StopAll(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -1538,9 +1538,9 @@ func Test_StopAll(t *testing.T) {
 		dispatcher,
 	)
 
-	service.Raft = scheduler0Store.GetRaft()
+	service.UpdateRaft(scheduler0Store.GetRaft())
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs

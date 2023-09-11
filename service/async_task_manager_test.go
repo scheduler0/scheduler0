@@ -40,7 +40,7 @@ func Test_AsyncTaskManager_AddTasks(t *testing.T) {
 	requestId := "request-id"
 	service := "asyncService"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -88,7 +88,7 @@ func Test_AsyncTaskManager_UpdateTasksById(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -144,7 +144,7 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -201,7 +201,7 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -266,7 +266,7 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -334,7 +334,7 @@ func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -395,7 +395,7 @@ func Test_AsyncTaskManager_GetTaskWithRequestIdBlocking(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -454,7 +454,7 @@ func Test_AsyncTaskManager_GetTaskIdWithRequestId(t *testing.T) {
 	input := "{'a':2}"
 	requestId := "request-id"
 	service := "asyncService"
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -504,7 +504,7 @@ func Test_AsyncTaskManager_GetUnCommittedTasks(t *testing.T) {
 	input := "{'a':2}"
 	requestId := "request-id"
 	service := "asyncService"
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,

@@ -11,7 +11,7 @@ import (
 	"scheduler0/utils"
 )
 
-//go:generate mockery --name SharedRepo --output ../mocks
+//go:generate mockery --name SharedRepo --output ./ --inpackage
 type SharedRepo interface {
 	GetExecutionLogs(db db.DataStore, committed bool) ([]models.JobExecutionLog, error)
 	InsertExecutionLogs(db db.DataStore, committed bool, jobExecutionLogs []models.JobExecutionLog) error

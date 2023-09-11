@@ -116,6 +116,7 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 	table := constants.CommittedAsyncTableName
 
 	for _, batch := range batches {
+
 		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s) VALUES (?, ?, ?, ?, ?, ?)",
 			table,
 			constants.AsyncTasksRequestIdColumn,

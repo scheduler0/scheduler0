@@ -38,7 +38,7 @@ func Test_CredentialService_CreateNewCredential(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -95,7 +95,7 @@ func Test_CredentialService_UpdateOneCredential(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -189,7 +189,7 @@ func Test_CredentialService_DeleteOneCredential(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -253,7 +253,7 @@ func Test_CredentialService_ListCredentials(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -366,7 +366,7 @@ func Test_CredentialService_ValidateServerAPIKey(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,

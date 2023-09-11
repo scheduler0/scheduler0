@@ -67,14 +67,14 @@ type Node struct {
 	mtx                   sync.Mutex
 	jobProcessor          *JobProcessor
 	jobQueue              *JobQueue
-	jobExecutor           *JobExecutor
+	jobExecutor           JobExecutor
 	jobQueuesRepo         repository.JobQueuesRepo
 	jobRepo               repository.JobRepo
 	projectRepo           repository.ProjectRepo
 	sharedRepo            shared_repo.SharedRepo
 	isExistingNode        bool
 	peerObserverChannels  chan raft.Observation
-	asyncTaskManager      *AsyncTaskManager
+	asyncTaskManager      AsyncTaskManager
 	dispatcher            *utils.Dispatcher
 	fanIns                sync.Map // models.PeerFanIn
 	fanInCh               chan models.PeerFanIn
@@ -90,14 +90,14 @@ func NewNode(
 	scheduler0Config config.Scheduler0Config,
 	scheduler0Secrets secrets.Scheduler0Secrets,
 	fsmActions fsm.Scheduler0RaftActions,
-	jobExecutor *JobExecutor,
+	jobExecutor JobExecutor,
 	jobQueue *JobQueue,
 	jobRepo repository.JobRepo,
 	projectRepo repository.ProjectRepo,
 	executionsRepo repository.JobExecutionsRepo,
 	jobQueueRepo repository.JobQueuesRepo,
 	sharedRepo shared_repo.SharedRepo,
-	asyncTaskManager *AsyncTaskManager,
+	asyncTaskManager AsyncTaskManager,
 	dispatcher *utils.Dispatcher,
 	nodeHTTPClient NodeClient,
 ) *Node {
@@ -141,7 +141,22 @@ func NewNode(
 			nodeHTTPClient:        nodeHTTPClient,
 		}
 	} else {
+		fss, err := raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
+		if err != nil {
+			logger.Error("failed to create snapshot store for testing", err)
+		}
+		ldb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
+		if err != nil {
+			logger.Error("failed to create log store for testing", err)
+		}
+		sdb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
+		if err != nil {
+			logger.Error("failed to create stable store for testing", err)
+		}
 		return &Node{
+			FileSnapShot:          fss,
+			LogDb:                 ldb,
+			StoreDb:               sdb,
 			logger:                nodeServiceLogger,
 			acceptClientWrites:    false,
 			ctx:                   ctx,
@@ -177,7 +192,7 @@ func (node *Node) Boostrap() {
 		node.bootstrapRaftCluster(rft)
 	}
 	node.FsmStore.UpdateRaft(rft)
-	node.jobExecutor.Raft = rft
+	node.jobExecutor.UpdateRaft(rft)
 	node.handleLeaderChange()
 
 	myObserver := raft.NewObserver(node.peerObserverChannels, true, func(o *raft.Observation) bool {
@@ -379,15 +394,15 @@ func (node *Node) recoverRaftState() {
 		logger.Fatalln(fmt.Errorf("failed to get uncommitted execution logs: %s \n", err))
 	}
 
-	uncommittedTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
-	if err != nil {
-		node.logger.Warn("failed to get uncommitted tasks", "error", err)
+	uncommittedTasks, getErr := node.asyncTaskManager.GetUnCommittedTasks()
+	if getErr != nil {
+		node.logger.Warn("failed to get uncommitted tasks", "error", getErr)
 	}
 	recoverDbPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.RecoveryDbFileName)
 
-	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
-	if err != nil {
-		logger.Fatalln(fmt.Errorf("fatal db file creation error: %s \n", err))
+	fileCreationErr := os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
+	if fileCreationErr != nil {
+		logger.Fatalln(fmt.Errorf("fatal db file creation error: %s \n", fileCreationErr))
 	}
 
 	dataStore = db.NewSqliteDbConnection(node.logger, recoverDbPath)
@@ -562,9 +577,9 @@ func (node *Node) handleLeaderChange() {
 				node.stopAllJobsOnAllNodes()
 
 				node.jobQueue.SingleNodeMode = len(servers) == 1
-				node.jobExecutor.SingleNodeMode = node.jobQueue.SingleNodeMode
+				node.jobExecutor.SetSingleNodeMode(node.jobQueue.SingleNodeMode)
 				node.SingleNodeMode = node.jobQueue.SingleNodeMode
-				node.asyncTaskManager.SingleNodeMode = node.jobQueue.SingleNodeMode
+				node.asyncTaskManager.SetSingleNodeMode(node.jobQueue.SingleNodeMode)
 				if !node.SingleNodeMode {
 					uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
 					uncommittedAsyncTasks, err := node.asyncTaskManager.GetUnCommittedTasks()

@@ -23,10 +23,10 @@ type Service struct {
 	JobService         JobService
 	ProjectService     ProjectService
 	CredentialService  CredentialService
-	JobExecutorService *JobExecutor
+	JobExecutorService JobExecutor
 	NodeService        *Node
 	JobQueueService    *JobQueue
-	AsyncTaskManager   *AsyncTaskManager
+	AsyncTaskManager   AsyncTaskManager
 }
 
 func NewService(ctx context.Context, logger hclog.Logger) *Service {

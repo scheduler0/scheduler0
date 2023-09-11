@@ -33,7 +33,7 @@ func Test_JobRepo_BatchInsertJobs(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -117,7 +117,7 @@ func Test_JobRepo_UpdateOneByID(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -224,7 +224,7 @@ func Test_JobRepo_DeleteOneByID(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -312,7 +312,7 @@ func Test_JobRepo_BatchGetJobsByID(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -423,7 +423,7 @@ func Test_JobRepo_BatchGetJobsWithIDRange(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -545,7 +545,7 @@ func Test_JobRepo_GetAllByProjectID(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -701,7 +701,7 @@ func Test_JobRepo_GetJobsTotalCountByProjectID(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -792,7 +792,7 @@ func Test_JobRepo_GetJobsPaginated(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,

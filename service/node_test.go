@@ -58,7 +58,7 @@ func Test_CanAcceptRequest(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -168,7 +168,7 @@ func Test_CanAcceptClientWriteRequest(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -283,7 +283,7 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -477,7 +477,7 @@ func Test_getRaftConfiguration(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -592,7 +592,7 @@ func Test_getRandomFanInPeerHTTPAddresses(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          5,
 		Bootstrap:      true,
@@ -768,7 +768,7 @@ func Test_selectRandomPeersToFanIn(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          5,
 		Bootstrap:      true,
@@ -928,7 +928,7 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          6,
 		Bootstrap:      true,
@@ -1369,8 +1369,8 @@ func Test_handleLeaderChange(t *testing.T) {
 
 	assert.Equal(t, 2, len(nodeService.jobQueue.allocations))
 	assert.Equal(t, false, nodeService.jobQueue.SingleNodeMode)
-	assert.Equal(t, false, nodeService.jobExecutor.SingleNodeMode)
-	assert.Equal(t, false, nodeService.asyncTaskManager.SingleNodeMode)
+	assert.Equal(t, false, nodeService.jobExecutor.GetSingleNodeMode())
+	assert.Equal(t, false, nodeService.asyncTaskManager.GetSingleNodeMode())
 	assert.Equal(t, len(uncommittedExecutionsLogs), len(committedLogs))
 
 	cancelCtx()
@@ -1414,7 +1414,7 @@ func Test_commitFetchedUnCommittedLogs(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          2,
 		Bootstrap:      true,
@@ -1572,7 +1572,7 @@ func Test_handleUncommittedAsyncTasks(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          2,
 		Bootstrap:      true,
@@ -1761,7 +1761,7 @@ func Test_authRaftConfiguration(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          2,
 		Bootstrap:      true,
@@ -1875,4 +1875,161 @@ func Test_authRaftConfiguration(t *testing.T) {
 	assert.Equal(t, 2, len(cfg.Servers))
 	assert.Equal(t, followerRaftAddresses[0], string(cfg.Servers[1].Address))
 	assert.Equal(t, firstCallArgs.Address, followerHTTPAddresses[0])
+}
+
+func Test_recoverRaftState(t *testing.T) {
+	t.Cleanup(func() {
+		err := os.RemoveAll("./raft_data")
+		if err != nil {
+			fmt.Println("failed to remove raft_data dir for test", err)
+		}
+		err = os.RemoveAll("./sqlite_data")
+		if err != nil {
+			fmt.Println("failed to remove sqlite_data dir for test", err)
+		}
+	})
+	os.Setenv("TEST_ENV", "1")
+	defer os.Unsetenv("TEST_ENV")
+	ctx := context.Background()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "job-service-test",
+		Level: hclog.LevelFromString("trace"),
+	})
+
+	// Create a temporary SQLite database file
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	// Create a new SQLite database connection
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+
+	scheduler0config := config.NewScheduler0Config()
+	sharedRepo := shared_repo.NewMockSharedRepo(t)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+
+	scheduler0Secrets := secrets.NewScheduler0Secrets()
+	// Create a new FSM store
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+
+	// Create a mock raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          2,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	cluster.FullyConnect()
+
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManager := NewMockAsyncTaskManager(t)
+	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := repository.NewExecutionsRepo(
+		logger,
+		scheduler0RaftActions,
+		scheduler0Store,
+	)
+
+	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
+		effector(successCh, errorCh)
+	}
+
+	dispatcher := utils.NewDispatcher(
+		int64(1),
+		int64(1),
+		callback,
+	)
+
+	dispatcher.Run()
+
+	queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	jobExecutorService := NewJobExecutor(
+		ctx,
+		logger,
+		scheduler0config,
+		scheduler0RaftActions,
+		jobRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		dispatcher,
+	)
+
+	leaderRaftAddress := strings.Split(cluster.Leader().String(), " ")[2]
+	os.Setenv("SCHEDULER0_RAFT_ADDRESS", leaderRaftAddress)
+	defer os.Unsetenv("SCHEDULER0_RAFT_ADDRESS")
+
+	followerHTTPAddresses := []string{
+		"http://localhost:34416",
+	}
+
+	followerRaftAddresses := []string{
+		strings.Split(cluster.Followers()[0].String(), " ")[2],
+	}
+	leaderHttpAddress := "http://localhost:34410"
+
+	ctxWithCancel := context.Background()
+	nodeHTTPClient := NewMockNodeClient(t)
+	os.Setenv("SCHEDULER0_REPLICAS", fmt.Sprintf("["+
+		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":2}, "+
+		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":1}]",
+		followerRaftAddresses[0], followerHTTPAddresses[0],
+		leaderRaftAddress, leaderHttpAddress,
+	))
+	defer os.Unsetenv("SCHEDULER0_REPLICAS")
+
+	nodeService := NewNode(
+		ctxWithCancel,
+		logger,
+		scheduler0config,
+		scheduler0Secrets,
+		scheduler0RaftActions,
+		jobExecutorService,
+		queueService,
+		jobRepo,
+		projectRepo,
+		jobExecutionsRepo,
+		jobQueueRepo,
+		sharedRepo,
+		asyncTaskManager,
+		dispatcher,
+		nodeHTTPClient,
+	)
+
+	executionLogs := []models.JobExecutionLog{
+		{
+			UniqueId: "some-unique-id",
+		},
+	}
+	sharedRepo.On("GetExecutionLogs", mock.Anything, false).Return(executionLogs, nil)
+	asyncTasks := []models.AsyncTask{
+		{
+			RequestId: "some-request-id",
+		},
+	}
+	asyncTaskManager.On("GetUnCommittedTasks").Return(asyncTasks, nil)
+
+	sharedRepo.On("InsertExecutionLogs", mock.Anything, false, executionLogs).Return(nil)
+	sharedRepo.On("InsertAsyncTasksLogs", mock.Anything, false, asyncTasks).Return(nil)
+
+	nodeService.FsmStore = scheduler0Store
+
+	err = os.Mkdir("sqlite_data", os.ModePerm)
+	if err != nil {
+		t.Fatalf("failed to create sqlite_data dir %v", err)
+	}
+
+	nodeService.TransportManager = &raft.NetworkTransport{}
+
+	nodeService.recoverRaftState()
+
 }

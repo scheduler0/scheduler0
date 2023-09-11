@@ -22,7 +22,7 @@ type jobService struct {
 	Ctx              context.Context
 	logger           hclog.Logger
 	dispatcher       *utils.Dispatcher
-	asyncTaskManager *AsyncTaskManager
+	asyncTaskManager AsyncTaskManager
 }
 
 //go:generate mockery --name JobService --output ../mocks
@@ -42,7 +42,7 @@ func NewJobService(
 	queue *JobQueue,
 	projectRepo repository.ProjectRepo,
 	dispatcher *utils.Dispatcher,
-	asyncTaskManager *AsyncTaskManager,
+	asyncTaskManager AsyncTaskManager,
 ) JobService {
 	service := &jobService{
 		jobRepo:          jobRepo,
