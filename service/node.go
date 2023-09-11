@@ -110,73 +110,26 @@ func NewNode(
 	utils.MakeDirIfNotExist(dirPath)
 	numReplicas := len(configs.Replicas)
 
-	if _, ok := os.LookupEnv("TEST_ENV"); !ok {
-		tm, ldb, sdb, fss, err := getLogsAndTransport(scheduler0Config)
-		if err != nil {
-			log.Fatal("failed essentials for Node", err)
-		}
-		return &Node{
-			TransportManager:      tm,
-			LogDb:                 ldb,
-			StoreDb:               sdb,
-			FileSnapShot:          fss,
-			logger:                nodeServiceLogger,
-			acceptClientWrites:    false,
-			ctx:                   ctx,
-			jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
-			jobQueue:              jobQueue,
-			jobExecutor:           jobExecutor,
-			jobRepo:               jobRepo,
-			isExistingNode:        exists,
-			peerObserverChannels:  make(chan raft.Observation, numReplicas),
-			asyncTaskManager:      asyncTaskManager,
-			dispatcher:            dispatcher,
-			fanIns:                sync.Map{},
-			fanInCh:               make(chan models.PeerFanIn),
-			acceptRequest:         false,
-			scheduler0Config:      scheduler0Config,
-			scheduler0Secrets:     scheduler0Secrets,
-			scheduler0RaftActions: fsmActions,
-			sharedRepo:            sharedRepo,
-			nodeHTTPClient:        nodeHTTPClient,
-		}
-	} else {
-		fss, err := raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
-		if err != nil {
-			logger.Error("failed to create snapshot store for testing", err)
-		}
-		ldb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
-		if err != nil {
-			logger.Error("failed to create log store for testing", err)
-		}
-		sdb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
-		if err != nil {
-			logger.Error("failed to create stable store for testing", err)
-		}
-		return &Node{
-			FileSnapShot:          fss,
-			LogDb:                 ldb,
-			StoreDb:               sdb,
-			logger:                nodeServiceLogger,
-			acceptClientWrites:    false,
-			ctx:                   ctx,
-			jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
-			jobQueue:              jobQueue,
-			jobExecutor:           jobExecutor,
-			jobRepo:               jobRepo,
-			isExistingNode:        exists,
-			peerObserverChannels:  make(chan raft.Observation, numReplicas),
-			asyncTaskManager:      asyncTaskManager,
-			dispatcher:            dispatcher,
-			fanIns:                sync.Map{},
-			fanInCh:               make(chan models.PeerFanIn),
-			acceptRequest:         false,
-			scheduler0Config:      scheduler0Config,
-			scheduler0Secrets:     scheduler0Secrets,
-			scheduler0RaftActions: fsmActions,
-			sharedRepo:            sharedRepo,
-			nodeHTTPClient:        nodeHTTPClient,
-		}
+	return &Node{
+		logger:                nodeServiceLogger,
+		acceptClientWrites:    false,
+		ctx:                   ctx,
+		jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
+		jobQueue:              jobQueue,
+		jobExecutor:           jobExecutor,
+		jobRepo:               jobRepo,
+		isExistingNode:        exists,
+		peerObserverChannels:  make(chan raft.Observation, numReplicas),
+		asyncTaskManager:      asyncTaskManager,
+		dispatcher:            dispatcher,
+		fanIns:                sync.Map{},
+		fanInCh:               make(chan models.PeerFanIn),
+		acceptRequest:         false,
+		scheduler0Config:      scheduler0Config,
+		scheduler0Secrets:     scheduler0Secrets,
+		scheduler0RaftActions: fsmActions,
+		sharedRepo:            sharedRepo,
+		nodeHTTPClient:        nodeHTTPClient,
 	}
 }
 
@@ -896,24 +849,27 @@ func (node *Node) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
 	}
 }
 
-func getLogsAndTransport(scheduler0Config config.Scheduler0Config) (tm *raft.NetworkTransport, ldb *boltdb.BoltStore, sdb *boltdb.BoltStore, fss *raft.FileSnapshotStore, err error) {
+func (node *Node) ConnectRaftLogsAndTransport() {
 	logger := log.New(os.Stderr, "[get-raft-logs-and-transport] ", log.LstdFlags)
 
-	configs := scheduler0Config.GetConfigurations()
+	configs := node.scheduler0Config.GetConfigurations()
 	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 
-	ldb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
+	ldb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
 	if err != nil {
 		logger.Fatal("failed to create log store", err)
 	}
-	sdb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
+	node.LogDb = ldb
+	sdb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
 	if err != nil {
 		logger.Fatal("failed to create stable store", err)
 	}
-	fss, err = raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
+	node.StoreDb = sdb
+	fss, err := raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
 	if err != nil {
 		logger.Fatal("failed to create snapshot store", err)
 	}
+	node.FileSnapShot = fss
 	ln, err := net.Listen("tcp", configs.RaftAddress)
 	if err != nil {
 		logger.Fatalf("failed to listen to tcp net. raft address %v. %v", configs.RaftAddress, err)
@@ -933,6 +889,6 @@ func getLogsAndTransport(scheduler0Config config.Scheduler0Config) (tm *raft.Net
 
 	muxLn := mux.Listen(1)
 
-	tm = raft.NewNetworkTransport(network.NewTransport(muxLn), int(configs.RaftTransportMaxPool), time.Second*time.Duration(configs.RaftTransportTimeout), nil)
-	return
+	tm := raft.NewNetworkTransport(network.NewTransport(muxLn), int(configs.RaftTransportMaxPool), time.Second*time.Duration(configs.RaftTransportTimeout), nil)
+	node.TransportManager = tm
 }

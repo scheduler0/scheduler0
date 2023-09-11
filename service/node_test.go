@@ -1965,7 +1965,7 @@ func Test_recoverRaftState(t *testing.T) {
 	)
 
 	leaderRaftAddress := strings.Split(cluster.Leader().String(), " ")[2]
-	os.Setenv("SCHEDULER0_RAFT_ADDRESS", leaderRaftAddress)
+	os.Setenv("SCHEDULER0_RAFT_ADDRESS", "localhost:34410")
 	defer os.Unsetenv("SCHEDULER0_RAFT_ADDRESS")
 
 	followerHTTPAddresses := []string{
@@ -2023,13 +2023,17 @@ func Test_recoverRaftState(t *testing.T) {
 
 	nodeService.FsmStore = scheduler0Store
 
-	err = os.Mkdir("sqlite_data", os.ModePerm)
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf(fmt.Sprintf("fatal error getting working dir: %s \n", err))
+	}
+
+	err = os.Mkdir(fmt.Sprintf("%v/sqlite_data", dir), os.ModePerm)
 	if err != nil {
 		t.Fatalf("failed to create sqlite_data dir %v", err)
 	}
 
 	nodeService.TransportManager = &raft.NetworkTransport{}
-
+	nodeService.ConnectRaftLogsAndTransport()
 	nodeService.recoverRaftState()
-
 }

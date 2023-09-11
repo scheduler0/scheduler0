@@ -108,6 +108,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 
 	service.Dispatcher = dispatcher
 	service.Dispatcher.Run()
+	nodeService.ConnectRaftLogsAndTransport()
 	service.JobExecutorService.ListenForJobsToInvoke()
 	service.AsyncTaskManager.ListenForNotifications()
 
