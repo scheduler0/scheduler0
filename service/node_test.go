@@ -1170,6 +1170,10 @@ func Test_handleLeaderChange(t *testing.T) {
 		if err != nil {
 			fmt.Println("failed to remove raft_data dir for test", err)
 		}
+		err = os.RemoveAll("./sqlite_data")
+		if err != nil {
+			fmt.Println("failed to remove sqlite_data dir for test", err)
+		}
 	})
 	os.Setenv("TEST_ENV", "1")
 	defer os.Unsetenv("TEST_ENV")
@@ -1360,7 +1364,8 @@ func Test_handleLeaderChange(t *testing.T) {
 	nodeService.handleLeaderChange()
 	scheduler0Store.UpdateRaft(cluster.Followers()[0])
 	clusterLeader.LeadershipTransfer()
-	time.Sleep(time.Second * time.Duration(3))
+
+	time.Sleep(time.Second * time.Duration(5))
 
 	committedLogs, err := sharedRepo.GetExecutionLogs(sqliteDb, true)
 	if err != nil {
@@ -2033,7 +2038,6 @@ func Test_recoverRaftState(t *testing.T) {
 		t.Fatalf("failed to create sqlite_data dir %v", err)
 	}
 
-	nodeService.TransportManager = &raft.NetworkTransport{}
 	nodeService.ConnectRaftLogsAndTransport()
 	nodeService.recoverRaftState()
 }
