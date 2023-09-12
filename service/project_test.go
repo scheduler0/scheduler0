@@ -51,6 +51,7 @@ func Test_ProjectService_CreateOne(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -116,6 +117,7 @@ func Test_ProjectService_UpdateOneByID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -197,6 +199,7 @@ func Test_ProjectService_GetOneByID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -268,6 +271,7 @@ func Test_ProjectService_GetOneByName(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -339,6 +343,7 @@ func Test_ProjectService_DeleteOneByID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -414,6 +419,7 @@ func Test_ProjectService_List(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -516,6 +522,7 @@ func Test_ProjectService_BatchGetProjects(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 

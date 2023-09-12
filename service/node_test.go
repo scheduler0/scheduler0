@@ -68,6 +68,7 @@ func Test_CanAcceptRequest(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -178,6 +179,7 @@ func Test_CanAcceptClientWriteRequest(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -258,6 +260,7 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 
 	bctx := context.Background()
 	ctx, cancler := context.WithCancel(bctx)
+	defer cancler()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "job-service-test",
 		Level: hclog.LevelFromString("trace"),
@@ -293,6 +296,7 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -440,7 +444,6 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 	assert.Equal(t, task.RequestId, requestId)
 	assert.Equal(t, task.State, models.AsyncTaskSuccess)
 	assert.Equal(t, len(asyncTaskRes.ExecutionLogs), len(uncommittedExecutionsLogs))
-	cancler()
 }
 
 func Test_getRaftConfiguration(t *testing.T) {
@@ -487,6 +490,7 @@ func Test_getRaftConfiguration(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -602,6 +606,7 @@ func Test_getRandomFanInPeerHTTPAddresses(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -778,6 +783,7 @@ func Test_selectRandomPeersToFanIn(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -938,6 +944,7 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 
 	scheduler0Store.UpdateRaft(cluster.Leader())
@@ -1212,6 +1219,7 @@ func Test_handleLeaderChange(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 
 	clusterLeader := cluster.Leader()
@@ -1429,6 +1437,7 @@ func Test_commitFetchedUnCommittedLogs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 
 	scheduler0Store.UpdateRaft(cluster.Leader())
@@ -1587,6 +1596,7 @@ func Test_handleUncommittedAsyncTasks(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 
 	scheduler0Store.UpdateRaft(cluster.Leader())
@@ -1639,7 +1649,8 @@ func Test_handleUncommittedAsyncTasks(t *testing.T) {
 	}
 	leaderHttpAddress := "http://localhost:34410"
 
-	ctxWithCancel := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 	nodeHTTPClient := NewMockNodeClient(t)
 	os.Setenv("SCHEDULER0_REPLICAS", fmt.Sprintf("["+
 		"{\"raft_address\":\"%v\", \"address\":\"%v\", \"nodeId\":2}, "+
@@ -1650,7 +1661,7 @@ func Test_handleUncommittedAsyncTasks(t *testing.T) {
 	defer os.Unsetenv("SCHEDULER0_REPLICAS")
 
 	nodeService := NewNode(
-		ctxWithCancel,
+		ctx,
 		logger,
 		scheduler0config,
 		scheduler0Secrets,
@@ -1776,6 +1787,7 @@ func Test_authRaftConfiguration(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 
 	scheduler0Store.UpdateRaft(cluster.Leader())
@@ -1931,6 +1943,7 @@ func Test_recoverRaftState(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 
 	scheduler0Store.UpdateRaft(cluster.Leader())

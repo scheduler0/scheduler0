@@ -48,6 +48,7 @@ func Test_CredentialService_CreateNewCredential(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
@@ -105,6 +106,7 @@ func Test_CredentialService_UpdateOneCredential(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
@@ -199,6 +201,7 @@ func Test_CredentialService_DeleteOneCredential(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
@@ -263,6 +266,7 @@ func Test_CredentialService_ListCredentials(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
@@ -376,6 +380,7 @@ func Test_CredentialService_ValidateServerAPIKey(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()

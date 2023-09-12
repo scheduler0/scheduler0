@@ -43,6 +43,7 @@ func Test_JobRepo_BatchInsertJobs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -127,6 +128,7 @@ func Test_JobRepo_UpdateOneByID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -234,6 +236,7 @@ func Test_JobRepo_DeleteOneByID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -322,6 +325,7 @@ func Test_JobRepo_BatchGetJobsByID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -433,6 +437,7 @@ func Test_JobRepo_BatchGetJobsWithIDRange(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -555,6 +560,7 @@ func Test_JobRepo_GetAllByProjectID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -711,6 +717,7 @@ func Test_JobRepo_GetJobsTotalCountByProjectID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -802,6 +809,7 @@ func Test_JobRepo_GetJobsPaginated(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 

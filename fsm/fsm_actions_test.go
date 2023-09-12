@@ -47,6 +47,7 @@ func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -131,6 +132,7 @@ func Test_WriteCommandToRaftLog_Job_Queue(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -230,6 +232,7 @@ func Test_WriteCommandToRaftLog_Local_Data_Commit(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -321,6 +324,7 @@ func Test_WriteCommandToRaftLog_Stop_All_Jobs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -363,6 +367,7 @@ func Test_WriteCommandToRaftLog_Recovery_All_Jobs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 

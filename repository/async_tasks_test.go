@@ -145,6 +145,7 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -203,6 +204,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -267,6 +269,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -346,6 +349,7 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 					return scheduler0Store.GetFSM()
 				},
 			})
+			defer cluster.Close()
 			cluster.FullyConnect()
 			scheduler0Store.UpdateRaft(cluster.Leader())
 

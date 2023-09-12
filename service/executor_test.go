@@ -59,10 +59,12 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -195,10 +197,12 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -328,10 +332,12 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -473,10 +479,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 				return scheduler0Store.GetFSM()
 			},
 		})
+		defer cluster.Close()
 		cluster.FullyConnect()
 		scheduler0Store.UpdateRaft(cluster.Leader())
 
-		ctx := context.Background()
+		ctx, canceler := context.WithCancel(context.Background())
+		defer canceler()
 
 		jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 		projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -664,10 +672,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 				return scheduler0Store.GetFSM()
 			},
 		})
+		defer cluster.Close()
 		cluster.FullyConnect()
 		scheduler0Store.UpdateRaft(cluster.Leader())
 
-		ctx := context.Background()
+		ctx, canceler := context.WithCancel(context.Background())
+		defer canceler()
 
 		jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 		projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -857,10 +867,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 				return scheduler0Store.GetFSM()
 			},
 		})
+		defer cluster.Close()
 		cluster.FullyConnect()
 		scheduler0Store.UpdateRaft(cluster.Leader())
 
-		ctx := context.Background()
+		ctx, canceler := context.WithCancel(context.Background())
+		defer canceler()
 
 		jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 		projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -1039,10 +1051,12 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -1209,10 +1223,12 @@ func Test_handleFailedJobs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -1367,10 +1383,12 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -1495,10 +1513,12 @@ func Test_StopAll(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)

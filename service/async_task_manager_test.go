@@ -50,6 +50,7 @@ func Test_AsyncTaskManager_AddTasks(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -98,6 +99,7 @@ func Test_AsyncTaskManager_UpdateTasksById(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -154,6 +156,7 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -179,6 +182,7 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 	bctx := context.Background()
 	ctx, cancler := context.WithCancel(bctx)
+	defer cancler()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),
@@ -211,6 +215,7 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -243,7 +248,8 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 }
 
 func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),
@@ -276,6 +282,7 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -311,7 +318,8 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 }
 
 func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	cancelCtx()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),
@@ -344,6 +352,7 @@ func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -372,7 +381,8 @@ func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 }
 
 func Test_AsyncTaskManager_GetTaskWithRequestIdBlocking(t *testing.T) {
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),
@@ -405,6 +415,7 @@ func Test_AsyncTaskManager_GetTaskWithRequestIdBlocking(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -464,6 +475,7 @@ func Test_AsyncTaskManager_GetTaskIdWithRequestId(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -514,6 +526,7 @@ func Test_AsyncTaskManager_GetUnCommittedTasks(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
