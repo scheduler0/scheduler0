@@ -95,6 +95,8 @@ func (s *store) Apply(l *raft.Log) interface{} {
 	s.rwMtx.Lock()
 	defer s.rwMtx.Unlock()
 
+	fmt.Println("----IN APPLY BLOCK----")
+
 	return s.scheduler0RaftActions.ApplyRaftLog(
 		s.logger,
 		l,
