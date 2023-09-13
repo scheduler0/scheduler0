@@ -236,6 +236,7 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 		log.Fatalln("failed to get node id for raft address", peerAddress)
 	}
 
+	fmt.Println("--------node.scheduler0RaftActions.WriteCommandToRaftLog---")
 	_, writeError := node.scheduler0RaftActions.WriteCommandToRaftLog(
 		node.FsmStore.GetRaft(),
 		constants.CommandTypeLocalData,
@@ -243,6 +244,7 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 		uint64(nodeId),
 		[]interface{}{params},
 	)
+	fmt.Println("----------END--------node.scheduler0RaftActions.WriteCommandToRaftLog---")
 	if writeError != nil {
 		node.logger.Error("failed to apply local data into raft store", "error", writeError)
 	}
