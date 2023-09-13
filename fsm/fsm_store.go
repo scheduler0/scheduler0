@@ -92,6 +92,8 @@ func (s *store) GetQueueJobsChannel() chan []interface{} {
 }
 
 func (s *store) Apply(l *raft.Log) interface{} {
+	fmt.Println("----PRE APPLY BLOCK----")
+
 	s.rwMtx.Lock()
 	defer s.rwMtx.Unlock()
 
