@@ -72,6 +72,7 @@ func Test_JobService_BatchInsertJobs(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -195,6 +196,7 @@ func Test_JobService_UpdateJob(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -303,6 +305,7 @@ func Test_JobService_DeleteJob(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -406,6 +409,7 @@ func Test_JobService_GetJobsByProjectID(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -543,6 +547,7 @@ func Test_JobService_GetJob(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -648,6 +653,7 @@ func Test_JobService_QueueJobs(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,

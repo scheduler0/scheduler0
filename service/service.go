@@ -42,6 +42,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 		log.Fatal("failed to set timezone for s")
 	}
 	dispatcher := utils.NewDispatcher(
+		serviceCtx,
 		int64(configs.MaxWorkers),
 		int64(configs.MaxQueue),
 		func(effector func(successChannel, errorChannel chan any), successChannel, errorChannel chan any) {

@@ -82,6 +82,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -220,6 +221,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -355,6 +357,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -502,6 +505,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		}
 
 		dispatcher := utils.NewDispatcher(
+			ctx,
 			int64(1),
 			int64(1),
 			callback,
@@ -695,6 +699,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		}
 
 		dispatcher := utils.NewDispatcher(
+			ctx,
 			int64(1),
 			int64(1),
 			callback,
@@ -890,6 +895,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		}
 
 		dispatcher := utils.NewDispatcher(
+			ctx,
 			int64(1),
 			int64(1),
 			callback,
@@ -1074,6 +1080,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -1246,6 +1253,7 @@ func Test_handleFailedJobs(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -1406,6 +1414,7 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -1536,6 +1545,7 @@ func Test_StopAll(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,

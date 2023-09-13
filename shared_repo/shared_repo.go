@@ -79,7 +79,7 @@ func (repo *sharedRepo) GetExecutionLogs(db db.DataStore, committed bool) ([]mod
 		return nil, err
 	}
 
-	repo.logger.Debug(fmt.Sprintf("found %d uncommitted logs", count))
+	repo.logger.Debug(fmt.Sprintf("found %d logs in %v table", count, table))
 
 	if count < 1 {
 		return executionLogs, nil
@@ -239,10 +239,10 @@ func (repo *sharedRepo) InsertExecutionLogs(db db.DataStore, committed bool, job
 			repo.logger.Error("failed to insert un committed executions to recovery db", "error", err)
 			return err
 		}
-		err = tx.Commit()
-		if err != nil {
-			repo.logger.Error("failed to commit transition", "error", err)
-			return err
+		commitErr := tx.Commit()
+		if commitErr != nil {
+			repo.logger.Error("failed to commit transition", "error", commitErr)
+			return commitErr
 		}
 	}
 

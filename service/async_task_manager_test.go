@@ -319,7 +319,7 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 
 func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 	ctx, cancelCtx := context.WithCancel(context.Background())
-	cancelCtx()
+	defer cancelCtx()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),

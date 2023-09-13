@@ -34,7 +34,7 @@ func Test_CanAcceptRequest(t *testing.T) {
 	})
 
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -90,6 +90,7 @@ func Test_CanAcceptRequest(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -145,7 +146,7 @@ func Test_CanAcceptClientWriteRequest(t *testing.T) {
 	})
 
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -201,6 +202,7 @@ func Test_CanAcceptClientWriteRequest(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -262,7 +264,7 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 	ctx, cancler := context.WithCancel(bctx)
 	defer cancler()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -296,7 +298,6 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
-	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -316,6 +317,7 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -456,7 +458,7 @@ func Test_getRaftConfiguration(t *testing.T) {
 
 	ctx := context.Background()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -510,6 +512,7 @@ func Test_getRaftConfiguration(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -572,7 +575,7 @@ func Test_getRandomFanInPeerHTTPAddresses(t *testing.T) {
 
 	ctx := context.Background()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -626,6 +629,7 @@ func Test_getRandomFanInPeerHTTPAddresses(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -749,7 +753,7 @@ func Test_selectRandomPeersToFanIn(t *testing.T) {
 
 	ctx := context.Background()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -803,6 +807,7 @@ func Test_selectRandomPeersToFanIn(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -907,7 +912,7 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 	defer os.Unsetenv("TEST_ENV")
 	ctx := context.Background()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -965,6 +970,7 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -1184,9 +1190,10 @@ func Test_handleLeaderChange(t *testing.T) {
 	})
 	os.Setenv("TEST_ENV", "1")
 	defer os.Unsetenv("TEST_ENV")
-	ctx := context.Background()
+	ctx, cancelr := context.WithCancel(context.Background())
+	defer cancelr()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -1215,11 +1222,9 @@ func Test_handleLeaderChange(t *testing.T) {
 		Conf:           raft.DefaultConfig(),
 		ConfigStoreFSM: false,
 		MakeFSMFunc: func() raft.FSM {
-
 			return scheduler0Store.GetFSM()
 		},
 	})
-	defer cluster.Close()
 	cluster.FullyConnect()
 
 	clusterLeader := cluster.Leader()
@@ -1228,7 +1233,7 @@ func Test_handleLeaderChange(t *testing.T) {
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskService := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 	jobExecutionsRepo := repository.NewExecutionsRepo(
 		logger,
@@ -1241,6 +1246,7 @@ func Test_handleLeaderChange(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -1260,12 +1266,11 @@ func Test_handleLeaderChange(t *testing.T) {
 		dispatcher,
 	)
 
-	ctxWithCancel, cancelCtx := context.WithCancel(ctx)
 	nodeHTTPClient := NewMockNodeClient(t)
-	jobService := NewJobService(ctx, logger, jobRepo, queueService, projectRepo, dispatcher, asyncTaskManager)
+	jobService := NewJobService(ctx, logger, jobRepo, queueService, projectRepo, dispatcher, asyncTaskService)
 
 	nodeService := NewNode(
-		ctxWithCancel,
+		ctx,
 		logger,
 		scheduler0config,
 		scheduler0Secrets,
@@ -1277,7 +1282,7 @@ func Test_handleLeaderChange(t *testing.T) {
 		jobExecutionsRepo,
 		jobQueueRepo,
 		sharedRepo,
-		asyncTaskManager,
+		asyncTaskService,
 		dispatcher,
 		nodeHTTPClient,
 	)
@@ -1300,9 +1305,7 @@ func Test_handleLeaderChange(t *testing.T) {
 		strings.Split(cluster.Leader().String(), " ")[2],
 	))
 
-	time.Sleep(time.Second * time.Duration(3))
-
-	asyncTaskManager.ListenForNotifications()
+	asyncTaskService.ListenForNotifications()
 	// Define the input jobs
 	jobs := []models.Job{}
 
@@ -1369,11 +1372,8 @@ func Test_handleLeaderChange(t *testing.T) {
 	if err != nil {
 		t.Fatal("failed to insert execution logs", err)
 	}
-	nodeService.handleLeaderChange()
-	scheduler0Store.UpdateRaft(cluster.Followers()[0])
-	clusterLeader.LeadershipTransfer()
 
-	time.Sleep(time.Second * time.Duration(5))
+	nodeService.handleRaftLeadershipChanges(true)
 
 	committedLogs, err := sharedRepo.GetExecutionLogs(sqliteDb, true)
 	if err != nil {
@@ -1385,8 +1385,7 @@ func Test_handleLeaderChange(t *testing.T) {
 	assert.Equal(t, false, nodeService.jobExecutor.GetSingleNodeMode())
 	assert.Equal(t, false, nodeService.asyncTaskManager.GetSingleNodeMode())
 	assert.Equal(t, len(uncommittedExecutionsLogs), len(committedLogs))
-
-	cancelCtx()
+	fmt.Println("Last last")
 }
 
 func Test_commitFetchedUnCommittedLogs(t *testing.T) {
@@ -1400,7 +1399,7 @@ func Test_commitFetchedUnCommittedLogs(t *testing.T) {
 	defer os.Unsetenv("TEST_ENV")
 	ctx := context.Background()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -1458,6 +1457,7 @@ func Test_commitFetchedUnCommittedLogs(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -1559,7 +1559,7 @@ func Test_handleUncommittedAsyncTasks(t *testing.T) {
 	defer os.Unsetenv("TEST_ENV")
 	ctx := context.Background()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -1617,6 +1617,7 @@ func Test_handleUncommittedAsyncTasks(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -1753,7 +1754,7 @@ func Test_authRaftConfiguration(t *testing.T) {
 	defer os.Unsetenv("TEST_ENV")
 	ctx := context.Background()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -1808,6 +1809,7 @@ func Test_authRaftConfiguration(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -1909,7 +1911,7 @@ func Test_recoverRaftState(t *testing.T) {
 	defer os.Unsetenv("TEST_ENV")
 	ctx := context.Background()
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
+		Name:  "node-service-test",
 		Level: hclog.LevelFromString("trace"),
 	})
 
@@ -1963,6 +1965,7 @@ func Test_recoverRaftState(t *testing.T) {
 	}
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,

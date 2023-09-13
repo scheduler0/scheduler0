@@ -78,6 +78,7 @@ type Node struct {
 	dispatcher            *utils.Dispatcher
 	fanIns                sync.Map // models.PeerFanIn
 	fanInCh               chan models.PeerFanIn
+	completedFanInCh      sync.Map
 	scheduler0Config      config.Scheduler0Config
 	scheduler0Secrets     secrets.Scheduler0Secrets
 	scheduler0RaftActions fsm.Scheduler0RaftActions
@@ -146,8 +147,6 @@ func (node *Node) Boostrap() {
 	}
 	node.FsmStore.UpdateRaft(rft)
 	node.jobExecutor.UpdateRaft(rft)
-	node.handleLeaderChange()
-
 	myObserver := raft.NewObserver(node.peerObserverChannels, true, func(o *raft.Observation) bool {
 		_, peerObservation := o.Data.(raft.PeerObservation)
 		_, resumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
@@ -156,7 +155,8 @@ func (node *Node) Boostrap() {
 
 	rft.RegisterObserver(myObserver)
 	node.beginAcceptingClientRequest()
-	node.listenOnInputQueues(node.FsmStore)
+
+	go node.listenOnInputQueues(node.FsmStore)
 }
 
 func (node *Node) ReturnUncommittedLogs(requestId string) {
@@ -508,57 +508,66 @@ func (node *Node) recoverJobsOnNode(peerId raft.ServerID) {
 	}
 }
 
-func (node *Node) handleLeaderChange() {
-	go func() {
-		select {
-		case isLeader := <-node.FsmStore.GetRaft().LeaderCh():
-			node.stopAcceptingClientWriteRequest()
-			configuration := node.FsmStore.GetRaft().GetConfiguration().Configuration()
-			servers := configuration.Servers
-			nodeIds := []uint64{}
-			for _, server := range servers {
-				nodeId, err := utils.GetNodeIdWithRaftAddress(server.Address)
-				if err != nil {
-					log.Fatalln("failed to get node id for raft address", server.Address)
-				}
-				nodeIds = append(nodeIds, uint64(nodeId))
-			}
-			node.jobQueue.RemoveServers(nodeIds)
-
-			if isLeader {
-				node.jobQueue.AddServers(nodeIds)
-				node.stopAllJobsOnAllNodes()
-
-				node.jobQueue.SingleNodeMode = len(servers) == 1
-				node.jobExecutor.SetSingleNodeMode(node.jobQueue.SingleNodeMode)
-				node.SingleNodeMode = node.jobQueue.SingleNodeMode
-				node.asyncTaskManager.SetSingleNodeMode(node.jobQueue.SingleNodeMode)
-				if !node.SingleNodeMode {
-					uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
-					uncommittedAsyncTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
-					if err != nil {
-						log.Fatalln("failed to get uncommitted async tasks after leader selection", "error", err.Error())
-					}
-					localData := models.LocalData{
-						ExecutionLogs: uncommittedLogs,
-						AsyncTasks:    uncommittedAsyncTasks,
-					}
-					node.commitLocalData(utils.GetServerHTTPAddress(), localData)
-					node.handleUncommittedAsyncTasks(uncommittedAsyncTasks)
-					node.fanInLocalDataFromPeers()
-				} else {
-					if node.isExistingNode {
-						node.jobProcessor.RecoverJobs()
-					} else {
-						node.jobProcessor.StartJobs()
-					}
-					node.beginAcceptingClientWriteRequest()
-				}
-			}
-		case <-node.ctx.Done():
-			return
+func (node *Node) handleRaftLeadershipChanges(isLeader bool) {
+	node.stopAcceptingClientWriteRequest()
+	configuration := node.FsmStore.GetRaft().GetConfiguration().Configuration()
+	servers := configuration.Servers
+	nodeIds := []uint64{}
+	for _, server := range servers {
+		nodeId, err := utils.GetNodeIdWithRaftAddress(server.Address)
+		if err != nil {
+			log.Fatalln("failed to get node id for raft address", server.Address)
 		}
-	}()
+		nodeIds = append(nodeIds, uint64(nodeId))
+	}
+	node.jobQueue.RemoveServers(nodeIds)
+
+	if isLeader {
+		node.jobQueue.AddServers(nodeIds)
+		node.stopAllJobsOnAllNodes()
+
+		node.jobQueue.SingleNodeMode = len(servers) == 1
+		node.jobExecutor.SetSingleNodeMode(node.jobQueue.SingleNodeMode)
+		node.SingleNodeMode = node.jobQueue.SingleNodeMode
+		node.asyncTaskManager.SetSingleNodeMode(node.jobQueue.SingleNodeMode)
+		if !node.SingleNodeMode {
+			uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
+			uncommittedAsyncTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
+			if err != nil {
+				log.Fatalln("failed to get uncommitted async tasks after leader selection", "error", err.Error())
+			}
+			localData := models.LocalData{
+				ExecutionLogs: uncommittedLogs,
+				AsyncTasks:    uncommittedAsyncTasks,
+			}
+			node.commitLocalData(utils.GetServerHTTPAddress(), localData)
+			node.handleUncommittedAsyncTasks(uncommittedAsyncTasks)
+			node.fanInLocalDataFromPeers()
+		} else {
+			if node.isExistingNode {
+				node.jobProcessor.RecoverJobs()
+			} else {
+				node.jobProcessor.StartJobs()
+			}
+			node.beginAcceptingClientWriteRequest()
+		}
+	}
+}
+
+func (node *Node) handleRaftObserverChannelChanges(o raft.Observation) {
+	peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
+	resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
+
+	if isPeerObservation && !peerObservation.Removed {
+		node.logger.Debug("A new node joined the cluster")
+	}
+	if isPeerObservation && peerObservation.Removed {
+		node.logger.Debug("A node got removed from the cluster")
+	}
+	if isResumedHeartbeatObservation {
+		node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
+		node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
+	}
 }
 
 func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
@@ -586,6 +595,20 @@ func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
 				node.logger.Error("failed to update state of uncommitted job executor async tasks to success", "error", err.Message)
 			}
 		}
+	}
+}
+
+func (node *Node) handleCompletedPeerFanIn(peerFanIn models.PeerFanIn) {
+	configs := node.scheduler0Config.GetConfigurations()
+	node.completedFanInCh.Store(peerFanIn.PeerHTTPAddress, peerFanIn)
+	completed := 0
+	node.completedFanInCh.Range(func(key, value any) bool {
+		completed += 1
+		return true
+	})
+	if completed == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
+		node.jobProcessor.StartJobs()
+		node.beginAcceptingClientWriteRequest()
 	}
 }
 
@@ -695,35 +718,16 @@ func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) [
 }
 
 func (node *Node) listenOnInputQueues(fsmStr fsm.Scheduler0RaftStore) {
-	node.logger.Info("begin listening input queues")
-	configs := node.scheduler0Config.GetConfigurations()
-	completedFanIns := make(map[string]models.PeerFanIn)
-	mtx := sync.Mutex{}
+	node.logger.Info("begin listening on input channels")
 
 	for {
 		select {
+		case isLeader := <-node.FsmStore.GetRaft().LeaderCh():
+			node.handleRaftLeadershipChanges(isLeader)
 		case o := <-node.peerObserverChannels:
-			peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
-			resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
-
-			if isPeerObservation && !peerObservation.Removed {
-				node.logger.Debug("A new node joined the cluster")
-			}
-			if isPeerObservation && peerObservation.Removed {
-				node.logger.Debug("A node got removed from the cluster")
-			}
-			if isResumedHeartbeatObservation {
-				node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
-				node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
-			}
+			node.handleRaftObserverChannelChanges(o)
 		case peerFanIn := <-node.fanInCh:
-			mtx.Lock()
-			completedFanIns[peerFanIn.PeerHTTPAddress] = peerFanIn
-			if len(completedFanIns) == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
-				node.jobProcessor.StartJobs()
-				node.beginAcceptingClientWriteRequest()
-			}
-			mtx.Unlock()
+			node.handleCompletedPeerFanIn(peerFanIn)
 		case job := <-fsmStr.GetQueueJobsChannel():
 			node.jobExecutor.QueueExecutions(job)
 		case _ = <-fsmStr.GetRecoverJobsChannel():

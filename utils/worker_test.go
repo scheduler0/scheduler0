@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"scheduler0/models"
 	"testing"
 )
@@ -10,11 +11,14 @@ func Test_Workers(t *testing.T) {
 	t.Run("should execute callback when work is queued", func(t *testing.T) {
 		pool := make(chan chan models.Work, 1)
 
+		ctx, canceler := context.WithCancel(context.Background())
+		defer canceler()
+
 		callback := func(effector func(s chan any, e chan any), s chan any, e chan any) {
 			effector(s, e)
 		}
 
-		worker := NewWorker(pool, callback)
+		worker := NewWorker(ctx, pool, callback)
 
 		worker.Start()
 

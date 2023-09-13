@@ -61,6 +61,7 @@ func Test_CredentialService_CreateNewCredential(t *testing.T) {
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -119,6 +120,7 @@ func Test_CredentialService_UpdateOneCredential(t *testing.T) {
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -214,6 +216,7 @@ func Test_CredentialService_DeleteOneCredential(t *testing.T) {
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -279,6 +282,7 @@ func Test_CredentialService_ListCredentials(t *testing.T) {
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
@@ -393,6 +397,7 @@ func Test_CredentialService_ValidateServerAPIKey(t *testing.T) {
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
 		callback,
