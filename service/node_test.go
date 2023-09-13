@@ -1375,6 +1375,8 @@ func Test_handleLeaderChange(t *testing.T) {
 
 	nodeService.handleRaftLeadershipChanges(true)
 
+	time.Sleep(time.Second * time.Duration(2))
+
 	committedLogs, err := sharedRepo.GetExecutionLogs(sqliteDb, true)
 	if err != nil {
 		t.Fatal("failed to get committed execution logs", err)
