@@ -134,7 +134,7 @@ func NewNode(
 	}
 }
 
-func (node *Node) Boostrap() {
+func (node *Node) Start() {
 	if node.isExistingNode {
 		node.logger.Info("discovered existing raft dir")
 		node.recoverRaftState()
@@ -723,17 +723,17 @@ func (node *Node) listenOnInputQueues(fsmStr fsm.Scheduler0RaftStore) {
 	for {
 		select {
 		case isLeader := <-node.FsmStore.GetRaft().LeaderCh():
-			node.handleRaftLeadershipChanges(isLeader)
+			go node.handleRaftLeadershipChanges(isLeader)
 		case o := <-node.peerObserverChannels:
-			node.handleRaftObserverChannelChanges(o)
+			go node.handleRaftObserverChannelChanges(o)
 		case peerFanIn := <-node.fanInCh:
-			node.handleCompletedPeerFanIn(peerFanIn)
+			go node.handleCompletedPeerFanIn(peerFanIn)
 		case job := <-fsmStr.GetQueueJobsChannel():
-			node.jobExecutor.QueueExecutions(job)
+			go node.jobExecutor.QueueExecutions(job)
 		case _ = <-fsmStr.GetRecoverJobsChannel():
-			node.jobProcessor.RecoverJobs()
+			go node.jobProcessor.RecoverJobs()
 		case _ = <-fsmStr.GetStopAllJobsChannel():
-			node.jobExecutor.StopAll()
+			go node.jobExecutor.StopAll()
 		case <-node.ctx.Done():
 			return
 		}

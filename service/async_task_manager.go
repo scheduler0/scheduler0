@@ -134,7 +134,7 @@ func (m *asyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 	}
 	t, ok := m.task.Load(tId)
 	if !ok {
-		m.logger.Error("could not find task with request id task id", requestId)
+		m.logger.Error("could not find task with request id task id", "request-id", requestId)
 		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find task with request id task id %v", requestId))
 	}
 	myT := t.(models.AsyncTask)
@@ -150,16 +150,16 @@ func (m *asyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 	} else {
 		f := m.fsm.GetRaft().VerifyLeader()
 		if f.Error() != nil {
-			m.logger.Error("error updating async task with request id, cannot verify raft leadership. raft-error:", f.Error())
+			m.logger.Error("error updating async task with request id, cannot verify raft leadership.", "raft-error", f.Error())
 			err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
 			if err != nil {
-				m.logger.Error("could not update task with id", requestId)
+				m.logger.Error("could not update task with id", "request-id", requestId)
 				return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
 			}
 		} else {
 			err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)
 			if err != nil {
-				m.logger.Error("could not update task with id", requestId)
+				m.logger.Error("could not update task with id", "request-id", requestId)
 				return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
 			}
 		}
