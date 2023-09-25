@@ -22,13 +22,13 @@ type Scheduler0RaftActions struct {
 	mock.Mock
 }
 
-// ApplyRaftLog provides a mock function with given fields: logger, l, _a2, useQueues, queue, stopAllJobsQueue, recoverJobsQueue
-func (_m *Scheduler0RaftActions) ApplyRaftLog(logger hclog.Logger, l *raft.Log, _a2 db.DataStore, useQueues bool, queue chan []interface{}, stopAllJobsQueue chan bool, recoverJobsQueue chan bool) interface{} {
-	ret := _m.Called(logger, l, _a2, useQueues, queue, stopAllJobsQueue, recoverJobsQueue)
+// ApplyRaftLog provides a mock function with given fields: logger, l, _a2, useQueues, queue
+func (_m *Scheduler0RaftActions) ApplyRaftLog(logger hclog.Logger, l *raft.Log, _a2 db.DataStore, useQueues bool, queue chan []interface{}) interface{} {
+	ret := _m.Called(logger, l, _a2, useQueues, queue)
 
 	var r0 interface{}
-	if rf, ok := ret.Get(0).(func(hclog.Logger, *raft.Log, db.DataStore, bool, chan []interface{}, chan bool, chan bool) interface{}); ok {
-		r0 = rf(logger, l, _a2, useQueues, queue, stopAllJobsQueue, recoverJobsQueue)
+	if rf, ok := ret.Get(0).(func(hclog.Logger, *raft.Log, db.DataStore, bool, chan []interface{}) interface{}); ok {
+		r0 = rf(logger, l, _a2, useQueues, queue)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(interface{})

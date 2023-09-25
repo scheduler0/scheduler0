@@ -214,7 +214,7 @@ func TestExpandIdsRange(t *testing.T) {
 
 func Test_GetNodeServerAddressWithRaftAddress(t *testing.T) {
 	os.Setenv("SCHEDULER0_REPLICAS", `[{"nodeId":1, "address":"localhost:1234", "raft_address":"localhost:6789"}]`)
-	defer os.Remove("SCHEDULER0_REPLICAS")
+	defer os.Unsetenv("SCHEDULER0_REPLICAS")
 
 	raftServerAddress := raft.ServerAddress("localhost:6789")
 	nodeServerAddress := GetNodeServerAddressWithRaftAddress(raftServerAddress)
@@ -223,7 +223,7 @@ func Test_GetNodeServerAddressWithRaftAddress(t *testing.T) {
 
 func Test_GetNodeIdWithRaftAddress(t *testing.T) {
 	os.Setenv("SCHEDULER0_REPLICAS", `[{"nodeId":1, "address":"localhost:1234", "raft_address":"localhost:6789"}]`)
-	defer os.Remove("SCHEDULER0_REPLICAS")
+	defer os.Unsetenv("SCHEDULER0_REPLICAS")
 
 	nodeId, err := GetNodeIdWithServerAddress("localhost:1234")
 	assert.Equal(t, err, nil)

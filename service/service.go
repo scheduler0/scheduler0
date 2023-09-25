@@ -23,10 +23,10 @@ type Service struct {
 	JobService         JobService
 	ProjectService     ProjectService
 	CredentialService  CredentialService
-	JobExecutorService *JobExecutor
+	JobExecutorService JobExecutor
 	NodeService        *Node
 	JobQueueService    *JobQueue
-	AsyncTaskManager   *AsyncTaskManager
+	AsyncTaskManager   AsyncTaskManager
 }
 
 func NewService(ctx context.Context, logger hclog.Logger) *Service {
@@ -42,11 +42,9 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 		log.Fatal("failed to set timezone for s")
 	}
 	dispatcher := utils.NewDispatcher(
+		serviceCtx,
 		int64(configs.MaxWorkers),
 		int64(configs.MaxQueue),
-		func(effector func(successChannel, errorChannel chan any), successChannel, errorChannel chan any) {
-			effector(successChannel, errorChannel)
-		},
 	)
 	sqliteDb := db.CreateConnectionFromNewDbIfNonExists(logger)
 	sharedRep := shared_repo.NewSharedRepo(logger, scheduler0Configs)
@@ -108,6 +106,7 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 
 	service.Dispatcher = dispatcher
 	service.Dispatcher.Run()
+	nodeService.ConnectRaftLogsAndTransport()
 	service.JobExecutorService.ListenForJobsToInvoke()
 	service.AsyncTaskManager.ListenForNotifications()
 

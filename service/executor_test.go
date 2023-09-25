@@ -49,7 +49,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -59,10 +59,12 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -75,14 +77,10 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -102,7 +100,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -143,7 +141,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -154,9 +152,9 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		int64(2),
 	})
 
-	_, ok := service.scheduledJobs.Load(jobs[0].ID)
+	_, ok := service.GetScheduledJobs().Load(jobs[0].ID)
 	assert.Equal(t, ok, true)
-	_, ok = service.scheduledJobs.Load(jobs[1].ID)
+	_, ok = service.GetScheduledJobs().Load(jobs[1].ID)
 	assert.Equal(t, ok, true)
 }
 
@@ -185,7 +183,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -195,10 +193,12 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -211,14 +211,10 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -238,7 +234,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -275,7 +271,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -287,7 +283,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 
 	i = 0
 	for i < constants.JobMaxBatchSize+99 {
-		_, ok := service.scheduledJobs.Load(jobs[i].ID)
+		_, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 		assert.Equal(t, ok, true)
 		i++
 	}
@@ -318,7 +314,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -328,10 +324,12 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -344,14 +342,10 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -371,7 +365,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -408,7 +402,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 	time.Sleep(time.Second * time.Duration(4))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "2")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -421,7 +415,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 
 	i = 0
 	for i < constants.JobMaxBatchSize+99 {
-		_, ok := service.scheduledJobs.Load(jobs[i].ID)
+		_, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 		assert.Equal(t, ok, false)
 		i++
 	}
@@ -463,7 +457,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		// Create a new FSM store
 		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-		// Create a mock Raft cluster
+		// Create a mock raft cluster
 		cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 			Peers:          1,
 			Bootstrap:      true,
@@ -473,10 +467,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 				return scheduler0Store.GetFSM()
 			},
 		})
+		defer cluster.Close()
 		cluster.FullyConnect()
 		scheduler0Store.UpdateRaft(cluster.Leader())
 
-		ctx := context.Background()
+		ctx, canceler := context.WithCancel(context.Background())
+		defer canceler()
 
 		jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 		projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -489,14 +485,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			scheduler0Store,
 		)
 
-		callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-			effector(successCh, errorCh)
-		}
-
 		dispatcher := utils.NewDispatcher(
+			ctx,
 			int64(1),
 			int64(1),
-			callback,
 		)
 
 		dispatcher.Run()
@@ -516,7 +508,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			dispatcher,
 		)
 
-		asyncTaskManager.SingleNodeMode = true
+		asyncTaskManager.SetSingleNodeMode(true)
 		asyncTaskManager.ListenForNotifications()
 
 		// Define the input jobs
@@ -563,7 +555,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		time.Sleep(time.Second * time.Duration(1))
 
 		serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-		defer os.Remove("SCHEDULER0_NODE_ID")
+		defer os.Unsetenv("SCHEDULER0_NODE_ID")
 		if serr != nil {
 			t.Fatal("failed to set env", serr)
 		}
@@ -608,7 +600,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		i = 0
 		for i < 99 {
-			sched, ok := service.scheduledJobs.Load(jobs[i].ID)
+			sched, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
 			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime).Round(1*time.Second) < time.Duration(1)*time.Second, true)
 			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime).Round(1*time.Second) > time.Duration(-1)*time.Second, true)
@@ -654,7 +646,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		// Create a new FSM store
 		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-		// Create a mock Raft cluster
+		// Create a mock raft cluster
 		cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 			Peers:          1,
 			Bootstrap:      true,
@@ -664,10 +656,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 				return scheduler0Store.GetFSM()
 			},
 		})
+		defer cluster.Close()
 		cluster.FullyConnect()
 		scheduler0Store.UpdateRaft(cluster.Leader())
 
-		ctx := context.Background()
+		ctx, canceler := context.WithCancel(context.Background())
+		defer canceler()
 
 		jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 		projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -680,14 +674,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			scheduler0Store,
 		)
 
-		callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-			effector(successCh, errorCh)
-		}
-
 		dispatcher := utils.NewDispatcher(
+			ctx,
 			int64(1),
 			int64(1),
-			callback,
 		)
 
 		dispatcher.Run()
@@ -707,7 +697,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			dispatcher,
 		)
 
-		asyncTaskManager.SingleNodeMode = true
+		asyncTaskManager.SetSingleNodeMode(true)
 		asyncTaskManager.ListenForNotifications()
 
 		// Define the input jobs
@@ -757,7 +747,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		time.Sleep(time.Second * time.Duration(4))
 
 		serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-		defer os.Remove("SCHEDULER0_NODE_ID")
+		defer os.Unsetenv("SCHEDULER0_NODE_ID")
 		if serr != nil {
 			t.Fatal("failed to set env", serr)
 		}
@@ -802,7 +792,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		i = 0
 		for i < 99 {
-			sched, ok := service.scheduledJobs.Load(jobs[i].ID)
+			sched, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
 			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(time.Duration(4)*time.Second)).Round(time.Minute*1) < time.Duration(1)*time.Second, true)
 			assert.Equal(t, ok, true)
@@ -847,7 +837,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		// Create a new FSM store
 		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-		// Create a mock Raft cluster
+		// Create a mock raft cluster
 		cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 			Peers:          1,
 			Bootstrap:      true,
@@ -857,10 +847,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 				return scheduler0Store.GetFSM()
 			},
 		})
+		defer cluster.Close()
 		cluster.FullyConnect()
 		scheduler0Store.UpdateRaft(cluster.Leader())
 
-		ctx := context.Background()
+		ctx, canceler := context.WithCancel(context.Background())
+		defer canceler()
 
 		jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 		projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -873,14 +865,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			scheduler0Store,
 		)
 
-		callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-			effector(successCh, errorCh)
-		}
-
 		dispatcher := utils.NewDispatcher(
+			ctx,
 			int64(1),
 			int64(1),
-			callback,
 		)
 
 		dispatcher.Run()
@@ -900,7 +888,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			dispatcher,
 		)
 
-		asyncTaskManager.SingleNodeMode = true
+		asyncTaskManager.SetSingleNodeMode(true)
 		asyncTaskManager.ListenForNotifications()
 
 		// Define the input jobs
@@ -950,7 +938,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		time.Sleep(time.Second * time.Duration(4))
 
 		serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-		defer os.Remove("SCHEDULER0_NODE_ID")
+		defer os.Unsetenv("SCHEDULER0_NODE_ID")
 		if serr != nil {
 			t.Fatal("failed to set env", serr)
 		}
@@ -995,7 +983,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		i = 0
 		for i < 99 {
-			sched, ok := service.scheduledJobs.Load(jobs[i].ID)
+			sched, ok := service.GetScheduledJobs().Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
 			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(time.Duration(4)*time.Second)).Round(time.Minute*1) < time.Duration(1)*time.Second, true)
 			assert.Equal(t, ok, true)
@@ -1029,7 +1017,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -1039,10 +1027,12 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -1055,14 +1045,10 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -1082,7 +1068,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -1103,7 +1089,8 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	go func() {
 		ln, err := net.Listen("tcp", "127.0.0.1:")
 		if err != nil {
-			t.Fatal("failed to create tcp listener", err)
+			t.Error("failed to create tcp listener", err)
+			return
 		}
 		testMux := http.NewServeMux()
 		testMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
@@ -1113,7 +1100,8 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 		callbackUrl = ln.Addr().String()
 		err = http.Serve(ln, testMux)
 		if err != nil {
-			t.Fatal("failed to listen and serve http request", err)
+			t.Error("failed to listen and serve http request", err)
+			return
 		}
 		time.Sleep(1*time.Minute + 2*time.Second)
 		ln.Close()
@@ -1156,14 +1144,14 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
 
 	service.ListenForJobsToInvoke()
 
-	service.scheduledJobs.Store(1, models.JobSchedule{
+	service.GetScheduledJobs().Store(1, models.JobSchedule{
 		Job:           job,
 		ExecutionTime: schedulerTime.GetTime(nextTime),
 	})
@@ -1197,7 +1185,7 @@ func Test_handleFailedJobs(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -1207,10 +1195,12 @@ func Test_handleFailedJobs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -1223,14 +1213,10 @@ func Test_handleFailedJobs(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -1250,7 +1236,7 @@ func Test_handleFailedJobs(t *testing.T) {
 		dispatcher,
 	)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -1286,13 +1272,13 @@ func Test_handleFailedJobs(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
 
 	serr = os.Setenv("SCHEDULER0_JOB_EXECUTION_RETRY_MAX", "2")
-	defer os.Remove("SCHEDULER0_JOB_EXECUTION_RETRY_MAX")
+	defer os.Unsetenv("SCHEDULER0_JOB_EXECUTION_RETRY_MAX")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -1307,7 +1293,7 @@ func Test_handleFailedJobs(t *testing.T) {
 	nextTime := schedule.Next(now)
 	lastTime := nextTime.Add(-nextTime.Sub(now))
 
-	service.jobExecutionsCache.Store(uint64(1), models.MemJobExecution{
+	service.GetExecutionsCache().Store(uint64(1), models.MemJobExecution{
 		ExecutionVersion:      1,
 		FailCount:             0,
 		LastState:             models.ExecutionLogFailedState,
@@ -1315,18 +1301,18 @@ func Test_handleFailedJobs(t *testing.T) {
 		NextExecutionDatetime: nextTime,
 	})
 
-	service.Raft = scheduler0Store.GetRaft()
+	service.UpdateRaft(scheduler0Store.GetRaft())
 	service.handleFailedJobs([]models.Job{job})
 
 	time.Sleep(time.Second * 2)
 
-	exec, ok := service.jobExecutionsCache.Load(uint64(1))
+	exec, ok := service.GetExecutionsCache().Load(uint64(1))
 	if !ok {
 		t.Fatal("should store job execution in cache")
 	}
 	cachedJobExecutionLog := (exec).(models.MemJobExecution)
 	assert.Equal(t, 1, int(cachedJobExecutionLog.FailCount))
-	uncommittedExecutionLogsCount := service.jobExecutionsRepo.CountExecutionLogs(false)
+	uncommittedExecutionLogsCount := jobExecutionsRepo.CountExecutionLogs(false)
 	assert.Equal(t, 1, int(uncommittedExecutionLogsCount))
 }
 
@@ -1355,7 +1341,7 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -1365,10 +1351,12 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -1381,14 +1369,10 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -1408,9 +1392,9 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 		dispatcher,
 	)
 
-	service.Raft = scheduler0Store.GetRaft()
+	service.UpdateRaft(scheduler0Store.GetRaft())
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -1446,7 +1430,7 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(1))
 
 	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
@@ -1454,7 +1438,7 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 	service.logJobExecutionStateInRaft(jobs, models.ExecutionLogScheduleState, map[uint64]uint64{1: 1})
 	time.Sleep(time.Second * time.Duration(1))
 
-	uncommittedExecutionLogsCount := service.jobExecutionsRepo.CountExecutionLogs(true)
+	uncommittedExecutionLogsCount := jobExecutionsRepo.CountExecutionLogs(true)
 	assert.Equal(t, 1, int(uncommittedExecutionLogsCount))
 }
 
@@ -1483,7 +1467,7 @@ func Test_StopAll(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -1493,10 +1477,12 @@ func Test_StopAll(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -1509,14 +1495,10 @@ func Test_StopAll(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -1536,9 +1518,9 @@ func Test_StopAll(t *testing.T) {
 		dispatcher,
 	)
 
-	service.Raft = scheduler0Store.GetRaft()
+	service.UpdateRaft(scheduler0Store.GetRaft())
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs

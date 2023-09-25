@@ -1,27 +1,30 @@
 package utils
 
-import "scheduler0/models"
+import (
+	"context"
+	"scheduler0/models"
+)
 
 type Dispatcher struct {
+	ctx        context.Context
 	inputQueue chan models.Work
 	workerPool chan chan models.Work
 	maxWorkers int64
-	callback   func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)
 }
 
-func NewDispatcher(maxWorkers int64, maxQueue int64, callback func(effector func(successChannel chan any, errorChannel chan any), successChannel chan any, errorChannel chan any)) *Dispatcher {
+func NewDispatcher(ctx context.Context, maxWorkers int64, maxQueue int64) *Dispatcher {
 	pool := make(chan chan models.Work, maxWorkers)
 	return &Dispatcher{
 		workerPool: pool,
+		ctx:        ctx,
 		maxWorkers: maxWorkers,
-		callback:   callback,
 		inputQueue: make(chan models.Work, maxQueue),
 	}
 }
 
 func (dispatcher *Dispatcher) Run() {
 	for i := 0; int64(i) < dispatcher.maxWorkers; i++ {
-		worker := NewWorker(dispatcher.workerPool, dispatcher.callback)
+		worker := NewWorker(dispatcher.ctx, dispatcher.workerPool)
 		worker.Start()
 	}
 
@@ -36,6 +39,8 @@ func (dispatcher *Dispatcher) dispatch() {
 				workerQueue := <-dispatcher.workerPool
 				workerQueue <- i
 			}(input)
+		case <-dispatcher.ctx.Done():
+			return
 		}
 	}
 }

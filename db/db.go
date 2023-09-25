@@ -111,7 +111,6 @@ func (db *dataStore) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx,
 }
 
 func (db *dataStore) RunMigration() {
-
 	if !db.isInMemDb {
 		fs := afero.NewOsFs()
 

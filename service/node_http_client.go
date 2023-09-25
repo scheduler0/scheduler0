@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"io"
@@ -19,6 +20,7 @@ type nodeHTTPClient struct {
 	logger            hclog.Logger
 	scheduler0Configs config.Scheduler0Config
 	scheduler0Secrets secrets.Scheduler0Secrets
+	httpClient        *http.Client
 }
 
 func NewHTTPClient(logger hclog.Logger, scheduler0Configs config.Scheduler0Config, scheduler0Secrets secrets.Scheduler0Secrets) NodeClient {
@@ -26,23 +28,25 @@ func NewHTTPClient(logger hclog.Logger, scheduler0Configs config.Scheduler0Confi
 		logger:            logger,
 		scheduler0Configs: scheduler0Configs,
 		scheduler0Secrets: scheduler0Secrets,
+		httpClient:        &http.Client{},
 	}
 }
 
 func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase1(ctx context.Context, node *Node, peerFanIns []models.PeerFanIn) {
 	for _, peerFanIn := range peerFanIns {
-		httpClient := &http.Client{}
 		httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/v1/execution-logs", peerFanIn.PeerHTTPAddress), nil)
 		if reqErr != nil {
 			node.logger.Error("failed to create request to execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", reqErr.Error())
+			node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 		} else {
 			httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
 			httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
 			secret := node.scheduler0Secrets.GetSecrets()
 			httpRequest.SetBasicAuth(secret.AuthUsername, secret.AuthPassword)
-			res, err := httpClient.Do(httpRequest)
+			res, err := client.httpClient.Do(httpRequest)
 			if err != nil {
 				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
+				node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 			} else {
 				if res.StatusCode == http.StatusAccepted {
 					location := res.Header.Get("Location")
@@ -50,12 +54,15 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase1(ctx context.Con
 					closeErr := res.Body.Close()
 					if closeErr != nil {
 						node.logger.Error("failed to close body", "error", closeErr.Error())
+						node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
+						return
 					}
 					peerFanIn.State = models.PeerFanInStateGetRequestId
 					node.fanIns.Store(peerFanIn.PeerHTTPAddress, peerFanIn)
 					node.logger.Info("successfully fetch execution logs from", "node address", peerFanIn.PeerHTTPAddress)
 				} else {
 					node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
+					node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 				}
 			}
 		}
@@ -76,25 +83,30 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase2(ctx context.Con
 			res, err := httpClient.Do(httpRequest)
 			if err != nil {
 				node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", err.Error())
+				node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 			} else {
 				if res.StatusCode == http.StatusOK {
 					data, readErr := io.ReadAll(res.Body)
 					if readErr != nil {
 						node.logger.Error("failed to read uncommitted execution logs from", peerFanIn.PeerHTTPAddress, "error", readErr.Error())
+						node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 					} else {
 						var asyncTaskRes models.AsyncTaskRes
 						marshalErr := json.Unmarshal([]byte(data), &asyncTaskRes)
 						if marshalErr != nil {
+							node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 							node.logger.Error("failed to read uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
 						} else {
 							var localData models.LocalData
 							marshalErr = json.Unmarshal([]byte(asyncTaskRes.Data.Output), &localData)
 							if marshalErr != nil {
+								node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 								node.logger.Error("failed to read uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "error", marshalErr.Error())
 							} else {
 								peerFanIn.Data = localData
 								closeErr := res.Body.Close()
 								if closeErr != nil {
+									node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 									node.logger.Error("failed to close body", "error", closeErr.Error())
 								} else {
 									peerFanIn.State = models.PeerFanInStateGetExecutionsLogs
@@ -106,11 +118,11 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase2(ctx context.Con
 					}
 				} else {
 					node.logger.Error("failed to get uncommitted execution logs from", "node address", peerFanIn.PeerHTTPAddress, "state code", res.StatusCode)
+					node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 				}
 			}
 		}
 	}
-
 }
 
 func (client nodeHTTPClient) ConnectNode(rep config.RaftNode) (*Status, error) {
@@ -190,4 +202,66 @@ func (client nodeHTTPClient) ConnectNode(rep config.RaftNode) (*Status, error) {
 		IsLeader:           false,
 		LastConnectionTime: connectionTime,
 	}, nil
+}
+
+func (client nodeHTTPClient) StopJobs(ctx context.Context, node *Node, peer config.RaftNode) error {
+	httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%v/v1/stop-jobs", peer.Address), nil)
+	if reqErr != nil {
+		client.logger.Error("failed to create request to stop jobs", "node address", peer.Address, "error", reqErr.Error())
+		return reqErr
+	} else {
+		httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
+		httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
+		secret := node.scheduler0Secrets.GetSecrets()
+		httpRequest.SetBasicAuth(secret.AuthUsername, secret.AuthPassword)
+		res, err := client.httpClient.Do(httpRequest)
+		if err != nil {
+			node.logger.Error("failed to get stop jobs on", "node address", peer.Address, "error", err.Error())
+			return err
+		} else {
+			if res.StatusCode == http.StatusAccepted {
+				closeErr := res.Body.Close()
+				if closeErr != nil {
+					node.logger.Error("failed to close body", "error", closeErr.Error())
+					return closeErr
+				}
+				node.logger.Info("successfully stopped jobs on", "node address", peer.Address)
+			} else {
+				node.logger.Error("failed to stopped jobs on", "node address", peer.Address, "state code", res.StatusCode)
+				return errors.New("failed to stop jobs")
+			}
+		}
+	}
+	return nil
+}
+
+func (client nodeHTTPClient) StartJobs(ctx context.Context, node *Node, peer config.RaftNode) error {
+	httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%v/v1/start-jobs", peer.Address), nil)
+	if reqErr != nil {
+		client.logger.Error("failed to create request to start jobs from", "node address", peer.Address, "error", reqErr.Error())
+		return reqErr
+	} else {
+		httpRequest.Header.Set(headers.PeerHeader, headers.PeerHeaderValue)
+		httpRequest.Header.Set(headers.PeerAddressHeader, utils.GetServerHTTPAddress())
+		secret := node.scheduler0Secrets.GetSecrets()
+		httpRequest.SetBasicAuth(secret.AuthUsername, secret.AuthPassword)
+		res, err := client.httpClient.Do(httpRequest)
+		if err != nil {
+			node.logger.Error("failed to get start jobs on", "node address", peer.Address, "error", err.Error())
+			return err
+		} else {
+			if res.StatusCode == http.StatusAccepted {
+				closeErr := res.Body.Close()
+				if closeErr != nil {
+					node.logger.Error("failed to close body", "error", closeErr.Error())
+					return closeErr
+				}
+				node.logger.Info("successfully started jobs on", "node address", peer.Address)
+			} else {
+				node.logger.Error("failed to start jobs on", "node address", peer.Address, "state code", res.StatusCode)
+				return errors.New("failed to start jobs")
+			}
+		}
+	}
+	return nil
 }

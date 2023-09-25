@@ -22,9 +22,6 @@ func TestNewFSMStore(t *testing.T) {
 	assert.Equal(t, logger.Named("fsm-store").Name(), fsmStore.(*store).logger.Name())
 	assert.Equal(t, db, fsmStore.(*store).dataStore)
 	assert.NotNil(t, fsmStore.(*store).queueJobsChannel)
-	assert.NotNil(t, fsmStore.(*store).localDataChannel)
-	assert.NotNil(t, fsmStore.(*store).stopAllJobs)
-	assert.NotNil(t, fsmStore.(*store).recoverJobs)
 	assert.Equal(t, raftActions, fsmStore.(*store).scheduler0RaftActions)
 }
 
@@ -56,24 +53,6 @@ func TestGetDataStore(t *testing.T) {
 	fsmStore := NewFSMStore(logger, raftActions, db)
 
 	assert.Equal(t, db, fsmStore.GetDataStore())
-}
-
-func TestGetStopAllJobsChannel(t *testing.T) {
-	logger := hclog.New(&hclog.LoggerOptions{})
-	db := mocks.NewDataStore(t)
-	raftActions := mocks.NewScheduler0RaftActions(t)
-	fsmStore := NewFSMStore(logger, raftActions, db)
-
-	assert.NotNil(t, fsmStore.GetStopAllJobsChannel())
-}
-
-func TestGetRecoverJobsChannel(t *testing.T) {
-	logger := hclog.New(&hclog.LoggerOptions{})
-	db := mocks.NewDataStore(t)
-	raftActions := mocks.NewScheduler0RaftActions(t)
-	fsmStore := NewFSMStore(logger, raftActions, db)
-
-	assert.NotNil(t, fsmStore.GetRecoverJobsChannel())
 }
 
 func TestGetQueueJobsChannel(t *testing.T) {
@@ -114,7 +93,7 @@ func TestApply(t *testing.T) {
 	fsmStore.GetFSM().Apply(log)
 
 	// Verify that ApplyRaftLog was called with the expected values
-	actions.AssertCalled(t, "ApplyRaftLog", mock.Anything, log, dataStore, true, fsmStore.GetQueueJobsChannel(), fsmStore.GetStopAllJobsChannel(), fsmStore.GetRecoverJobsChannel())
+	actions.AssertCalled(t, "ApplyRaftLog", mock.Anything, log, dataStore, true, fsmStore.GetQueueJobsChannel())
 }
 
 func TestApplyBatch(t *testing.T) {

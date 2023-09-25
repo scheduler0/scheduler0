@@ -34,7 +34,7 @@ func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -44,6 +44,7 @@ func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -137,7 +138,7 @@ func Test_JobQueuesRepo_GetLastVersion(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -147,6 +148,7 @@ func Test_JobQueuesRepo_GetLastVersion(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 

@@ -47,7 +47,7 @@ package controllers_test
 //		db.PrepareTestDB()
 //	})
 //
-//	Context("TestJobController_CreateOne", func() {
+//	context("TestJobController_CreateOne", func() {
 //
 //		It("Respond with status 400 if request body does not contain required values", func() {
 //			jobFixture := fixtures2.JobFixture{}
@@ -111,11 +111,11 @@ package controllers_test
 //
 //	})
 //
-//	Context("TestJobController_BatchCreate", func() {
+//	context("TestJobController_BatchCreate", func() {
 //
 //	})
 //
-//	Context("TestJobController_GetAll", func() {
+//	context("TestJobController_GetAll", func() {
 //		It("Respond with status 200 and return all created jobs", func() {
 //			projectTransformers := fixtures2.CreateProjectTransformerFixture()
 //			projectRepo.CreateOne(projectTransformers)
@@ -141,7 +141,7 @@ package controllers_test
 //		})
 //	})
 //
-//	Context("TestJobController_UpdateOne", func() {
+//	context("TestJobController_UpdateOne", func() {
 //
 //		It("Respond with status 400 if update attempts to change cron spec", func() {
 //			jobTransformer := models.JobModel{}

@@ -1,6 +1,24 @@
 version: 2.1
+
+orbs:
+  aws-ecr: circleci/aws-ecr@0.0.2
+
+workflows:
+  build-and-deploy:
+    jobs:
+      - aws-ecr/build_and_push_image:
+          account-url: "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+          repo: "${AWS_ECR_REPO}"
+          region: "${AWS_DEFAULT_REGION}"
+          tag: "${CIRCLE_SHA1}"
+          filters:
+            branches:
+              only:
+                - main
+      - build-and-test
+
 jobs:
-  build:
+  build-and-test:
     docker:
       - image: cimg/go:1.18
     steps:

@@ -44,7 +44,7 @@ func Test_JobService_BatchInsertJobs(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -54,10 +54,12 @@ func Test_JobService_BatchInsertJobs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 
 	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
@@ -65,14 +67,10 @@ func Test_JobService_BatchInsertJobs(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -81,7 +79,7 @@ func Test_JobService_BatchInsertJobs(t *testing.T) {
 	// Create a new JobService instance
 	service := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
 
-	asyncTaskManager.SingleNodeMode = true
+	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
 	// Define the input jobs
@@ -166,7 +164,7 @@ func Test_JobService_UpdateJob(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -176,6 +174,7 @@ func Test_JobService_UpdateJob(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -187,14 +186,10 @@ func Test_JobService_UpdateJob(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -273,7 +268,7 @@ func Test_JobService_DeleteJob(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -283,6 +278,7 @@ func Test_JobService_DeleteJob(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -294,14 +290,10 @@ func Test_JobService_DeleteJob(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -375,7 +367,7 @@ func Test_JobService_GetJobsByProjectID(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -385,6 +377,7 @@ func Test_JobService_GetJobsByProjectID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -396,14 +389,10 @@ func Test_JobService_GetJobsByProjectID(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -511,7 +500,7 @@ func Test_JobService_GetJob(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -521,6 +510,7 @@ func Test_JobService_GetJob(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -532,14 +522,10 @@ func Test_JobService_GetJob(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -615,7 +601,7 @@ func Test_JobService_QueueJobs(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -625,6 +611,7 @@ func Test_JobService_QueueJobs(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -636,14 +623,10 @@ func Test_JobService_QueueJobs(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -684,7 +667,7 @@ func Test_JobService_QueueJobs(t *testing.T) {
 	}
 
 	os.Setenv("SCHEDULER0_NODE_ID", "2")
-	defer os.Remove("SCHEDULER0_NODE_ID")
+	defer os.Unsetenv("SCHEDULER0_NODE_ID")
 	// Call the QueueJobs method of the job service
 	jobService.QueueJobs(jobs)
 

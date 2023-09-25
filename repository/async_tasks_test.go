@@ -135,7 +135,7 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -145,6 +145,7 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -193,7 +194,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -203,6 +204,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -257,7 +259,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -267,6 +269,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -336,7 +339,7 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 			asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
-			// Create a mock Raft cluster
+			// Create a mock raft cluster
 			cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 				Peers:          1,
 				Bootstrap:      true,
@@ -346,6 +349,7 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 					return scheduler0Store.GetFSM()
 				},
 			})
+			defer cluster.Close()
 			cluster.FullyConnect()
 			scheduler0Store.UpdateRaft(cluster.Leader())
 

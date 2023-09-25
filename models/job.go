@@ -20,18 +20,18 @@ const (
 // Job job model
 type Job struct {
 	ID                uint64    `json:"id,omitempty" fake:"{number:1,100}"`
-	ProjectID         uint64    `json:"project_id,omitempty" fake:"{number:1,100}"`
+	ProjectID         uint64    `json:"projectId,omitempty" fake:"{number:1,100}"`
 	Spec              string    `json:"spec,omitempty"`
-	CallbackUrl       string    `json:"callback_url,omitempty" fake:"{randomstring:[https://hello.com,https://world.com]}"`
+	CallbackUrl       string    `json:"callbackUrl,omitempty" fake:"{randomstring:[https://hello.com,https://world.com]}"`
 	Data              string    `json:"data,omitempty"`
-	ExecutionType     string    `json:"execution_type,omitempty"`
-	StartDate         time.Time `json:"start_date,omitempty"`
-	EndDate           time.Time `json:"end_date,omitempty"`
-	LastExecutionDate time.Time `json:"last_execution_date,omitempty"`
+	ExecutionType     string    `json:"executionType,omitempty"`
+	StartDate         time.Time `json:"startDate,omitempty"`
+	EndDate           time.Time `json:"endDate,omitempty"`
+	LastExecutionDate time.Time `json:"lastExecutionDate,omitempty"`
 	Timezone          string    `json:"timezone,omitempty" fake:"{randomstring:[utc, America_NewYork]}"`
 	TimezoneOffset    int64     `json:"timezoneOffset,omitempty"`
-	ExecutionId       string    `json:"execution_id,omitempty"`
-	DateCreated       time.Time `json:"date_created,omitempty"`
+	ExecutionId       string    `json:"executionId,omitempty"`
+	DateCreated       time.Time `json:"dateCreated,omitempty"`
 }
 
 // PaginatedJob paginated container of job transformer

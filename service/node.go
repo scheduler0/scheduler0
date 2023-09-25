@@ -53,11 +53,6 @@ type LogsFetchResponse struct {
 
 type State int
 
-const (
-	Cold          State = 0
-	Bootstrapping       = 1
-)
-
 type Node struct {
 	TransportManager      *raft.NetworkTransport
 	LogDb                 *boltdb.BoltStore
@@ -65,7 +60,6 @@ type Node struct {
 	FileSnapShot          *raft.FileSnapshotStore
 	acceptClientWrites    bool
 	acceptRequest         bool
-	State                 State
 	FsmStore              fsm.Scheduler0RaftStore
 	SingleNodeMode        bool
 	ctx                   context.Context
@@ -73,17 +67,18 @@ type Node struct {
 	mtx                   sync.Mutex
 	jobProcessor          *JobProcessor
 	jobQueue              *JobQueue
-	jobExecutor           *JobExecutor
+	jobExecutor           JobExecutor
 	jobQueuesRepo         repository.JobQueuesRepo
 	jobRepo               repository.JobRepo
 	projectRepo           repository.ProjectRepo
 	sharedRepo            shared_repo.SharedRepo
 	isExistingNode        bool
 	peerObserverChannels  chan raft.Observation
-	asyncTaskManager      *AsyncTaskManager
+	asyncTaskManager      AsyncTaskManager
 	dispatcher            *utils.Dispatcher
 	fanIns                sync.Map // models.PeerFanIn
 	fanInCh               chan models.PeerFanIn
+	completedFanInCh      sync.Map
 	scheduler0Config      config.Scheduler0Config
 	scheduler0Secrets     secrets.Scheduler0Secrets
 	scheduler0RaftActions fsm.Scheduler0RaftActions
@@ -96,14 +91,14 @@ func NewNode(
 	scheduler0Config config.Scheduler0Config,
 	scheduler0Secrets secrets.Scheduler0Secrets,
 	fsmActions fsm.Scheduler0RaftActions,
-	jobExecutor *JobExecutor,
+	jobExecutor JobExecutor,
 	jobQueue *JobQueue,
 	jobRepo repository.JobRepo,
 	projectRepo repository.ProjectRepo,
 	executionsRepo repository.JobExecutionsRepo,
 	jobQueueRepo repository.JobQueuesRepo,
 	sharedRepo shared_repo.SharedRepo,
-	asyncTaskManager *AsyncTaskManager,
+	asyncTaskManager AsyncTaskManager,
 	dispatcher *utils.Dispatcher,
 	nodeHTTPClient NodeClient,
 ) *Node {
@@ -114,27 +109,16 @@ func NewNode(
 	configs := scheduler0Config.GetConfigurations()
 	dirPath = fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
 	utils.MakeDirIfNotExist(dirPath)
-	tm, ldb, sdb, fss, err := getLogsAndTransport(scheduler0Config)
-	if err != nil {
-		log.Fatal("failed essentials for Node", err)
-	}
-
 	numReplicas := len(configs.Replicas)
 
 	return &Node{
-		TransportManager:      tm,
-		LogDb:                 ldb,
-		StoreDb:               sdb,
-		FileSnapShot:          fss,
 		logger:                nodeServiceLogger,
 		acceptClientWrites:    false,
-		State:                 Cold,
 		ctx:                   ctx,
 		jobProcessor:          NewJobProcessor(ctx, nodeServiceLogger, scheduler0Config, jobRepo, projectRepo, jobQueue, jobExecutor, executionsRepo, jobQueueRepo),
 		jobQueue:              jobQueue,
 		jobExecutor:           jobExecutor,
 		jobRepo:               jobRepo,
-		projectRepo:           projectRepo,
 		isExistingNode:        exists,
 		peerObserverChannels:  make(chan raft.Observation, numReplicas),
 		asyncTaskManager:      asyncTaskManager,
@@ -150,9 +134,7 @@ func NewNode(
 	}
 }
 
-func (node *Node) Boostrap() {
-	node.State = Bootstrapping
-
+func (node *Node) Start() {
 	if node.isExistingNode {
 		node.logger.Info("discovered existing raft dir")
 		node.recoverRaftState()
@@ -164,9 +146,7 @@ func (node *Node) Boostrap() {
 		node.bootstrapRaftCluster(rft)
 	}
 	node.FsmStore.UpdateRaft(rft)
-	node.jobExecutor.Raft = rft
-	go node.handleLeaderChange()
-
+	node.jobExecutor.UpdateRaft(rft)
 	myObserver := raft.NewObserver(node.peerObserverChannels, true, func(o *raft.Observation) bool {
 		_, peerObservation := o.Data.(raft.PeerObservation)
 		_, resumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
@@ -174,45 +154,12 @@ func (node *Node) Boostrap() {
 	})
 
 	rft.RegisterObserver(myObserver)
-	go node.listenToObserverChannel()
-	go node.listenToFanInChannel()
 	node.beginAcceptingClientRequest()
-	node.listenOnInputQueues(node.FsmStore)
+
+	go node.listenOnInputQueues(node.FsmStore)
 }
 
-func (node *Node) commitLocalData(peerAddress string, localData models.LocalData) {
-	if node.FsmStore.GetRaft() == nil {
-		log.Fatalln("raft is not set on job executors")
-	}
-
-	params := models.CommitLocalData{
-		Data: localData,
-	}
-
-	node.logger.Debug("committing local data from peer",
-		"address", peerAddress,
-		"number of async tasks", len(localData.AsyncTasks),
-		"number of execution logs", len(localData.ExecutionLogs),
-	)
-
-	nodeId, err := utils.GetNodeIdWithServerAddress(peerAddress)
-	if err != nil {
-		log.Fatalln("failed to get node with id for peer address", peerAddress)
-	}
-
-	_, writeError := node.scheduler0RaftActions.WriteCommandToRaftLog(
-		node.FsmStore.GetRaft(),
-		constants.CommandTypeLocalData,
-		"",
-		uint64(nodeId),
-		[]interface{}{params},
-	)
-	if writeError != nil {
-		node.logger.Error("failed to apply local data into raft store", "error", writeError)
-	}
-}
-
-func (node *Node) ReturnUncommittedLogs(requestId string) {
+func (node *Node) GetUncommittedLogs(requestId string) {
 	taskId, addErr := node.asyncTaskManager.AddTasks("", requestId, constants.JobExecutorAsyncTaskService)
 	if addErr != nil {
 		node.logger.Error("failed to add new async task for job_executor", "error", addErr)
@@ -259,6 +206,98 @@ func (node *Node) ReturnUncommittedLogs(requestId string) {
 			return
 		}
 	})
+}
+
+func (node *Node) CanAcceptClientWriteRequest() bool {
+	return node.acceptClientWrites
+}
+
+func (node *Node) CanAcceptRequest() bool {
+	return node.acceptRequest
+}
+
+func (node *Node) StopJobs() {
+	node.jobExecutor.StopAll()
+}
+
+func (node *Node) StartJobs() {
+	node.jobProcessor.RecoverJobs()
+}
+
+func (node *Node) ConnectRaftLogsAndTransport() {
+	logger := log.New(os.Stderr, "[get-raft-logs-and-transport] ", log.LstdFlags)
+
+	configs := node.scheduler0Config.GetConfigurations()
+	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
+
+	ldb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
+	if err != nil {
+		logger.Fatal("failed to create log store", err)
+	}
+	node.LogDb = ldb
+	sdb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
+	if err != nil {
+		logger.Fatal("failed to create stable store", err)
+	}
+	node.StoreDb = sdb
+	fss, err := raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
+	if err != nil {
+		logger.Fatal("failed to create snapshot store", err)
+	}
+	node.FileSnapShot = fss
+	ln, err := net.Listen("tcp", configs.RaftAddress)
+	if err != nil {
+		logger.Fatalf("failed to listen to tcp net. raft address %v. %v", configs.RaftAddress, err)
+	}
+
+	adv := network.NameAddress{
+		Address: configs.NodeAdvAddress,
+	}
+
+	mux := network.NewMux(ln, adv)
+	go func() {
+		err := mux.Serve()
+		if err != nil {
+			logger.Fatal("failed mux serve", err)
+		}
+	}()
+
+	muxLn := mux.Listen(1)
+
+	tm := raft.NewNetworkTransport(network.NewTransport(muxLn), int(configs.RaftTransportMaxPool), time.Second*time.Duration(configs.RaftTransportTimeout), nil)
+	node.TransportManager = tm
+}
+
+func (node *Node) commitLocalData(peerAddress string, localData models.LocalData) {
+	if node.FsmStore.GetRaft() == nil {
+		log.Fatalln("raft is not set on job node service")
+	}
+
+	params := models.CommitLocalData{
+		Data: localData,
+	}
+
+	node.logger.Debug("committing local data from peer",
+		"address", peerAddress,
+		"number of async tasks", len(localData.AsyncTasks),
+		"number of execution logs", len(localData.ExecutionLogs),
+	)
+
+	nodeId, err := utils.GetNodeIdWithServerAddress(peerAddress)
+	if err != nil {
+		log.Fatalln("failed to get node id for raft address", peerAddress)
+	}
+
+	_, writeError := node.scheduler0RaftActions.WriteCommandToRaftLog(
+		node.FsmStore.GetRaft(),
+		constants.CommandTypeLocalData,
+		"",
+		uint64(nodeId),
+		[]interface{}{params},
+	)
+	if writeError != nil {
+		node.logger.Error("failed to apply local data into raft store", "error", writeError)
+	}
 }
 
 func (node *Node) newRaft(fsm raft.FSM) *raft.Raft {
@@ -360,15 +399,15 @@ func (node *Node) recoverRaftState() {
 		logger.Fatalln(fmt.Errorf("failed to get uncommitted execution logs: %s \n", err))
 	}
 
-	uncommittedTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
-	if err != nil {
-		node.logger.Warn("failed to get uncommitted tasks", "error", err)
+	uncommittedTasks, getErr := node.asyncTaskManager.GetUnCommittedTasks()
+	if getErr != nil {
+		node.logger.Warn("failed to get uncommitted tasks", "error", getErr)
 	}
 	recoverDbPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.RecoveryDbFileName)
 
-	err = os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
-	if err != nil {
-		logger.Fatalln(fmt.Errorf("fatal db file creation error: %s \n", err))
+	fileCreationErr := os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
+	if fileCreationErr != nil {
+		logger.Fatalln(fmt.Errorf("fatal db file creation error: %s \n", fileCreationErr))
 	}
 
 	dataStore = db.NewSqliteDbConnection(node.logger, recoverDbPath)
@@ -404,8 +443,6 @@ func (node *Node) recoverRaftState() {
 			&entry,
 			dataStore,
 			false,
-			nil,
-			nil,
 			nil,
 		)
 		lastIndex = entry.Index
@@ -491,58 +528,82 @@ func (node *Node) authenticateWithPeersInConfig() map[string]Status {
 	return results
 }
 
-func (node *Node) stopAllJobsOnAllNodes() {
-	_, applyErr := node.scheduler0RaftActions.WriteCommandToRaftLog(
-		node.FsmStore.GetRaft(),
-		constants.CommandTypeStopJobs,
-		"",
-		0,
-		nil,
-	)
-	if applyErr != nil {
-		log.Fatalln("failed to apply job update states ", applyErr)
-	}
-}
+func (node *Node) stopAllJobsOnAllWorkerNodes() {
+	node.logger.Info("stopping jobs on worker nodes.")
 
-func (node *Node) recoverJobsOnNode(peerId raft.ServerID) {
-	num, err := strconv.ParseUint(string(peerId), 10, 32)
-	if err != nil {
-		panic(err)
-	}
-	peerIdNum := uint64(num)
-	_, applyErr := node.scheduler0RaftActions.WriteCommandToRaftLog(
-		node.FsmStore.GetRaft(),
-		constants.CommandTypeRecoverJobs,
-		"",
-		peerIdNum,
-		nil,
-	)
-	if applyErr != nil {
-		log.Fatalln("failed to apply job update states ", applyErr)
-	}
-}
+	configs := node.scheduler0Config.GetConfigurations()
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, constants.DefaultMaxConnectedPeers)
 
-func (node *Node) handleLeaderChange() {
-	select {
-	case <-node.FsmStore.GetRaft().LeaderCh():
-		node.stopAcceptingClientWriteRequest()
-		node.stopAllJobsOnAllNodes()
-		configuration := node.FsmStore.GetRaft().GetConfiguration().Configuration()
-		servers := configuration.Servers
-		nodeIds := []uint64{}
-		for _, server := range servers {
-			nodeId, err := utils.GetNodeIdWithRaftAddress(server.Address)
-			if err != nil {
-				log.Fatalln("failed to get node with id for peer address", server.Address)
-			}
-			nodeIds = append(nodeIds, uint64(nodeId))
+	for _, replica := range configs.Replicas {
+		if replica.Address != utils.GetServerHTTPAddress() {
+			wg.Add(1)
+			go func(rep config.RaftNode, wg *sync.WaitGroup) {
+				err := utils.RetryOnError(func() error {
+					semaphore <- struct{}{}
+					defer func() { <-semaphore }()
+					return node.nodeHTTPClient.StopJobs(node.ctx, node, rep)
+				}, constants.DefaultRetryMaxConfig, constants.DefaultRetryIntervalConfig)
+				wg.Done()
+				if err != nil {
+					node.logger.Error("failed to stop jobs on worker node", "address", rep.Address, " error:", err)
+				}
+			}(replica, &wg)
 		}
-		node.jobQueue.RemoveServers(nodeIds)
+	}
+	wg.Wait()
+	node.logger.Error("completed stopping jobs on worker nodes")
+}
+
+func (node *Node) startJobsOnWorkerNodes() {
+	node.logger.Info("starting jobs on worker nodes.")
+
+	configs := node.scheduler0Config.GetConfigurations()
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, constants.DefaultMaxConnectedPeers)
+
+	for _, replica := range configs.Replicas {
+		if replica.Address != utils.GetServerHTTPAddress() {
+			wg.Add(1)
+			go func(rep config.RaftNode, wg *sync.WaitGroup) {
+				err := utils.RetryOnError(func() error {
+					semaphore <- struct{}{}
+					defer func() { <-semaphore }()
+					return node.nodeHTTPClient.StartJobs(node.ctx, node, rep)
+				}, constants.DefaultRetryMaxConfig, constants.DefaultRetryIntervalConfig)
+				wg.Done()
+				if err != nil {
+					node.logger.Error("failed to stop jobs on worker node", "address", rep.Address, " error:", err)
+				}
+			}(replica, &wg)
+		}
+	}
+	wg.Wait()
+	node.logger.Error("completed starting jobs on worker nodes")
+}
+
+func (node *Node) handleRaftLeadershipChanges(isLeader bool) {
+	node.stopAcceptingClientWriteRequest()
+	configuration := node.FsmStore.GetRaft().GetConfiguration().Configuration()
+	servers := configuration.Servers
+	nodeIds := []uint64{}
+	for _, server := range servers {
+		nodeId, err := utils.GetNodeIdWithRaftAddress(server.Address)
+		if err != nil {
+			log.Fatalln("failed to get node id for raft address", server.Address)
+		}
+		nodeIds = append(nodeIds, uint64(nodeId))
+	}
+	node.jobQueue.RemoveServers(nodeIds)
+
+	if isLeader {
 		node.jobQueue.AddServers(nodeIds)
+		node.stopAllJobsOnAllWorkerNodes()
+
 		node.jobQueue.SingleNodeMode = len(servers) == 1
-		node.jobExecutor.SingleNodeMode = node.jobQueue.SingleNodeMode
+		node.jobExecutor.SetSingleNodeMode(node.jobQueue.SingleNodeMode)
 		node.SingleNodeMode = node.jobQueue.SingleNodeMode
-		node.asyncTaskManager.SingleNodeMode = node.jobQueue.SingleNodeMode
+		node.asyncTaskManager.SetSingleNodeMode(node.jobQueue.SingleNodeMode)
 		if !node.SingleNodeMode {
 			uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
 			uncommittedAsyncTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
@@ -555,10 +616,10 @@ func (node *Node) handleLeaderChange() {
 			}
 			node.commitLocalData(utils.GetServerHTTPAddress(), localData)
 			node.handleUncommittedAsyncTasks(uncommittedAsyncTasks)
-			go node.fanInLocalDataFromPeers()
+			node.fanInLocalDataFromPeers()
 		} else {
 			if node.isExistingNode {
-				node.jobProcessor.RecoverJobs()
+				node.jobProcessor.StartJobs()
 			} else {
 				node.jobProcessor.StartJobs()
 			}
@@ -567,17 +628,38 @@ func (node *Node) handleLeaderChange() {
 	}
 }
 
+func (node *Node) handleRaftObserverChannelChanges(o raft.Observation) {
+	peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
+	resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
+
+	if isPeerObservation && !peerObservation.Removed {
+		node.logger.Debug("A new node joined the cluster")
+	}
+	if isPeerObservation && peerObservation.Removed {
+		node.logger.Debug("A node got removed from the cluster")
+	}
+	if isResumedHeartbeatObservation {
+		node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
+		node.startJobsOnWorkerNodes()
+	}
+}
+
 func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
 	for _, asyncTask := range asyncTasks {
-		if asyncTask.State == models.AsyncTaskInProgress && asyncTask.Service == constants.CreateJobAsyncTaskService {
+		if asyncTask.State == models.AsyncTaskNotStated || asyncTask.State == models.AsyncTaskInProgress && asyncTask.Service == constants.CreateJobAsyncTaskService {
 			var jobsPayload []models.Job
 			err := json.Unmarshal([]byte(asyncTask.Input), &jobsPayload)
 			if err != nil {
-				node.logger.Error("failed to string -> json convert jobs payload from async task with id", "id", asyncTask.Id, "error", err.Error())
+				node.logger.Error("failed to convert jobs payload from async task with id", "id", asyncTask.Id, "error", err.Error())
 			}
-			jobIds, err := node.jobRepo.BatchInsertJobs(jobsPayload)
-			if err != nil {
-				node.logger.Error("failed to create jobs from async task with id", "id", asyncTask.Id, "error", err.Error())
+			jobIds, batchInsertErr := node.jobRepo.BatchInsertJobs(jobsPayload)
+			if batchInsertErr != nil {
+				node.logger.Error("failed to create jobs from async task with id", "id", asyncTask.Id, "error", batchInsertErr.Error())
+			}
+			resObj := utils.Response{Data: jobIds, Success: true}
+			updateTaskErr := node.asyncTaskManager.UpdateTasksByRequestId(asyncTask.RequestId, models.AsyncTaskSuccess, string(resObj.ToJSON()))
+			if updateTaskErr != nil {
+				node.logger.Error("failed to update state of uncommitted async task", "error", updateTaskErr)
 			}
 			node.logger.Info("successfully created jobs from async task with id", "id", asyncTask.Id, "job-ids", jobIds)
 		}
@@ -590,20 +672,17 @@ func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
 	}
 }
 
-func (node *Node) listenOnInputQueues(fsmStr fsm.Scheduler0RaftStore) {
-	node.logger.Info("begin listening input queues")
-
-	for {
-		select {
-		case job := <-fsmStr.GetQueueJobsChannel():
-			node.jobExecutor.QueueExecutions(job)
-		case _ = <-fsmStr.GetRecoverJobsChannel():
-			node.jobProcessor.RecoverJobs()
-		case _ = <-fsmStr.GetStopAllJobsChannel():
-			node.jobExecutor.StopAll()
-		case <-node.ctx.Done():
-			return
-		}
+func (node *Node) handleCompletedPeerFanIn(peerFanIn models.PeerFanIn) {
+	configs := node.scheduler0Config.GetConfigurations()
+	node.completedFanInCh.Store(peerFanIn.PeerHTTPAddress, peerFanIn)
+	completed := 0
+	node.completedFanInCh.Range(func(key, value any) bool {
+		completed += 1
+		return true
+	})
+	if completed == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
+		node.jobProcessor.StartJobs()
+		node.beginAcceptingClientWriteRequest()
 	}
 }
 
@@ -668,7 +747,7 @@ func (node *Node) getRaftConfiguration() raft.Configuration {
 	return cfg
 }
 
-func (node *Node) getRandomFanInPeerHTTPAddresses() []string {
+func (node *Node) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) []string {
 	configs := node.scheduler0Config.GetConfigurations()
 	numReplicas := len(configs.Replicas)
 	servers := make([]raft.ServerAddress, 0, numReplicas)
@@ -682,7 +761,9 @@ func (node *Node) getRandomFanInPeerHTTPAddresses() []string {
 
 	if uint64(len(servers)) < configs.ExecutionLogFetchFanIn {
 		for _, server := range servers {
-			httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(server))
+			if ok := excludeList[utils.GetNodeServerAddressWithRaftAddress(server)]; !ok {
+				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(server))
+			}
 		}
 	} else {
 		shuffledServers := servers
@@ -698,57 +779,35 @@ func (node *Node) getRandomFanInPeerHTTPAddresses() []string {
 		}
 
 		for i := 0; i < len(shuffledServers); i++ {
-			httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i]))
+			if _, ok := excludeList[utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i])]; !ok {
+				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i]))
+			}
 		}
+	}
+	if len(httpAddresses) > int(configs.ExecutionLogFetchFanIn) {
+		return httpAddresses[:configs.ExecutionLogFetchFanIn]
 	}
 
 	return httpAddresses
 }
 
-func (node *Node) listenToObserverChannel() {
+func (node *Node) listenOnInputQueues(fsmStr fsm.Scheduler0RaftStore) {
+	node.logger.Info("begin listening on input channels")
+
 	for {
 		select {
+		case isLeader := <-node.FsmStore.GetRaft().LeaderCh():
+			go node.handleRaftLeadershipChanges(isLeader)
 		case o := <-node.peerObserverChannels:
-			peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
-			resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
-
-			if isPeerObservation && !peerObservation.Removed {
-				node.logger.Debug("A new node joined the cluster")
-			}
-			if isPeerObservation && peerObservation.Removed {
-				node.logger.Debug("A node got removed from the cluster")
-			}
-			if isResumedHeartbeatObservation {
-				node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
-				node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
-			}
+			go node.handleRaftObserverChannelChanges(o)
+		case peerFanIn := <-node.fanInCh:
+			go node.handleCompletedPeerFanIn(peerFanIn)
+		case job := <-fsmStr.GetQueueJobsChannel():
+			go node.jobExecutor.QueueExecutions(job)
 		case <-node.ctx.Done():
 			return
 		}
 	}
-}
-
-func (node *Node) listenToFanInChannel() {
-	configs := node.scheduler0Config.GetConfigurations()
-	completedFanIns := make(map[string]models.PeerFanIn)
-	mtx := sync.Mutex{}
-
-	go func() {
-		for {
-			select {
-			case peerFanIn := <-node.fanInCh:
-				mtx.Lock()
-				completedFanIns[peerFanIn.PeerHTTPAddress] = peerFanIn
-				if len(completedFanIns) == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
-					node.jobProcessor.StartJobs()
-					node.beginAcceptingClientWriteRequest()
-				}
-				mtx.Unlock()
-			case <-node.ctx.Done():
-				return
-			}
-		}
-	}()
 }
 
 func (node *Node) beginAcceptingClientWriteRequest() {
@@ -758,92 +817,102 @@ func (node *Node) beginAcceptingClientWriteRequest() {
 
 func (node *Node) stopAcceptingClientWriteRequest() {
 	node.acceptClientWrites = false
-	node.logger.Info("stopped accepting client write requests")
+	node.logger.Info("stopped accepting httpClient write requests")
 }
 
 func (node *Node) beginAcceptingClientRequest() {
 	node.acceptRequest = true
-	node.logger.Info("being accepting client requests")
-}
-
-func (node *Node) stopAcceptingClientRequest() {
-	node.acceptRequest = false
-}
-
-func (node *Node) CanAcceptClientWriteRequest() bool {
-	return node.acceptClientWrites
-}
-
-func (node *Node) CanAcceptRequest() bool {
-	return node.acceptRequest
+	node.logger.Info("being accepting httpClient requests")
 }
 
 func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
-	httpAddresses := node.getRandomFanInPeerHTTPAddresses()
+	excludeList := map[string]bool{}
+	node.fanIns.Range(func(key, value any) bool {
+		excludeList[key.(string)] = true
+		return true
+	})
+	httpAddresses := node.getRandomFanInPeerHTTPAddresses(excludeList)
 	peerFanIns := make([]models.PeerFanIn, 0, len(httpAddresses))
 	for _, httpAddress := range httpAddresses {
-		var peerFanIn models.PeerFanIn
-		storeFanIn, ok := node.fanIns.Load(httpAddress)
+		_, ok := node.fanIns.Load(httpAddress)
 		if !ok {
 			newFanIn := models.PeerFanIn{
 				PeerHTTPAddress: httpAddress,
 				State:           models.PeerFanInStateNotStated,
 			}
 			node.fanIns.Store(httpAddress, newFanIn)
-			peerFanIn = newFanIn
 			peerFanIns = append(peerFanIns, newFanIn)
-		} else {
-			peerFanIn = storeFanIn.(models.PeerFanIn)
-			peerFanIns = append(peerFanIns, peerFanIn)
 		}
 	}
 	return peerFanIns
 }
 
 func (node *Node) fanInLocalDataFromPeers() {
-	configs := node.scheduler0Config.GetConfigurations()
-	ticker := time.NewTicker(time.Duration(configs.ExecutionLogFetchIntervalSeconds) * time.Second)
-	ctx, cancelFunc := context.WithCancel(node.ctx)
+	go func() {
+		configs := node.scheduler0Config.GetConfigurations()
+		ticker := time.NewTicker(time.Duration(configs.ExecutionLogFetchIntervalSeconds) * time.Second)
+		ctx, cancelFunc := context.WithCancel(node.ctx)
 
-	var currentContext context.Context
-	var currentContextCancelFunc func()
+		var currentContext context.Context
+		var currentContextCancelFunc func()
 
-	for {
-		select {
-		case <-ticker.C:
-			if currentContext != nil {
-				currentContextCancelFunc()
-				ctx, cancelFunc = context.WithCancel(context.Background())
-				currentContext = ctx
-				currentContextCancelFunc = cancelFunc
+		for {
+			select {
+			case <-ticker.C:
+				if currentContext != nil {
+					currentContextCancelFunc()
+					ctx, cancelFunc = context.WithCancel(context.Background())
+					currentContext = ctx
+					currentContextCancelFunc = cancelFunc
+				}
+
+				peers := node.selectRandomPeersToFanIn()
+
+				phase1 := make([]models.PeerFanIn, 0, len(peers))
+				phase2 := make([]models.PeerFanIn, 0, len(peers))
+				phase3 := make([]models.PeerFanIn, 0, len(peers))
+
+				for _, peer := range peers {
+					if peer.State == models.PeerFanInStateNotStated {
+						phase1 = append(phase1, peer)
+					}
+					if peer.State == models.PeerFanInStateGetRequestId {
+						phase2 = append(phase2, peer)
+					}
+					if peer.State == models.PeerFanInStateGetExecutionsLogs {
+						phase3 = append(phase3, peer)
+					}
+				}
+
+				node.fanIns.Range(func(key, value any) bool {
+					fanIn := value.(models.PeerFanIn)
+					if fanIn.State == models.PeerFanInStateNotStated {
+						phase1 = append(phase1, fanIn)
+					}
+					if fanIn.State == models.PeerFanInStateGetRequestId {
+						phase2 = append(phase2, fanIn)
+					}
+					if fanIn.State == models.PeerFanInStateGetExecutionsLogs {
+						phase3 = append(phase3, fanIn)
+					}
+					return true
+				})
+
+				if len(phase1) > 0 {
+					go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
+				}
+				if len(phase2) > 0 {
+					go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
+				}
+				if len(phase3) > 0 {
+					go node.commitFetchedUnCommittedLogs(phase3)
+				}
+			case <-node.ctx.Done():
+				cancelFunc()
+				return
 			}
-
-			peers := node.selectRandomPeersToFanIn()
-
-			phase1 := make([]models.PeerFanIn, 0, len(peers))
-			phase2 := make([]models.PeerFanIn, 0, len(peers))
-			phase3 := make([]models.PeerFanIn, 0, len(peers))
-
-			for _, peer := range peers {
-				if peer.State == models.PeerFanInStateNotStated {
-					phase1 = append(phase1, peer)
-				}
-				if peer.State == models.PeerFanInStateGetRequestId {
-					phase2 = append(phase2, peer)
-				}
-				if peer.State == models.PeerFanInStateGetExecutionsLogs {
-					phase3 = append(phase3, peer)
-				}
-			}
-
-			go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
-			go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
-			go node.commitFetchedUnCommittedLogs(phase3)
-		case <-node.ctx.Done():
-			cancelFunc()
-			return
 		}
-	}
+	}()
 }
 
 func (node *Node) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
@@ -852,45 +921,4 @@ func (node *Node) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
 		node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 		node.fanInCh <- peerFanIn
 	}
-}
-
-func getLogsAndTransport(scheduler0Config config.Scheduler0Config) (tm *raft.NetworkTransport, ldb *boltdb.BoltStore, sdb *boltdb.BoltStore, fss *raft.FileSnapshotStore, err error) {
-	logger := log.New(os.Stderr, "[get-raft-logs-and-transport] ", log.LstdFlags)
-
-	configs := scheduler0Config.GetConfigurations()
-	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
-
-	ldb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
-	if err != nil {
-		logger.Fatal("failed to create log store", err)
-	}
-	sdb, err = boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
-	if err != nil {
-		logger.Fatal("failed to create stable store", err)
-	}
-	fss, err = raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
-	if err != nil {
-		logger.Fatal("failed to create snapshot store", err)
-	}
-	ln, err := net.Listen("tcp", configs.RaftAddress)
-	if err != nil {
-		logger.Fatal("failed to listen to tcp net", err)
-	}
-
-	adv := network.NameAddress{
-		Address: configs.NodeAdvAddress,
-	}
-
-	mux := network.NewMux(ln, adv)
-	go func() {
-		err := mux.Serve()
-		if err != nil {
-			logger.Fatal("failed mux serve", err)
-		}
-	}()
-
-	muxLn := mux.Listen(1)
-
-	tm = raft.NewNetworkTransport(network.NewTransport(muxLn), int(configs.RaftTransportMaxPool), time.Second*time.Duration(configs.RaftTransportTimeout), nil)
-	return
 }

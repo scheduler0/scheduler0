@@ -48,7 +48,8 @@ func TestMemoryLimitChecker_StartAndStopMemoryUsageChecker(t *testing.T) {
 	stopTest := make(chan bool)
 	go func() {
 		<-panicCh
-		t.Fatal("Memory usage should not exceed the limit")
+		t.Error("Memory usage should not exceed the limit")
+		return
 	}()
 
 	go memoryLimitChecker.StartMemoryUsageChecker()

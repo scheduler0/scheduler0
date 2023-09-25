@@ -41,7 +41,7 @@ func Test_ProjectService_CreateOne(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -51,6 +51,7 @@ func Test_ProjectService_CreateOne(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -106,7 +107,7 @@ func Test_ProjectService_UpdateOneByID(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -116,6 +117,7 @@ func Test_ProjectService_UpdateOneByID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -187,7 +189,7 @@ func Test_ProjectService_GetOneByID(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -197,6 +199,7 @@ func Test_ProjectService_GetOneByID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -258,7 +261,7 @@ func Test_ProjectService_GetOneByName(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -268,6 +271,7 @@ func Test_ProjectService_GetOneByName(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -329,7 +333,7 @@ func Test_ProjectService_DeleteOneByID(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -339,6 +343,7 @@ func Test_ProjectService_DeleteOneByID(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -404,7 +409,7 @@ func Test_ProjectService_List(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -414,6 +419,7 @@ func Test_ProjectService_List(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -506,7 +512,7 @@ func Test_ProjectService_BatchGetProjects(t *testing.T) {
 	// Create a new FSM store
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -516,6 +522,7 @@ func Test_ProjectService_BatchGetProjects(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 

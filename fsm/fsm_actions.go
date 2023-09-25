@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
 	"net/http"
-	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/models"
@@ -33,9 +32,7 @@ type Scheduler0RaftActions interface {
 		l *raft.Log,
 		db db.DataStore,
 		useQueues bool,
-		queue chan []interface{},
-		stopAllJobsQueue chan bool,
-		recoverJobsQueue chan bool) interface{}
+		queue chan []interface{}) interface{}
 }
 
 type scheduler0RaftActions struct {
@@ -59,7 +56,7 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	createCommand := &protobuffs.Command{
+	command := &protobuffs.Command{
 		Type:       protobuffs.Command_Type(commandType),
 		Sql:        sqlString,
 		Data:       data,
@@ -70,12 +67,12 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	createCommandData, err := proto.Marshal(createCommand)
+	commandData, err := proto.Marshal(command)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	af := rft.Apply(createCommandData, time.Duration(15)*time.Second).(raft.ApplyFuture)
+	af := rft.Apply(commandData, time.Duration(15)*time.Second).(raft.ApplyFuture)
 	if af.Error() != nil {
 		if af.Error() == raft.ErrNotLeader {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "server not raft leader")
@@ -102,9 +99,7 @@ func (raftActions *scheduler0RaftActions) ApplyRaftLog(
 	l *raft.Log,
 	db db.DataStore,
 	useQueues bool,
-	queue chan []interface{},
-	stopAllJobsQueue chan bool,
-	recoverJobsQueue chan bool) interface{} {
+	queue chan []interface{}) interface{} {
 
 	if l.Type == raft.LogConfiguration {
 		return nil
@@ -127,19 +122,7 @@ func (raftActions *scheduler0RaftActions) ApplyRaftLog(
 		return insertJobQueue(logger, command, db, useQueues, queue)
 	case protobuffs.Command_Type(constants.CommandTypeLocalData):
 		return localDataCommit(logger, command, db, raftActions.sharedRepo)
-	case protobuffs.Command_Type(constants.CommandTypeStopJobs):
-		if useQueues {
-			stopAllJobsQueue <- true
-		}
-		break
-	case protobuffs.Command_Type(constants.CommandTypeRecoverJobs):
-		configs := config.NewScheduler0Config().GetConfigurations()
-		if useQueues && command.TargetNode == configs.NodeId {
-			recoverJobsQueue <- true
-		}
-		break
 	}
-
 	return nil
 }
 

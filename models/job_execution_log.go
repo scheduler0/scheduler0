@@ -18,8 +18,8 @@ type JobExecutionLog struct {
 	LastExecutionDatetime time.Time            `json:"lastExecutionDatetime"`
 	NextExecutionDatetime time.Time            `json:"nextExecutionDatetime"`
 	JobId                 uint64               `json:"jobId" fake:"{number:1,100}"`
-	JobQueueVersion       uint64               `json:"job_queue_version" fake:"{number:1,100}"`
-	ExecutionVersion      uint64               `json:"execution_version" fake:"{number:1,100}"`
+	JobQueueVersion       uint64               `json:"jobQueueVersion" fake:"{number:1,100}"`
+	ExecutionVersion      uint64               `json:"executionVersion" fake:"{number:1,100}"`
 	DataCreated           time.Time            `json:"dataCreated"`
 }
 

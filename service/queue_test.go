@@ -111,6 +111,7 @@ func Test_Queue_IncrementQueueVersion(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -151,6 +152,7 @@ func Test_getNextServerToQueue(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	jobQueue.AddServers([]uint64{11, 22, 33})
@@ -200,6 +202,7 @@ func Test_queue(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	jobQueue.AddServers([]uint64{1, 2, 3, 4, 5})
@@ -267,6 +270,7 @@ func Test_assignJobRangeToServers_single_server(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	jobQueue.AddServers([]uint64{11})
@@ -307,6 +311,7 @@ func Test_assignJobRangeToServers_multi_server(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	jobQueue.AddServers([]uint64{1, 2, 3, 4})
@@ -349,6 +354,7 @@ func Test_assignJobRangeToServers_one_job(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	jobQueue.AddServers([]uint64{1, 2, 3, 4})
@@ -388,10 +394,10 @@ func Test_Queue_Queue(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	jobQueue.AddServers([]uint64{1, 2, 3, 4, 5})
-
 	go func() {
 		time.Sleep(time.Second * 3)
 		jobs := []models.Job{}

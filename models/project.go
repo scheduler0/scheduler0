@@ -10,7 +10,7 @@ type Project struct {
 	ID          uint64    `json:"id,omitempty" fake:"{number:1,100}"`
 	Name        string    `json:"name,omitempty" fake:"{regex:[abcdef]{5}}"`
 	Description string    `json:"description,omitempty" fake:"{regex:[abcdef]{5}}"`
-	DateCreated time.Time `json:"date_created,omitempty"`
+	DateCreated time.Time `json:"dateCreated,omitempty"`
 }
 
 // PaginatedProject paginated container of project transformer

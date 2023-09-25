@@ -38,7 +38,7 @@ func Test_CredentialService_CreateNewCredential(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -48,21 +48,18 @@ func Test_CredentialService_CreateNewCredential(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
 	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -95,7 +92,7 @@ func Test_CredentialService_UpdateOneCredential(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -105,21 +102,18 @@ func Test_CredentialService_UpdateOneCredential(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
 	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -189,7 +183,7 @@ func Test_CredentialService_DeleteOneCredential(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -199,21 +193,18 @@ func Test_CredentialService_DeleteOneCredential(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
 	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -253,7 +244,7 @@ func Test_CredentialService_ListCredentials(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -263,21 +254,18 @@ func Test_CredentialService_ListCredentials(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
 	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -366,7 +354,7 @@ func Test_CredentialService_ValidateServerAPIKey(t *testing.T) {
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -376,21 +364,18 @@ func Test_CredentialService_ValidateServerAPIKey(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
 	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
 	dispatcher := utils.NewDispatcher(
+		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()

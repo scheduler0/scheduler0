@@ -21,7 +21,7 @@ type JobProcessor struct {
 	jobExecutionLogRepo repository.JobExecutionsRepo
 	jobQueuesRepo       repository.JobQueuesRepo
 	jobQueue            *JobQueue
-	jobExecutor         *JobExecutor
+	jobExecutor         JobExecutor
 	logger              hclog.Logger
 	mtx                 sync.Mutex
 	ctx                 context.Context
@@ -29,7 +29,7 @@ type JobProcessor struct {
 }
 
 // NewJobProcessor creates a new job processor
-func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.JobRepo, projectRepo repository.ProjectRepo, jobQueue *JobQueue, jobExecutor *JobExecutor, jobExecutionLogRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
+func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.JobRepo, projectRepo repository.ProjectRepo, jobQueue *JobQueue, jobExecutor JobExecutor, jobExecutionLogRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
 	return &JobProcessor{
 		jobRepo:             jobRepo,
 		projectRepo:         projectRepo,

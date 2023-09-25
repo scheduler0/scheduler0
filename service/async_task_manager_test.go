@@ -40,7 +40,7 @@ func Test_AsyncTaskManager_AddTasks(t *testing.T) {
 	requestId := "request-id"
 	service := "asyncService"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -50,6 +50,7 @@ func Test_AsyncTaskManager_AddTasks(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -88,7 +89,7 @@ func Test_AsyncTaskManager_UpdateTasksById(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -98,6 +99,7 @@ func Test_AsyncTaskManager_UpdateTasksById(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -144,7 +146,7 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -154,6 +156,7 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -177,7 +180,9 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 }
 
 func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
-	ctx := context.Background()
+	bctx := context.Background()
+	ctx, cancler := context.WithCancel(bctx)
+	defer cancler()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),
@@ -200,7 +205,7 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -210,6 +215,7 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -238,10 +244,12 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 	}
 	time.Sleep(time.Second * 1)
 	assert.Equal(t, executed, true)
+	cancler()
 }
 
 func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),
@@ -264,7 +272,7 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -274,6 +282,7 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -309,7 +318,8 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 }
 
 func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),
@@ -332,7 +342,7 @@ func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -342,6 +352,7 @@ func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -370,7 +381,8 @@ func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 }
 
 func Test_AsyncTaskManager_GetTaskWithRequestIdBlocking(t *testing.T) {
-	ctx := context.Background()
+	ctx, canceler := context.WithCancel(context.Background())
+	defer canceler()
 	logger := hclog.New(&hclog.LoggerOptions{
 		Name:  "async-task-manager-test",
 		Level: hclog.LevelFromString("DEBUG"),
@@ -393,7 +405,7 @@ func Test_AsyncTaskManager_GetTaskWithRequestIdBlocking(t *testing.T) {
 	service := "asyncService"
 	output := "output"
 
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -403,6 +415,7 @@ func Test_AsyncTaskManager_GetTaskWithRequestIdBlocking(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -452,7 +465,7 @@ func Test_AsyncTaskManager_GetTaskIdWithRequestId(t *testing.T) {
 	input := "{'a':2}"
 	requestId := "request-id"
 	service := "asyncService"
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -462,6 +475,7 @@ func Test_AsyncTaskManager_GetTaskIdWithRequestId(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
@@ -502,7 +516,7 @@ func Test_AsyncTaskManager_GetUnCommittedTasks(t *testing.T) {
 	input := "{'a':2}"
 	requestId := "request-id"
 	service := "asyncService"
-	// Create a mock Raft cluster
+	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
 		Bootstrap:      true,
@@ -512,6 +526,7 @@ func Test_AsyncTaskManager_GetUnCommittedTasks(t *testing.T) {
 			return scheduler0Store.GetFSM()
 		},
 	})
+	defer cluster.Close()
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
