@@ -45,9 +45,6 @@ func NewService(ctx context.Context, logger hclog.Logger) *Service {
 		serviceCtx,
 		int64(configs.MaxWorkers),
 		int64(configs.MaxQueue),
-		func(effector func(successChannel, errorChannel chan any), successChannel, errorChannel chan any) {
-			effector(successChannel, errorChannel)
-		},
 	)
 	sqliteDb := db.CreateConnectionFromNewDbIfNonExists(logger)
 	sharedRep := shared_repo.NewSharedRepo(logger, scheduler0Configs)

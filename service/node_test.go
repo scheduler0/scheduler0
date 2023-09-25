@@ -85,15 +85,10 @@ func Test_CanAcceptRequest(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -197,15 +192,10 @@ func Test_CanAcceptClientWriteRequest(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -312,15 +302,10 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -427,7 +412,7 @@ func Test_ReturnUncommittedLogs(t *testing.T) {
 		t.Fatal("failed to insert execution logs", err)
 	}
 
-	nodeService.ReturnUncommittedLogs(requestId)
+	nodeService.GetUncommittedLogs(requestId)
 
 	time.Sleep(time.Second * time.Duration(2))
 
@@ -507,15 +492,10 @@ func Test_getRaftConfiguration(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -624,15 +604,10 @@ func Test_getRandomFanInPeerHTTPAddresses(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -802,15 +777,10 @@ func Test_selectRandomPeersToFanIn(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -965,15 +935,10 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
@@ -1178,216 +1143,216 @@ func Test_fanInLocalDataFromPeers(t *testing.T) {
 }
 
 func Test_handleLeaderChange(t *testing.T) {
-	t.Cleanup(func() {
-		err := os.RemoveAll("./raft_data")
-		if err != nil {
-			fmt.Println("failed to remove raft_data dir for test", err)
-		}
-		err = os.RemoveAll("./sqlite_data")
-		if err != nil {
-			fmt.Println("failed to remove sqlite_data dir for test", err)
-		}
-	})
-	os.Setenv("TEST_ENV", "1")
-	defer os.Unsetenv("TEST_ENV")
-	ctx, cancelr := context.WithCancel(context.Background())
-	defer cancelr()
-	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "node-service-test",
-		Level: hclog.LevelFromString("trace"),
-	})
+	i := 0
+	for i < 100000 {
+		t.Run("HandleLeaderChange", func(t *testing.T) {
+			t.Cleanup(func() {
+				err := os.RemoveAll("./raft_data")
+				if err != nil {
+					fmt.Println("failed to remove raft_data dir for test", err)
+				}
+				err = os.RemoveAll("./sqlite_data")
+				if err != nil {
+					fmt.Println("failed to remove sqlite_data dir for test", err)
+				}
+			})
+			os.Setenv("TEST_ENV", "1")
+			defer os.Unsetenv("TEST_ENV")
+			ctx, cancelr := context.WithCancel(context.Background())
+			defer cancelr()
+			logger := hclog.New(&hclog.LoggerOptions{
+				Name:  "node-service-test",
+				Level: hclog.LevelFromString("trace"),
+			})
 
-	// Create a temporary SQLite database file
-	tempFile, err := ioutil.TempFile("", "test-db")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tempFile.Name())
+			// Create a temporary SQLite database file
+			tempFile, err := ioutil.TempFile("", "test-db")
+			if err != nil {
+				t.Fatalf("Failed to create temp file: %v", err)
+			}
+			defer os.Remove(tempFile.Name())
 
-	// Create a new SQLite database connection
-	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
-	sqliteDb.OpenConnectionToExistingDB()
+			// Create a new SQLite database connection
+			sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+			sqliteDb.RunMigration()
+			sqliteDb.OpenConnectionToExistingDB()
 
-	scheduler0config := config.NewScheduler0Config()
-	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+			scheduler0config := config.NewScheduler0Config()
+			sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+			scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
 
-	scheduler0Secrets := secrets.NewScheduler0Secrets()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+			scheduler0Secrets := secrets.NewScheduler0Secrets()
+			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
 
-	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          2,
-		Bootstrap:      true,
-		Conf:           raft.DefaultConfig(),
-		ConfigStoreFSM: false,
-		MakeFSMFunc: func() raft.FSM {
-			return scheduler0Store.GetFSM()
-		},
-	})
-	cluster.FullyConnect()
+			cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+				Peers:          2,
+				Bootstrap:      true,
+				Conf:           raft.DefaultConfig(),
+				ConfigStoreFSM: false,
+				MakeFSMFunc: func() raft.FSM {
+					return scheduler0Store.GetFSM()
+				},
+			})
+			cluster.FullyConnect()
 
-	clusterLeader := cluster.Leader()
-	scheduler0Store.UpdateRaft(clusterLeader)
+			clusterLeader := cluster.Leader()
+			scheduler0Store.UpdateRaft(clusterLeader)
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskService := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-	jobExecutionsRepo := repository.NewExecutionsRepo(
-		logger,
-		scheduler0RaftActions,
-		scheduler0Store,
-	)
+			jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+			projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+			asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+			asyncTaskService := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+			jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+			jobExecutionsRepo := repository.NewExecutionsRepo(
+				logger,
+				scheduler0RaftActions,
+				scheduler0Store,
+			)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
+			dispatcher := utils.NewDispatcher(
+				ctx,
+				int64(1),
+				int64(1),
+			)
 
-	dispatcher := utils.NewDispatcher(
-		ctx,
-		int64(1),
-		int64(1),
-		callback,
-	)
+			dispatcher.Run()
 
-	dispatcher.Run()
+			queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+			jobExecutorService := NewJobExecutor(
+				ctx,
+				logger,
+				scheduler0config,
+				scheduler0RaftActions,
+				jobRepo,
+				jobExecutionsRepo,
+				jobQueueRepo,
+				dispatcher,
+			)
 
-	queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
-	jobExecutorService := NewJobExecutor(
-		ctx,
-		logger,
-		scheduler0config,
-		scheduler0RaftActions,
-		jobRepo,
-		jobExecutionsRepo,
-		jobQueueRepo,
-		dispatcher,
-	)
+			nodeHTTPClient := NewMockNodeClient(t)
+			jobService := NewJobService(ctx, logger, jobRepo, queueService, projectRepo, dispatcher, asyncTaskService)
 
-	nodeHTTPClient := NewMockNodeClient(t)
-	jobService := NewJobService(ctx, logger, jobRepo, queueService, projectRepo, dispatcher, asyncTaskService)
+			nodeService := NewNode(
+				ctx,
+				logger,
+				scheduler0config,
+				scheduler0Secrets,
+				scheduler0RaftActions,
+				jobExecutorService,
+				queueService,
+				jobRepo,
+				projectRepo,
+				jobExecutionsRepo,
+				jobQueueRepo,
+				sharedRepo,
+				asyncTaskService,
+				dispatcher,
+				nodeHTTPClient,
+			)
+			nodeService.FsmStore = scheduler0Store
+			//followerRaftAddresses := []string{
+			//	strings.Split(cluster.Followers()[0].String(), " ")[2],
+			//}
+			os.Setenv("SCHEDULER0_PORT", "34410")
+			defer os.Unsetenv("SCHEDULER0_PORT")
+			os.Setenv("SCHEDULER0_PROTOCOL", "http")
+			defer os.Unsetenv("SCHEDULER0_PROTOCOL")
+			os.Setenv("SCHEDULER0_HOST", "localhost")
+			defer os.Unsetenv("SCHEDULER0_HOST")
+			os.Setenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS", "2")
+			defer os.Unsetenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS")
+			os.Setenv("SCHEDULER0_REPLICAS", fmt.Sprintf("["+
+				"{\"raft_address\":\"%v\", \"address\":\"http://localhost:34410\", \"nodeId\":1}]",
+				strings.Split(cluster.Leader().String(), " ")[2],
+			))
 
-	nodeService := NewNode(
-		ctx,
-		logger,
-		scheduler0config,
-		scheduler0Secrets,
-		scheduler0RaftActions,
-		jobExecutorService,
-		queueService,
-		jobRepo,
-		projectRepo,
-		jobExecutionsRepo,
-		jobQueueRepo,
-		sharedRepo,
-		asyncTaskService,
-		dispatcher,
-		nodeHTTPClient,
-	)
-	nodeService.FsmStore = scheduler0Store
-	followerRaftAddresses := []string{
-		strings.Split(cluster.Followers()[0].String(), " ")[2],
-	}
-	os.Setenv("SCHEDULER0_PORT", "34410")
-	defer os.Unsetenv("SCHEDULER0_PORT")
-	os.Setenv("SCHEDULER0_PROTOCOL", "http")
-	defer os.Unsetenv("SCHEDULER0_PROTOCOL")
-	os.Setenv("SCHEDULER0_HOST", "localhost")
-	defer os.Unsetenv("SCHEDULER0_HOST")
-	os.Setenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS", "2")
-	defer os.Unsetenv("SCHEDULER0_EXECUTION_LOG_FETCH_INTERVAL_SECONDS")
-	os.Setenv("SCHEDULER0_REPLICAS", fmt.Sprintf("["+
-		"{\"raft_address\":\"%v\", \"address\":\"http://localhost:34411\", \"nodeId\":2},"+
-		"{\"raft_address\":\"%v\", \"address\":\"http://localhost:34410\", \"nodeId\":1}]",
-		followerRaftAddresses[0],
-		strings.Split(cluster.Leader().String(), " ")[2],
-	))
+			asyncTaskService.ListenForNotifications()
+			// Define the input jobs
+			jobs := []models.Job{}
 
-	asyncTaskService.ListenForNotifications()
-	// Define the input jobs
-	jobs := []models.Job{}
+			i := 1
+			for i < 100 {
+				jobs = append(jobs, models.Job{
+					ID:        uint64(i),
+					Spec:      "@every 1h",
+					Timezone:  "America/New_York",
+					ProjectID: 1,
+				})
+				i++
+			}
 
-	i := 1
-	for i < 100 {
-		jobs = append(jobs, models.Job{
-			ID:        uint64(i),
-			Spec:      "@every 1h",
-			Timezone:  "America/New_York",
-			ProjectID: 1,
+			// Create the projects using the project repo
+			project := models.Project{
+				ID:          1,
+				Name:        fmt.Sprintf("Project %d", 1),
+				Description: fmt.Sprintf("Project %d description", 1),
+			}
+			_, createErr := projectRepo.CreateOne(&project)
+			if createErr != nil {
+				t.Fatalf("Failed to create project: %v", createErr)
+			}
+
+			// Call the BatchInsertJobs method of the job service
+			_, batchErr := jobService.BatchInsertJobs("request123", jobs)
+			if batchErr != nil {
+				t.Fatalf("Failed to insert jobs: %v", batchErr)
+			}
+
+			time.Sleep(time.Second * time.Duration(2))
+
+			schedule, parseErr := cron.Parse("@every 1h")
+			if parseErr != nil {
+				t.Fatal("cron spec error", parseErr)
+			}
+
+			schedulerTime := scheduler0time.GetSchedulerTime()
+			now := schedulerTime.GetTime(time.Now())
+			nextTime := schedule.Next(now)
+			prevNextTime := nextTime.Add(-nextTime.Sub(now))
+			lastTime := nextTime.Add(-nextTime.Sub(now)).Add(-nextTime.Sub(now))
+
+			serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
+			defer os.Unsetenv("SCHEDULER0_NODE_ID")
+			if serr != nil {
+				t.Fatal("failed to set env", serr)
+			}
+			uncommittedExecutionsLogs := []models.JobExecutionLog{}
+			i = 0
+			for i < 24 {
+				uncommittedExecutionsLogs = append(uncommittedExecutionsLogs, models.JobExecutionLog{
+					JobId:                 jobs[i].ID,
+					UniqueId:              fmt.Sprintf("%d-%d", jobs[i].ID, i),
+					State:                 models.ExecutionLogSuccessState,
+					LastExecutionDatetime: lastTime,
+					NextExecutionDatetime: prevNextTime,
+					NodeId:                1,
+				})
+				i++
+			}
+			err = sharedRepo.InsertExecutionLogs(sqliteDb, false, uncommittedExecutionsLogs)
+			if err != nil {
+				t.Fatal("failed to insert execution logs", err)
+			}
+
+			nodeService.handleRaftLeadershipChanges(true)
+
+			time.Sleep(time.Second * time.Duration(2))
+
+			committedLogs, err := sharedRepo.GetExecutionLogs(sqliteDb, true)
+			if err != nil {
+				t.Fatal("failed to get committed execution logs", err)
+			}
+
+			//assert.Equal(t, 2, len(nodeService.jobQueue.allocations))
+			//assert.Equal(t, false, nodeService.jobQueue.SingleNodeMode)
+			//assert.Equal(t, false, nodeService.jobExecutor.GetSingleNodeMode())
+			//assert.Equal(t, false, nodeService.asyncTaskManager.GetSingleNodeMode())
+			assert.Equal(t, len(uncommittedExecutionsLogs), len(committedLogs))
+			fmt.Println("Last last")
 		})
 		i++
 	}
 
-	// Create the projects using the project repo
-	project := models.Project{
-		ID:          1,
-		Name:        fmt.Sprintf("Project %d", 1),
-		Description: fmt.Sprintf("Project %d description", 1),
-	}
-	_, createErr := projectRepo.CreateOne(&project)
-	if createErr != nil {
-		t.Fatalf("Failed to create project: %v", createErr)
-	}
-
-	// Call the BatchInsertJobs method of the job service
-	_, batchErr := jobService.BatchInsertJobs("request123", jobs)
-	if batchErr != nil {
-		t.Fatalf("Failed to insert jobs: %v", batchErr)
-	}
-
-	time.Sleep(time.Second * time.Duration(2))
-
-	schedule, parseErr := cron.Parse("@every 1h")
-	if parseErr != nil {
-		t.Fatal("cron spec error", parseErr)
-	}
-
-	schedulerTime := scheduler0time.GetSchedulerTime()
-	now := schedulerTime.GetTime(time.Now())
-	nextTime := schedule.Next(now)
-	prevNextTime := nextTime.Add(-nextTime.Sub(now))
-	lastTime := nextTime.Add(-nextTime.Sub(now)).Add(-nextTime.Sub(now))
-
-	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Unsetenv("SCHEDULER0_NODE_ID")
-	if serr != nil {
-		t.Fatal("failed to set env", serr)
-	}
-	uncommittedExecutionsLogs := []models.JobExecutionLog{}
-	i = 0
-	for i < 24 {
-		uncommittedExecutionsLogs = append(uncommittedExecutionsLogs, models.JobExecutionLog{
-			JobId:                 jobs[i].ID,
-			UniqueId:              fmt.Sprintf("%d-%d", jobs[i].ID, i),
-			State:                 models.ExecutionLogSuccessState,
-			LastExecutionDatetime: lastTime,
-			NextExecutionDatetime: prevNextTime,
-			NodeId:                1,
-		})
-		i++
-	}
-	err = sharedRepo.InsertExecutionLogs(sqliteDb, false, uncommittedExecutionsLogs)
-	if err != nil {
-		t.Fatal("failed to insert execution logs", err)
-	}
-
-	nodeService.handleRaftLeadershipChanges(true)
-
-	time.Sleep(time.Second * time.Duration(2))
-
-	committedLogs, err := sharedRepo.GetExecutionLogs(sqliteDb, true)
-	if err != nil {
-		t.Fatal("failed to get committed execution logs", err)
-	}
-
-	assert.Equal(t, 2, len(nodeService.jobQueue.allocations))
-	assert.Equal(t, false, nodeService.jobQueue.SingleNodeMode)
-	assert.Equal(t, false, nodeService.jobExecutor.GetSingleNodeMode())
-	assert.Equal(t, false, nodeService.asyncTaskManager.GetSingleNodeMode())
-	assert.Equal(t, len(uncommittedExecutionsLogs), len(committedLogs))
-	fmt.Println("Last last")
 }
 
 func Test_commitFetchedUnCommittedLogs(t *testing.T) {
@@ -1454,15 +1419,10 @@ func Test_commitFetchedUnCommittedLogs(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	queueService := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
@@ -1614,15 +1574,10 @@ func Test_handleUncommittedAsyncTasks(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -1806,15 +1761,10 @@ func Test_authRaftConfiguration(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -1962,15 +1912,10 @@ func Test_recoverRaftState(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()

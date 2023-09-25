@@ -67,15 +67,10 @@ func Test_JobService_BatchInsertJobs(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -191,15 +186,10 @@ func Test_JobService_UpdateJob(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -300,15 +290,10 @@ func Test_JobService_DeleteJob(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -404,15 +389,10 @@ func Test_JobService_GetJobsByProjectID(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -542,15 +522,10 @@ func Test_JobService_GetJob(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -648,15 +623,10 @@ func Test_JobService_QueueJobs(t *testing.T) {
 	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
 	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()

@@ -11,7 +11,6 @@ import (
 	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
-	"scheduler0/models"
 	"scheduler0/utils"
 	"sync"
 )
@@ -22,9 +21,6 @@ type store struct {
 	logger                hclog.Logger
 	raft                  *raft.Raft
 	queueJobsChannel      chan []interface{}
-	localDataChannel      chan models.LocalData
-	stopAllJobs           chan bool
-	recoverJobs           chan bool
 	scheduler0Config      config.Scheduler0Config
 	scheduler0RaftActions Scheduler0RaftActions
 
@@ -38,8 +34,6 @@ type Scheduler0RaftStore interface {
 	GetDataStore() db.DataStore
 	GetRaft() *raft.Raft
 	UpdateRaft(rft *raft.Raft)
-	GetStopAllJobsChannel() chan bool
-	GetRecoverJobsChannel() chan bool
 	GetQueueJobsChannel() chan []interface{}
 }
 
@@ -51,9 +45,6 @@ func NewFSMStore(logger hclog.Logger, scheduler0RaftActions Scheduler0RaftAction
 	return &store{
 		dataStore:             db,
 		queueJobsChannel:      make(chan []interface{}, 1),
-		localDataChannel:      make(chan models.LocalData, 1),
-		stopAllJobs:           make(chan bool, 1),
-		recoverJobs:           make(chan bool, 1),
 		logger:                fsmStoreLogger,
 		scheduler0RaftActions: scheduler0RaftActions,
 	}
@@ -79,25 +70,13 @@ func (s *store) GetDataStore() db.DataStore {
 	return s.dataStore
 }
 
-func (s *store) GetStopAllJobsChannel() chan bool {
-	return s.stopAllJobs
-}
-
-func (s *store) GetRecoverJobsChannel() chan bool {
-	return s.recoverJobs
-}
-
 func (s *store) GetQueueJobsChannel() chan []interface{} {
 	return s.queueJobsChannel
 }
 
 func (s *store) Apply(l *raft.Log) interface{} {
-	fmt.Println("----PRE APPLY BLOCK----")
-
 	s.rwMtx.Lock()
 	defer s.rwMtx.Unlock()
-
-	fmt.Println("----IN APPLY BLOCK----")
 
 	return s.scheduler0RaftActions.ApplyRaftLog(
 		s.logger,
@@ -105,8 +84,6 @@ func (s *store) Apply(l *raft.Log) interface{} {
 		s.dataStore,
 		true,
 		s.queueJobsChannel,
-		s.stopAllJobs,
-		s.recoverJobs,
 	)
 }
 
@@ -123,8 +100,6 @@ func (s *store) ApplyBatch(logs []*raft.Log) []interface{} {
 			s.dataStore,
 			true,
 			s.queueJobsChannel,
-			s.stopAllJobs,
-			s.recoverJobs,
 		)
 		results = append(results, result)
 	}

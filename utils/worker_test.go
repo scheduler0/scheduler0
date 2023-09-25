@@ -14,11 +14,7 @@ func Test_Workers(t *testing.T) {
 		ctx, canceler := context.WithCancel(context.Background())
 		defer canceler()
 
-		callback := func(effector func(s chan any, e chan any), s chan any, e chan any) {
-			effector(s, e)
-		}
-
-		worker := NewWorker(ctx, pool, callback)
+		worker := NewWorker(ctx, pool)
 
 		worker.Start()
 

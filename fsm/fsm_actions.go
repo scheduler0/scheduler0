@@ -9,7 +9,6 @@ import (
 	"github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
 	"net/http"
-	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/models"
@@ -33,9 +32,7 @@ type Scheduler0RaftActions interface {
 		l *raft.Log,
 		db db.DataStore,
 		useQueues bool,
-		queue chan []interface{},
-		stopAllJobsQueue chan bool,
-		recoverJobsQueue chan bool) interface{}
+		queue chan []interface{}) interface{}
 }
 
 type scheduler0RaftActions struct {
@@ -59,7 +56,7 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	createCommand := &protobuffs.Command{
+	command := &protobuffs.Command{
 		Type:       protobuffs.Command_Type(commandType),
 		Sql:        sqlString,
 		Data:       data,
@@ -70,12 +67,12 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	createCommandData, err := proto.Marshal(createCommand)
+	commandData, err := proto.Marshal(command)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	af := rft.Apply(createCommandData, time.Duration(15)*time.Second).(raft.ApplyFuture)
+	af := rft.Apply(commandData, time.Duration(15)*time.Second).(raft.ApplyFuture)
 	if af.Error() != nil {
 		if af.Error() == raft.ErrNotLeader {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "server not raft leader")
@@ -102,9 +99,7 @@ func (raftActions *scheduler0RaftActions) ApplyRaftLog(
 	l *raft.Log,
 	db db.DataStore,
 	useQueues bool,
-	queue chan []interface{},
-	stopAllJobsQueue chan bool,
-	recoverJobsQueue chan bool) interface{} {
+	queue chan []interface{}) interface{} {
 
 	if l.Type == raft.LogConfiguration {
 		return nil
@@ -126,21 +121,8 @@ func (raftActions *scheduler0RaftActions) ApplyRaftLog(
 	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
 		return insertJobQueue(logger, command, db, useQueues, queue)
 	case protobuffs.Command_Type(constants.CommandTypeLocalData):
-		fmt.Println("localDataCommit(logger, command, db, raftActions.sharedRepo)")
 		return localDataCommit(logger, command, db, raftActions.sharedRepo)
-	case protobuffs.Command_Type(constants.CommandTypeStopJobs):
-		if useQueues {
-			stopAllJobsQueue <- true
-		}
-		break
-	case protobuffs.Command_Type(constants.CommandTypeRecoverJobs):
-		configs := config.NewScheduler0Config().GetConfigurations()
-		if useQueues && command.TargetNode == configs.NodeId {
-			recoverJobsQueue <- true
-		}
-		break
 	}
-
 	return nil
 }
 
@@ -301,7 +283,6 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 	logger.Debug(fmt.Sprintf("received %d local execution logs to commit", len(localData.Data.ExecutionLogs)))
 
 	if len(localData.Data.ExecutionLogs) > 0 {
-		fmt.Println("insertErr := shardRepo.InsertExecutionLogs")
 		insertErr := shardRepo.InsertExecutionLogs(db, true, localData.Data.ExecutionLogs)
 		if insertErr != nil {
 			return models.Response{
@@ -309,7 +290,6 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 				Error: insertErr.Error(),
 			}
 		}
-		fmt.Println("shardRepo.DeleteExecutionLogs")
 		deleteErr := shardRepo.DeleteExecutionLogs(db, false, localData.Data.ExecutionLogs)
 		if deleteErr != nil {
 			return models.Response{
@@ -322,7 +302,6 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 	logger.Debug(fmt.Sprintf("received %d local async tasks to commit", len(localData.Data.AsyncTasks)))
 
 	if len(localData.Data.AsyncTasks) > 0 {
-		fmt.Println("shardRepo.InsertAsyncTasksLogs")
 		insertErr := shardRepo.InsertAsyncTasksLogs(db, true, localData.Data.AsyncTasks)
 		if insertErr != nil {
 			return models.Response{
@@ -330,7 +309,6 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 				Error: insertErr.Error(),
 			}
 		}
-		fmt.Println("shardRepo.DeleteAsyncTasksLogs")
 		deleteErr := shardRepo.DeleteAsyncTasksLogs(db, false, localData.Data.AsyncTasks)
 		if deleteErr != nil {
 			return models.Response{
@@ -340,7 +318,6 @@ func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.Dat
 		}
 	}
 
-	fmt.Println("localDataCommit ---models.Response")
 	return models.Response{
 		Data:  nil,
 		Error: "",

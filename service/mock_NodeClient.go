@@ -52,6 +52,34 @@ func (_m *MockNodeClient) FetchUncommittedLogsFromPeersPhase2(ctx context.Contex
 	_m.Called(ctx, node, peerFanIns)
 }
 
+// StartJobs provides a mock function with given fields: ctx, node, peer
+func (_m *MockNodeClient) StartJobs(ctx context.Context, node *Node, peer config.RaftNode) error {
+	ret := _m.Called(ctx, node, peer)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *Node, config.RaftNode) error); ok {
+		r0 = rf(ctx, node, peer)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// StopJobs provides a mock function with given fields: ctx, node, peer
+func (_m *MockNodeClient) StopJobs(ctx context.Context, node *Node, peer config.RaftNode) error {
+	ret := _m.Called(ctx, node, peer)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *Node, config.RaftNode) error); ok {
+		r0 = rf(ctx, node, peer)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 type mockConstructorTestingTNewMockNodeClient interface {
 	mock.TestingT
 	Cleanup(func())

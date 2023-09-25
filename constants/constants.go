@@ -109,3 +109,9 @@ const (
 	CredentialsApiSecretColumn   = "api_secret"
 	CredentialsDateCreatedColumn = "date_created"
 )
+
+const (
+	DefaultRetryMaxConfig      = 30
+	DefaultRetryIntervalConfig = 3
+	DefaultMaxConnectedPeers   = 4
+)

@@ -159,7 +159,7 @@ func (node *Node) Start() {
 	go node.listenOnInputQueues(node.FsmStore)
 }
 
-func (node *Node) ReturnUncommittedLogs(requestId string) {
+func (node *Node) GetUncommittedLogs(requestId string) {
 	taskId, addErr := node.asyncTaskManager.AddTasks("", requestId, constants.JobExecutorAsyncTaskService)
 	if addErr != nil {
 		node.logger.Error("failed to add new async task for job_executor", "error", addErr)
@@ -216,9 +216,61 @@ func (node *Node) CanAcceptRequest() bool {
 	return node.acceptRequest
 }
 
+func (node *Node) StopJobs() {
+	node.jobExecutor.StopAll()
+}
+
+func (node *Node) StartJobs() {
+	node.jobProcessor.RecoverJobs()
+}
+
+func (node *Node) ConnectRaftLogsAndTransport() {
+	logger := log.New(os.Stderr, "[get-raft-logs-and-transport] ", log.LstdFlags)
+
+	configs := node.scheduler0Config.GetConfigurations()
+	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
+
+	ldb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
+	if err != nil {
+		logger.Fatal("failed to create log store", err)
+	}
+	node.LogDb = ldb
+	sdb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
+	if err != nil {
+		logger.Fatal("failed to create stable store", err)
+	}
+	node.StoreDb = sdb
+	fss, err := raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
+	if err != nil {
+		logger.Fatal("failed to create snapshot store", err)
+	}
+	node.FileSnapShot = fss
+	ln, err := net.Listen("tcp", configs.RaftAddress)
+	if err != nil {
+		logger.Fatalf("failed to listen to tcp net. raft address %v. %v", configs.RaftAddress, err)
+	}
+
+	adv := network.NameAddress{
+		Address: configs.NodeAdvAddress,
+	}
+
+	mux := network.NewMux(ln, adv)
+	go func() {
+		err := mux.Serve()
+		if err != nil {
+			logger.Fatal("failed mux serve", err)
+		}
+	}()
+
+	muxLn := mux.Listen(1)
+
+	tm := raft.NewNetworkTransport(network.NewTransport(muxLn), int(configs.RaftTransportMaxPool), time.Second*time.Duration(configs.RaftTransportTimeout), nil)
+	node.TransportManager = tm
+}
+
 func (node *Node) commitLocalData(peerAddress string, localData models.LocalData) {
 	if node.FsmStore.GetRaft() == nil {
-		log.Fatalln("raft is not set on job executors")
+		log.Fatalln("raft is not set on job node service")
 	}
 
 	params := models.CommitLocalData{
@@ -236,7 +288,6 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 		log.Fatalln("failed to get node id for raft address", peerAddress)
 	}
 
-	fmt.Println("--------node.scheduler0RaftActions.WriteCommandToRaftLog---")
 	_, writeError := node.scheduler0RaftActions.WriteCommandToRaftLog(
 		node.FsmStore.GetRaft(),
 		constants.CommandTypeLocalData,
@@ -244,7 +295,6 @@ func (node *Node) commitLocalData(peerAddress string, localData models.LocalData
 		uint64(nodeId),
 		[]interface{}{params},
 	)
-	fmt.Println("----------END--------node.scheduler0RaftActions.WriteCommandToRaftLog---")
 	if writeError != nil {
 		node.logger.Error("failed to apply local data into raft store", "error", writeError)
 	}
@@ -394,8 +444,6 @@ func (node *Node) recoverRaftState() {
 			dataStore,
 			false,
 			nil,
-			nil,
-			nil,
 		)
 		lastIndex = entry.Index
 		lastTerm = entry.Term
@@ -480,34 +528,58 @@ func (node *Node) authenticateWithPeersInConfig() map[string]Status {
 	return results
 }
 
-func (node *Node) stopAllJobsOnAllNodes() {
-	_, applyErr := node.scheduler0RaftActions.WriteCommandToRaftLog(
-		node.FsmStore.GetRaft(),
-		constants.CommandTypeStopJobs,
-		"",
-		0,
-		nil,
-	)
-	if applyErr != nil {
-		log.Fatalln("failed to apply job update states", applyErr)
+func (node *Node) stopAllJobsOnAllWorkerNodes() {
+	node.logger.Info("stopping jobs on worker nodes.")
+
+	configs := node.scheduler0Config.GetConfigurations()
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, constants.DefaultMaxConnectedPeers)
+
+	for _, replica := range configs.Replicas {
+		if replica.Address != utils.GetServerHTTPAddress() {
+			wg.Add(1)
+			go func(rep config.RaftNode, wg *sync.WaitGroup) {
+				err := utils.RetryOnError(func() error {
+					semaphore <- struct{}{}
+					defer func() { <-semaphore }()
+					return node.nodeHTTPClient.StopJobs(node.ctx, node, rep)
+				}, constants.DefaultRetryMaxConfig, constants.DefaultRetryIntervalConfig)
+				wg.Done()
+				if err != nil {
+					node.logger.Error("failed to stop jobs on worker node", "address", rep.Address, " error:", err)
+				}
+			}(replica, &wg)
+		}
 	}
+	wg.Wait()
+	node.logger.Error("completed stopping jobs on worker nodes")
 }
 
-func (node *Node) recoverJobsOnNode(peerId raft.ServerID) {
-	num, err := strconv.ParseUint(string(peerId), 10, 32)
-	if err != nil {
-		panic(err)
+func (node *Node) startJobsOnWorkerNodes() {
+	node.logger.Info("starting jobs on worker nodes.")
+
+	configs := node.scheduler0Config.GetConfigurations()
+	var wg sync.WaitGroup
+	semaphore := make(chan struct{}, constants.DefaultMaxConnectedPeers)
+
+	for _, replica := range configs.Replicas {
+		if replica.Address != utils.GetServerHTTPAddress() {
+			wg.Add(1)
+			go func(rep config.RaftNode, wg *sync.WaitGroup) {
+				err := utils.RetryOnError(func() error {
+					semaphore <- struct{}{}
+					defer func() { <-semaphore }()
+					return node.nodeHTTPClient.StartJobs(node.ctx, node, rep)
+				}, constants.DefaultRetryMaxConfig, constants.DefaultRetryIntervalConfig)
+				wg.Done()
+				if err != nil {
+					node.logger.Error("failed to stop jobs on worker node", "address", rep.Address, " error:", err)
+				}
+			}(replica, &wg)
+		}
 	}
-	_, applyErr := node.scheduler0RaftActions.WriteCommandToRaftLog(
-		node.FsmStore.GetRaft(),
-		constants.CommandTypeRecoverJobs,
-		"",
-		num,
-		nil,
-	)
-	if applyErr != nil {
-		log.Fatalln("failed to apply job update states", applyErr)
-	}
+	wg.Wait()
+	node.logger.Error("completed starting jobs on worker nodes")
 }
 
 func (node *Node) handleRaftLeadershipChanges(isLeader bool) {
@@ -526,7 +598,7 @@ func (node *Node) handleRaftLeadershipChanges(isLeader bool) {
 
 	if isLeader {
 		node.jobQueue.AddServers(nodeIds)
-		node.stopAllJobsOnAllNodes()
+		node.stopAllJobsOnAllWorkerNodes()
 
 		node.jobQueue.SingleNodeMode = len(servers) == 1
 		node.jobExecutor.SetSingleNodeMode(node.jobQueue.SingleNodeMode)
@@ -547,7 +619,7 @@ func (node *Node) handleRaftLeadershipChanges(isLeader bool) {
 			node.fanInLocalDataFromPeers()
 		} else {
 			if node.isExistingNode {
-				node.jobProcessor.RecoverJobs()
+				node.jobProcessor.StartJobs()
 			} else {
 				node.jobProcessor.StartJobs()
 			}
@@ -568,7 +640,7 @@ func (node *Node) handleRaftObserverChannelChanges(o raft.Observation) {
 	}
 	if isResumedHeartbeatObservation {
 		node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
-		node.recoverJobsOnNode(resumedHeartbeatObservation.PeerID)
+		node.startJobsOnWorkerNodes()
 	}
 }
 
@@ -732,10 +804,6 @@ func (node *Node) listenOnInputQueues(fsmStr fsm.Scheduler0RaftStore) {
 			go node.handleCompletedPeerFanIn(peerFanIn)
 		case job := <-fsmStr.GetQueueJobsChannel():
 			go node.jobExecutor.QueueExecutions(job)
-		case _ = <-fsmStr.GetRecoverJobsChannel():
-			go node.jobProcessor.RecoverJobs()
-		case _ = <-fsmStr.GetStopAllJobsChannel():
-			go node.jobExecutor.StopAll()
 		case <-node.ctx.Done():
 			return
 		}
@@ -749,12 +817,12 @@ func (node *Node) beginAcceptingClientWriteRequest() {
 
 func (node *Node) stopAcceptingClientWriteRequest() {
 	node.acceptClientWrites = false
-	node.logger.Info("stopped accepting client write requests")
+	node.logger.Info("stopped accepting httpClient write requests")
 }
 
 func (node *Node) beginAcceptingClientRequest() {
 	node.acceptRequest = true
-	node.logger.Info("being accepting client requests")
+	node.logger.Info("being accepting httpClient requests")
 }
 
 func (node *Node) selectRandomPeersToFanIn() []models.PeerFanIn {
@@ -853,48 +921,4 @@ func (node *Node) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
 		node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
 		node.fanInCh <- peerFanIn
 	}
-}
-
-func (node *Node) ConnectRaftLogsAndTransport() {
-	logger := log.New(os.Stderr, "[get-raft-logs-and-transport] ", log.LstdFlags)
-
-	configs := node.scheduler0Config.GetConfigurations()
-	dirPath := fmt.Sprintf("%v/%v", constants.RaftDir, configs.NodeId)
-
-	ldb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftLog))
-	if err != nil {
-		logger.Fatal("failed to create log store", err)
-	}
-	node.LogDb = ldb
-	sdb, err := boltdb.NewBoltStore(filepath.Join(dirPath, constants.RaftStableLog))
-	if err != nil {
-		logger.Fatal("failed to create stable store", err)
-	}
-	node.StoreDb = sdb
-	fss, err := raft.NewFileSnapshotStore(dirPath, 3, os.Stderr)
-	if err != nil {
-		logger.Fatal("failed to create snapshot store", err)
-	}
-	node.FileSnapShot = fss
-	ln, err := net.Listen("tcp", configs.RaftAddress)
-	if err != nil {
-		logger.Fatalf("failed to listen to tcp net. raft address %v. %v", configs.RaftAddress, err)
-	}
-
-	adv := network.NameAddress{
-		Address: configs.NodeAdvAddress,
-	}
-
-	mux := network.NewMux(ln, adv)
-	go func() {
-		err := mux.Serve()
-		if err != nil {
-			logger.Fatal("failed mux serve", err)
-		}
-	}()
-
-	muxLn := mux.Listen(1)
-
-	tm := raft.NewNetworkTransport(network.NewTransport(muxLn), int(configs.RaftTransportMaxPool), time.Second*time.Duration(configs.RaftTransportTimeout), nil)
-	node.TransportManager = tm
 }

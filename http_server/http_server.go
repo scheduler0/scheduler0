@@ -80,6 +80,8 @@ func Start() {
 	// Node Endpoints
 	router.HandleFunc("/v1/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
 	router.HandleFunc("/v1/execution-logs", peerController.ExecutionLogs).Methods(http.MethodGet)
+	router.HandleFunc("/v1/start-jobs", peerController.StartJobs).Methods(http.MethodPost)
+	router.HandleFunc("/v1/stop-jobs", peerController.StopJobs).Methods(http.MethodPost)
 
 	// AsyncTask
 	router.HandleFunc("/v1/async-tasks/{id}", asyncTaskController.GetTask).Methods(http.MethodGet)

@@ -77,15 +77,10 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -216,15 +211,10 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -352,15 +342,10 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -500,15 +485,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			scheduler0Store,
 		)
 
-		callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-			effector(successCh, errorCh)
-		}
-
 		dispatcher := utils.NewDispatcher(
 			ctx,
 			int64(1),
 			int64(1),
-			callback,
 		)
 
 		dispatcher.Run()
@@ -694,15 +674,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			scheduler0Store,
 		)
 
-		callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-			effector(successCh, errorCh)
-		}
-
 		dispatcher := utils.NewDispatcher(
 			ctx,
 			int64(1),
 			int64(1),
-			callback,
 		)
 
 		dispatcher.Run()
@@ -890,15 +865,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			scheduler0Store,
 		)
 
-		callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-			effector(successCh, errorCh)
-		}
-
 		dispatcher := utils.NewDispatcher(
 			ctx,
 			int64(1),
 			int64(1),
-			callback,
 		)
 
 		dispatcher.Run()
@@ -1075,15 +1045,10 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -1248,15 +1213,10 @@ func Test_handleFailedJobs(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -1409,15 +1369,10 @@ func Test_logJobExecutionStateInRaft(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
@@ -1540,15 +1495,10 @@ func Test_StopAll(t *testing.T) {
 		scheduler0Store,
 	)
 
-	callback := func(effector func(sch chan any, ech chan any), successCh chan any, errorCh chan any) {
-		effector(successCh, errorCh)
-	}
-
 	dispatcher := utils.NewDispatcher(
 		ctx,
 		int64(1),
 		int64(1),
-		callback,
 	)
 
 	dispatcher.Run()
