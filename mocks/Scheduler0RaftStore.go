@@ -63,22 +63,6 @@ func (_m *Scheduler0RaftStore) GetFSM() raft.FSM {
 	return r0
 }
 
-// GetQueueJobsChannel provides a mock function with given fields:
-func (_m *Scheduler0RaftStore) GetQueueJobsChannel() chan []interface{} {
-	ret := _m.Called()
-
-	var r0 chan []interface{}
-	if rf, ok := ret.Get(0).(func() chan []interface{}); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(chan []interface{})
-		}
-	}
-
-	return r0
-}
-
 // GetRaft provides a mock function with given fields:
 func (_m *Scheduler0RaftStore) GetRaft() *raft.Raft {
 	ret := _m.Called()
@@ -89,38 +73,6 @@ func (_m *Scheduler0RaftStore) GetRaft() *raft.Raft {
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*raft.Raft)
-		}
-	}
-
-	return r0
-}
-
-// GetRecoverJobsChannel provides a mock function with given fields:
-func (_m *Scheduler0RaftStore) GetRecoverJobsChannel() chan bool {
-	ret := _m.Called()
-
-	var r0 chan bool
-	if rf, ok := ret.Get(0).(func() chan bool); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(chan bool)
-		}
-	}
-
-	return r0
-}
-
-// GetStopAllJobsChannel provides a mock function with given fields:
-func (_m *Scheduler0RaftStore) GetStopAllJobsChannel() chan bool {
-	ret := _m.Called()
-
-	var r0 chan bool
-	if rf, ok := ret.Get(0).(func() chan bool); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(chan bool)
 		}
 	}
 
