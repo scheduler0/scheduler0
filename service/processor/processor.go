@@ -1,4 +1,4 @@
-package service
+package processor
 
 import (
 	"context"
@@ -8,29 +8,50 @@ import (
 	"log"
 	"scheduler0/config"
 	"scheduler0/models"
-	"scheduler0/repository"
+	job_repo "scheduler0/repository/job"
+	job_execution_repo "scheduler0/repository/job_execution"
+	job_queue_repo "scheduler0/repository/job_queue"
+	project_repo "scheduler0/repository/project"
 	"scheduler0/scheduler0time"
+	"scheduler0/service/executor"
+	"scheduler0/service/queue"
 	"sync"
 	"time"
 )
 
-// JobProcessor handles executions of jobs
-type JobProcessor struct {
-	jobRepo             repository.JobRepo
-	projectRepo         repository.ProjectRepo
-	jobExecutionLogRepo repository.JobExecutionsRepo
-	jobQueuesRepo       repository.JobQueuesRepo
-	jobQueue            *JobQueue
-	jobExecutor         JobExecutor
+// jobProcessor handles executions of jobs
+type jobProcessor struct {
+	jobRepo             job_repo.JobRepo
+	projectRepo         project_repo.ProjectRepo
+	jobExecutionLogRepo job_execution_repo.JobExecutionsRepo
+	jobQueuesRepo       job_queue_repo.JobQueuesRepo
+	jobQueue            queue.JobQueueService
+	jobExecutor         executor.JobExecutorService
 	logger              hclog.Logger
 	mtx                 sync.Mutex
 	ctx                 context.Context
 	scheduler0Config    config.Scheduler0Config
 }
 
+//go:generate mockery --name JobProcessorService --output ./ --inpackage
+type JobProcessorService interface {
+	StartJobs()
+	RecoverJobs()
+}
+
 // NewJobProcessor creates a new job processor
-func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, jobRepo repository.JobRepo, projectRepo repository.ProjectRepo, jobQueue *JobQueue, jobExecutor JobExecutor, jobExecutionLogRepo repository.JobExecutionsRepo, jobQueuesRepo repository.JobQueuesRepo) *JobProcessor {
-	return &JobProcessor{
+func NewJobProcessor(
+	ctx context.Context,
+	logger hclog.Logger,
+	scheduler0Config config.Scheduler0Config,
+	jobRepo job_repo.JobRepo,
+	projectRepo project_repo.ProjectRepo,
+	jobQueue queue.JobQueueService,
+	jobExecutor executor.JobExecutorService,
+	jobExecutionLogRepo job_execution_repo.JobExecutionsRepo,
+	jobQueuesRepo job_queue_repo.JobQueuesRepo,
+) JobProcessorService {
+	return &jobProcessor{
 		jobRepo:             jobRepo,
 		projectRepo:         projectRepo,
 		jobQueue:            jobQueue,
@@ -44,7 +65,7 @@ func NewJobProcessor(ctx context.Context, logger hclog.Logger, scheduler0Config 
 }
 
 // StartJobs the cron job job_processor
-func (jobProcessor *JobProcessor) StartJobs() {
+func (jobProcessor *jobProcessor) StartJobs() {
 	jobProcessor.jobQueue.IncrementQueueVersion()
 
 	totalProjectCount, countErr := jobProcessor.projectRepo.Count()
@@ -91,7 +112,7 @@ func (jobProcessor *JobProcessor) StartJobs() {
 // RecoverJobs restarts jobs that where previous started before the node crashed
 // jobs that there execution time is in the "future" will get "quick recovered"
 // this means they will be scheduled to execute at the time they're supposed to execute
-func (jobProcessor *JobProcessor) RecoverJobs() {
+func (jobProcessor *jobProcessor) RecoverJobs() {
 	jobProcessor.mtx.Lock()
 	defer jobProcessor.mtx.Unlock()
 
@@ -160,7 +181,7 @@ func (jobProcessor *JobProcessor) RecoverJobs() {
 			// While 60 minutes is quite an unlike delay in a close it's not impossible
 			if now.Before(executionTime) && lastJobState.State == models.ExecutionLogScheduleState {
 				jobProcessor.logger.Debug(fmt.Sprintf("quick recovered job %d", job.ID))
-				jobProcessor.jobExecutor.ScheduleProcess(job)
+				jobProcessor.jobExecutor.AddJobSchedule(job)
 			} else {
 				jobsToSchedule = append(jobsToSchedule, job)
 			}
