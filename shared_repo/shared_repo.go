@@ -14,6 +14,7 @@ import (
 //go:generate mockery --name SharedRepo --output ./ --inpackage
 type SharedRepo interface {
 	GetExecutionLogs(db db.DataStore, committed bool) ([]models.JobExecutionLog, error)
+	GetAsyncTasksLogs(db db.DataStore, committed bool) ([]models.AsyncTask, error)
 	InsertExecutionLogs(db db.DataStore, committed bool, jobExecutionLogs []models.JobExecutionLog) error
 	DeleteExecutionLogs(db db.DataStore, committed bool, jobExecutionLogs []models.JobExecutionLog) error
 	InsertAsyncTasksLogs(db db.DataStore, committed bool, asyncTasks []models.AsyncTask) error
@@ -167,6 +168,10 @@ func (repo *sharedRepo) GetExecutionLogs(db db.DataStore, committed bool) ([]mod
 	}
 
 	return executionLogs, nil
+}
+
+func (repo *sharedRepo) GetAsyncTasksLogs(db db.DataStore, committed bool) ([]models.AsyncTask, error) {
+	return nil, nil
 }
 
 func (repo *sharedRepo) InsertExecutionLogs(db db.DataStore, committed bool, jobExecutionLogs []models.JobExecutionLog) error {
