@@ -212,7 +212,10 @@ func Test_WriteCommandToRaftLog_PostProcessChannel(t *testing.T) {
 
 			assert.Equal(t, postProcess.Action, test.CommandPostProcessActionType)
 			assert.Equal(t, postProcess.TargetNodes, []uint64{1})
-			assert.Equal(t, postProcess.Data, []interface{}{int64(1), int64(1)})
+			assert.Equal(t, models.SQLResponse{
+				RowsAffected:   1,
+				LastInsertedId: 1,
+			}, postProcess.Data)
 		})
 	}
 }
