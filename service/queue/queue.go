@@ -1,17 +1,13 @@
-package service
+package queue
 
 import (
 	"context"
-	"fmt"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/raft"
-	"log"
 	"math"
 	"scheduler0/config"
-	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/repository"
+	"scheduler0/repository/job_queue"
 	"scheduler0/utils"
 	"sync"
 )
@@ -21,9 +17,9 @@ type JobQueueCommand struct {
 	serverId string
 }
 
-type JobQueue struct {
-	SingleNodeMode        bool
-	jobsQueueRepo         repository.JobQueuesRepo
+type jobQueue struct {
+	singleNodeMode        bool
+	jobsQueueRepo         job_queue.JobQueuesRepo
 	fsm                   fsm.Scheduler0RaftStore
 	logger                hclog.Logger
 	allocations           map[uint64]uint64
@@ -37,8 +33,19 @@ type JobQueue struct {
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, scheduler0RaftActions fsm.Scheduler0RaftActions, fsm fsm.Scheduler0RaftStore, jobsQueueRepo repository.JobQueuesRepo) *JobQueue {
-	return &JobQueue{
+//go:generate mockery --name JobQueueService --output ./ --inpackage
+type JobQueueService interface {
+	AddServers(nodeIds []uint64)
+	RemoveServers(nodeIds []uint64)
+	Queue(jobs []models.Job)
+	IncrementQueueVersion()
+	GetJobAllocations() map[uint64]uint64
+	SetSingleNodeMode(singleNodeMode bool)
+	GetSingleNodeMode() bool
+}
+
+func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config config.Scheduler0Config, scheduler0RaftActions fsm.Scheduler0RaftActions, fsm fsm.Scheduler0RaftStore, jobsQueueRepo job_queue.JobQueuesRepo) JobQueueService {
+	return &jobQueue{
 		jobsQueueRepo:         jobsQueueRepo,
 		context:               ctx,
 		fsm:                   fsm,
@@ -52,7 +59,7 @@ func NewJobQueue(ctx context.Context, logger hclog.Logger, scheduler0Config conf
 	}
 }
 
-func (jobQ *JobQueue) AddServers(nodeIds []uint64) {
+func (jobQ *jobQueue) AddServers(nodeIds []uint64) {
 	jobQ.mtx.Lock()
 	defer jobQ.mtx.Unlock()
 
@@ -61,7 +68,7 @@ func (jobQ *JobQueue) AddServers(nodeIds []uint64) {
 	}
 }
 
-func (jobQ *JobQueue) RemoveServers(nodeIds []uint64) {
+func (jobQ *jobQueue) RemoveServers(nodeIds []uint64) {
 	jobQ.mtx.Lock()
 	defer jobQ.mtx.Unlock()
 
@@ -70,7 +77,7 @@ func (jobQ *JobQueue) RemoveServers(nodeIds []uint64) {
 	}
 }
 
-func (jobQ *JobQueue) Queue(jobs []models.Job) {
+func (jobQ *jobQueue) Queue(jobs []models.Job) {
 	jobQ.mtx.Lock()
 	defer jobQ.mtx.Unlock()
 
@@ -92,26 +99,27 @@ func (jobQ *JobQueue) Queue(jobs []models.Job) {
 	jobQ.maxId = math.MinInt16
 }
 
-func (jobQ *JobQueue) IncrementQueueVersion() {
+func (jobQ *jobQueue) GetJobAllocations() map[uint64]uint64 {
 	jobQ.mtx.Lock()
 	defer jobQ.mtx.Unlock()
 
-	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
-	_, err := jobQ.scheduler0RaftActions.WriteCommandToRaftLog(
-		jobQ.fsm.GetRaft(),
-		constants.CommandTypeDbExecute,
-		fmt.Sprintf("insert into %s (%s, %s) values (?, ?)",
-			repository.JobQueuesVersionTableName,
-			repository.JobQueueVersion,
-			repository.JobNumberOfActiveNodesVersion,
-		), 0, []interface{}{lastVersion + 1, len(jobQ.allocations)})
-	if err != nil {
-		log.Fatalln("failed to increment job queue version", err)
-	}
+	return jobQ.allocations
 }
 
-func (jobQ *JobQueue) queue(minId, maxId int64) {
-	f := jobQ.fsm.GetRaft().VerifyLeader()
+func (jobQ *jobQueue) SetSingleNodeMode(singleNodeMode bool) {
+	jobQ.singleNodeMode = singleNodeMode
+}
+
+func (jobQ *jobQueue) GetSingleNodeMode() bool {
+	return jobQ.singleNodeMode
+}
+
+func (jobQ *jobQueue) IncrementQueueVersion() {
+	jobQ.jobsQueueRepo.IncrementQueueVersion(len(jobQ.allocations))
+}
+
+func (jobQ *jobQueue) queue(minId, maxId int64) {
+	f := jobQ.fsm.VerifyLeader()
 	if f.Error() != nil {
 		jobQ.logger.Error("skipping job queueing as node is not the leader")
 		return
@@ -120,45 +128,39 @@ func (jobQ *JobQueue) queue(minId, maxId int64) {
 	serverAllocations := jobQ.assignJobRangeToServers(minId, maxId)
 	lastVersion := jobQ.jobsQueueRepo.GetLastVersion()
 	j := 0
+	jobQueueLogs := []models.JobQueueLog{}
 
-	for j < len(serverAllocations) {
-		server := jobQ.getNextServerToQueue()
-
-		batchRange := []interface{}{
-			serverAllocations[j][0],
-			serverAllocations[j][1],
-			lastVersion,
+	if jobQ.singleNodeMode {
+		jobQueueLogs = append(jobQueueLogs, models.JobQueueLog{
+			NodeId:          config.NewScheduler0Config().GetConfigurations().NodeId,
+			LowerBoundJobId: uint64(minId),
+			UpperBoundJobId: uint64(maxId),
+			Version:         lastVersion,
+		})
+	} else {
+		for j < len(serverAllocations) {
+			server := jobQ.getNextServerToQueue()
+			jobQueueLogs = append(jobQueueLogs, models.JobQueueLog{
+				NodeId:          server,
+				LowerBoundJobId: serverAllocations[j][0],
+				UpperBoundJobId: serverAllocations[j][1],
+				Version:         lastVersion,
+			})
+			jobQ.allocations[server] += serverAllocations[j][1] - serverAllocations[j][0]
+			j++
 		}
-
-		_, err := jobQ.scheduler0RaftActions.WriteCommandToRaftLog(
-			jobQ.fsm.GetRaft(),
-			constants.CommandTypeJobQueue,
-			"",
-			server,
-			batchRange,
-		)
-
-		if err != nil {
-			if err == raft.ErrNotLeader {
-				log.Fatalln("raft leader not found")
-			}
-			log.Fatalln("failed to queue jobs: raft apply error: ", err)
-		}
-		jobQ.allocations[server] += serverAllocations[j][1] - serverAllocations[j][0]
-		j++
 	}
+
+	jobQ.jobsQueueRepo.InsertJobQueueLogs(jobQueueLogs)
 }
 
-func (jobQ *JobQueue) getNextServerToQueue() uint64 {
+func (jobQ *jobQueue) getNextServerToQueue() uint64 {
 	configs := jobQ.schedulerOConfig.GetConfigurations()
 
 	var minAllocation uint64 = math.MaxInt64
 	var minServer uint64
 
-	// Edge case for single node mode
-	if jobQ.SingleNodeMode {
-		return configs.NodeId
-	}
+	// Edge case for single node mod
 
 	for server, allocation := range jobQ.allocations {
 		if allocation < minAllocation && server != configs.NodeId {
@@ -170,7 +172,7 @@ func (jobQ *JobQueue) getNextServerToQueue() uint64 {
 	return minServer
 }
 
-func (jobQ *JobQueue) assignJobRangeToServers(minId, maxId int64) [][]uint64 {
+func (jobQ *jobQueue) assignJobRangeToServers(minId, maxId int64) [][]uint64 {
 	numberOfServers := len(jobQ.allocations) - 1
 	var serverAllocations [][]uint64
 
@@ -210,11 +212,4 @@ func (jobQ *JobQueue) assignJobRangeToServers(minId, maxId int64) [][]uint64 {
 	}
 
 	return serverAllocations
-}
-
-func (jobQ *JobQueue) GetJobAllocations() map[uint64]uint64 {
-	jobQ.mtx.Lock()
-	defer jobQ.mtx.Unlock()
-
-	return jobQ.allocations
 }
