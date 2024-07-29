@@ -1,4 +1,4 @@
-package service
+package node
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func NewHTTPClient(logger hclog.Logger, scheduler0Configs config.Scheduler0Confi
 	}
 }
 
-func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase1(ctx context.Context, node *Node, peerFanIns []models.PeerFanIn) {
+func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase1(ctx context.Context, node *nodeService, peerFanIns []models.PeerFanIn) {
 	for _, peerFanIn := range peerFanIns {
 		httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/v1/execution-logs", peerFanIn.PeerHTTPAddress), nil)
 		if reqErr != nil {
@@ -69,7 +69,7 @@ func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase1(ctx context.Con
 	}
 }
 
-func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase2(ctx context.Context, node *Node, peerFanIns []models.PeerFanIn) {
+func (client nodeHTTPClient) FetchUncommittedLogsFromPeersPhase2(ctx context.Context, node *nodeService, peerFanIns []models.PeerFanIn) {
 	for _, peerFanIn := range peerFanIns {
 		httpClient := &http.Client{}
 		httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s%s", peerFanIn.PeerHTTPAddress, peerFanIn.RequestId), nil)
@@ -204,7 +204,7 @@ func (client nodeHTTPClient) ConnectNode(rep config.RaftNode) (*Status, error) {
 	}, nil
 }
 
-func (client nodeHTTPClient) StopJobs(ctx context.Context, node *Node, peer config.RaftNode) error {
+func (client nodeHTTPClient) StopJobs(ctx context.Context, node *nodeService, peer config.RaftNode) error {
 	httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%v/v1/stop-jobs", peer.Address), nil)
 	if reqErr != nil {
 		client.logger.Error("failed to create request to stop jobs", "node address", peer.Address, "error", reqErr.Error())
@@ -235,7 +235,7 @@ func (client nodeHTTPClient) StopJobs(ctx context.Context, node *Node, peer conf
 	return nil
 }
 
-func (client nodeHTTPClient) StartJobs(ctx context.Context, node *Node, peer config.RaftNode) error {
+func (client nodeHTTPClient) StartJobs(ctx context.Context, node *nodeService, peer config.RaftNode) error {
 	httpRequest, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%v/v1/start-jobs", peer.Address), nil)
 	if reqErr != nil {
 		client.logger.Error("failed to create request to start jobs from", "node address", peer.Address, "error", reqErr.Error())
