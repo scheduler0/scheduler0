@@ -1,4 +1,4 @@
-package service
+package executor
 
 import (
 	"context"
@@ -10,9 +10,11 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/repository"
+	job_repo "scheduler0/repository/job"
+	job_execution_repo "scheduler0/repository/job_execution"
+	job_queue_repo "scheduler0/repository/job_queue"
 	"scheduler0/scheduler0time"
-	"scheduler0/service/executors"
+	"scheduler0/service/executor/executors"
 	"scheduler0/utils"
 	"sync"
 	"time"
@@ -23,12 +25,12 @@ type jobExecutor struct {
 	singleNodeMode        bool
 	context               context.Context
 	pendingJobInvocations []models.Job
-	jobRepo               repository.JobRepo
-	jobExecutionsRepo     repository.JobExecutionsRepo
-	jobQueuesRepo         repository.JobQueuesRepo
+	jobRepo               job_repo.JobRepo
+	jobExecutionsRepo     job_execution_repo.JobExecutionsRepo
+	jobQueuesRepo         job_queue_repo.JobQueuesRepo
 	logger                hclog.Logger
 	cancelReq             context.CancelFunc
-	httpExecutionHandler  *executors.HTTPExecutionHandler
+	httpExecutionHandler  executors.HTTPExecutor
 	mtx                   sync.Mutex
 	jobExecutionsCache    sync.Map
 	debounce              *utils.Debounce
@@ -38,19 +40,20 @@ type jobExecutor struct {
 	scheduler0Actions     fsm.Scheduler0RaftActions
 }
 
-type JobExecutor interface {
-	QueueExecutions(jobQueueParams []interface{})
+//go:generate mockery --name JobExecutorService --output ./ --inpackage
+type JobExecutorService interface {
+	QueueExecutions(lastInsertedId, rowsAffected int64)
 	ScheduleJobs(jobs []models.Job)
 	StopAll()
-	ScheduleProcess(job models.Job)
+	AddJobSchedule(job models.Job)
 	ListenForJobsToInvoke()
-	ExecuteHTTP(jobs []models.Job, ctx context.Context, onSuccess func(pj []models.Job), onFailure func(pj []models.Job))
 	GetUncommittedLogs() []models.JobExecutionLog
 	SetSingleNodeMode(singleNodeMode bool)
 	UpdateRaft(rft *raft.Raft)
 	GetSingleNodeMode() bool
 	GetScheduledJobs() *sync.Map
 	GetExecutionsCache() *sync.Map
+	DeleteNewUncommittedExecutionLogs(lastInsertedId, rowsAffected int64)
 }
 
 func NewJobExecutor(
@@ -58,10 +61,11 @@ func NewJobExecutor(
 	logger hclog.Logger,
 	scheduler0Config config.Scheduler0Config,
 	scheduler0Actions fsm.Scheduler0RaftActions,
-	jobRepository repository.JobRepo,
-	executionsRepo repository.JobExecutionsRepo,
-	jobQueuesRepo repository.JobQueuesRepo,
-	dispatcher *utils.Dispatcher) *jobExecutor {
+	jobRepository job_repo.JobRepo,
+	executionsRepo job_execution_repo.JobExecutionsRepo,
+	jobQueuesRepo job_queue_repo.JobQueuesRepo,
+	httpExecutionHandler executors.HTTPExecutor,
+	dispatcher *utils.Dispatcher) JobExecutorService {
 	reCtx, cancel := context.WithCancel(ctx)
 	return &jobExecutor{
 		pendingJobInvocations: []models.Job{},
@@ -72,7 +76,7 @@ func NewJobExecutor(
 		logger:                logger.Named("job-executor-service"),
 		context:               reCtx,
 		cancelReq:             cancel,
-		httpExecutionHandler:  executors.NewHTTTPExecutor(logger),
+		httpExecutionHandler:  httpExecutionHandler,
 		jobExecutionsCache:    sync.Map{},
 		debounce:              utils.NewDebounce(),
 		dispatcher:            dispatcher,
@@ -81,19 +85,24 @@ func NewJobExecutor(
 	}
 }
 
-func (jobExecutor *jobExecutor) QueueExecutions(jobQueueParams []interface{}) {
-	configs := jobExecutor.scheduler0Config.GetConfigurations()
+func (jobExecutor *jobExecutor) QueueExecutions(lastInsertedId, rowsAffected int64) {
+	newJobQueueLogs := jobExecutor.
+		jobQueuesRepo.
+		GetJobQueueByLastInsertedAndRowsAffected(lastInsertedId, rowsAffected)
 
-	serverId := jobQueueParams[0].(uint64)
-	lowerBound := jobQueueParams[1].(int64)
-	upperBound := jobQueueParams[2].(int64)
+	lowerBound := math.MaxInt64
+	upperBound := math.MinInt64
 
-	if serverId != configs.NodeId {
-		return
+	for _, newJobQueueLog := range newJobQueueLogs {
+		if uint64(lowerBound) > newJobQueueLog.LowerBoundJobId {
+			lowerBound = int(int64(newJobQueueLog.LowerBoundJobId))
+		}
+		if uint64(upperBound) > newJobQueueLog.UpperBoundJobId {
+			upperBound = int(int64(newJobQueueLog.UpperBoundJobId))
+		}
 	}
 
 	jobExecutor.logger.Debug("Queueing jobs", "from", lowerBound, "to", upperBound)
-
 	if upperBound-lowerBound > constants.JobMaxBatchSize {
 		currentLowerBound := lowerBound
 		currentUpperBound := lowerBound + constants.JobMaxBatchSize
@@ -101,7 +110,7 @@ func (jobExecutor *jobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 		for currentLowerBound < upperBound {
 
 			jobExecutor.logger.Debug("fetching batching", currentLowerBound, "between", currentUpperBound)
-			jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(uint64(currentLowerBound), uint64(currentUpperBound))
+			jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(int64(currentLowerBound), int64(currentUpperBound))
 
 			if getErr != nil {
 				jobExecutor.logger.Error("failed to batch get job by ranges ids", "error", getErr)
@@ -115,14 +124,14 @@ func (jobExecutor *jobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 				currentUpperBound = upperBound
 			} else {
 				currentLowerBound = currentUpperBound + 1
-				currentUpperBound = int64(math.Min(
+				currentUpperBound = int(math.Min(
 					float64(currentLowerBound+constants.JobMaxBatchSize),
 					float64(upperBound),
 				))
 			}
 		}
 	} else {
-		jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(uint64(lowerBound), uint64(upperBound))
+		jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(int64(lowerBound), int64(upperBound))
 		if getErr != nil {
 			jobExecutor.logger.Error("failed to batch get job by ranges ids ", "error", getErr)
 		}
@@ -163,7 +172,7 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 				continue
 			}
 			jobs[i].ExecutionId = executionId
-			jobExecutor.ScheduleProcess(jobs[i])
+			jobExecutor.AddJobSchedule(jobs[i])
 			jobExecutor.jobExecutionsCache.Store(job.ID, models.MemJobExecution{
 				ExecutionVersion:      1,
 				FailCount:             0,
@@ -195,7 +204,7 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 				jobExecutor.logger.Error(fmt.Sprintf("failed to get next execution time for job with id %d error=%s", job.ID, err.Error()))
 				continue
 			}
-			jobExecutor.ScheduleProcess(jobs[i])
+			jobExecutor.AddJobSchedule(jobs[i])
 			jobExecutor.jobExecutionsCache.Store(job.ID, models.MemJobExecution{
 				ExecutionVersion:      jobLastLog.ExecutionVersion,
 				FailCount:             0,
@@ -219,7 +228,7 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 				continue
 			}
 			jobs[i].ExecutionId = uniqueId
-			jobExecutor.ScheduleProcess(jobs[i])
+			jobExecutor.AddJobSchedule(jobs[i])
 			jobExecutor.jobExecutionsCache.Store(job.ID, models.MemJobExecution{
 				ExecutionVersion:      jobLastLog.ExecutionVersion,
 				FailCount:             0,
@@ -247,7 +256,7 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 					LastExecutionDatetime: jobLastLog.LastExecutionDatetime,
 					NextExecutionDatetime: jobLastLog.NextExecutionDatetime,
 				})
-				jobExecutor.ScheduleProcess(jobs[i])
+				jobExecutor.AddJobSchedule(jobs[i])
 			}
 
 			// After all retry attempts for the failed job
@@ -263,7 +272,7 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 				continue
 			}
 			jobs[i].ExecutionId = uniqueId
-			jobExecutor.ScheduleProcess(jobs[i])
+			jobExecutor.AddJobSchedule(jobs[i])
 			jobExecutor.jobExecutionsCache.Store(job.ID, models.MemJobExecution{
 				ExecutionVersion:      jobLastLog.ExecutionVersion,
 				FailCount:             0,
@@ -298,7 +307,7 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 	jobExecutor.jobExecutionsRepo.BatchInsert(jobs, configs.NodeId, models.ExecutionLogScheduleState, lastVersion, lastExecutionVersions)
 
 	if jobExecutor.singleNodeMode {
-		jobExecutor.logJobExecutionStateInRaft(jobs, models.ExecutionLogScheduleState, lastExecutionVersions)
+		jobExecutor.jobExecutionsRepo.LogJobExecutionStateInRaft(jobs, models.ExecutionLogScheduleState, lastExecutionVersions, lastVersion, configs.NodeId)
 	}
 
 	jobExecutor.logger.Debug("scheduled jobs", "from", jobs[0].ID, "to", jobs[len(jobs)-1].ID)
@@ -307,16 +316,14 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 func (jobExecutor *jobExecutor) StopAll() {
 	jobExecutor.mtx.Lock()
 	defer jobExecutor.mtx.Unlock()
-
+	jobExecutor.scheduledJobs.Range(func(key, value any) bool {
+		jobExecutor.scheduledJobs.Delete(key)
+		return true
+	})
 	jobExecutor.logger.Info("stopped all scheduled job")
-	jobExecutor.cancelReq()
-	ctx, cancel := context.WithCancel(context.Background())
-	jobExecutor.cancelReq = cancel
-	jobExecutor.context = ctx
-	jobExecutor.ListenForJobsToInvoke()
 }
 
-func (jobExecutor *jobExecutor) ScheduleProcess(job models.Job) {
+func (jobExecutor *jobExecutor) AddJobSchedule(job models.Job) {
 	schedulerTime := scheduler0time.GetSchedulerTime()
 	nextExecutionDateLocal, err := job.GetNextExecutionTime()
 	if err != nil {
@@ -363,10 +370,6 @@ func (jobExecutor *jobExecutor) GetUncommittedLogs() []models.JobExecutionLog {
 	return executionLogs
 }
 
-func (jobExecutor *jobExecutor) ExecuteHTTP(jobs []models.Job, ctx context.Context, onSuccess func(pj []models.Job), onFailure func(pj []models.Job)) {
-	jobExecutor.httpExecutionHandler.ExecuteHTTPJob(ctx, jobExecutor.dispatcher, jobs, onSuccess, onFailure)
-}
-
 func (jobExecutor *jobExecutor) SetSingleNodeMode(singleNodeMode bool) {
 	jobExecutor.singleNodeMode = singleNodeMode
 }
@@ -385,6 +388,9 @@ func (jobExecutor *jobExecutor) GetScheduledJobs() *sync.Map {
 
 func (jobExecutor *jobExecutor) GetExecutionsCache() *sync.Map {
 	return &jobExecutor.jobExecutionsCache
+}
+
+func (jobExecutor *jobExecutor) DeleteNewUncommittedExecutionLogs(lastInsertedId, rowsAffected int64) {
 }
 
 func (jobExecutor *jobExecutor) reschedule(jobs []models.Job, newState models.JobExecutionLogState) {
@@ -429,7 +435,7 @@ func (jobExecutor *jobExecutor) reschedule(jobs []models.Job, newState models.Jo
 		}
 
 		jobs[i].ExecutionId = executionId
-		jobExecutor.ScheduleProcess(jobs[i])
+		jobExecutor.AddJobSchedule(jobs[i])
 		jobExecutor.jobExecutionsCache.Store(job.ID, models.MemJobExecution{
 			ExecutionVersion:      executionVersion,
 			FailCount:             0,
@@ -453,7 +459,7 @@ func (jobExecutor *jobExecutor) reschedule(jobs []models.Job, newState models.Jo
 
 	jobExecutor.jobExecutionsRepo.BatchInsert(jobsToReschedule, configs.NodeId, models.ExecutionLogScheduleState, lastVersion, lastExecutionVersions)
 	if jobExecutor.singleNodeMode {
-		jobExecutor.logJobExecutionStateInRaft(jobsToReschedule, models.ExecutionLogScheduleState, lastExecutionVersions)
+		jobExecutor.jobExecutionsRepo.LogJobExecutionStateInRaft(jobsToReschedule, models.ExecutionLogScheduleState, lastExecutionVersions, lastVersion, configs.NodeId)
 	}
 }
 
@@ -542,12 +548,7 @@ func (jobExecutor *jobExecutor) invokeJob(pendingJob models.Job) {
 		for executionType, jobs := range jobsByType {
 			switch executionType {
 			case string(models.ExecutionTypeHTTP):
-				jobExecutor.ExecuteHTTP(
-					jobs,
-					jobExecutor.context,
-					jobExecutor.handleSuccessJobs,
-					jobExecutor.handleFailedJobs,
-				)
+				jobExecutor.httpExecutionHandler.ExecuteHTTPJob(jobs, jobExecutor.handleSuccessJobs, jobExecutor.handleFailedJobs)
 			default:
 				jobExecutor.logger.Error(fmt.Sprintf("unrecognized execution %s", executionType))
 			}
@@ -579,7 +580,7 @@ func (jobExecutor *jobExecutor) handleSuccessJobs(successfulJobs []models.Job) {
 
 	jobExecutor.jobExecutionsRepo.BatchInsert(successfulJobs, configs.NodeId, models.ExecutionLogSuccessState, lastVersion, lastExecutionVersions)
 	if jobExecutor.singleNodeMode {
-		jobExecutor.logJobExecutionStateInRaft(successfulJobs, models.ExecutionLogSuccessState, lastExecutionVersions)
+		jobExecutor.jobExecutionsRepo.LogJobExecutionStateInRaft(successfulJobs, models.ExecutionLogSuccessState, lastExecutionVersions, lastVersion, configs.NodeId)
 	}
 	jobExecutor.reschedule(successfulJobs, models.ExecutionLogSuccessState)
 }
@@ -604,61 +605,13 @@ func (jobExecutor *jobExecutor) handleFailedJobs(erroredJobs []models.Job) {
 	for _, erroredJob := range erroredJobs {
 		cachedJobExecutionsLog, _ := jobExecutor.jobExecutionsCache.Load(erroredJob.ID)
 		cachedJobExecutionLog := (cachedJobExecutionsLog).(models.MemJobExecution)
-
 		lastExecutionVersions[erroredJob.ID] = cachedJobExecutionLog.ExecutionVersion
 	}
 	jobExecutor.mtx.Unlock()
 
 	jobExecutor.jobExecutionsRepo.BatchInsert(erroredJobs, configs.NodeId, models.ExecutionLogFailedState, lastVersion, lastExecutionVersions)
 	if jobExecutor.singleNodeMode {
-		jobExecutor.logJobExecutionStateInRaft(erroredJobs, models.ExecutionLogFailedState, lastExecutionVersions)
+		jobExecutor.jobExecutionsRepo.LogJobExecutionStateInRaft(erroredJobs, models.ExecutionLogFailedState, lastExecutionVersions, lastVersion, configs.NodeId)
 	}
 	jobExecutor.reschedule(erroredJobs, models.ExecutionLogFailedState)
-}
-
-func (jobExecutor *jobExecutor) logJobExecutionStateInRaft(jobs []models.Job, state models.JobExecutionLogState, executionVersions map[uint64]uint64) {
-	configs := jobExecutor.scheduler0Config.GetConfigurations()
-	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
-
-	executionLogs := make([]models.JobExecutionLog, 0, len(jobs))
-
-	for _, job := range jobs {
-		sched := scheduler0time.GetSchedulerTime()
-		now := sched.GetTime(time.Now())
-		executionTime, err := job.GetNextExecutionTime()
-		if err != nil {
-			jobExecutor.logger.Error("failed to get next execution time", "error", err)
-			continue
-		}
-		executionLogs = append(executionLogs, models.JobExecutionLog{
-			JobId:                 job.ID,
-			UniqueId:              job.ExecutionId,
-			State:                 state,
-			NodeId:                configs.NodeId,
-			LastExecutionDatetime: job.LastExecutionDate,
-			NextExecutionDatetime: *executionTime,
-			JobQueueVersion:       lastVersion,
-			DataCreated:           now,
-			ExecutionVersion:      executionVersions[job.ID],
-		})
-	}
-
-	params := []interface{}{
-		models.CommitLocalData{
-			Data: models.LocalData{
-				ExecutionLogs: executionLogs,
-			},
-		},
-	}
-	_, err := jobExecutor.scheduler0Actions.WriteCommandToRaftLog(
-		jobExecutor.raft,
-		constants.CommandTypeLocalData,
-		"",
-		configs.NodeId,
-		params,
-	)
-	if err != nil {
-		jobExecutor.logger.Error("failed to log execution state in raft", "error", err)
-		return
-	}
 }

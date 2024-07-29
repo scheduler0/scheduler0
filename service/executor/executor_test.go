@@ -1,4 +1,4 @@
-package service
+package executor
 
 import (
 	"context"
@@ -7,17 +7,24 @@ import (
 	"github.com/hashicorp/raft"
 	"github.com/robfig/cron"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"io/ioutil"
-	"net"
-	"net/http"
 	"os"
 	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/repository"
+	async_task_repo "scheduler0/repository/async_task"
+	job_repo "scheduler0/repository/job"
+	job_execution_repo "scheduler0/repository/job_execution"
+	job_queue_repo "scheduler0/repository/job_queue"
+	project_repo "scheduler0/repository/project"
 	"scheduler0/scheduler0time"
+	"scheduler0/service/async_task"
+	"scheduler0/service/executor/executors"
+	"scheduler0/service/job"
+	"scheduler0/service/queue"
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"testing"
@@ -44,10 +51,10 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -66,12 +73,12 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 	ctx, canceler := context.WithCancel(context.Background())
 	defer canceler()
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-	jobExecutionsRepo := repository.NewExecutionsRepo(
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := async_task_repo.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := async_task.NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
+	jobQueueRepo := job_queue_repo.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := job_execution_repo.NewExecutionsRepo(
 		logger,
 		scheduler0RaftActions,
 		scheduler0Store,
@@ -85,9 +92,12 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 
 	dispatcher.Run()
 
-	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	queueRepo.SetSingleNodeMode(true)
 	// Create a new JobService instance
-	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+
+	httpJobExecutor := executors.NewMockHTTPExecutor(t)
 
 	service := NewJobExecutor(
 		ctx,
@@ -97,9 +107,11 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		jobRepo,
 		jobExecutionsRepo,
 		jobQueueRepo,
+		httpJobExecutor,
 		dispatcher,
 	)
 
+	service.SetSingleNodeMode(true)
 	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
 
@@ -146,16 +158,15 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		t.Fatal("failed to set env", serr)
 	}
 
-	service.QueueExecutions([]interface{}{
-		uint64(1),
+	service.QueueExecutions(
 		int64(1),
 		int64(2),
-	})
+	)
 
 	_, ok := service.GetScheduledJobs().Load(jobs[0].ID)
-	assert.Equal(t, ok, true)
+	assert.Equal(t, true, ok)
 	_, ok = service.GetScheduledJobs().Load(jobs[1].ID)
-	assert.Equal(t, ok, true)
+	assert.Equal(t, true, ok)
 }
 
 func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
@@ -178,10 +189,10 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -200,12 +211,12 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 	ctx, canceler := context.WithCancel(context.Background())
 	defer canceler()
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-	jobExecutionsRepo := repository.NewExecutionsRepo(
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := async_task_repo.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := async_task.NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
+	jobQueueRepo := job_queue_repo.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := job_execution_repo.NewExecutionsRepo(
 		logger,
 		scheduler0RaftActions,
 		scheduler0Store,
@@ -219,9 +230,12 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 
 	dispatcher.Run()
 
-	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	queueRepo.SetSingleNodeMode(true)
 	// Create a new JobService instance
-	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+
+	httpJobExecutor := executors.NewMockHTTPExecutor(t)
 
 	service := NewJobExecutor(
 		ctx,
@@ -231,6 +245,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 		jobRepo,
 		jobExecutionsRepo,
 		jobQueueRepo,
+		httpJobExecutor,
 		dispatcher,
 	)
 
@@ -275,16 +290,15 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 	if serr != nil {
 		t.Fatal("failed to set env", serr)
 	}
-	service.QueueExecutions([]interface{}{
-		uint64(1),
+	service.QueueExecutions(
 		int64(1),
-		int64(constants.JobMaxBatchSize + 100),
-	})
+		int64(constants.JobMaxBatchSize+100),
+	)
 
 	i = 0
 	for i < constants.JobMaxBatchSize+99 {
 		_, ok := service.GetScheduledJobs().Load(jobs[i].ID)
-		assert.Equal(t, ok, true)
+		assert.Equal(t, true, ok)
 		i++
 	}
 }
@@ -309,10 +323,10 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -331,12 +345,12 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 	ctx, canceler := context.WithCancel(context.Background())
 	defer canceler()
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-	jobExecutionsRepo := repository.NewExecutionsRepo(
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := async_task_repo.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := async_task.NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
+	jobQueueRepo := job_queue_repo.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := job_execution_repo.NewExecutionsRepo(
 		logger,
 		scheduler0RaftActions,
 		scheduler0Store,
@@ -350,9 +364,11 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 
 	dispatcher.Run()
 
-	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 	// Create a new JobService instance
-	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+
+	httpJobExecutor := executors.NewMockHTTPExecutor(t)
 
 	service := NewJobExecutor(
 		ctx,
@@ -362,6 +378,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 		jobRepo,
 		jobExecutionsRepo,
 		jobQueueRepo,
+		httpJobExecutor,
 		dispatcher,
 	)
 
@@ -407,11 +424,10 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 		t.Fatal("failed to set env", serr)
 	}
 
-	service.QueueExecutions([]interface{}{
-		uint64(1),
+	service.QueueExecutions(
 		int64(1),
-		int64(constants.JobMaxBatchSize + 100),
-	})
+		int64(constants.JobMaxBatchSize+100),
+	)
 
 	i = 0
 	for i < constants.JobMaxBatchSize+99 {
@@ -452,10 +468,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		scheduler0config := config.NewScheduler0Config()
 		sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-		scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+		scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 		// Create a new FSM store
-		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 		// Create a mock raft cluster
 		cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -474,12 +490,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		ctx, canceler := context.WithCancel(context.Background())
 		defer canceler()
 
-		jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-		projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-		asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-		asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-		jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-		jobExecutionsRepo := repository.NewExecutionsRepo(
+		jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+		projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+		asyncTaskManagerRepo := async_task_repo.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+		asyncTaskManager := async_task.NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
+		jobQueueRepo := job_queue_repo.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+		jobExecutionsRepo := job_execution_repo.NewExecutionsRepo(
 			logger,
 			scheduler0RaftActions,
 			scheduler0Store,
@@ -493,9 +509,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		dispatcher.Run()
 
-		queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+		queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+		queueRepo.SetSingleNodeMode(true)
 		// Create a new JobService instance
-		jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+		jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+
+		httpJobExecutor := executors.NewMockHTTPExecutor(t)
 
 		service := NewJobExecutor(
 			ctx,
@@ -505,6 +524,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			jobRepo,
 			jobExecutionsRepo,
 			jobQueueRepo,
+			httpJobExecutor,
 			dispatcher,
 		)
 
@@ -592,11 +612,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		if err != nil {
 			t.Fatal("failed to insert execution logs", err)
 		}
-		service.QueueExecutions([]interface{}{
-			uint64(1),
+		service.QueueExecutions(
 			int64(1),
 			int64(100),
-		})
+		)
 
 		i = 0
 		for i < 99 {
@@ -641,10 +660,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		scheduler0config := config.NewScheduler0Config()
 		sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-		scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+		scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 		// Create a new FSM store
-		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 		// Create a mock raft cluster
 		cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -663,12 +682,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		ctx, canceler := context.WithCancel(context.Background())
 		defer canceler()
 
-		jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-		projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-		asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-		asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-		jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-		jobExecutionsRepo := repository.NewExecutionsRepo(
+		jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+		projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+		asyncTaskManagerRepo := async_task_repo.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+		asyncTaskManager := async_task.NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
+		jobQueueRepo := job_queue_repo.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+		jobExecutionsRepo := job_execution_repo.NewExecutionsRepo(
 			logger,
 			scheduler0RaftActions,
 			scheduler0Store,
@@ -682,9 +701,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		dispatcher.Run()
 
-		queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+		queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+		queueRepo.SetSingleNodeMode(true)
 		// Create a new JobService instance
-		jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+		jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+
+		httpJobExecutor := executors.NewMockHTTPExecutor(t)
 
 		service := NewJobExecutor(
 			ctx,
@@ -694,6 +716,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			jobRepo,
 			jobExecutionsRepo,
 			jobQueueRepo,
+			httpJobExecutor,
 			dispatcher,
 		)
 
@@ -784,11 +807,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		if err != nil {
 			t.Fatal("failed to insert execution logs", err)
 		}
-		service.QueueExecutions([]interface{}{
-			uint64(1),
+		service.QueueExecutions(
 			int64(1),
 			int64(100),
-		})
+		)
 
 		i = 0
 		for i < 99 {
@@ -832,10 +854,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		scheduler0config := config.NewScheduler0Config()
 		sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-		scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+		scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 		// Create a new FSM store
-		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+		scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 		// Create a mock raft cluster
 		cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -854,12 +876,12 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		ctx, canceler := context.WithCancel(context.Background())
 		defer canceler()
 
-		jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-		projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-		asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-		asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-		jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-		jobExecutionsRepo := repository.NewExecutionsRepo(
+		jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+		projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+		asyncTaskManagerRepo := async_task_repo.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+		asyncTaskManager := async_task.NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
+		jobQueueRepo := job_queue_repo.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+		jobExecutionsRepo := job_execution_repo.NewExecutionsRepo(
 			logger,
 			scheduler0RaftActions,
 			scheduler0Store,
@@ -873,9 +895,11 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		dispatcher.Run()
 
-		queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+		queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+		queueRepo.SetSingleNodeMode(true)
 		// Create a new JobService instance
-		jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+		jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+		httpJobExecutor := executors.NewMockHTTPExecutor(t)
 
 		service := NewJobExecutor(
 			ctx,
@@ -885,6 +909,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			jobRepo,
 			jobExecutionsRepo,
 			jobQueueRepo,
+			httpJobExecutor,
 			dispatcher,
 		)
 
@@ -975,11 +1000,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		if err != nil {
 			t.Fatal("failed to insert execution logs", err)
 		}
-		service.QueueExecutions([]interface{}{
-			uint64(1),
+		service.QueueExecutions(
 			int64(1),
 			int64(100),
-		})
+		)
 
 		i = 0
 		for i < 99 {
@@ -1012,10 +1036,10 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -1034,12 +1058,12 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	defer cancelCtx()
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-	jobExecutionsRepo := repository.NewExecutionsRepo(
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := async_task_repo.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := async_task.NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
+	jobQueueRepo := job_queue_repo.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := job_execution_repo.NewExecutionsRepo(
 		logger,
 		scheduler0RaftActions,
 		scheduler0Store,
@@ -1053,10 +1077,11 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 
 	dispatcher.Run()
 
-	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 	// Create a new JobService instance
-	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
-
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	httpJobExecutor := executors.NewMockHTTPExecutor(t)
+	httpJobExecutor.On("ExecuteHTTPJob", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	service := NewJobExecutor(
 		ctx,
 		logger,
@@ -1065,6 +1090,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 		jobRepo,
 		jobExecutionsRepo,
 		jobQueueRepo,
+		httpJobExecutor,
 		dispatcher,
 	)
 
@@ -1083,43 +1109,13 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	now := schedulerTime.GetTime(time.Now())
 	nextTime := schedule.Next(now)
 
-	jobExecuted := false
-	callbackUrl := ""
-
-	go func() {
-		ln, err := net.Listen("tcp", "127.0.0.1:")
-		if err != nil {
-			t.Error("failed to create tcp listener", err)
-			return
-		}
-		testMux := http.NewServeMux()
-		testMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-			t.Log("executing test job")
-			jobExecuted = true
-		})
-		callbackUrl = ln.Addr().String()
-		err = http.Serve(ln, testMux)
-		if err != nil {
-			t.Error("failed to listen and serve http request", err)
-			return
-		}
-		time.Sleep(1*time.Minute + 2*time.Second)
-		ln.Close()
-	}()
-
-	time.Sleep(1 * time.Second)
-
-	if callbackUrl == "" {
-		t.Fatal("callback url is empty string", callbackUrl)
-	}
-
 	job := models.Job{
 		ID:            uint64(1),
 		Spec:          "@every 1h",
 		Timezone:      "America/New_York",
 		ProjectID:     1,
 		ExecutionType: "http",
-		CallbackUrl:   fmt.Sprintf("http://%s", callbackUrl),
+		CallbackUrl:   "http://someaddress",
 	}
 
 	jobs = []models.Job{job}
@@ -1157,7 +1153,6 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	})
 
 	time.Sleep(1*time.Minute + 2*time.Second)
-	assert.Equal(t, true, jobExecuted)
 }
 
 func Test_handleFailedJobs(t *testing.T) {
@@ -1180,10 +1175,10 @@ func Test_handleFailedJobs(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -1202,12 +1197,12 @@ func Test_handleFailedJobs(t *testing.T) {
 	ctx, canceler := context.WithCancel(context.Background())
 	defer canceler()
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-	jobExecutionsRepo := repository.NewExecutionsRepo(
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	asyncTaskManagerRepo := async_task_repo.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := async_task.NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
+	jobQueueRepo := job_queue_repo.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := job_execution_repo.NewExecutionsRepo(
 		logger,
 		scheduler0RaftActions,
 		scheduler0Store,
@@ -1221,10 +1216,11 @@ func Test_handleFailedJobs(t *testing.T) {
 
 	dispatcher.Run()
 
-	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 	// Create a new JobService instance
-	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
 
+	httpJobExecutor := executors.NewHTTTPExecutor(logger, ctx, scheduler0config, dispatcher)
 	service := NewJobExecutor(
 		ctx,
 		logger,
@@ -1233,8 +1229,11 @@ func Test_handleFailedJobs(t *testing.T) {
 		jobRepo,
 		jobExecutionsRepo,
 		jobQueueRepo,
+		httpJobExecutor,
 		dispatcher,
 	)
+
+	service.ListenForJobsToInvoke()
 
 	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
@@ -1243,12 +1242,14 @@ func Test_handleFailedJobs(t *testing.T) {
 	jobs := []models.Job{}
 	job := models.Job{
 		ID:            uint64(1),
-		Spec:          "@every 1h",
+		Spec:          "@every 1m",
 		Timezone:      "America/New_York",
 		ProjectID:     1,
 		ExecutionType: "http",
 		CallbackUrl:   "http://%s",
 	}
+
+	time.Sleep(1 * time.Second)
 
 	jobs = []models.Job{job}
 
@@ -1283,7 +1284,7 @@ func Test_handleFailedJobs(t *testing.T) {
 		t.Fatal("failed to set env", serr)
 	}
 
-	schedule, parseErr := cron.Parse("@every 1h")
+	schedule, parseErr := cron.Parse("@every 1m")
 	if parseErr != nil {
 		t.Fatal("cron spec error", parseErr)
 	}
@@ -1291,155 +1292,24 @@ func Test_handleFailedJobs(t *testing.T) {
 	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 	nextTime := schedule.Next(now)
-	lastTime := nextTime.Add(-nextTime.Sub(now))
 
-	service.GetExecutionsCache().Store(uint64(1), models.MemJobExecution{
-		ExecutionVersion:      1,
-		FailCount:             0,
-		LastState:             models.ExecutionLogFailedState,
-		LastExecutionDatetime: lastTime,
-		NextExecutionDatetime: nextTime,
+	service.GetScheduledJobs().Store(1, models.JobSchedule{
+		Job:           job,
+		ExecutionTime: nextTime,
 	})
 
 	service.UpdateRaft(scheduler0Store.GetRaft())
-	service.handleFailedJobs([]models.Job{job})
 
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Minute*1 + time.Second*5)
 
 	exec, ok := service.GetExecutionsCache().Load(uint64(1))
 	if !ok {
 		t.Fatal("should store job execution in cache")
 	}
 	cachedJobExecutionLog := (exec).(models.MemJobExecution)
-	assert.Equal(t, 1, int(cachedJobExecutionLog.FailCount))
+	assert.Equal(t, 2, int(cachedJobExecutionLog.FailCount))
 	uncommittedExecutionLogsCount := jobExecutionsRepo.CountExecutionLogs(false)
-	assert.Equal(t, 1, int(uncommittedExecutionLogsCount))
-}
-
-func Test_logJobExecutionStateInRaft(t *testing.T) {
-	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "job-service-test",
-		Level: hclog.LevelFromString("trace"),
-	})
-
-	// Create a temporary SQLite database file
-	tempFile, err := ioutil.TempFile("", "test-db")
-	if err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	defer os.Remove(tempFile.Name())
-
-	// Create a new SQLite database connection
-	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
-	sqliteDb.OpenConnectionToExistingDB()
-
-	scheduler0config := config.NewScheduler0Config()
-	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
-
-	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
-
-	// Create a mock raft cluster
-	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
-		Peers:          1,
-		Bootstrap:      true,
-		Conf:           raft.DefaultConfig(),
-		ConfigStoreFSM: false,
-		MakeFSMFunc: func() raft.FSM {
-			return scheduler0Store.GetFSM()
-		},
-	})
-	defer cluster.Close()
-	cluster.FullyConnect()
-	scheduler0Store.UpdateRaft(cluster.Leader())
-
-	ctx, canceler := context.WithCancel(context.Background())
-	defer canceler()
-
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-	jobExecutionsRepo := repository.NewExecutionsRepo(
-		logger,
-		scheduler0RaftActions,
-		scheduler0Store,
-	)
-
-	dispatcher := utils.NewDispatcher(
-		ctx,
-		int64(1),
-		int64(1),
-	)
-
-	dispatcher.Run()
-
-	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
-	// Create a new JobService instance
-	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
-
-	service := NewJobExecutor(
-		ctx,
-		logger,
-		scheduler0config,
-		scheduler0RaftActions,
-		jobRepo,
-		jobExecutionsRepo,
-		jobQueueRepo,
-		dispatcher,
-	)
-
-	service.UpdateRaft(scheduler0Store.GetRaft())
-
-	asyncTaskManager.SetSingleNodeMode(true)
-	asyncTaskManager.ListenForNotifications()
-
-	// Define the input jobs
-	jobs := []models.Job{}
-	job := models.Job{
-		ID:            uint64(1),
-		Spec:          "@every 1h",
-		Timezone:      "America/New_York",
-		ProjectID:     1,
-		ExecutionType: "http",
-		CallbackUrl:   "http://%s",
-	}
-
-	jobs = []models.Job{job}
-
-	// Create the projects using the project repo
-	project := models.Project{
-		ID:          1,
-		Name:        fmt.Sprintf("Project %d", 1),
-		Description: fmt.Sprintf("Project %d description", 1),
-	}
-	_, createErr := projectRepo.CreateOne(&project)
-	if createErr != nil {
-		t.Fatalf("Failed to create project: %v", createErr)
-	}
-
-	// Call the BatchInsertJobs method of the job service
-	_, batchErr := jobService.BatchInsertJobs("request123", jobs)
-	if batchErr != nil {
-		t.Fatalf("Failed to insert jobs: %v", batchErr)
-	}
-
-	time.Sleep(time.Second * time.Duration(1))
-
-	serr := os.Setenv("SCHEDULER0_NODE_ID", "1")
-	defer os.Unsetenv("SCHEDULER0_NODE_ID")
-	if serr != nil {
-		t.Fatal("failed to set env", serr)
-	}
-
-	service.logJobExecutionStateInRaft(jobs, models.ExecutionLogScheduleState, map[uint64]uint64{1: 1})
-	time.Sleep(time.Second * time.Duration(1))
-
-	uncommittedExecutionLogsCount := jobExecutionsRepo.CountExecutionLogs(true)
-	assert.Equal(t, 1, int(uncommittedExecutionLogsCount))
+	assert.Equal(t, 3, int(uncommittedExecutionLogsCount))
 }
 
 func Test_StopAll(t *testing.T) {
@@ -1462,10 +1332,10 @@ func Test_StopAll(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -1484,12 +1354,9 @@ func Test_StopAll(t *testing.T) {
 	ctx, canceler := context.WithCancel(context.Background())
 	defer canceler()
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
-	jobQueueRepo := repository.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
-	jobExecutionsRepo := repository.NewExecutionsRepo(
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobQueueRepo := job_queue_repo.NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionsRepo := job_execution_repo.NewExecutionsRepo(
 		logger,
 		scheduler0RaftActions,
 		scheduler0Store,
@@ -1503,9 +1370,7 @@ func Test_StopAll(t *testing.T) {
 
 	dispatcher.Run()
 
-	queueRepo := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
-	// Create a new JobService instance
-	jobService := NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	httpJobExecutor := executors.NewMockHTTPExecutor(t)
 
 	service := NewJobExecutor(
 		ctx,
@@ -1515,50 +1380,18 @@ func Test_StopAll(t *testing.T) {
 		jobRepo,
 		jobExecutionsRepo,
 		jobQueueRepo,
+		httpJobExecutor,
 		dispatcher,
 	)
 
-	service.UpdateRaft(scheduler0Store.GetRaft())
-
-	asyncTaskManager.SetSingleNodeMode(true)
-	asyncTaskManager.ListenForNotifications()
-
-	// Define the input jobs
-	jobs := []models.Job{}
-	job := models.Job{
-		ID:            uint64(1),
-		Spec:          "@every 1h",
-		Timezone:      "America/New_York",
-		ProjectID:     1,
-		ExecutionType: "http",
-		CallbackUrl:   "http://%s",
+	for i := 0; i < 10; i++ {
+		service.GetScheduledJobs().Store(i, i)
 	}
-
-	jobs = []models.Job{job}
-
-	// Create the projects using the project repo
-	project := models.Project{
-		ID:          1,
-		Name:        fmt.Sprintf("Project %d", 1),
-		Description: fmt.Sprintf("Project %d description", 1),
-	}
-	_, createErr := projectRepo.CreateOne(&project)
-	if createErr != nil {
-		t.Fatalf("Failed to create project: %v", createErr)
-	}
-
-	// Call the BatchInsertJobs method of the job service
-	_, batchErr := jobService.BatchInsertJobs("request123", jobs)
-	if batchErr != nil {
-		t.Fatalf("Failed to insert jobs: %v", batchErr)
-	}
-
-	time.Sleep(time.Second * time.Duration(1))
-
-	oldContext := service.context
 	service.StopAll()
-
-	if oldContext == service.context {
-		t.Fatal("context should be replaced")
-	}
+	count := 0
+	service.GetScheduledJobs().Range(func(key, value any) bool {
+		count += 1
+		return true
+	})
+	assert.Equal(t, count, 0)
 }
