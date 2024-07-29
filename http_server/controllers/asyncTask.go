@@ -5,9 +5,8 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
-	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/service"
+	"scheduler0/service/async_task"
 	"scheduler0/utils"
 )
 
@@ -16,14 +15,12 @@ type AsyncTaskController interface {
 }
 
 type asyncTaskController struct {
-	fsmStore         fsm.Scheduler0RaftStore
 	logger           *log.Logger
-	asyncTaskService service.AsyncTaskManager
+	asyncTaskService async_task.AsyncTaskService
 }
 
-func NewAsyncTaskController(logger *log.Logger, fsmStore fsm.Scheduler0RaftStore, asyncTaskService service.AsyncTaskManager) AsyncTaskController {
+func NewAsyncTaskController(logger *log.Logger, asyncTaskService async_task.AsyncTaskService) AsyncTaskController {
 	controller := asyncTaskController{
-		fsmStore:         fsmStore,
 		logger:           logger,
 		asyncTaskService: asyncTaskService,
 	}

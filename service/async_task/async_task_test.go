@@ -1,4 +1,4 @@
-package service
+package async_task
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/repository"
+	"scheduler0/repository/async_task"
 	"scheduler0/shared_repo"
 	"testing"
 	"time"
@@ -25,7 +25,7 @@ func Test_AsyncTaskManager_AddTasks(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -34,7 +34,7 @@ func Test_AsyncTaskManager_AddTasks(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	input := "{'a':2}"
 	requestId := "request-id"
@@ -54,8 +54,8 @@ func Test_AsyncTaskManager_AddTasks(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
 
 	asyncTaskIds, getErr := asyncTaskManager.AddTasks(input, requestId, service)
 	if getErr != nil {
@@ -73,7 +73,7 @@ func Test_AsyncTaskManager_UpdateTasksById(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -82,7 +82,7 @@ func Test_AsyncTaskManager_UpdateTasksById(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	input := "{'a':2}"
 	requestId := "request-id"
@@ -103,8 +103,8 @@ func Test_AsyncTaskManager_UpdateTasksById(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
 
 	asyncTaskIds, getErr := asyncTaskManager.AddTasks(input, requestId, service)
 	if getErr != nil {
@@ -130,7 +130,7 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -139,7 +139,7 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	input := "{'a':2}"
 	requestId := "request-id"
@@ -160,8 +160,8 @@ func Test_AsyncTaskManager_UpdateTasksByRequestId(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
 
 	_, getErr := asyncTaskManager.AddTasks(input, requestId, service)
 	if getErr != nil {
@@ -189,7 +189,7 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -198,7 +198,7 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	input := "{'a':2}"
 	requestId := "request-id"
@@ -219,8 +219,8 @@ func Test_AsyncTaskManager_AddSubscriber(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
 
 	taskIds, getErr := asyncTaskManager.AddTasks(input, requestId, service)
 	if getErr != nil {
@@ -256,7 +256,7 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -265,7 +265,7 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	input := "{'a':2}"
 	requestId := "request-id"
@@ -286,8 +286,8 @@ func Test_AsyncTaskManager_DeleteSubscriber(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
 
 	taskIds, getErr := asyncTaskManager.AddTasks(input, requestId, service)
 	if getErr != nil {
@@ -326,7 +326,7 @@ func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -335,7 +335,7 @@ func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	input := "{'a':2}"
 	requestId := "request-id"
@@ -356,8 +356,8 @@ func Test_AsyncTaskManager_GetTaskBlocking(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
 
 	taskIds, getErr := asyncTaskManager.AddTasks(input, requestId, service)
 	if getErr != nil {
@@ -389,7 +389,7 @@ func Test_AsyncTaskManager_GetTaskWithRequestIdBlocking(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -398,7 +398,7 @@ func Test_AsyncTaskManager_GetTaskWithRequestIdBlocking(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	input := "{'a':2}"
 	requestId := "request-id"
@@ -419,8 +419,8 @@ func Test_AsyncTaskManager_GetTaskWithRequestIdBlocking(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
 
 	_, getErr := asyncTaskManager.AddTasks(input, requestId, service)
 	if getErr != nil {
@@ -451,7 +451,7 @@ func Test_AsyncTaskManager_GetTaskIdWithRequestId(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -460,7 +460,7 @@ func Test_AsyncTaskManager_GetTaskIdWithRequestId(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	input := "{'a':2}"
 	requestId := "request-id"
@@ -479,8 +479,8 @@ func Test_AsyncTaskManager_GetTaskIdWithRequestId(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
 
 	_, getErr := asyncTaskManager.AddTasks(input, requestId, service)
 	if getErr != nil {
@@ -502,7 +502,7 @@ func Test_AsyncTaskManager_GetUnCommittedTasks(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -511,7 +511,7 @@ func Test_AsyncTaskManager_GetUnCommittedTasks(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	input := "{'a':2}"
 	requestId := "request-id"
@@ -530,8 +530,8 @@ func Test_AsyncTaskManager_GetUnCommittedTasks(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	asyncTaskManagerRepo := repository.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo)
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
 
 	_, batchAddErr := asyncTaskManagerRepo.BatchInsert([]models.AsyncTask{
 		{
@@ -550,4 +550,46 @@ func Test_AsyncTaskManager_GetUnCommittedTasks(t *testing.T) {
 	assert.Equal(t, uncommittedTasks[0].RequestId, requestId)
 	assert.Equal(t, uncommittedTasks[0].Input, input)
 	assert.Equal(t, uncommittedTasks[0].Service, service)
+}
+
+func TestAsyncTaskService_SetSingleNodeMode(t *testing.T) {
+	ctx := context.Background()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "async-task-manager-test",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+	scheduler0config := config.NewScheduler0Config()
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
+	tempFile, err := ioutil.TempFile("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration()
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          1,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	defer cluster.Close()
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	asyncTaskManagerRepo := async_task.NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	asyncTaskManager := NewAsyncTaskManager(ctx, logger, scheduler0Store, asyncTaskManagerRepo, scheduler0config)
+
+	assert.Equal(t, asyncTaskManager.GetSingleNodeMode(), false)
+
+	asyncTaskManager.SetSingleNodeMode(true)
+
+	assert.Equal(t, asyncTaskManager.GetSingleNodeMode(), true)
 }

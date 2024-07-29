@@ -1,4 +1,4 @@
-package repository
+package async_task
 
 import (
 	"context"
@@ -24,7 +24,7 @@ type asyncTasksRepo struct {
 //go:generate mockery --name AsyncTasksRepo --output ../mocks
 type AsyncTasksRepo interface {
 	BatchInsert(tasks []models.AsyncTask, committed bool) ([]uint64, *utils.GenericError)
-	RaftBatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError)
+	RaftBatchInsert(tasks []models.AsyncTask, fromNodeId uint64) ([]uint64, *utils.GenericError)
 	RaftUpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError
 	UpdateTaskState(task models.AsyncTask, state models.AsyncTaskState, output string) *utils.GenericError
 	GetTask(taskId uint64) (*models.AsyncTask, *utils.GenericError)
@@ -106,10 +106,9 @@ func (repo *asyncTasksRepo) BatchInsert(tasks []models.AsyncTask, committed bool
 	return results, nil
 }
 
-func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64, *utils.GenericError) {
+func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask, fromNodeId uint64) ([]uint64, *utils.GenericError) {
 	batches := utils.Batch[models.AsyncTask](tasks, 6)
 	results := make([]uint64, 0, len(tasks))
-
 	schedulerTime := scheduler0time.GetSchedulerTime()
 	now := schedulerTime.GetTime(time.Now())
 
@@ -143,7 +142,13 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 
 		query += ";"
 
-		res, applyErr := repo.scheduler0RaftActions.WriteCommandToRaftLog(repo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+		res, applyErr := repo.scheduler0RaftActions.WriteCommandToRaftLog(
+			repo.fsmStore.GetRaft(),
+			constants.CommandTypeDbExecute,
+			query,
+			params,
+			[]uint64{fromNodeId},
+			constants.CommandActionQueueJob)
 		if applyErr != nil {
 			return nil, applyErr
 		}
@@ -152,7 +157,7 @@ func (repo *asyncTasksRepo) RaftBatchInsert(tasks []models.AsyncTask) ([]uint64,
 			return nil, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 		}
 
-		lastInsertedId := uint64(res.Data[0].(int64))
+		lastInsertedId := uint64(res.Data.LastInsertedId)
 		for i := lastInsertedId - uint64(len(batch)) + 1; i <= lastInsertedId; i++ {
 			ids = append(ids, i)
 		}
@@ -174,7 +179,7 @@ func (repo *asyncTasksRepo) RaftUpdateTaskState(task models.AsyncTask, state mod
 		return utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	_, applyErr := repo.scheduler0RaftActions.WriteCommandToRaftLog(repo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	_, applyErr := repo.scheduler0RaftActions.WriteCommandToRaftLog(repo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 	if err != nil {
 		return applyErr
 	}

@@ -1,19 +1,20 @@
-package service
+package async_task
 
 import (
 	"context"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"net/http"
+	"scheduler0/config"
 	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/repository"
+	"scheduler0/repository/async_task"
 	"scheduler0/utils"
 	"sync"
 )
 
-//go:generate mockery --name AsyncTaskManager --output ./ --inpackage
-type AsyncTaskManager interface {
+//go:generate mockery --name AsyncTaskService --output ./ --inpackage
+type AsyncTaskService interface {
 	AddTasks(input, requestId, service string) ([]uint64, *utils.GenericError)
 	UpdateTasksById(taskId uint64, state models.AsyncTaskState, output string) *utils.GenericError
 	UpdateTasksByRequestId(requestId string, state models.AsyncTaskState, output string) *utils.GenericError
@@ -27,32 +28,41 @@ type AsyncTaskManager interface {
 	SetSingleNodeMode(singleNodeMode bool)
 	GetSingleNodeMode() bool
 	ListenForNotifications()
+	DeleteNewUncommittedAsyncLogs(lastInsertedId, rowsAffected int64)
 }
 
-type asyncTaskManager struct {
+type asyncTaskService struct {
 	task                 sync.Map // map[uint64]models.AsyncTask
 	taskIdRequestIdMap   sync.Map // map[string]uint64
 	subscribers          sync.Map // map[uint64]map[uint64]func(task models.AsyncTask)
 	subscriberIds        sync.Map // map[uint64][]uint64
-	asyncTaskManagerRepo repository.AsyncTasksRepo
+	asyncTaskManagerRepo async_task.AsyncTasksRepo
 	context              context.Context
 	logger               hclog.Logger
 	notificationsCh      chan models.AsyncTask
 	fsm                  fsm.Scheduler0RaftStore
 	singleNodeMode       bool
+	scheduler0Config     config.Scheduler0Config
 }
 
-func NewAsyncTaskManager(context context.Context, logger hclog.Logger, fsm fsm.Scheduler0RaftStore, asyncTaskManagerRepo repository.AsyncTasksRepo) AsyncTaskManager {
-	return &asyncTaskManager{
+func NewAsyncTaskManager(
+	context context.Context,
+	logger hclog.Logger,
+	fsm fsm.Scheduler0RaftStore,
+	asyncTaskManagerRepo async_task.AsyncTasksRepo,
+	scheduler0Config config.Scheduler0Config,
+) AsyncTaskService {
+	return &asyncTaskService{
 		context:              context,
 		logger:               logger.Named("async-task-service"),
 		asyncTaskManagerRepo: asyncTaskManagerRepo,
 		fsm:                  fsm,
 		notificationsCh:      make(chan models.AsyncTask, 1),
+		scheduler0Config:     scheduler0Config,
 	}
 }
 
-func (m *asyncTaskManager) AddTasks(input, requestId, service string) ([]uint64, *utils.GenericError) {
+func (m *asyncTaskService) AddTasks(input, requestId, service string) ([]uint64, *utils.GenericError) {
 	tasks := []models.AsyncTask{
 		models.AsyncTask{
 			Input:     input,
@@ -61,9 +71,11 @@ func (m *asyncTaskManager) AddTasks(input, requestId, service string) ([]uint64,
 		},
 	}
 
+	config := m.scheduler0Config.GetConfigurations()
+
 	var sids []uint64
 	if m.singleNodeMode {
-		ids, err := m.asyncTaskManagerRepo.RaftBatchInsert(tasks)
+		ids, err := m.asyncTaskManagerRepo.RaftBatchInsert(tasks, config.NodeId)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +89,7 @@ func (m *asyncTaskManager) AddTasks(input, requestId, service string) ([]uint64,
 			}
 			sids = ids
 		} else {
-			ids, err := m.asyncTaskManagerRepo.RaftBatchInsert(tasks)
+			ids, err := m.asyncTaskManagerRepo.RaftBatchInsert(tasks, config.NodeId)
 			if err != nil {
 				return nil, err
 			}
@@ -91,7 +103,7 @@ func (m *asyncTaskManager) AddTasks(input, requestId, service string) ([]uint64,
 	return sids, nil
 }
 
-func (m *asyncTaskManager) UpdateTasksById(taskId uint64, state models.AsyncTaskState, output string) *utils.GenericError {
+func (m *asyncTaskService) UpdateTasksById(taskId uint64, state models.AsyncTaskState, output string) *utils.GenericError {
 	t, ok := m.task.Load(taskId)
 	if !ok {
 		m.logger.Error("could not find task with id", "taskI-d", taskId)
@@ -126,7 +138,7 @@ func (m *asyncTaskManager) UpdateTasksById(taskId uint64, state models.AsyncTask
 	return nil
 }
 
-func (m *asyncTaskManager) UpdateTasksByRequestId(requestId string, state models.AsyncTaskState, output string) *utils.GenericError {
+func (m *asyncTaskService) UpdateTasksByRequestId(requestId string, state models.AsyncTaskState, output string) *utils.GenericError {
 	tId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if !ok {
 		m.logger.Error("could not find task id for request id", "request-id", requestId)
@@ -168,7 +180,7 @@ func (m *asyncTaskManager) UpdateTasksByRequestId(requestId string, state models
 	return nil
 }
 
-func (m *asyncTaskManager) AddSubscriber(taskId uint64, subscriber func(task models.AsyncTask)) (uint64, *utils.GenericError) {
+func (m *asyncTaskService) AddSubscriber(taskId uint64, subscriber func(task models.AsyncTask)) (uint64, *utils.GenericError) {
 	t, ok := m.task.Load(taskId)
 	if !ok {
 		m.logger.Error("could not find task with id", "task-id", taskId)
@@ -195,7 +207,7 @@ func (m *asyncTaskManager) AddSubscriber(taskId uint64, subscriber func(task mod
 	return subId, nil
 }
 
-func (m *asyncTaskManager) GetTaskBlocking(taskId uint64) (chan models.AsyncTask, uint64, *utils.GenericError) {
+func (m *asyncTaskService) GetTaskBlocking(taskId uint64) (chan models.AsyncTask, uint64, *utils.GenericError) {
 	task, err := m.asyncTaskManagerRepo.GetTask(taskId)
 	if err != nil {
 		m.logger.Error("failed to get async task", "error", err.Message)
@@ -224,7 +236,7 @@ func (m *asyncTaskManager) GetTaskBlocking(taskId uint64) (chan models.AsyncTask
 	return taskCh, subs, nil
 }
 
-func (m *asyncTaskManager) GetTaskWithRequestIdNonBlocking(requestId string) (*models.AsyncTask, *utils.GenericError) {
+func (m *asyncTaskService) GetTaskWithRequestIdNonBlocking(requestId string) (*models.AsyncTask, *utils.GenericError) {
 	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if !ok {
 		m.logger.Error("failed to find async task with request id", "request-id", requestId)
@@ -239,7 +251,7 @@ func (m *asyncTaskManager) GetTaskWithRequestIdNonBlocking(requestId string) (*m
 	return task, nil
 }
 
-func (m *asyncTaskManager) GetTaskWithRequestIdBlocking(requestId string) (chan models.AsyncTask, uint64, *utils.GenericError) {
+func (m *asyncTaskService) GetTaskWithRequestIdBlocking(requestId string) (chan models.AsyncTask, uint64, *utils.GenericError) {
 	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if !ok {
 		return nil, 0, nil
@@ -247,7 +259,7 @@ func (m *asyncTaskManager) GetTaskWithRequestIdBlocking(requestId string) (chan 
 	return m.GetTaskBlocking(taskId.(uint64))
 }
 
-func (m *asyncTaskManager) GetTaskIdWithRequestId(requestId string) (uint64, *utils.GenericError) {
+func (m *asyncTaskService) GetTaskIdWithRequestId(requestId string) (uint64, *utils.GenericError) {
 	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if ok {
 		return taskId.(uint64), nil
@@ -255,7 +267,7 @@ func (m *asyncTaskManager) GetTaskIdWithRequestId(requestId string) (uint64, *ut
 	return 0, nil
 }
 
-func (m *asyncTaskManager) DeleteSubscriber(taskId, subscriberId uint64) *utils.GenericError {
+func (m *asyncTaskService) DeleteSubscriber(taskId, subscriberId uint64) *utils.GenericError {
 	t, ok := m.task.Load(taskId)
 	if !ok {
 		return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not find task with id %d", taskId))
@@ -271,7 +283,7 @@ func (m *asyncTaskManager) DeleteSubscriber(taskId, subscriberId uint64) *utils.
 	return nil
 }
 
-func (m *asyncTaskManager) GetUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError) {
+func (m *asyncTaskService) GetUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError) {
 	tasks, err := m.asyncTaskManagerRepo.GetAllTasks(false)
 	if err != nil {
 		return nil, err
@@ -279,15 +291,15 @@ func (m *asyncTaskManager) GetUnCommittedTasks() ([]models.AsyncTask, *utils.Gen
 	return tasks, err
 }
 
-func (m *asyncTaskManager) SetSingleNodeMode(singleNodeMode bool) {
+func (m *asyncTaskService) SetSingleNodeMode(singleNodeMode bool) {
 	m.singleNodeMode = singleNodeMode
 }
 
-func (m *asyncTaskManager) GetSingleNodeMode() bool {
+func (m *asyncTaskService) GetSingleNodeMode() bool {
 	return m.singleNodeMode
 }
 
-func (m *asyncTaskManager) ListenForNotifications() {
+func (m *asyncTaskService) ListenForNotifications() {
 	go func() {
 		for {
 			select {
@@ -317,4 +329,7 @@ func (m *asyncTaskManager) ListenForNotifications() {
 			}
 		}
 	}()
+}
+
+func (m *asyncTaskService) DeleteNewUncommittedAsyncLogs(lastInsertedId, rowsAffected int64) {
 }

@@ -1,4 +1,4 @@
-package repository
+package async_task
 
 import (
 	"context"
@@ -24,7 +24,7 @@ func Test_AsyncTask_BatchInsert(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -33,7 +33,7 @@ func Test_AsyncTask_BatchInsert(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
 	var mockAsyncTasks []models.AsyncTask
@@ -75,7 +75,7 @@ func Test_AsyncTask_GetTask(t *testing.T) {
 				Level: hclog.LevelFromString("DEBUG"),
 			})
 			sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-			scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+			scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 			tempFile, err := ioutil.TempFile("", "test-db")
 			if err != nil {
 				t.Fatalf("Failed to create temp file: %v", err)
@@ -84,7 +84,7 @@ func Test_AsyncTask_GetTask(t *testing.T) {
 			sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 			sqliteDb.RunMigration()
 			sqliteDb.OpenConnectionToExistingDB()
-			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 			asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
 			var mockAsyncTask models.AsyncTask
@@ -122,7 +122,7 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -132,7 +132,7 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a mock raft cluster
@@ -162,7 +162,7 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 	}
 
 	// Execute RaftBatchInsert
-	_, rinsererr := asyncTasksRepo.RaftBatchInsert(mockAsyncTasks)
+	_, rinsererr := asyncTasksRepo.RaftBatchInsert(mockAsyncTasks, 1)
 	if rinsererr != nil {
 		t.Fatal("failed to raft insert async task", rinsererr)
 	}
@@ -181,7 +181,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0Config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -191,7 +191,7 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0Config, sqliteDb, nil, nil, nil, nil, nil)
 	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a mock raft cluster
@@ -246,7 +246,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0Config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -256,7 +256,7 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0Config, sqliteDb, nil, nil, nil, nil, nil)
 	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a mock raft cluster
@@ -326,7 +326,7 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 				Level: hclog.LevelFromString("DEBUG"),
 			})
 			sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0Config)
-			scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+			scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 			tempFile, err := ioutil.TempFile("", "test-db")
 			if err != nil {
 				t.Fatalf("Failed to create temp file: %v", err)
@@ -336,7 +336,7 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 			sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 			sqliteDb.RunMigration()
 			sqliteDb.OpenConnectionToExistingDB()
-			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0Config, sqliteDb, nil, nil, nil, nil, nil)
 			asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
 
 			// Create a mock raft cluster
