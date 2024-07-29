@@ -39,9 +39,9 @@ func Start() {
 	jobController := controllers.NewJoBHTTPController(logger, serv.JobService, serv.ProjectService)
 	projectController := controllers.NewProjectController(logger, serv.ProjectService)
 	credentialController := controllers.NewCredentialController(logger, serv.CredentialService)
-	healthCheckController := controllers.NewHealthCheckController(logger, serv.NodeService.FsmStore)
-	peerController := controllers.NewPeerController(logger, configs, serv.NodeService.FsmStore, serv.NodeService)
-	asyncTaskController := controllers.NewAsyncTaskController(logger, serv.NodeService.FsmStore, serv.AsyncTaskManager)
+	healthCheckController := controllers.NewHealthCheckController(logger, serv.NodeService)
+	peerController := controllers.NewPeerController(logger, configs, serv.NodeService)
+	asyncTaskController := controllers.NewAsyncTaskController(logger, serv.AsyncTaskService)
 
 	secrets := secrets.NewScheduler0Secrets().GetSecrets()
 	// Mount middleware
@@ -77,7 +77,7 @@ func Start() {
 	// Healthcheck Endpoint
 	router.HandleFunc("/v1/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
 
-	// Node Endpoints
+	// NodeService Endpoints
 	router.HandleFunc("/v1/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
 	router.HandleFunc("/v1/execution-logs", peerController.ExecutionLogs).Methods(http.MethodGet)
 	router.HandleFunc("/v1/start-jobs", peerController.StartJobs).Methods(http.MethodPost)
