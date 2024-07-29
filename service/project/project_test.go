@@ -1,4 +1,4 @@
-package service
+package project
 
 import (
 	"fmt"
@@ -11,7 +11,8 @@ import (
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/repository"
+	job_repo "scheduler0/repository/job"
+	project_repo "scheduler0/repository/project"
 	"scheduler0/shared_repo"
 	"testing"
 )
@@ -36,10 +37,10 @@ func Test_ProjectService_CreateOne(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -55,10 +56,10 @@ func Test_ProjectService_CreateOne(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a new ProjectRepo instance
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Create a new ProjectService instance
 	projectService := NewProjectService(logger, projectRepo)
@@ -102,10 +103,10 @@ func Test_ProjectService_UpdateOneByID(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -121,10 +122,10 @@ func Test_ProjectService_UpdateOneByID(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a new ProjectRepo instance
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Create a new ProjectService instance
 	projectService := NewProjectService(logger, projectRepo)
@@ -184,10 +185,10 @@ func Test_ProjectService_GetOneByID(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -203,10 +204,10 @@ func Test_ProjectService_GetOneByID(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a new ProjectRepo instance
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Create a new ProjectService instance
 	projectService := NewProjectService(logger, projectRepo)
@@ -256,10 +257,10 @@ func Test_ProjectService_GetOneByName(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -275,10 +276,10 @@ func Test_ProjectService_GetOneByName(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a new ProjectRepo instance
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Create a new ProjectService instance
 	projectService := NewProjectService(logger, projectRepo)
@@ -328,10 +329,10 @@ func Test_ProjectService_DeleteOneByID(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -347,10 +348,10 @@ func Test_ProjectService_DeleteOneByID(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a new ProjectRepo instance
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Create a new ProjectService instance
 	projectService := NewProjectService(logger, projectRepo)
@@ -404,10 +405,10 @@ func Test_ProjectService_List(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -423,10 +424,10 @@ func Test_ProjectService_List(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a new ProjectRepo instance
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Create a new ProjectService instance
 	projectService := NewProjectService(logger, projectRepo)
@@ -507,10 +508,10 @@ func Test_ProjectService_BatchGetProjects(t *testing.T) {
 
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 
 	// Create a new FSM store
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -526,10 +527,10 @@ func Test_ProjectService_BatchGetProjects(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
-	jobRepo := repository.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a new ProjectRepo instance
-	projectRepo := repository.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Create a new ProjectService instance
 	projectService := NewProjectService(logger, projectRepo)

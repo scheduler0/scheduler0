@@ -1,4 +1,4 @@
-package repository
+package project
 
 import (
 	_ "errors"
@@ -9,6 +9,7 @@ import (
 	"scheduler0/constants"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	job_repo "scheduler0/repository/job"
 	"scheduler0/scheduler0time"
 	"scheduler0/utils"
 	"time"
@@ -28,12 +29,12 @@ type ProjectRepo interface {
 
 type projectRepo struct {
 	fsmStore              fsm.Scheduler0RaftStore
-	jobRepo               JobRepo
+	jobRepo               job_repo.JobRepo
 	logger                hclog.Logger
 	scheduler0RaftActions fsm.Scheduler0RaftActions
 }
 
-func NewProjectRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore, jobRepo JobRepo) ProjectRepo {
+func NewProjectRepo(logger hclog.Logger, scheduler0RaftActions fsm.Scheduler0RaftActions, store fsm.Scheduler0RaftStore, jobRepo job_repo.JobRepo) ProjectRepo {
 	return &projectRepo{
 		fsmStore:              store,
 		scheduler0RaftActions: scheduler0RaftActions,
@@ -79,7 +80,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.Project) (uint64, *uti
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 	if applyErr != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -88,7 +89,7 @@ func (projectRepo *projectRepo) CreateOne(project *models.Project) (uint64, *uti
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	insertedId := res.Data[0].(int64)
+	insertedId := res.Data.LastInsertedId
 	project.ID = uint64(insertedId)
 
 	getErr := projectRepo.GetOneByID(project)
@@ -334,7 +335,7 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.Project) (uint64, *
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 	if applyErr != nil {
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, applyErr.Error())
 	}
@@ -342,7 +343,7 @@ func (projectRepo *projectRepo) UpdateOneByID(project models.Project) (uint64, *
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(int64)
+	count := res.Data.RowsAffected
 
 	return uint64(count), nil
 }
@@ -367,7 +368,7 @@ func (projectRepo *projectRepo) DeleteOneByID(project models.Project) (uint64, *
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, deleteErr.Error())
 	}
 
-	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := projectRepo.scheduler0RaftActions.WriteCommandToRaftLog(projectRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 	if applyErr != nil {
 		return 0, applyErr
 	}
@@ -375,7 +376,7 @@ func (projectRepo *projectRepo) DeleteOneByID(project models.Project) (uint64, *
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(int64)
+	count := res.Data.RowsAffected
 
 	return uint64(count), nil
 }

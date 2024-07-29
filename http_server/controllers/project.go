@@ -7,13 +7,13 @@ import (
 	"log"
 	"net/http"
 	"scheduler0/models"
-	"scheduler0/service"
+	"scheduler0/service/project"
 	"scheduler0/utils"
 	"strconv"
 )
 
 type projectController struct {
-	projectService service.ProjectService
+	projectService project.ProjectService
 	logger         *log.Logger
 }
 
@@ -25,7 +25,7 @@ type ProjectHTTPController interface {
 	UpdateOneProject(w http.ResponseWriter, r *http.Request)
 }
 
-func NewProjectController(logger *log.Logger, projectService service.ProjectService) ProjectHTTPController {
+func NewProjectController(logger *log.Logger, projectService project.ProjectService) ProjectHTTPController {
 	return &projectController{
 		projectService: projectService,
 		logger:         logger,
