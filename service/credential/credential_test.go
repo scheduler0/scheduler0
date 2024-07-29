@@ -1,4 +1,4 @@
-package service
+package credential
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/models"
-	"scheduler0/repository"
+	credential_repository "scheduler0/repository/credential"
 	"scheduler0/secrets"
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
@@ -27,7 +27,7 @@ func Test_CredentialService_CreateNewCredential(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -36,7 +36,7 @@ func Test_CredentialService_CreateNewCredential(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -52,7 +52,7 @@ func Test_CredentialService_CreateNewCredential(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
-	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
+	credentialRepo := credential_repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
@@ -81,7 +81,7 @@ func Test_CredentialService_UpdateOneCredential(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -90,7 +90,7 @@ func Test_CredentialService_UpdateOneCredential(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -106,7 +106,7 @@ func Test_CredentialService_UpdateOneCredential(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
-	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
+	credentialRepo := credential_repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
@@ -172,7 +172,7 @@ func Test_CredentialService_DeleteOneCredential(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -181,7 +181,7 @@ func Test_CredentialService_DeleteOneCredential(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -197,7 +197,7 @@ func Test_CredentialService_DeleteOneCredential(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
-	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
+	credentialRepo := credential_repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
@@ -233,7 +233,7 @@ func Test_CredentialService_ListCredentials(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -242,7 +242,7 @@ func Test_CredentialService_ListCredentials(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -258,7 +258,7 @@ func Test_CredentialService_ListCredentials(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
-	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
+	credentialRepo := credential_repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 
@@ -343,7 +343,7 @@ func Test_CredentialService_ValidateServerAPIKey(t *testing.T) {
 	})
 	scheduler0config := config.NewScheduler0Config()
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -352,7 +352,7 @@ func Test_CredentialService_ValidateServerAPIKey(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -368,7 +368,7 @@ func Test_CredentialService_ValidateServerAPIKey(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 	scheduler0Secrets := secrets.NewScheduler0Secrets()
-	credentialRepo := repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
+	credentialRepo := credential_repository.NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	os.Setenv("SCHEDULER0_SECRET_KEY", "AB551DED82B93DC8035D624A625920E2121367C7538C02277D2D4DB3C0BFFE94")
 

@@ -1,4 +1,4 @@
-package repository
+package credential
 
 import (
 	"fmt"
@@ -64,7 +64,7 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.Credential) (u
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := credentialRepo.scheduler0RaftActions.WriteCommandToRaftLog(credentialRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := credentialRepo.scheduler0RaftActions.WriteCommandToRaftLog(credentialRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -73,7 +73,7 @@ func (credentialRepo *credentialRepo) CreateOne(credential models.Credential) (u
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	credential.ID = uint64(res.Data[0].(int64))
+	credential.ID = uint64(res.Data.LastInsertedId)
 
 	return credential.ID, nil
 }
@@ -256,7 +256,7 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := credentialRepo.scheduler0RaftActions.WriteCommandToRaftLog(credentialRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := credentialRepo.scheduler0RaftActions.WriteCommandToRaftLog(credentialRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -265,7 +265,7 @@ func (credentialRepo *credentialRepo) UpdateOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(int64)
+	count := res.Data.RowsAffected
 	return uint64(count), nil
 }
 
@@ -278,7 +278,7 @@ func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := credentialRepo.scheduler0RaftActions.WriteCommandToRaftLog(credentialRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := credentialRepo.scheduler0RaftActions.WriteCommandToRaftLog(credentialRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -287,7 +287,7 @@ func (credentialRepo *credentialRepo) DeleteOneByID(credential models.Credential
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(int64)
+	count := res.Data.RowsAffected
 
 	return uint64(count), nil
 }
