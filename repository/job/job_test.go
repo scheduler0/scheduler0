@@ -1,4 +1,4 @@
-package repository
+package job_test
 
 import (
 	"github.com/hashicorp/go-hclog"
@@ -10,6 +10,8 @@ import (
 	"scheduler0/db"
 	"scheduler0/fsm"
 	"scheduler0/models"
+	job_repo "scheduler0/repository/job"
+	project_repo "scheduler0/repository/project"
 	"scheduler0/shared_repo"
 	"testing"
 	"time"
@@ -22,7 +24,7 @@ func Test_JobRepo_BatchInsertJobs(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -31,7 +33,7 @@ func Test_JobRepo_BatchInsertJobs(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -54,10 +56,10 @@ func Test_JobRepo_BatchInsertJobs(t *testing.T) {
 	}
 
 	// Create a new JobRepo instance
-	jobRepo := NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a new ProjectRepo instance
-	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Call the CreateOne method of the projectRepo
 	projectID, createProjectErr := projectRepo.CreateOne(&mockProject)
@@ -107,7 +109,7 @@ func Test_JobRepo_UpdateOneByID(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -116,7 +118,7 @@ func Test_JobRepo_UpdateOneByID(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -133,7 +135,7 @@ func Test_JobRepo_UpdateOneByID(t *testing.T) {
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
 	// Create a new JobRepo instance
-	jobRepo := NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a project to associate with the jobs
 	project := models.Project{
@@ -142,7 +144,7 @@ func Test_JobRepo_UpdateOneByID(t *testing.T) {
 	}
 
 	// Create a new ProjectRepo instance
-	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Call the CreateOne method of the projectRepo to create a project
 	projectID, createProjectErr := projectRepo.CreateOne(&project)
@@ -215,7 +217,7 @@ func Test_JobRepo_DeleteOneByID(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -224,7 +226,7 @@ func Test_JobRepo_DeleteOneByID(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -241,7 +243,7 @@ func Test_JobRepo_DeleteOneByID(t *testing.T) {
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
 	// Create a new JobRepo instance
-	jobRepo := NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a project to associate with the job
 	project := models.Project{
@@ -250,7 +252,7 @@ func Test_JobRepo_DeleteOneByID(t *testing.T) {
 	}
 
 	// Create a new ProjectRepo instance
-	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Call the CreateOne method of the projectRepo to create a project
 	projectID, createProjectErr := projectRepo.CreateOne(&project)
@@ -304,7 +306,7 @@ func Test_JobRepo_BatchGetJobsByID(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -313,7 +315,7 @@ func Test_JobRepo_BatchGetJobsByID(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -330,7 +332,7 @@ func Test_JobRepo_BatchGetJobsByID(t *testing.T) {
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
 	// Create a new JobRepo instance
-	jobRepo := NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a project to associate with the jobs
 	project := models.Project{
@@ -339,7 +341,7 @@ func Test_JobRepo_BatchGetJobsByID(t *testing.T) {
 	}
 
 	// Create a new ProjectRepo instance
-	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Call the CreateOne method of the projectRepo to create a project
 	projectID, createProjectErr := projectRepo.CreateOne(&project)
@@ -416,7 +418,7 @@ func Test_JobRepo_BatchGetJobsWithIDRange(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -425,7 +427,7 @@ func Test_JobRepo_BatchGetJobsWithIDRange(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -442,7 +444,7 @@ func Test_JobRepo_BatchGetJobsWithIDRange(t *testing.T) {
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
 	// Create a new JobRepo instance
-	jobRepo := NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a project to associate with the jobs
 	project := models.Project{
@@ -451,7 +453,7 @@ func Test_JobRepo_BatchGetJobsWithIDRange(t *testing.T) {
 	}
 
 	// Create a new ProjectRepo instance
-	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Call the CreateOne method of the projectRepo to create a project
 	projectID, createProjectErr := projectRepo.CreateOne(&project)
@@ -539,7 +541,7 @@ func Test_JobRepo_GetAllByProjectID(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -548,7 +550,7 @@ func Test_JobRepo_GetAllByProjectID(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -565,7 +567,7 @@ func Test_JobRepo_GetAllByProjectID(t *testing.T) {
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
 	// Create a new JobRepo instance
-	jobRepo := NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create projects to associate with the jobs
 	project1 := models.Project{
@@ -578,7 +580,7 @@ func Test_JobRepo_GetAllByProjectID(t *testing.T) {
 	}
 
 	// Create a new ProjectRepo instance
-	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Call the CreateOne method of the projectRepo to create projects
 	project1ID, createProjectErr := projectRepo.CreateOne(&project1)
@@ -696,7 +698,7 @@ func Test_JobRepo_GetJobsTotalCountByProjectID(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -705,7 +707,7 @@ func Test_JobRepo_GetJobsTotalCountByProjectID(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -722,7 +724,7 @@ func Test_JobRepo_GetJobsTotalCountByProjectID(t *testing.T) {
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
 	// Create a new JobRepo instance
-	jobRepo := NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a project to associate with the jobs
 	project := models.Project{
@@ -731,7 +733,7 @@ func Test_JobRepo_GetJobsTotalCountByProjectID(t *testing.T) {
 	}
 
 	// Create a new ProjectRepo instance
-	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Call the CreateOne method of the projectRepo to create a project
 	projectID, createProjectErr := projectRepo.CreateOne(&project)
@@ -788,7 +790,7 @@ func Test_JobRepo_GetJobsPaginated(t *testing.T) {
 		Level: hclog.LevelFromString("DEBUG"),
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
-	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
 	tempFile, err := ioutil.TempFile("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -797,7 +799,7 @@ func Test_JobRepo_GetJobsPaginated(t *testing.T) {
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
 	sqliteDb.RunMigration()
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, sqliteDb)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -814,7 +816,7 @@ func Test_JobRepo_GetJobsPaginated(t *testing.T) {
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
 	// Create a new JobRepo instance
-	jobRepo := NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
 	// Create a project to associate with the jobs
 	project := models.Project{
@@ -823,7 +825,7 @@ func Test_JobRepo_GetJobsPaginated(t *testing.T) {
 	}
 
 	// Create a new ProjectRepo instance
-	projectRepo := NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
 
 	// Call the CreateOne method of the projectRepo to create a project
 	projectID, createProjectErr := projectRepo.CreateOne(&project)

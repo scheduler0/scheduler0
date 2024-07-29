@@ -1,4 +1,4 @@
-package service
+package job
 
 import (
 	"context"
@@ -9,20 +9,23 @@ import (
 	"net/http"
 	"scheduler0/constants"
 	"scheduler0/models"
-	"scheduler0/repository"
+	"scheduler0/repository/job"
+	"scheduler0/repository/project"
 	"scheduler0/scheduler0time"
+	"scheduler0/service/async_task"
+	"scheduler0/service/queue"
 	"scheduler0/utils"
 	"time"
 )
 
 type jobService struct {
-	jobRepo          repository.JobRepo
-	projectRepo      repository.ProjectRepo
-	Queue            *JobQueue
+	jobRepo          job.JobRepo
+	projectRepo      project.ProjectRepo
+	Queue            queue.JobQueueService
 	Ctx              context.Context
 	logger           hclog.Logger
 	dispatcher       *utils.Dispatcher
-	asyncTaskManager AsyncTaskManager
+	asyncTaskManager async_task.AsyncTaskService
 }
 
 //go:generate mockery --name JobService --output ../mocks
@@ -38,11 +41,11 @@ type JobService interface {
 func NewJobService(
 	context context.Context,
 	logger hclog.Logger,
-	jobRepo repository.JobRepo,
-	queue *JobQueue,
-	projectRepo repository.ProjectRepo,
+	jobRepo job.JobRepo,
+	queue queue.JobQueueService,
+	projectRepo project.ProjectRepo,
 	dispatcher *utils.Dispatcher,
-	asyncTaskManager AsyncTaskManager,
+	asyncTaskService async_task.AsyncTaskService,
 ) JobService {
 	service := &jobService{
 		jobRepo:          jobRepo,
@@ -51,7 +54,7 @@ func NewJobService(
 		Ctx:              context,
 		logger:           logger,
 		dispatcher:       dispatcher,
-		asyncTaskManager: asyncTaskManager,
+		asyncTaskManager: asyncTaskService,
 	}
 
 	return service

@@ -1,4 +1,4 @@
-package repository
+package job
 
 import (
 	"fmt"
@@ -24,7 +24,7 @@ type jobRepo struct {
 type JobRepo interface {
 	GetOneByID(jobModel *models.Job) *utils.GenericError
 	BatchGetJobsByID(jobIDs []uint64) ([]models.Job, *utils.GenericError)
-	BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.Job, *utils.GenericError)
+	BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([]models.Job, *utils.GenericError)
 	GetJobsPaginated(projectID uint64, offset uint64, limit uint64) ([]models.Job, uint64, *utils.GenericError)
 	GetJobsTotalCountByProjectID(projectID uint64) (uint64, *utils.GenericError)
 	GetJobsTotalCount() (uint64, *utils.GenericError)
@@ -162,7 +162,7 @@ func (jobRepo *jobRepo) BatchGetJobsByID(jobIDs []uint64) ([]models.Job, *utils.
 	return jobs, nil
 }
 
-func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound uint64) ([]models.Job, *utils.GenericError) {
+func (jobRepo *jobRepo) BatchGetJobsWithIDRange(lowerBound, upperBound int64) ([]models.Job, *utils.GenericError) {
 	jobRepo.fsmStore.GetDataStore().ConnectionLock()
 	defer jobRepo.fsmStore.GetDataStore().ConnectionUnlock()
 
@@ -295,7 +295,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.Job) (uint64, *utils.Gener
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -304,7 +304,7 @@ func (jobRepo *jobRepo) UpdateOneByID(jobModel models.Job) (uint64, *utils.Gener
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(int64)
+	count := res.Data.RowsAffected
 
 	return uint64(count), nil
 }
@@ -318,7 +318,7 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.Job) (uint64, *utils.Gener
 		return 0, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+	res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 	if err != nil {
 		return 0, applyErr
 	}
@@ -327,7 +327,7 @@ func (jobRepo *jobRepo) DeleteOneByID(jobModel models.Job) (uint64, *utils.Gener
 		return 0, utils.HTTPGenericError(http.StatusServiceUnavailable, "service is unavailable")
 	}
 
-	count := res.Data[1].(int64)
+	count := res.Data.RowsAffected
 
 	return uint64(count), nil
 }
@@ -449,12 +449,12 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.Job) ([]uint64, *utils.Gen
 
 		query += ";"
 
-		res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, 0, params)
+		res, applyErr := jobRepo.scheduler0RaftActions.WriteCommandToRaftLog(jobRepo.fsmStore.GetRaft(), constants.CommandTypeDbExecute, query, params, []uint64{}, 0)
 		if applyErr != nil {
 			return nil, applyErr
 		}
 
-		lastInsertedId := uint64(res.Data[0].(int64))
+		lastInsertedId := uint64(res.Data.RowsAffected)
 
 		for i := lastInsertedId - uint64(len(batch)) + 1; i <= lastInsertedId; i++ {
 			ids = append(ids, i)

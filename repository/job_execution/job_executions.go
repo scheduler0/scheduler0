@@ -1,4 +1,4 @@
-package repository
+package job_execution
 
 import (
 	"context"
@@ -39,6 +39,14 @@ type JobExecutionsRepo interface {
 	CountExecutionLogs(committed bool) uint64
 	GetUncommittedExecutionsLogForNode(nodeId uint64) []models.JobExecutionLog
 	GetLastExecutionLogForJobIds(jobIds []uint64) map[uint64]models.JobExecutionLog
+	LogJobExecutionStateInRaft(
+		jobs []models.Job,
+		state models.JobExecutionLogState,
+		executionVersions map[uint64]uint64,
+		lastVersion uint64,
+		nodeId uint64,
+	)
+	RaftInsertExecutionLogs(executionLogs []models.JobExecutionLog, nodeId uint64)
 }
 
 type executionsRepo struct {
@@ -460,4 +468,90 @@ func (repo *executionsRepo) GetUncommittedExecutionsLogForNode(nodeId uint64) []
 	}
 
 	return results
+}
+
+func (repo *executionsRepo) LogJobExecutionStateInRaft(
+	jobs []models.Job,
+	state models.JobExecutionLogState,
+	executionVersions map[uint64]uint64,
+	lastVersion uint64,
+	nodeId uint64,
+) {
+	executionLogs := make([]models.JobExecutionLog, 0, len(jobs))
+
+	for _, job := range jobs {
+		sched := scheduler0time.GetSchedulerTime()
+		now := sched.GetTime(time.Now())
+		executionTime, err := job.GetNextExecutionTime()
+		if err != nil {
+			repo.logger.Error("failed to get next execution time", "error", err)
+			continue
+		}
+		executionLogs = append(executionLogs, models.JobExecutionLog{
+			JobId:                 job.ID,
+			UniqueId:              job.ExecutionId,
+			State:                 state,
+			NodeId:                nodeId,
+			LastExecutionDatetime: job.LastExecutionDate,
+			NextExecutionDatetime: *executionTime,
+			JobQueueVersion:       lastVersion,
+			DataCreated:           now,
+			ExecutionVersion:      executionVersions[job.ID],
+		})
+	}
+
+	repo.RaftInsertExecutionLogs(executionLogs, nodeId)
+}
+
+func (repo *executionsRepo) RaftInsertExecutionLogs(executionLogs []models.JobExecutionLog, nodeId uint64) {
+	if len(executionLogs) < 1 {
+		return
+	}
+
+	batches := utils.Batch[models.JobExecutionLog](executionLogs, 9)
+
+	for _, batch := range batches {
+		query := fmt.Sprintf("INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s , %s, %s) VALUES ",
+			ExecutionsCommittedTableName,
+			ExecutionsUniqueIdColumn,
+			ExecutionsStateColumn,
+			ExecutionsNodeIdColumn,
+			ExecutionsLastExecutionTimeColumn,
+			ExecutionsNextExecutionTime,
+			ExecutionsJobIdColumn,
+			ExecutionsJobQueueVersion,
+			ExecutionsDateCreatedColumn,
+			ExecutionsVersion,
+		)
+		var params []interface{}
+
+		for i, executionLog := range batch {
+			query += fmt.Sprint("(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+			params = append(params,
+				executionLog.UniqueId,
+				executionLog.State,
+				executionLog.NodeId,
+				executionLog.LastExecutionDatetime,
+				executionLog.NextExecutionDatetime,
+				executionLog.JobId,
+				executionLog.JobQueueVersion,
+				executionLog.DataCreated,
+				executionLog.ExecutionVersion,
+			)
+			if i < len(batch)-1 {
+				query += ","
+			}
+		}
+
+		query += ";"
+
+		repo.scheduler0RaftActions.WriteCommandToRaftLog(
+			repo.fsmStore.GetRaft(),
+			constants.CommandTypeDbExecute,
+			query,
+			params,
+			[]uint64{nodeId},
+			constants.CommandActionCleanUncommittedExecutionLogs,
+		)
+	}
 }

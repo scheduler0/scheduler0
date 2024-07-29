@@ -7,15 +7,16 @@ import (
 	"log"
 	"net/http"
 	"scheduler0/models"
-	"scheduler0/service"
+	"scheduler0/service/job"
+	"scheduler0/service/project"
 	"scheduler0/utils"
 	"strconv"
 )
 
 // HTTPController http request handler for /job requests
 type jobHTTPController struct {
-	jobService     service.JobService
-	projectService service.ProjectService
+	jobService     job.JobService
+	projectService project.ProjectService
 	logger         *log.Logger
 }
 
@@ -27,7 +28,7 @@ type JobHTTPController interface {
 	DeleteOneJob(w http.ResponseWriter, r *http.Request)
 }
 
-func NewJoBHTTPController(logger *log.Logger, jobService service.JobService, projectService service.ProjectService) JobHTTPController {
+func NewJoBHTTPController(logger *log.Logger, jobService job.JobService, projectService project.ProjectService) JobHTTPController {
 	controller := &jobHTTPController{
 		jobService:     jobService,
 		projectService: projectService,
