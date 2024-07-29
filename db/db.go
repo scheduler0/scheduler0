@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
-	_ "github.com/iamf-dev/scheduler0-sqlite"
+	_ "github.com/scheduler0/scheduler0-sqlite"
 	"github.com/spf13/afero"
 	"io"
 	"log"
