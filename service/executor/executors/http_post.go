@@ -16,21 +16,27 @@ import (
 )
 
 type HTTPExecutionHandler struct {
-	logger hclog.Logger
-	config config.Scheduler0Config
+	logger     hclog.Logger
+	ctx        context.Context
+	config     config.Scheduler0Config
+	dispatcher *utils.Dispatcher
 }
 
+//go:generate mockery --name HTTPExecutor --output ./ --inpackage
 type HTTPExecutor interface {
-	ExecuteHTTPJob(pendingJobs []*models.Job) error
+	ExecuteHTTPJob(pendingJobs []models.Job, successCallback func(jobs []models.Job), errorCallback func(jobs []models.Job))
 }
 
-func NewHTTTPExecutor(logger hclog.Logger) *HTTPExecutionHandler {
+func NewHTTTPExecutor(logger hclog.Logger, ctx context.Context, config config.Scheduler0Config, dispatcher *utils.Dispatcher) HTTPExecutor {
 	return &HTTPExecutionHandler{
-		logger: logger,
+		logger:     logger,
+		ctx:        ctx,
+		config:     config,
+		dispatcher: dispatcher,
 	}
 }
 
-func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, dispatcher *utils.Dispatcher, pendingJobs []models.Job, onSuccess func(jobs []models.Job), onFailure func(jobs []models.Job)) ([]models.Job, []models.Job) {
+func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(pendingJobs []models.Job, successCallback func(jobs []models.Job), errorCallback func(jobs []models.Job)) {
 	urlJobCache := map[string][]models.Job{}
 
 	for _, pj := range pendingJobs {
@@ -42,9 +48,6 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 		}
 	}
 
-	failedJobs := []models.Job{}
-	successJobs := []models.Job{}
-
 	for rurl, uJc := range urlJobCache {
 
 		configs := config.NewScheduler0Config().GetConfigurations()
@@ -52,22 +55,21 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 
 		for i, batch := range batches {
 			func(url string, b []byte, chunkId int) {
-				dispatcher.NoBlockQueue(func(successChannel chan any, errorChannel chan any) {
+				httpExecutor.dispatcher.NoBlockQueue(func(successChannel chan any, errorChannel chan any) {
 					defer func() {
 						close(errorChannel)
 						close(successChannel)
 					}()
-
-					utils.RetryOnError(func() error {
+					err := utils.RetryOnError(func() error {
 						httpExecutor.logger.Info(fmt.Sprintf("running job execution for job callback url = %v", url))
 						httpClient := http.Client{
 							Timeout: time.Duration(configs.JobExecutionTimeout) * time.Second,
 						}
 
-						req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
+						req, err := http.NewRequestWithContext(httpExecutor.ctx, http.MethodPost, url, bytes.NewReader(b))
 						if err != nil {
 							httpExecutor.logger.Error("failed to create request: ", "error", err.Error())
-							onFailure(httpExecutor.unwrapBatch(b))
+							errorCallback(httpExecutor.unwrapBatch(b))
 							return err
 						}
 						req.Header.Set("Content-Type", "application/json")
@@ -76,24 +78,25 @@ func (httpExecutor *HTTPExecutionHandler) ExecuteHTTPJob(ctx context.Context, di
 						res, err := httpClient.Do(req)
 						if err != nil {
 							httpExecutor.logger.Error("request error: ", err.Error())
-							onFailure(httpExecutor.unwrapBatch(b))
+							errorCallback(httpExecutor.unwrapBatch(b))
 							return err
 						}
 
 						if res.StatusCode >= 200 || res.StatusCode <= 299 {
-							onSuccess(httpExecutor.unwrapBatch(b))
+							successCallback(httpExecutor.unwrapBatch(b))
 							return nil
 						}
 
-						onFailure(httpExecutor.unwrapBatch(b))
+						errorCallback(httpExecutor.unwrapBatch(b))
 						return errors.New(fmt.Sprintf("subscriber failed to fully requests status code: %v", res.StatusCode))
 					}, configs.JobExecutionRetryMax, configs.JobExecutionRetryDelay)
+					if err != nil {
+						httpExecutor.logger.Error("failed to execute jobs after retrying", "error", err)
+					}
 				})
 			}(rurl, batch, i)
 		}
 	}
-
-	return successJobs, failedJobs
 }
 
 func (httpExecutor *HTTPExecutionHandler) unwrapBatch(data []byte) []models.Job {
