@@ -188,11 +188,11 @@ async function createJobs(projectID) {
         for (let j = 0; j < 1000; j++) {
             payload.push({
                 spec: "@every 1m",
-                project_id: projectID,
-                execution_type: "http",
+                projectId: projectID,
+                executionType: "http",
                 data: JSON.stringify({jobId: i + j}),
                 timezone: 'America/New_York',
-                callback_url: `http://localhost:3000/callback`
+                callbackUrl: `http://localhost:3000/callback`
             })
         }
 

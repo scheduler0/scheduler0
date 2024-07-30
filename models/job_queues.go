@@ -14,6 +14,6 @@ type JobQueueLog struct {
 type JobQueueVersion struct {
 	Id                  uint64    `json:"id"`
 	Version             uint64    `json:"version"`
-	NumberOfActiveNodes uint64    `json:"number_of_active_nodes"`
+	NumberOfActiveNodes uint64    `json:"numberOfActiveNodes"`
 	DateCreated         time.Time `json:"dateCreated"`
 }

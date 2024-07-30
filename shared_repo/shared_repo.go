@@ -11,9 +11,10 @@ import (
 	"scheduler0/utils"
 )
 
-//go:generate mockery --name SharedRepo --output ../mocks
+//go:generate mockery --name SharedRepo --output ./ --inpackage
 type SharedRepo interface {
 	GetExecutionLogs(db db.DataStore, committed bool) ([]models.JobExecutionLog, error)
+	GetAsyncTasksLogs(db db.DataStore, committed bool) ([]models.AsyncTask, error)
 	InsertExecutionLogs(db db.DataStore, committed bool, jobExecutionLogs []models.JobExecutionLog) error
 	DeleteExecutionLogs(db db.DataStore, committed bool, jobExecutionLogs []models.JobExecutionLog) error
 	InsertAsyncTasksLogs(db db.DataStore, committed bool, asyncTasks []models.AsyncTask) error
@@ -79,7 +80,7 @@ func (repo *sharedRepo) GetExecutionLogs(db db.DataStore, committed bool) ([]mod
 		return nil, err
 	}
 
-	repo.logger.Debug(fmt.Sprintf("found %d uncommitted logs", count))
+	repo.logger.Debug(fmt.Sprintf("found %d logs in %v table", count, table))
 
 	if count < 1 {
 		return executionLogs, nil
@@ -169,6 +170,10 @@ func (repo *sharedRepo) GetExecutionLogs(db db.DataStore, committed bool) ([]mod
 	return executionLogs, nil
 }
 
+func (repo *sharedRepo) GetAsyncTasksLogs(db db.DataStore, committed bool) ([]models.AsyncTask, error) {
+	return nil, nil
+}
+
 func (repo *sharedRepo) InsertExecutionLogs(db db.DataStore, committed bool, jobExecutionLogs []models.JobExecutionLog) error {
 	db.ConnectionLock()
 	defer db.ConnectionUnlock()
@@ -239,10 +244,10 @@ func (repo *sharedRepo) InsertExecutionLogs(db db.DataStore, committed bool, job
 			repo.logger.Error("failed to insert un committed executions to recovery db", "error", err)
 			return err
 		}
-		err = tx.Commit()
-		if err != nil {
-			repo.logger.Error("failed to commit transition", "error", err)
-			return err
+		commitErr := tx.Commit()
+		if commitErr != nil {
+			repo.logger.Error("failed to commit transition", "error", commitErr)
+			return commitErr
 		}
 	}
 

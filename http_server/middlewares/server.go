@@ -3,7 +3,7 @@ package middlewares
 import (
 	"net/http"
 	"scheduler0/constants/headers"
-	"scheduler0/service"
+	"scheduler0/service/credential"
 	"scheduler0/utils"
 )
 
@@ -15,7 +15,7 @@ func IsServerClient(req *http.Request) bool {
 }
 
 // IsAuthorizedServerClient returns true if the credential is authorized server side
-func IsAuthorizedServerClient(req *http.Request, credentialService service.CredentialService) (bool, *utils.GenericError) {
+func IsAuthorizedServerClient(req *http.Request, credentialService credential.CredentialService) (bool, *utils.GenericError) {
 	apiKey := req.Header.Get(headers.APIKeyHeader)
 	apiSecret := req.Header.Get(headers.SecretKeyHeader)
 

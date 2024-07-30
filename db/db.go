@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
-	_ "github.com/iamf-dev/scheduler0-sqlite"
+	_ "github.com/scheduler0/scheduler0-sqlite"
 	"github.com/spf13/afero"
 	"io"
 	"log"
@@ -111,7 +111,6 @@ func (db *dataStore) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx,
 }
 
 func (db *dataStore) RunMigration() {
-
 	if !db.isInMemDb {
 		fs := afero.NewOsFs()
 

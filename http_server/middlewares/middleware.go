@@ -9,7 +9,8 @@ import (
 	"scheduler0/config"
 	"scheduler0/constants/headers"
 	"scheduler0/secrets"
-	"scheduler0/service"
+	"scheduler0/service/credential"
+	"scheduler0/service/node"
 	"scheduler0/utils"
 	"strings"
 	"sync"
@@ -26,7 +27,7 @@ type middlewareHandler struct {
 
 type MiddlewareHandler interface {
 	ContextMiddleware(next http.Handler) http.Handler
-	AuthMiddleware(credentialService service.CredentialService) func(next http.Handler) http.Handler
+	AuthMiddleware(credentialService credential.CredentialService) func(next http.Handler) http.Handler
 }
 
 func NewMiddlewareHandler(logger *log.Logger, scheduler0Secret secrets.Scheduler0Secrets, scheduler0Config config.Scheduler0Config) *middlewareHandler {
@@ -48,7 +49,7 @@ func (m *middlewareHandler) ContextMiddleware(next http.Handler) http.Handler {
 }
 
 // AuthMiddleware authentication middleware
-func (m *middlewareHandler) AuthMiddleware(credentialService service.CredentialService) func(next http.Handler) http.Handler {
+func (m *middlewareHandler) AuthMiddleware(credentialService credential.CredentialService) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			paths := strings.Split(r.URL.Path, "/")
@@ -89,7 +90,7 @@ func (m *middlewareHandler) AuthMiddleware(credentialService service.CredentialS
 	}
 }
 
-func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *service.Node) func(next http.Handler) http.Handler {
+func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer node.NodeService) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			paths := strings.Split(r.URL.Path, "/")
@@ -99,7 +100,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *service.Node) func(
 				return
 			}
 
-			if paths[1] == "peer-handshake" {
+			if paths[2] == "peer-handshake" {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -110,8 +111,13 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer *service.Node) func(
 			}
 
 			if !peer.CanAcceptClientWriteRequest() && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
+				if paths[2] == "start-jobs" || paths[2] == "stop-jobs" {
+					next.ServeHTTP(w, r)
+					return
+				}
+
 				configs := m.scheduler0Config.GetConfigurations()
-				serverAddr, _ := peer.FsmStore.GetRaft().LeaderWithID()
+				serverAddr, _ := peer.GetRaftLeaderWithId()
 
 				redirectUrl := ""
 
