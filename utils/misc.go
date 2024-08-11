@@ -212,14 +212,20 @@ func ExpandIdsRange[T uint64 | int64](min, max T) []T {
 	return results
 }
 
-func RemoveSqliteDbDir() {
+func GetSqliteDbDirAndDbFilePath() (string, string) {
 	dir, err := os.Getwd()
 	if err != nil {
 		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
 	}
-	fs := afero.NewOsFs()
 	dirPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDir)
 	filePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
+
+	return dirPath, filePath
+}
+
+func RemoveSqliteDbDir() {
+	dirPath, filePath := GetSqliteDbDirAndDbFilePath()
+	fs := afero.NewOsFs()
 	exists, err := afero.DirExists(fs, dirPath)
 	if err != nil {
 		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))

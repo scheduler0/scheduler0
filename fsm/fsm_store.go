@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"os"
 	"scheduler0/config"
-	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/models"
 	"scheduler0/utils"
@@ -143,21 +142,17 @@ func (s *store) Restore(r io.ReadCloser) error {
 	if err != nil {
 		return fmt.Errorf("restore failed: %s", err.Error())
 	}
-	dir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("Fatal error getting working dir: %s \n", err)
-	}
-	dbFilePath := fmt.Sprintf("%v/%v", dir, constants.SqliteDbFileName)
-	if err := os.Remove(dbFilePath); err != nil && !os.IsNotExist(err) {
+	_, filePath := utils.GetSqliteDbDirAndDbFilePath()
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if b != nil {
-		if err := ioutil.WriteFile(dbFilePath, b, os.ModePerm); err != nil {
+		if err := ioutil.WriteFile(filePath, b, os.ModePerm); err != nil {
 			return err
 		}
 	}
 
-	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", dbFilePath))
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", filePath))
 	if err != nil {
 		return fmt.Errorf("restore failed to create db: %v", err)
 	}

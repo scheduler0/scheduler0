@@ -352,7 +352,7 @@ func (node *Node) recoverRaftState() {
 		logger.Fatalln(fmt.Errorf("fatal error getting working dir: %s \n", err))
 	}
 
-	mainDbPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
+	_, mainDbPath := utils.GetSqliteDbDirAndDbFilePath()
 	dataStore := db.NewSqliteDbConnection(node.logger, mainDbPath)
 	dataStore.OpenConnectionToExistingDB()
 	executionLogs, err := node.sharedRepo.GetExecutionLogs(dataStore, false)
@@ -591,7 +591,7 @@ func (node *Node) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
 }
 
 func (node *Node) listenOnInputQueues(fsmStr fsm.Scheduler0RaftStore) {
-	node.logger.Info("begin listening input queues")
+	node.logger.Info("begin listening on input queues")
 
 	for {
 		select {

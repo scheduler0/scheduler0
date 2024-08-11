@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
-	_ "github.com/iamf-dev/scheduler0-sqlite"
+	_ "github.com/scheduler0/scheduler0-sqlite"
 	"github.com/spf13/afero"
 	"io"
 	"log"
 	"os"
-	"scheduler0/constants"
+	"scheduler0/utils"
 	"sync"
 )
 
@@ -151,14 +151,8 @@ func (db *dataStore) RunMigration() {
 }
 
 func CreateConnectionFromNewDbIfNonExists(logger hclog.Logger) DataStore {
-	dir, err := os.Getwd()
-	if err != nil {
-		logger.Error("Fatal error getting working dir: %s \n", err)
-	}
-
+	dirPath, filePath := utils.GetSqliteDbDirAndDbFilePath()
 	fs := afero.NewOsFs()
-	dirPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDir)
-	filePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
 	exists, err := afero.DirExists(fs, dirPath)
 	if err != nil {
 		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
@@ -302,16 +296,10 @@ CREATE TABLE IF NOT EXISTS async_tasks_uncommitted
 }
 
 func RunMigration(cmdLogger hclog.Logger) {
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal error getting working dir: %s \n", err))
-	}
+	dbDirPath, dbFilePath := utils.GetSqliteDbDirAndDbFilePath()
 	fs := afero.NewOsFs()
 
-	dbDirPath := fmt.Sprintf("%s/%s", dir, constants.SqliteDir)
-	dbFilePath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
-
-	err = fs.Remove(dbFilePath)
+	err := fs.Remove(dbFilePath)
 	if err != nil && !os.IsNotExist(err) {
 		log.Fatalln(fmt.Errorf("Fatal failed to remove db file path error: %s \n", err))
 	}
