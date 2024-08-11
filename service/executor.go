@@ -85,7 +85,7 @@ func (jobExecutor *JobExecutor) QueueExecutions(jobQueueParams []interface{}) {
 
 		for currentLowerBound < upperBound {
 
-			jobExecutor.logger.Debug("fetching batching", currentLowerBound, "between", currentUpperBound)
+			jobExecutor.logger.Debug("fetching batching", "from", currentLowerBound, "to", currentUpperBound)
 			jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(uint64(currentLowerBound), uint64(currentUpperBound))
 
 			if getErr != nil {
