@@ -12,13 +12,13 @@ require (
 	github.com/hashicorp/raft-boltdb/v2 v2.2.2
 	github.com/manifoldco/promptui v0.8.0
 	github.com/robfig/cron v1.2.0
-	github.com/scheduler0/scheduler0-sqlite v0.0.0-20240727032625-71570609cc34
+	github.com/scheduler0/scheduler0-sqlite v0.0.0-20240727020708-8316517f355c
 	github.com/segmentio/ksuid v1.0.3
 	github.com/spf13/afero v1.1.2
 	github.com/spf13/cobra v1.1.1
 	github.com/stretchr/testify v1.8.1
 	github.com/unrolled/secure v1.0.8
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.33.0
 	gopkg.in/yaml.v2 v2.3.0
 )
 

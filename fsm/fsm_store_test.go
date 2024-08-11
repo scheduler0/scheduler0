@@ -5,6 +5,7 @@ import (
 	"github.com/hashicorp/raft"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"scheduler0/config"
 	"scheduler0/mocks"
 	"testing"
 )
@@ -13,7 +14,9 @@ func TestNewFSMStore(t *testing.T) {
 	logger := hclog.New(&hclog.LoggerOptions{})
 	db := mocks.NewDataStore(t)
 	raftActions := mocks.NewScheduler0RaftActions(t)
-	fsmStore := NewFSMStore(logger, raftActions, db)
+	scheduler0config := config.NewScheduler0Config()
+
+	fsmStore := NewFSMStore(logger, raftActions, scheduler0config, db, nil, nil, nil, nil, nil)
 
 	// Test that the store struct is not nil
 	assert.NotNil(t, fsmStore)
@@ -22,9 +25,6 @@ func TestNewFSMStore(t *testing.T) {
 	assert.Equal(t, logger.Named("fsm-store").Name(), fsmStore.(*store).logger.Name())
 	assert.Equal(t, db, fsmStore.(*store).dataStore)
 	assert.NotNil(t, fsmStore.(*store).queueJobsChannel)
-	assert.NotNil(t, fsmStore.(*store).localDataChannel)
-	assert.NotNil(t, fsmStore.(*store).stopAllJobs)
-	assert.NotNil(t, fsmStore.(*store).recoverJobs)
 	assert.Equal(t, raftActions, fsmStore.(*store).scheduler0RaftActions)
 }
 
@@ -32,7 +32,9 @@ func TestGetFSM(t *testing.T) {
 	logger := hclog.New(&hclog.LoggerOptions{})
 	db := mocks.NewDataStore(t)
 	raftActions := mocks.NewScheduler0RaftActions(t)
-	fsmStore := NewFSMStore(logger, raftActions, db)
+	scheduler0config := config.NewScheduler0Config()
+
+	fsmStore := NewFSMStore(logger, raftActions, scheduler0config, db, nil, nil, nil, nil, nil)
 
 	assert.NotNil(t, fsmStore.GetFSM())
 }
@@ -41,7 +43,9 @@ func TestGetRaft(t *testing.T) {
 	logger := hclog.New(&hclog.LoggerOptions{})
 	db := mocks.NewDataStore(t)
 	raftActions := mocks.NewScheduler0RaftActions(t)
-	fsmStore := NewFSMStore(logger, raftActions, db)
+	scheduler0config := config.NewScheduler0Config()
+
+	fsmStore := NewFSMStore(logger, raftActions, scheduler0config, db, nil, nil, nil, nil, nil)
 
 	assert.Nil(t, fsmStore.GetRaft())
 	r := &raft.Raft{}
@@ -53,36 +57,11 @@ func TestGetDataStore(t *testing.T) {
 	logger := hclog.New(&hclog.LoggerOptions{})
 	db := mocks.NewDataStore(t)
 	raftActions := mocks.NewScheduler0RaftActions(t)
-	fsmStore := NewFSMStore(logger, raftActions, db)
+	scheduler0config := config.NewScheduler0Config()
+
+	fsmStore := NewFSMStore(logger, raftActions, scheduler0config, db, nil, nil, nil, nil, nil)
 
 	assert.Equal(t, db, fsmStore.GetDataStore())
-}
-
-func TestGetStopAllJobsChannel(t *testing.T) {
-	logger := hclog.New(&hclog.LoggerOptions{})
-	db := mocks.NewDataStore(t)
-	raftActions := mocks.NewScheduler0RaftActions(t)
-	fsmStore := NewFSMStore(logger, raftActions, db)
-
-	assert.NotNil(t, fsmStore.GetStopAllJobsChannel())
-}
-
-func TestGetRecoverJobsChannel(t *testing.T) {
-	logger := hclog.New(&hclog.LoggerOptions{})
-	db := mocks.NewDataStore(t)
-	raftActions := mocks.NewScheduler0RaftActions(t)
-	fsmStore := NewFSMStore(logger, raftActions, db)
-
-	assert.NotNil(t, fsmStore.GetRecoverJobsChannel())
-}
-
-func TestGetQueueJobsChannel(t *testing.T) {
-	logger := hclog.New(&hclog.LoggerOptions{})
-	db := mocks.NewDataStore(t)
-	raftActions := mocks.NewScheduler0RaftActions(t)
-	fsmStore := NewFSMStore(logger, raftActions, db)
-
-	assert.NotNil(t, fsmStore.GetQueueJobsChannel())
 }
 
 func TestApply(t *testing.T) {
@@ -96,13 +75,13 @@ func TestApply(t *testing.T) {
 		mock.Anything,
 		mock.Anything,
 		dataStore,
-		true,
-		mock.Anything,
-		mock.Anything,
-		mock.Anything).Return(mock.Anything)
+		false,
+	).Return(mock.Anything)
+
+	scheduler0config := config.NewScheduler0Config()
 
 	// Create the FSM store
-	fsmStore := NewFSMStore(logger, actions, dataStore)
+	fsmStore := NewFSMStore(logger, actions, scheduler0config, dataStore, nil, nil, nil, nil, nil)
 
 	// Apply a mock log to the FSM
 	log := &raft.Log{
@@ -112,9 +91,6 @@ func TestApply(t *testing.T) {
 		Data:  []byte("test"),
 	}
 	fsmStore.GetFSM().Apply(log)
-
-	// Verify that ApplyRaftLog was called with the expected values
-	actions.AssertCalled(t, "ApplyRaftLog", mock.Anything, log, dataStore, true, fsmStore.GetQueueJobsChannel(), fsmStore.GetStopAllJobsChannel(), fsmStore.GetRecoverJobsChannel())
 }
 
 func TestApplyBatch(t *testing.T) {
@@ -136,8 +112,10 @@ func TestApplyBatch(t *testing.T) {
 		mock.Anything,
 	).Return(mock.Anything)
 
+	scheduler0config := config.NewScheduler0Config()
+
 	// Create the FSM store
-	fsmStore := NewFSMStore(logger, actions, dataStore)
+	fsmStore := NewFSMStore(logger, actions, scheduler0config, dataStore, nil, nil, nil, nil, nil)
 
 	// Create a mock batch of logs
 	logs := []*raft.Log{
@@ -172,7 +150,9 @@ func TestSnapshot(t *testing.T) {
 	// Create an instance of store
 	logger := hclog.New(&hclog.LoggerOptions{})
 	actions := &mocks.Scheduler0RaftActions{}
-	fsmStore := NewFSMStore(logger, actions, dataStore)
+	scheduler0config := config.NewScheduler0Config()
+
+	fsmStore := NewFSMStore(logger, actions, scheduler0config, dataStore, nil, nil, nil, nil, nil)
 
 	// Call Snapshot
 	snapshot, err := fsmStore.GetFSM().Snapshot()

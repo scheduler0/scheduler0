@@ -39,9 +39,9 @@ func Start() {
 	jobController := controllers.NewJoBHTTPController(logger, serv.JobService, serv.ProjectService)
 	projectController := controllers.NewProjectController(logger, serv.ProjectService)
 	credentialController := controllers.NewCredentialController(logger, serv.CredentialService)
-	healthCheckController := controllers.NewHealthCheckController(logger, serv.NodeService.FsmStore)
-	peerController := controllers.NewPeerController(logger, configs, serv.NodeService.FsmStore, serv.NodeService)
-	asyncTaskController := controllers.NewAsyncTaskController(logger, serv.NodeService.FsmStore, serv.AsyncTaskManager)
+	healthCheckController := controllers.NewHealthCheckController(logger, serv.NodeService)
+	peerController := controllers.NewPeerController(logger, configs, serv.NodeService)
+	asyncTaskController := controllers.NewAsyncTaskController(logger, serv.AsyncTaskService)
 
 	secrets := secrets.NewScheduler0Secrets().GetSecrets()
 	// Mount middleware
@@ -77,9 +77,11 @@ func Start() {
 	// Healthcheck Endpoint
 	router.HandleFunc("/v1/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
 
-	// Node Endpoints
+	// NodeService Endpoints
 	router.HandleFunc("/v1/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
 	router.HandleFunc("/v1/execution-logs", peerController.ExecutionLogs).Methods(http.MethodGet)
+	router.HandleFunc("/v1/start-jobs", peerController.StartJobs).Methods(http.MethodPost)
+	router.HandleFunc("/v1/stop-jobs", peerController.StopJobs).Methods(http.MethodPost)
 
 	// AsyncTask
 	router.HandleFunc("/v1/async-tasks/{id}", asyncTaskController.GetTask).Methods(http.MethodGet)
@@ -87,12 +89,11 @@ func Start() {
 	router.PathPrefix("/v1/api-docs/").Handler(http.StripPrefix("/v1/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
 
 	logger.Println("Server is running on port", configs.Port)
-	go func() {
-		err := http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), httpLogger.Handler(router, os.Stderr, httpLogger.CombineLoggerType))
-		if err != nil {
-			logger.Fatal("failed to start http-server", err)
-		}
-	}()
 
-	serv.NodeService.Boostrap()
+	serv.NodeService.Start()
+
+	err := http.ListenAndServe(fmt.Sprintf(":%v", configs.Port), httpLogger.Handler(router, os.Stderr, httpLogger.CombineLoggerType))
+	if err != nil {
+		logger.Fatal("failed to start http-server", err)
+	}
 }

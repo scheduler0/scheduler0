@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 	"scheduler0/models"
-	"scheduler0/service"
+	"scheduler0/service/credential"
 	"scheduler0/utils"
 	"strconv"
 )
@@ -20,11 +20,11 @@ type CredentialHTTPController interface {
 }
 
 type credentialController struct {
-	credentialService service.CredentialService
+	credentialService credential.CredentialService
 	logger            *log.Logger
 }
 
-func NewCredentialController(logger *log.Logger, credentialService service.CredentialService) CredentialHTTPController {
+func NewCredentialController(logger *log.Logger, credentialService credential.CredentialService) CredentialHTTPController {
 	return &credentialController{
 		credentialService: credentialService,
 		logger:            logger,

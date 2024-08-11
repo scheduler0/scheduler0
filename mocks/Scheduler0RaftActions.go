@@ -22,13 +22,13 @@ type Scheduler0RaftActions struct {
 	mock.Mock
 }
 
-// ApplyRaftLog provides a mock function with given fields: logger, l, _a2, useQueues, queue, stopAllJobsQueue, recoverJobsQueue
-func (_m *Scheduler0RaftActions) ApplyRaftLog(logger hclog.Logger, l *raft.Log, _a2 db.DataStore, useQueues bool, queue chan []interface{}, stopAllJobsQueue chan bool, recoverJobsQueue chan bool) interface{} {
-	ret := _m.Called(logger, l, _a2, useQueues, queue, stopAllJobsQueue, recoverJobsQueue)
+// ApplyRaftLog provides a mock function with given fields: logger, l, _a2, ignorePostProcessChannel
+func (_m *Scheduler0RaftActions) ApplyRaftLog(logger hclog.Logger, l *raft.Log, _a2 db.DataStore, ignorePostProcessChannel bool) interface{} {
+	ret := _m.Called(logger, l, _a2, ignorePostProcessChannel)
 
 	var r0 interface{}
-	if rf, ok := ret.Get(0).(func(hclog.Logger, *raft.Log, db.DataStore, bool, chan []interface{}, chan bool, chan bool) interface{}); ok {
-		r0 = rf(logger, l, _a2, useQueues, queue, stopAllJobsQueue, recoverJobsQueue)
+	if rf, ok := ret.Get(0).(func(hclog.Logger, *raft.Log, db.DataStore, bool) interface{}); ok {
+		r0 = rf(logger, l, _a2, ignorePostProcessChannel)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(interface{})
@@ -38,25 +38,25 @@ func (_m *Scheduler0RaftActions) ApplyRaftLog(logger hclog.Logger, l *raft.Log, 
 	return r0
 }
 
-// WriteCommandToRaftLog provides a mock function with given fields: rft, commandType, sqlString, nodeId, params
-func (_m *Scheduler0RaftActions) WriteCommandToRaftLog(rft *raft.Raft, commandType constants.Command, sqlString string, nodeId uint64, params []interface{}) (*models.Response, *utils.GenericError) {
-	ret := _m.Called(rft, commandType, sqlString, nodeId, params)
+// WriteCommandToRaftLog provides a mock function with given fields: rft, commandType, sqlString, params, nodeIds, action
+func (_m *Scheduler0RaftActions) WriteCommandToRaftLog(rft *raft.Raft, commandType constants.Command, sqlString string, params []interface{}, nodeIds []uint64, action constants.CommandAction) (*models.FSMResponse, *utils.GenericError) {
+	ret := _m.Called(rft, commandType, sqlString, params, nodeIds, action)
 
-	var r0 *models.Response
+	var r0 *models.FSMResponse
 	var r1 *utils.GenericError
-	if rf, ok := ret.Get(0).(func(*raft.Raft, constants.Command, string, uint64, []interface{}) (*models.Response, *utils.GenericError)); ok {
-		return rf(rft, commandType, sqlString, nodeId, params)
+	if rf, ok := ret.Get(0).(func(*raft.Raft, constants.Command, string, []interface{}, []uint64, constants.CommandAction) (*models.FSMResponse, *utils.GenericError)); ok {
+		return rf(rft, commandType, sqlString, params, nodeIds, action)
 	}
-	if rf, ok := ret.Get(0).(func(*raft.Raft, constants.Command, string, uint64, []interface{}) *models.Response); ok {
-		r0 = rf(rft, commandType, sqlString, nodeId, params)
+	if rf, ok := ret.Get(0).(func(*raft.Raft, constants.Command, string, []interface{}, []uint64, constants.CommandAction) *models.FSMResponse); ok {
+		r0 = rf(rft, commandType, sqlString, params, nodeIds, action)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Response)
+			r0 = ret.Get(0).(*models.FSMResponse)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(*raft.Raft, constants.Command, string, uint64, []interface{}) *utils.GenericError); ok {
-		r1 = rf(rft, commandType, sqlString, nodeId, params)
+	if rf, ok := ret.Get(1).(func(*raft.Raft, constants.Command, string, []interface{}, []uint64, constants.CommandAction) *utils.GenericError); ok {
+		r1 = rf(rft, commandType, sqlString, params, nodeIds, action)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(*utils.GenericError)

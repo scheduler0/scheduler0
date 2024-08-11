@@ -17,11 +17,17 @@ type Command int32
 
 // These constants represent different types of commands.
 const (
-	CommandTypeDbExecute   Command = 0 // Execute a database command
-	CommandTypeJobQueue    Command = 1 // Enqueue a job
-	CommandTypeLocalData   Command = 2 // Store data locally
-	CommandTypeStopJobs    Command = 3 // Stop a job
-	CommandTypeRecoverJobs Command = 4 // Recover jobs
+	CommandTypeDbExecute Command = 0 // Execute a database command
+	CommandTypeJobQueue  Command = 1 // Enqueue a job
+	CommandTypeLocalData Command = 2 // Store data locally
+)
+
+type CommandAction int32
+
+const (
+	CommandActionQueueJob                       CommandAction = 0
+	CommandActionCleanUncommittedAsyncTasksLogs CommandAction = 1
+	CommandActionCleanUncommittedExecutionLogs  CommandAction = 2
 )
 
 // These constants define the maximum size of certain data structures used in the application.
@@ -108,4 +114,10 @@ const (
 	CredentialsApiKeyColumn      = "api_key"
 	CredentialsApiSecretColumn   = "api_secret"
 	CredentialsDateCreatedColumn = "date_created"
+)
+
+const (
+	DefaultRetryMaxConfig      = 30
+	DefaultRetryIntervalConfig = 3
+	DefaultMaxConnectedPeers   = 4
 )

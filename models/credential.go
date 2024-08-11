@@ -9,9 +9,9 @@ import (
 type Credential struct {
 	ID          uint64    `json:"id,omitempty" fake:"{number:1,100}"`
 	Archived    bool      `json:"archived,omitempty"`
-	ApiKey      string    `json:"api_key,omitempty" fake:"{regex:[abcdef]{15}}"`
-	ApiSecret   string    `json:"api_secret,omitempty" fake:"{regex:[abcdef]{15}}"`
-	DateCreated time.Time `json:"date_created,omitempty"`
+	ApiKey      string    `json:"apiKey,omitempty" fake:"{regex:[abcdef]{15}}"`
+	ApiSecret   string    `json:"apiSecret,omitempty" fake:"{regex:[abcdef]{15}}"`
+	DateCreated time.Time `json:"dateCreated,omitempty"`
 }
 
 // PaginatedCredential paginated container of credential transformer

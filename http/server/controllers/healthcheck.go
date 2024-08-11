@@ -3,7 +3,7 @@ package controllers
 import (
 	"log"
 	"net/http"
-	"scheduler0/fsm"
+	"scheduler0/service/node"
 	"scheduler0/utils"
 )
 
@@ -12,8 +12,8 @@ type HealthCheckController interface {
 }
 
 type healthCheckController struct {
-	fsmStore fsm.Scheduler0RaftStore
-	logger   *log.Logger
+	service node.NodeService
+	logger  *log.Logger
 }
 
 type healthCheckRes struct {
@@ -22,19 +22,19 @@ type healthCheckRes struct {
 	RaftStats     map[string]string `json:"raftStats"`
 }
 
-func NewHealthCheckController(logger *log.Logger, fsmStore fsm.Scheduler0RaftStore) HealthCheckController {
+func NewHealthCheckController(logger *log.Logger, service node.NodeService) HealthCheckController {
 	return &healthCheckController{
-		fsmStore: fsmStore,
-		logger:   logger,
+		service: service,
+		logger:  logger,
 	}
 }
 
 func (controller *healthCheckController) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	leaderAddress, leaderId := controller.fsmStore.GetRaft().LeaderWithID()
+	leaderAddress, leaderId := controller.service.GetRaftLeaderWithId()
 	res := healthCheckRes{
 		LeaderAddress: string(leaderAddress),
 		LeaderId:      string(leaderId),
-		RaftStats:     controller.fsmStore.GetRaft().Stats(),
+		RaftStats:     controller.service.GetRaftStats(),
 	}
 	utils.SendJSON(w, res, true, http.StatusOK, nil)
 }

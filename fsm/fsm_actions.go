@@ -3,48 +3,47 @@ package fsm
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	sq "github.com/Masterminds/squirrel"
+	"errors"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"google.golang.org/protobuf/proto"
 	"net/http"
-	"scheduler0/config"
 	"scheduler0/constants"
 	"scheduler0/db"
 	"scheduler0/models"
 	"scheduler0/protobuffs"
-	"scheduler0/scheduler0time"
 	"scheduler0/shared_repo"
 	"scheduler0/utils"
 	"time"
 )
 
-//go:generate mockery --name Scheduler0RaftActions --output ../mocks
+//go:generate mockery --name Scheduler0RaftActions --output ./ --inpackage
 type Scheduler0RaftActions interface {
 	WriteCommandToRaftLog(
 		rft *raft.Raft,
 		commandType constants.Command,
 		sqlString string,
-		nodeId uint64,
-		params []interface{}) (*models.Response, *utils.GenericError)
+		params []interface{},
+
+		nodeIds []uint64,
+		action constants.CommandAction) (*models.FSMResponse, *utils.GenericError)
 	ApplyRaftLog(
 		logger hclog.Logger,
 		l *raft.Log,
 		db db.DataStore,
-		useQueues bool,
-		queue chan []interface{},
-		stopAllJobsQueue chan bool,
-		recoverJobsQueue chan bool) interface{}
+		ignorePostProcessChannel bool,
+	) interface{}
 }
 
 type scheduler0RaftActions struct {
-	sharedRepo shared_repo.SharedRepo
+	sharedRepo         shared_repo.SharedRepo
+	postProcessChannel chan models.PostProcess
 }
 
-func NewScheduler0RaftActions(sharedRepo shared_repo.SharedRepo) Scheduler0RaftActions {
+func NewScheduler0RaftActions(sharedRepo shared_repo.SharedRepo, postProcessChannel chan models.PostProcess) Scheduler0RaftActions {
 	return &scheduler0RaftActions{
-		sharedRepo: sharedRepo,
+		sharedRepo:         sharedRepo,
+		postProcessChannel: postProcessChannel,
 	}
 }
 
@@ -52,39 +51,41 @@ func (_ *scheduler0RaftActions) WriteCommandToRaftLog(
 	rft *raft.Raft,
 	commandType constants.Command,
 	sqlString string,
-	nodeId uint64,
-	params []interface{}) (*models.Response, *utils.GenericError) {
+	params []interface{},
+	nodeIds []uint64,
+	action constants.CommandAction) (*models.FSMResponse, *utils.GenericError) {
 	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	createCommand := &protobuffs.Command{
-		Type:       protobuffs.Command_Type(commandType),
-		Sql:        sqlString,
-		Data:       data,
-		TargetNode: nodeId,
+	command := &protobuffs.Command{
+		Type:         protobuffs.Command_Type(commandType),
+		Sql:          sqlString,
+		Data:         data,
+		TargetNodes:  nodeIds,
+		TargetAction: uint64(action),
 	}
 
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	createCommandData, err := proto.Marshal(createCommand)
+	commandData, err := proto.Marshal(command)
 	if err != nil {
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, err.Error())
 	}
 
-	af := rft.Apply(createCommandData, time.Duration(15)*time.Second).(raft.ApplyFuture)
+	af := rft.Apply(commandData, time.Duration(15)*time.Second).(raft.ApplyFuture)
 	if af.Error() != nil {
-		if af.Error() == raft.ErrNotLeader {
+		if errors.Is(af.Error(), raft.ErrNotLeader) {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "server not raft leader")
 		}
 		return nil, utils.HTTPGenericError(http.StatusInternalServerError, af.Error().Error())
 	}
 
 	if af.Response() != nil {
-		r, ok := af.Response().(models.Response)
+		r, ok := af.Response().(models.FSMResponse)
 		if !ok {
 			return nil, utils.HTTPGenericError(http.StatusInternalServerError, "unknown raft response type")
 		}
@@ -101,10 +102,8 @@ func (raftActions *scheduler0RaftActions) ApplyRaftLog(
 	logger hclog.Logger,
 	l *raft.Log,
 	db db.DataStore,
-	useQueues bool,
-	queue chan []interface{},
-	stopAllJobsQueue chan bool,
-	recoverJobsQueue chan bool) interface{} {
+	ignorePostProcessChannel bool,
+) interface{} {
 
 	if l.Type == raft.LogConfiguration {
 		return nil
@@ -115,43 +114,47 @@ func (raftActions *scheduler0RaftActions) ApplyRaftLog(
 	marshalErr := proto.Unmarshal(l.Data, command)
 	if marshalErr != nil {
 		logger.Error("failed to unmarshal command", marshalErr.Error())
-		return models.Response{
-			Data:  nil,
+		return models.FSMResponse{
 			Error: marshalErr.Error(),
 		}
 	}
-	switch command.Type {
-	case protobuffs.Command_Type(constants.CommandTypeDbExecute):
-		return dbExecute(logger, command, db)
-	case protobuffs.Command_Type(constants.CommandTypeJobQueue):
-		return insertJobQueue(logger, command, db, useQueues, queue)
-	case protobuffs.Command_Type(constants.CommandTypeLocalData):
-		return localDataCommit(logger, command, db, raftActions.sharedRepo)
-	case protobuffs.Command_Type(constants.CommandTypeStopJobs):
-		if useQueues {
-			stopAllJobsQueue <- true
+
+	result := dbExecute(logger, command, db)
+
+	if raftActions.postProcessChannel != nil && !ignorePostProcessChannel && result.Error == "" {
+		switch command.TargetAction {
+		case uint64(constants.CommandActionQueueJob):
+			raftActions.postProcessChannel <- models.PostProcess{
+				Action:      constants.CommandActionQueueJob,
+				TargetNodes: command.TargetNodes,
+				Data:        result.Data,
+			}
+		case uint64(constants.CommandActionCleanUncommittedExecutionLogs):
+			raftActions.postProcessChannel <- models.PostProcess{
+				Action:      constants.CommandActionCleanUncommittedExecutionLogs,
+				TargetNodes: command.TargetNodes,
+				Data:        result.Data,
+			}
+		case uint64(constants.CommandActionCleanUncommittedAsyncTasksLogs):
+			raftActions.postProcessChannel <- models.PostProcess{
+				Action:      constants.CommandActionCleanUncommittedAsyncTasksLogs,
+				TargetNodes: command.TargetNodes,
+				Data:        result.Data,
+			}
 		}
-		break
-	case protobuffs.Command_Type(constants.CommandTypeRecoverJobs):
-		configs := config.NewScheduler0Config().GetConfigurations()
-		if useQueues && command.TargetNode == configs.NodeId {
-			recoverJobsQueue <- true
-		}
-		break
 	}
 
-	return nil
+	return result
 }
 
-func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore) models.Response {
+func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore) models.FSMResponse {
 	db.ConnectionLock()
 	defer db.ConnectionUnlock()
 
 	var params []interface{}
 	err := json.Unmarshal(command.Data, &params)
 	if err != nil {
-		return models.Response{
-			Data:  nil,
+		return models.FSMResponse{
 			Error: err.Error(),
 		}
 	}
@@ -160,8 +163,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		logger.Error("failed to execute sql command", "error", err.Error())
-		return models.Response{
-			Data:  nil,
+		return models.FSMResponse{
 			Error: err.Error(),
 		}
 	}
@@ -171,13 +173,11 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 		logger.Error("failed to execute sql command", "error", err.Error())
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
-			return models.Response{
-				Data:  nil,
+			return models.FSMResponse{
 				Error: err.Error(),
 			}
 		}
-		return models.Response{
-			Data:  nil,
+		return models.FSMResponse{
 			Error: err.Error(),
 		}
 	}
@@ -185,8 +185,7 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 	err = tx.Commit()
 	if err != nil {
 		logger.Error("failed to commit transaction", "error", err.Error())
-		return models.Response{
-			Data:  nil,
+		return models.FSMResponse{
 			Error: err.Error(),
 		}
 	}
@@ -197,146 +196,91 @@ func dbExecute(logger hclog.Logger, command *protobuffs.Command, db db.DataStore
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
 			logger.Error("failed to roll back transaction", "error", rollBackErr.Error())
-			return models.Response{
-				Data:  nil,
+			return models.FSMResponse{
 				Error: rollBackErr.Error(),
 			}
 		}
-		return models.Response{
-			Data:  nil,
+		return models.FSMResponse{
 			Error: err.Error(),
 		}
 	}
 	rowsAffected, err := exec.RowsAffected()
+
 	if err != nil {
 		logger.Error("failed to get number of rows affected", "error", err.Error())
 
 		rollBackErr := tx.Rollback()
 		if rollBackErr != nil {
 			logger.Error("failed to roll back transaction", "error", rollBackErr.Error())
-			return models.Response{
-				Data:  nil,
+			return models.FSMResponse{
 				Error: rollBackErr.Error(),
 			}
 		}
-		return models.Response{
-			Data:  nil,
+		return models.FSMResponse{
 			Error: err.Error(),
 		}
 	}
-	data := []interface{}{lastInsertedId, rowsAffected}
 
-	return models.Response{
-		Data:  data,
+	return models.FSMResponse{
+		Data: models.SQLResponse{
+			LastInsertedId: lastInsertedId,
+			RowsAffected:   rowsAffected,
+		},
 		Error: "",
 	}
 }
 
-func insertJobQueue(logger hclog.Logger, command *protobuffs.Command, db db.DataStore, useQueues bool, queue chan []interface{}) models.Response {
-	db.ConnectionLock()
-	defer db.ConnectionUnlock()
-
-	var jobIds []interface{}
-	err := json.Unmarshal(command.Data, &jobIds)
-	if err != nil {
-		logger.Error("failed unmarshal json bytes to jobs", "error", err.Error())
-		return models.Response{
-			Data:  nil,
-			Error: err.Error(),
-		}
-	}
-	lowerBound := jobIds[0].(float64)
-	upperBound := jobIds[1].(float64)
-	lastVersion := jobIds[2].(float64)
-
-	schedulerTime := scheduler0time.GetSchedulerTime()
-	now := schedulerTime.GetTime(time.Now())
-
-	insertBuilder := sq.Insert(constants.JobQueuesTableName).
-		Columns(
-			constants.JobQueueNodeIdColumn,
-			constants.JobQueueLowerBoundJobId,
-			constants.JobQueueUpperBound,
-			constants.JobQueueVersion,
-			constants.JobQueueDateCreatedColumn,
-		).
-		Values(
-			command.TargetNode,
-			lowerBound,
-			upperBound,
-			lastVersion,
-			now,
-		).
-		RunWith(db.GetOpenConnection())
-
-	_, err = insertBuilder.Exec()
-	if err != nil {
-		logger.Error("failed to insert new job queues", "error", err.Error())
-		return models.Response{
-			Data:  nil,
-			Error: err.Error(),
-		}
-	}
-	if useQueues {
-		queue <- []interface{}{command.TargetNode, int64(lowerBound), int64(upperBound)}
-	}
-	return models.Response{
-		Data:  nil,
-		Error: "",
-	}
-}
-
-func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.DataStore, shardRepo shared_repo.SharedRepo) models.Response {
-	var payload []models.CommitLocalData
-	err := json.Unmarshal(command.Data, &payload)
-	if err != nil {
-		logger.Error("failed to unmarshal local data to commit", "error", err.Error())
-		return models.Response{
-			Data:  nil,
-			Error: err.Error(),
-		}
-	}
-	localData := payload[0]
-	logger.Debug(fmt.Sprintf("received %d local execution logs to commit", len(localData.Data.ExecutionLogs)))
-
-	if len(localData.Data.ExecutionLogs) > 0 {
-		insertErr := shardRepo.InsertExecutionLogs(db, true, localData.Data.ExecutionLogs)
-		if insertErr != nil {
-			return models.Response{
-				Data:  nil,
-				Error: insertErr.Error(),
-			}
-		}
-		deleteErr := shardRepo.DeleteExecutionLogs(db, false, localData.Data.ExecutionLogs)
-		if deleteErr != nil {
-			return models.Response{
-				Data:  nil,
-				Error: deleteErr.Error(),
-			}
-		}
-	}
-
-	logger.Debug(fmt.Sprintf("received %d local async tasks to commit", len(localData.Data.AsyncTasks)))
-
-	if len(localData.Data.AsyncTasks) > 0 {
-		insertErr := shardRepo.InsertAsyncTasksLogs(db, true, localData.Data.AsyncTasks)
-		if insertErr != nil {
-			return models.Response{
-				Data:  nil,
-				Error: insertErr.Error(),
-			}
-		}
-		deleteErr := shardRepo.DeleteAsyncTasksLogs(db, false, localData.Data.AsyncTasks)
-		if deleteErr != nil {
-			return models.Response{
-				Data:  nil,
-				Error: deleteErr.Error(),
-			}
-		}
-	}
-
-	return models.Response{
-		Data:  nil,
-		Error: "",
-	}
-}
+//func localDataCommit(logger hclog.Logger, command *protobuffs.Command, db db.DataStore, shardRepo shared_repo.SharedRepo) models.FSMResponse {
+//	var payload []models.CommitLocalData
+//	err := json.Unmarshal(command.Data, &payload)
+//	if err != nil {
+//		logger.Error("failed to unmarshal local data to commit", "error", err.Error())
+//		return models.FSMResponse{
+//			Data:  nil,
+//			Error: err.Error(),
+//		}
+//	}
+//	localData := payload[0]
+//	logger.Debug(fmt.Sprintf("received %d local execution logs to commit", len(localData.Data.ExecutionLogs)))
+//
+//	if len(localData.Data.ExecutionLogs) > 0 {
+//		insertErr := shardRepo.InsertExecutionLogs(db, true, localData.Data.ExecutionLogs)
+//		if insertErr != nil {
+//			return models.FSMResponse{
+//				Data:  nil,
+//				Error: insertErr.Error(),
+//			}
+//		}
+//		deleteErr := shardRepo.DeleteExecutionLogs(db, false, localData.Data.ExecutionLogs)
+//		if deleteErr != nil {
+//			return models.FSMResponse{
+//				Data:  nil,
+//				Error: deleteErr.Error(),
+//			}
+//		}
+//	}
+//
+//	logger.Debug(fmt.Sprintf("received %d local async tasks to commit", len(localData.Data.AsyncTasks)))
+//
+//	if len(localData.Data.AsyncTasks) > 0 {
+//		insertErr := shardRepo.InsertAsyncTasksLogs(db, true, localData.Data.AsyncTasks)
+//		if insertErr != nil {
+//			return models.FSMResponse{
+//				Data:  nil,
+//				Error: insertErr.Error(),
+//			}
+//		}
+//		deleteErr := shardRepo.DeleteAsyncTasksLogs(db, false, localData.Data.AsyncTasks)
+//		if deleteErr != nil {
+//			return models.FSMResponse{
+//				Data:  nil,
+//				Error: deleteErr.Error(),
+//			}
+//		}
+//	}
+//
+//	return models.FSMResponse{
+//		Data:  nil,
+//		Error: "",
+//	}
+//}
