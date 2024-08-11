@@ -1,4 +1,4 @@
-package service
+package executor
 
 import (
 	"context"
@@ -109,10 +109,8 @@ func (jobExecutor *jobExecutor) QueueExecutions(lastInsertedId, rowsAffected int
 
 		for currentLowerBound < upperBound {
 
-			jobExecutor.logger.Debug("fetching batching", currentLowerBound, "between", currentUpperBound)
-			jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(int64(currentLowerBound), int64(currentUpperBound))
 			jobExecutor.logger.Debug("fetching batching", "from", currentLowerBound, "to", currentUpperBound)
-			jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(uint64(currentLowerBound), uint64(currentUpperBound))
+			jobs, getErr := jobExecutor.jobRepo.BatchGetJobsWithIDRange(int64(uint64(currentLowerBound)), int64(uint64(currentUpperBound)))
 
 			if getErr != nil {
 				jobExecutor.logger.Error("failed to batch get job by ranges ids", "error", getErr)

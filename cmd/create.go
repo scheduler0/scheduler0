@@ -35,6 +35,11 @@ var credentialCmd = &cobra.Command{
 		configs := config.NewScheduler0Config().GetConfigurations()
 		credentials := secrets.NewScheduler0Secrets().GetSecrets()
 
+		if credentials == nil {
+			logger.Println("Scheduler0 secrets have not been set. Run ./scheduler0 config init to setup your secrets.")
+			return
+		}
+
 		credentialModel := models.Credential{}
 		data, err := credentialModel.ToJSON()
 		if err != nil {
