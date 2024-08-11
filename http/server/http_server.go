@@ -1,4 +1,4 @@
-package http_server
+package server
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"os"
 	"scheduler0/config"
-	"scheduler0/http_server/controllers"
-	"scheduler0/http_server/middlewares"
+	"scheduler0/http/server/controllers"
+	"scheduler0/http/server/middlewares"
 	"scheduler0/secrets"
 	"scheduler0/service"
 )
