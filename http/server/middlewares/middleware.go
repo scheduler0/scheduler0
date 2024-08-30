@@ -59,7 +59,7 @@ func (m *middlewareHandler) AuthMiddleware(credentialService credential.Credenti
 				return
 			}
 
-			if paths[1] == "api-docs" || paths[1] == "healthcheck" {
+			if paths[2] == "api-docs" || paths[2] == "healthcheck" {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -100,7 +100,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer node.NodeService) fu
 				return
 			}
 
-			if paths[2] == "peer-handshake" {
+			if paths[3] == "peer-handshake" {
 				next.ServeHTTP(w, r)
 				return
 			}

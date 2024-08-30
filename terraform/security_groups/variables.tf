@@ -7,11 +7,16 @@ variable "security_group_name" {
 variable "cluster_ingress_from_port" {
   description = "the port for incoming network traffic on container"
   type = number
-  default   = 22
+  default   = 9091
 }
 
 variable "cluster_ingress_to_port" {
   description = "the port to forward incoming traffic too"
   type = number
-  default   = 22
+  default   = 9091
+}
+
+variable "vpc_id" {
+  type = string
+  description = "vpc id"
 }
