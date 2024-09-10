@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"scheduler0/config"
+	"scheduler0/constants"
 	"scheduler0/http/server/controllers"
 	"scheduler0/http/server/middlewares"
 	"scheduler0/secrets"
@@ -54,39 +55,37 @@ func Start() {
 	router.Use(middleware.EnsureRaftLeaderMiddleware(serv.NodeService))
 
 	// Credentials Endpoint
-	router.HandleFunc("/v1/credentials", credentialController.CreateOneCredential).Methods(http.MethodPost)
-	router.HandleFunc("/v1/credentials", credentialController.ListCredentials).Methods(http.MethodGet)
-	router.HandleFunc("/v1/credentials/{id}", credentialController.GetOneCredential).Methods(http.MethodGet)
-	router.HandleFunc("/v1/credentials/{id}", credentialController.UpdateOneCredential).Methods(http.MethodPut)
-	router.HandleFunc("/v1/credentials/{id}", credentialController.DeleteOneCredential).Methods(http.MethodDelete)
+	router.HandleFunc(fmt.Sprintf("%s/credentials", constants.APIV1Base), credentialController.CreateOneCredential).Methods(http.MethodPost)
+	router.HandleFunc(fmt.Sprintf("%s/credentials", constants.APIV1Base), credentialController.ListCredentials).Methods(http.MethodGet)
+	router.HandleFunc(fmt.Sprintf("%s/credentials/{id}", constants.APIV1Base), credentialController.GetOneCredential).Methods(http.MethodGet)
+	router.HandleFunc(fmt.Sprintf("%s/credentials/{id}", constants.APIV1Base), credentialController.UpdateOneCredential).Methods(http.MethodPut)
+	router.HandleFunc(fmt.Sprintf("%s/credentials/{id}", constants.APIV1Base), credentialController.DeleteOneCredential).Methods(http.MethodDelete)
 
 	// JobService Endpoint
-	router.HandleFunc("/v1/jobs", jobController.BatchCreateJobs).Methods(http.MethodPost)
-	router.HandleFunc("/v1/jobs", jobController.ListJobs).Methods(http.MethodGet)
-	router.HandleFunc("/v1/jobs/{id}", jobController.GetOneJob).Methods(http.MethodGet)
-	router.HandleFunc("/v1/jobs/{id}", jobController.UpdateOneJob).Methods(http.MethodPut)
-	router.HandleFunc("/v1/jobs/{id}", jobController.DeleteOneJob).Methods(http.MethodDelete)
+	router.HandleFunc(fmt.Sprintf("%s/jobs", constants.APIV1Base), jobController.BatchCreateJobs).Methods(http.MethodPost)
+	router.HandleFunc(fmt.Sprintf("%s/jobs", constants.APIV1Base), jobController.ListJobs).Methods(http.MethodGet)
+	router.HandleFunc(fmt.Sprintf("%s/jobs/{id}", constants.APIV1Base), jobController.GetOneJob).Methods(http.MethodGet)
+	router.HandleFunc(fmt.Sprintf("%s/jobs/{id}", constants.APIV1Base), jobController.UpdateOneJob).Methods(http.MethodPut)
+	router.HandleFunc(fmt.Sprintf("%s/jobs/{id}", constants.APIV1Base), jobController.DeleteOneJob).Methods(http.MethodDelete)
 
 	// Projects Endpoint
-	router.HandleFunc("/v1/projects", projectController.CreateOneProject).Methods(http.MethodPost)
-	router.HandleFunc("/v1/projects", projectController.ListProjects).Methods(http.MethodGet)
-	router.HandleFunc("/v1/projects/{id}", projectController.GetOneProject).Methods(http.MethodGet)
-	router.HandleFunc("/v1/projects/{id}", projectController.UpdateOneProject).Methods(http.MethodPut)
-	router.HandleFunc("/v1/projects/{id}", projectController.DeleteOneProject).Methods(http.MethodDelete)
+	router.HandleFunc(fmt.Sprintf("%s/projects", constants.APIV1Base), projectController.CreateOneProject).Methods(http.MethodPost)
+	router.HandleFunc(fmt.Sprintf("%s/projects", constants.APIV1Base), projectController.ListProjects).Methods(http.MethodGet)
+	router.HandleFunc(fmt.Sprintf("%s/projects/{id}", constants.APIV1Base), projectController.GetOneProject).Methods(http.MethodGet)
+	router.HandleFunc(fmt.Sprintf("%s/projects/{id}", constants.APIV1Base), projectController.UpdateOneProject).Methods(http.MethodPut)
+	router.HandleFunc(fmt.Sprintf("%s/projects/{id}", constants.APIV1Base), projectController.DeleteOneProject).Methods(http.MethodDelete)
 
 	// Healthcheck Endpoint
-	router.HandleFunc("/v1/healthcheck", healthCheckController.HealthCheck).Methods(http.MethodGet)
+	router.HandleFunc(fmt.Sprintf("%s/healthcheck", constants.APIV1Base), healthCheckController.HealthCheck).Methods(http.MethodGet)
 
 	// NodeService Endpoints
-	router.HandleFunc("/v1/peer-handshake", peerController.Handshake).Methods(http.MethodGet)
-	router.HandleFunc("/v1/execution-logs", peerController.ExecutionLogs).Methods(http.MethodGet)
-	router.HandleFunc("/v1/start-jobs", peerController.StartJobs).Methods(http.MethodPost)
-	router.HandleFunc("/v1/stop-jobs", peerController.StopJobs).Methods(http.MethodPost)
+	router.HandleFunc(fmt.Sprintf("%s/peer-handshake", constants.APIV1Base), peerController.Handshake).Methods(http.MethodGet)
+	router.HandleFunc(fmt.Sprintf("%s/execution-logs", constants.APIV1Base), peerController.ExecutionLogs).Methods(http.MethodGet)
+	router.HandleFunc(fmt.Sprintf("%s/start-jobs", constants.APIV1Base), peerController.StartJobs).Methods(http.MethodPost)
+	router.HandleFunc(fmt.Sprintf("%s/stop-jobs", constants.APIV1Base), peerController.StopJobs).Methods(http.MethodPost)
 
 	// AsyncTask
-	router.HandleFunc("/v1/async-tasks/{id}", asyncTaskController.GetTask).Methods(http.MethodGet)
-
-	router.PathPrefix("/v1/api-docs/").Handler(http.StripPrefix("/v1/api-docs/", http.FileServer(http.Dir("./server/http_server/api-docs/"))))
+	router.HandleFunc(fmt.Sprintf("%s/async-tasks/{id}", constants.APIV1Base), asyncTaskController.GetTask).Methods(http.MethodGet)
 
 	logger.Println("Server is running on port", configs.Port)
 

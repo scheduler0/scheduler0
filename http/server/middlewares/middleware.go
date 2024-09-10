@@ -28,9 +28,10 @@ type middlewareHandler struct {
 type MiddlewareHandler interface {
 	ContextMiddleware(next http.Handler) http.Handler
 	AuthMiddleware(credentialService credential.CredentialService) func(next http.Handler) http.Handler
+	EnsureRaftLeaderMiddleware(peer node.NodeService) func(next http.Handler) http.Handler
 }
 
-func NewMiddlewareHandler(logger *log.Logger, scheduler0Secret secrets.Scheduler0Secrets, scheduler0Config config.Scheduler0Config) *middlewareHandler {
+func NewMiddlewareHandler(logger *log.Logger, scheduler0Secret secrets.Scheduler0Secrets, scheduler0Config config.Scheduler0Config) MiddlewareHandler {
 	return &middlewareHandler{
 		logger:           logger,
 		scheduler0Secret: scheduler0Secret,
@@ -59,7 +60,7 @@ func (m *middlewareHandler) AuthMiddleware(credentialService credential.Credenti
 				return
 			}
 
-			if paths[2] == "api-docs" || paths[2] == "healthcheck" {
+			if paths[3] == "api-docs" || paths[3] == "healthcheck" {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -90,6 +91,7 @@ func (m *middlewareHandler) AuthMiddleware(credentialService credential.Credenti
 	}
 }
 
+// EnsureRaftLeaderMiddleware ensures that the current node is the leader of the raft cluster
 func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer node.NodeService) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +113,7 @@ func (m *middlewareHandler) EnsureRaftLeaderMiddleware(peer node.NodeService) fu
 			}
 
 			if !peer.CanAcceptClientWriteRequest() && (r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut) {
-				if paths[2] == "start-jobs" || paths[2] == "stop-jobs" {
+				if paths[3] == "start-jobs" || paths[3] == "stop-jobs" {
 					next.ServeHTTP(w, r)
 					return
 				}

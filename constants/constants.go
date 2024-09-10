@@ -121,3 +121,5 @@ const (
 	DefaultRetryIntervalConfig = 3
 	DefaultMaxConnectedPeers   = 4
 )
+
+const APIV1Base = "/api/v1"

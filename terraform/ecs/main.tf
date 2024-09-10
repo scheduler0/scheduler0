@@ -66,6 +66,16 @@ resource "aws_ecs_task_definition" "scheduler0" {
           hostPort      = 9091
         }
       ]
+      healthCheck = {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:9091/api/v1/healthcheck || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
       logConfiguration = {
         logDriver = "awslogs"
         options = {

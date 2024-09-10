@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"scheduler0/config"
+	"scheduler0/constants"
 	"scheduler0/constants/headers"
 	"scheduler0/models"
 	"scheduler0/secrets"
@@ -65,7 +66,7 @@ var credentialCmd = &cobra.Command{
 		}
 		req, err := http.NewRequest(
 			"POST",
-			fmt.Sprintf("%s://%s:%s/v1/credentials", configs.Protocol, configs.Host, configs.Port),
+			fmt.Sprintf("%s://%s:%s/%s/credentials", configs.Protocol, configs.Host, configs.Port, constants.APIV1Base),
 			bytes.NewReader(data),
 		)
 
