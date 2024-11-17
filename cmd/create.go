@@ -8,11 +8,11 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"scheduler0/config"
-	"scheduler0/constants"
-	"scheduler0/constants/headers"
-	"scheduler0/models"
-	"scheduler0/secrets"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/constants"
+	"scheduler0/pkg/constants/headers"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/secrets"
 )
 
 var CreateCmd = &cobra.Command{

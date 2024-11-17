@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"os"
-	"scheduler0/secrets"
+	"scheduler0/pkg/secrets"
 	"strings"
 )
 

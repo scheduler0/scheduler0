@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"os"
-	http_server "scheduler0/http/server"
+	http_server "scheduler0/pkg/http/server"
 )
 
 // StartCmd http server command

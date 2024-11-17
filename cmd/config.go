@@ -6,9 +6,9 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"os"
-	"scheduler0/config"
-	"scheduler0/db"
-	"scheduler0/utils"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/db"
+	"scheduler0/pkg/utils"
 )
 
 // ConfigCmd configuration protobuffs

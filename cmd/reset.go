@@ -5,7 +5,7 @@ import (
 	"github.com/spf13/cobra"
 	"log"
 	"os"
-	"scheduler0/utils"
+	"scheduler0/pkg/utils"
 )
 
 var ResetCmd = &cobra.Command{
