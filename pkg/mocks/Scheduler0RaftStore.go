@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	db "scheduler0/db"
+	db "scheduler0/pkg/db"
 
 	mock "github.com/stretchr/testify/mock"
 

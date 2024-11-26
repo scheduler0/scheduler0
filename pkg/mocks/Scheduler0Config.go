@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	config "scheduler0/config"
+	config "scheduler0/pkg/config"
 
 	mock "github.com/stretchr/testify/mock"
 )

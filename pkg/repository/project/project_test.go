@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
-	"scheduler0/config"
-	"scheduler0/db"
-	"scheduler0/fsm"
-	"scheduler0/models"
-	"scheduler0/repository/job"
-	"scheduler0/shared_repo"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/db"
+	"scheduler0/pkg/fsm"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/repository/job"
+	"scheduler0/pkg/shared_repo"
 	"testing"
 )
 

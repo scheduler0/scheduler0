@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	models "scheduler0/models"
+	models "scheduler0/pkg/models"
 
 	mock "github.com/stretchr/testify/mock"
 )
