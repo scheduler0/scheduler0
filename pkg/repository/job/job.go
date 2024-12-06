@@ -454,7 +454,7 @@ func (jobRepo *jobRepo) BatchInsertJobs(jobs []models.Job) ([]uint64, *utils.Gen
 			return nil, applyErr
 		}
 
-		lastInsertedId := uint64(res.Data.RowsAffected)
+		lastInsertedId := uint64(res.Data.LastInsertedId)
 
 		for i := lastInsertedId - uint64(len(batch)) + 1; i <= lastInsertedId; i++ {
 			ids = append(ids, i)
