@@ -233,7 +233,7 @@ func Test_Queue_Queue_SingleNodeMode(t *testing.T) {
 	jobQueueRepo.On("InsertJobQueueLogs", mock.Anything)
 	jobQueue := NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
 	jobQueue.SetSingleNodeMode(true)
-	jobQueue.AddServers([]uint64{1, 2, 3, 4})
+	jobQueue.AddServers([]uint64{1})
 
 	jobs := []models.Job{}
 	numberOfJEL := 29

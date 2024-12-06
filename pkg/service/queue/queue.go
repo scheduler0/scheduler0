@@ -94,6 +94,8 @@ func (jobQ *jobQueue) Queue(jobs []models.Job) {
 		}
 	}
 
+	jobQ.logger.Debug("Begin queueing %d", len(jobs), " jobs", "minId", jobQ.minId, "maxId", jobQ.maxId)
+
 	jobQ.queue(jobQ.minId, jobQ.maxId)
 	jobQ.minId = math.MaxInt64
 	jobQ.maxId = math.MinInt16
