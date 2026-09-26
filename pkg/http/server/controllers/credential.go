@@ -61,7 +61,10 @@ func callerMayGrantAdmin(r *http.Request) bool {
 
 // CreateOneCredential CreateOne create a single credential
 func (credentialController *credentialController) CreateOneCredential(w http.ResponseWriter, r *http.Request) {
+<<<<<<< HEAD
+=======
 
+>>>>>>> origin/main
 	requestID := utils.GetRequestID(r.Context())
 	utils.LogWithRequestID(credentialController.logger, requestID, "", fmt.Sprintf("POST %s - CreateOneCredential entry", r.URL.Path))
 

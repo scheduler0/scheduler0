@@ -414,6 +414,11 @@ func (jobController *jobHTTPController) GetJobExecutionLogs(w http.ResponseWrite
 		utils.SendJSON(w, "invalid limit", false, http.StatusBadRequest, nil)
 		return
 	}
+	if limit <= 0 {
+		utils.LogWithRequestID(jobController.logger, requestID, "", fmt.Sprintf("GET %s - GetJobExecutionLogs error: limit must be positive", r.URL.Path))
+		utils.SendJSON(w, "limit must be positive", false, http.StatusBadRequest, nil)
+		return
+	}
 
 	// Parse dates if provided (optional)
 	var startDate, endDate *time.Time

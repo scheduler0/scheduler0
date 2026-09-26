@@ -265,8 +265,8 @@ func (node *nodeService) DemoteNode(ctx context.Context, nodeId uint64) error {
 	return node.raftCluster.DemoteNode(ctx, nodeId)
 }
 
-func (node *nodeService) TransferLeadership(ctx context.Context) error {
-	return node.raftCluster.TransferLeadership(ctx)
+func (node *nodeService) TransferLeadership(ctx context.Context, targetNodeId *uint64) error {
+	return node.raftCluster.TransferLeadership(ctx, targetNodeId)
 }
 
 func (node *nodeService) ListNodes(ctx context.Context) ([]config.RaftNode, error) {

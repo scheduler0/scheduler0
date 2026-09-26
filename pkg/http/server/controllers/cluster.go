@@ -297,8 +297,19 @@ func (c *clusterController) TransferLeadership(w http.ResponseWriter, r *http.Re
 	requestID := utils.GetRequestID(r.Context())
 	utils.LogWithRequestID(c.logger, requestID, "", fmt.Sprintf("POST %s - TransferLeadership entry, query=%s", r.URL.Path, r.URL.RawQuery))
 
-	utils.LogWithRequestID(c.logger, requestID, "", fmt.Sprintf("POST %s - TransferLeadership processing", r.URL.Path))
-	if err := c.service.TransferLeadership(r.Context()); err != nil {
+	var targetNodeId *uint64
+	if targetNodeIdStr := r.URL.Query().Get("targetNodeId"); targetNodeIdStr != "" {
+		parsed, err := strconv.ParseUint(targetNodeIdStr, 10, 64)
+		if err != nil {
+			utils.LogWithRequestID(c.logger, requestID, "", fmt.Sprintf("POST %s - TransferLeadership error: invalid targetNodeId parameter", r.URL.Path))
+			utils.SendJSON(w, "invalid targetNodeId parameter", false, http.StatusBadRequest, nil)
+			return
+		}
+		targetNodeId = &parsed
+	}
+
+	utils.LogWithRequestID(c.logger, requestID, "", fmt.Sprintf("POST %s - TransferLeadership processing, targetNodeId=%v", r.URL.Path, targetNodeId))
+	if err := c.service.TransferLeadership(r.Context(), targetNodeId); err != nil {
 		statusCode := http.StatusInternalServerError
 		if err.Error() == "node is not leader; cannot transfer leadership" {
 			statusCode = http.StatusForbidden

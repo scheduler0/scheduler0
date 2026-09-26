@@ -56,6 +56,7 @@ Note that the Port is optional. By default the server will use :9090
 			fmt.Println(warningMsg.String())
 			var confirm string
 			fmt.Scanln(&confirm)
+			confirm = strings.ToLower(strings.TrimSpace(confirm))
 			if confirm != "y" && confirm != "yes" {
 				fmt.Println("Operation cancelled.")
 				return
