@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package protobuffs;
+
+message JobUpdateRequestPayload {
+    string auth_username = 1;
+    string auth_password = 2;
+    bytes job_data = 3; // JSON-encoded Job
+}
+

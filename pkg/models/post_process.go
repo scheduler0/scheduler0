@@ -1,6 +1,6 @@
 package models
 
-import "scheduler0/pkg/constants"
+import "scheduler0-private/pkg/constants"
 
 type PostProcess struct {
 	Action      constants.CommandAction

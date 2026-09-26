@@ -1,18 +1,19 @@
 package fsm
 
 import (
+	"scheduler0-private/pkg/config"
+	"scheduler0-private/pkg/mocks"
+	"testing"
+
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"scheduler0/pkg/config"
-	"scheduler0/pkg/mocks"
-	"testing"
 )
 
 func TestNewFSMStore(t *testing.T) {
 	logger := hclog.New(&hclog.LoggerOptions{})
-	db := mocks.NewDataStore(t)
+	db := mocks.NewMockDataStore(t)
 	raftActions := mocks.NewScheduler0RaftActions(t)
 	scheduler0config := config.NewScheduler0Config()
 
@@ -30,7 +31,7 @@ func TestNewFSMStore(t *testing.T) {
 
 func TestGetFSM(t *testing.T) {
 	logger := hclog.New(&hclog.LoggerOptions{})
-	db := mocks.NewDataStore(t)
+	db := mocks.NewMockDataStore(t)
 	raftActions := mocks.NewScheduler0RaftActions(t)
 	scheduler0config := config.NewScheduler0Config()
 
@@ -41,7 +42,7 @@ func TestGetFSM(t *testing.T) {
 
 func TestGetRaft(t *testing.T) {
 	logger := hclog.New(&hclog.LoggerOptions{})
-	db := mocks.NewDataStore(t)
+	db := mocks.NewMockDataStore(t)
 	raftActions := mocks.NewScheduler0RaftActions(t)
 	scheduler0config := config.NewScheduler0Config()
 
@@ -55,7 +56,7 @@ func TestGetRaft(t *testing.T) {
 
 func TestGetDataStore(t *testing.T) {
 	logger := hclog.New(&hclog.LoggerOptions{})
-	db := mocks.NewDataStore(t)
+	db := mocks.NewMockDataStore(t)
 	raftActions := mocks.NewScheduler0RaftActions(t)
 	scheduler0config := config.NewScheduler0Config()
 
@@ -67,7 +68,7 @@ func TestGetDataStore(t *testing.T) {
 func TestApply(t *testing.T) {
 	// Create a mock logger and data store
 	logger := hclog.New(&hclog.LoggerOptions{})
-	dataStore := &mocks.DataStore{}
+	dataStore := &mocks.MockDataStore{}
 
 	// Create a mock implementation of the Scheduler0RaftActions interface
 	actions := &mocks.Scheduler0RaftActions{}
@@ -96,7 +97,7 @@ func TestApply(t *testing.T) {
 func TestApplyBatch(t *testing.T) {
 	// Create a mock logger and data store
 	logger := hclog.New(&hclog.LoggerOptions{})
-	dataStore := &mocks.DataStore{}
+	dataStore := &mocks.MockDataStore{}
 
 	// Create a mock implementation of the Scheduler0RaftActions interface
 	actions := &mocks.Scheduler0RaftActions{}
@@ -145,7 +146,7 @@ func TestApplyBatch(t *testing.T) {
 
 func TestSnapshot(t *testing.T) {
 	// Create a mock data store
-	dataStore := &mocks.DataStore{}
+	dataStore := &mocks.MockDataStore{}
 
 	// Create an instance of store
 	logger := hclog.New(&hclog.LoggerOptions{})
@@ -164,6 +165,5 @@ func TestSnapshot(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Check that the snapshot implements the FSMSnapshot interface
-	_, ok := snapshot.(raft.FSMSnapshot)
-	assert.True(t, ok)
+	assert.Implements(t, (*raft.FSMSnapshot)(nil), snapshot)
 }

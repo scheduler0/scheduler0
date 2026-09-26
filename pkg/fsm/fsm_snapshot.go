@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"github.com/hashicorp/raft"
 	"math"
-	"scheduler0/pkg/db"
-	"scheduler0/pkg/utils"
+	"scheduler0-private/pkg/db"
+	"scheduler0-private/pkg/utils"
 )
 
 type fsmSnapshot struct {

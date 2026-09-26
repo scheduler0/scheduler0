@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package protobuffs;
+
+message LocalQuotaResponsePayload {
+  // Map of account_id -> remaining_count
+  map<uint64, uint64> account_allocations = 1;
+}
+

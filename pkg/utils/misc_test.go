@@ -3,13 +3,14 @@ package utils
 import (
 	"bytes"
 	"encoding/binary"
-	"github.com/hashicorp/raft"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"math"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/hashicorp/raft"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetRandomSha256(t *testing.T) {
@@ -225,7 +226,7 @@ func Test_GetNodeIdWithRaftAddress(t *testing.T) {
 	os.Setenv("SCHEDULER0_REPLICAS", `[{"nodeId":1, "address":"localhost:1234", "raft_address":"localhost:6789"}]`)
 	defer os.Unsetenv("SCHEDULER0_REPLICAS")
 
-	nodeId, err := GetNodeIdWithServerAddress("localhost:1234")
+	nodeId, err := GetNodeIdWithRaftAddress("localhost:1234")
 	assert.Equal(t, err, nil)
 	assert.Equal(t, int64(1), nodeId)
 }

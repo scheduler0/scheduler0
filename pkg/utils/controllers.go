@@ -57,6 +57,19 @@ func ValidateQueryString(queryString string, r *http.Request) (string, error) {
 	return param[0], nil
 }
 
+// ValidateQueryStringWithDefault check is a query string is included in the request
+func ValidateQueryStringWithDefault(queryString string, r *http.Request, defaultValue *string) (string, error) {
+	param := r.URL.Query()[queryString]
+
+	if (param == nil || len(param[0]) < 1) && defaultValue == nil {
+		return "", errors.New(queryString + " is not provided")
+	} else if (param == nil || len(param[0]) < 1) && defaultValue != nil {
+		return *defaultValue, nil
+	} else {
+		return param[0], nil
+	}
+}
+
 // ExtractBody validates and extracts request body
 func ExtractBody(w http.ResponseWriter, r *http.Request) []byte {
 	body, err := ioutil.ReadAll(r.Body)
@@ -74,13 +87,16 @@ func ExtractBody(w http.ResponseWriter, r *http.Request) []byte {
 	return body
 }
 
-// RetryOnError retries callback function
-func RetryOnError(callback func() error, maxRetry uint64, delay uint64) error {
+// RetryOnError calls callback and, if it returns an error, retries it up to
+// maxRetry more times, sleeping delaySeconds between attempts. The unit is
+// seconds: callers pass config.JobExecutionRetryDelay or
+// constants.DefaultRetryIntervalConfig, both defined in seconds.
+func RetryOnError(callback func() error, maxRetry uint64, delaySeconds uint64) error {
 	lastKnowError := callback()
 	numberOfRetriesLeft := maxRetry
 	if lastKnowError != nil {
 		for numberOfRetriesLeft > 0 {
-			time.Sleep(time.Second * time.Duration(delay))
+			time.Sleep(time.Second * time.Duration(delaySeconds))
 			lastKnowError = callback()
 			if lastKnowError != nil {
 				numberOfRetriesLeft--

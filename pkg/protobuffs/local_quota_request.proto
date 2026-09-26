@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package protobuffs;
+
+message LocalQuotaRequestPayload {
+  string auth_username = 1;
+  string auth_password = 2;
+}
+
