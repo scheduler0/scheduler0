@@ -3,8 +3,6 @@ package processor
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
-	"github.com/robfig/cron"
 	"log"
 	"scheduler0/pkg/config"
 	"scheduler0/pkg/models"
@@ -17,11 +15,15 @@ import (
 	"scheduler0/pkg/service/queue"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/go-hclog"
 )
 
 // jobProcessor handles executions of jobs
 type jobProcessor struct {
 	jobRepo             job_repo.JobRepo
+	singleNodeMode      bool
+	nodeIsLeader        bool
 	projectRepo         project_repo.ProjectRepo
 	jobExecutionLogRepo job_execution_repo.JobExecutionsRepo
 	jobQueuesRepo       job_queue_repo.JobQueuesRepo
@@ -33,10 +35,13 @@ type jobProcessor struct {
 	scheduler0Config    config.Scheduler0Config
 }
 
-//go:generate mockery --name JobProcessorService --output ./ --inpackage
 type JobProcessorService interface {
 	StartJobs()
 	RecoverJobs()
+	SetSingleNodeMode(singleNodeMode bool)
+	SetNodeIsLeader(nodeIsLeader bool)
+	GetSingleNodeMode() bool
+	GetNodeIsLeader() bool
 }
 
 // NewJobProcessor creates a new job processor
@@ -61,14 +66,22 @@ func NewJobProcessor(
 		jobExecutor:         jobExecutor,
 		ctx:                 ctx,
 		scheduler0Config:    scheduler0Config,
+		singleNodeMode:      false,
+		nodeIsLeader:        false,
 	}
 }
 
 // StartJobs the cron job job_processor
 func (jobProcessor *jobProcessor) StartJobs() {
+	if !jobProcessor.singleNodeMode && jobProcessor.nodeIsLeader {
+		jobProcessor.logger.Debug("multi node mode, skipping job queue allocation and increment")
+		jobProcessor.jobQueue.AllocateQuotasForJobQueue()
+		return
+	}
+
 	jobProcessor.jobQueue.IncrementQueueVersion()
 
-	totalProjectCount, countErr := jobProcessor.projectRepo.Count()
+	totalProjectCount, countErr := jobProcessor.projectRepo.CountAll()
 	if countErr != nil {
 		jobProcessor.logger.Error("could not get number of project count", "error", countErr.Message)
 		log.Fatalln("could not get number of project count", countErr.Message)
@@ -77,7 +90,7 @@ func (jobProcessor *jobProcessor) StartJobs() {
 
 	jobProcessor.logger.Debug("total number of projects: ", "count", totalProjectCount)
 
-	projects, listErr := jobProcessor.projectRepo.List(0, totalProjectCount)
+	projects, listErr := jobProcessor.projectRepo.ListAll(0, totalProjectCount)
 	if listErr != nil {
 		jobProcessor.logger.Error("could not list the number of projects", "message", listErr.Message)
 		log.Fatalln("could not list the number of projects", listErr.Message)
@@ -93,10 +106,20 @@ func (jobProcessor *jobProcessor) StartJobs() {
 		}
 
 		jobProcessor.logger.Debug(fmt.Sprintf("total number of jobs for project %v is %v : ", project.ID, jobsTotalCount))
-		jobs, _, loadErr := jobProcessor.jobRepo.GetJobsPaginated(project.ID, 0, jobsTotalCount)
+		jobs, _, loadErr := jobProcessor.jobRepo.GetJobsPaginated(project.AccountId, project.ID, 0, jobsTotalCount, "id", "ASC")
 
 		for i, job := range jobs {
 			jobs[i].LastExecutionDate = job.DateCreated
+		}
+
+		// Filter out inactive jobs
+		var activeJobs []models.Job
+		for _, job := range jobs {
+			if job.Status == models.JobStatusActive {
+				activeJobs = append(activeJobs, job)
+			} else {
+				jobProcessor.logger.Debug("skipping inactive job during startup", "jobId", job.ID)
+			}
 		}
 
 		if loadErr != nil {
@@ -105,7 +128,7 @@ func (jobProcessor *jobProcessor) StartJobs() {
 			return
 		}
 
-		jobProcessor.jobQueue.Queue(jobs)
+		jobProcessor.jobQueue.Queue(activeJobs)
 	}
 }
 
@@ -146,7 +169,27 @@ func (jobProcessor *jobProcessor) RecoverJobs() {
 
 		var jobsToSchedule []models.Job
 
+		schedulerTime := scheduler0time.GetSchedulerTime()
+		now := schedulerTime.GetTime(time.Now())
+
 		for _, job := range jobsFromDb {
+			nowInJobTimezone, convertErr := job.ConvertTimeToJobTimezone(now)
+			if convertErr != nil {
+				jobProcessor.logger.Error(fmt.Sprintf("failed to convert date created time for job with id %d error=%s", job.ID, convertErr.Error()))
+				return
+			}
+
+			// Skip inactive jobs
+			if job.Status == models.JobStatusInactive {
+				jobProcessor.logger.Debug("skipping inactive job during recovery", "jobId", job.ID)
+				continue
+			}
+
+			if !job.EndDate.IsZero() && job.EndDate.Before(*nowInJobTimezone) {
+				jobProcessor.logger.Debug("job has an end date in the past, skipping", "jobId", job.ID)
+				continue
+			}
+
 			var lastJobState models.JobExecutionLog
 
 			if _, ok := jobsStates[job.ID]; ok {
@@ -160,26 +203,14 @@ func (jobProcessor *jobProcessor) RecoverJobs() {
 				continue
 			}
 
-			schedule, parseErr := cron.Parse(job.Spec)
-			if parseErr != nil {
-				jobProcessor.logger.Error(fmt.Sprintf("failed to parse spec %v", parseErr.Error()))
+			job.LastExecutionDate = lastJobState.LastExecutionDatetime
+			nextExecutionDateLocal, getNextExecutionTimeErr := job.GetNextExecutionTime()
+			if getNextExecutionTimeErr != nil {
+				jobProcessor.logger.Error(fmt.Sprintf("failed to get next execution time for job with id %d error=%s", job.ID, getNextExecutionTimeErr.Error()))
 				return
 			}
-
-			schedulerTime := scheduler0time.GetSchedulerTime()
-			now := schedulerTime.GetTime(time.Now())
-
-			executionTime := schedule.Next(lastJobState.LastExecutionDatetime)
 			job.ExecutionId = lastJobState.UniqueId
-			job.LastExecutionDate = lastJobState.LastExecutionDatetime
-
-			// This is a comparison with the absolute time of the node
-			// which may be false compared to time on other nodes.
-			// To prevent this bug leaders can veto scheduled by
-			// comparing the execution time on the schedule by recalculating it against it's time.
-			// Time clocks are sources of distributed systems errors and a monotonic clock should always be preferred.
-			// While 60 minutes is quite an unlike delay in a close it's not impossible
-			if now.Before(executionTime) && lastJobState.State == models.ExecutionLogScheduleState {
+			if nowInJobTimezone.Before(*nextExecutionDateLocal) && lastJobState.State == models.ExecutionLogScheduleState {
 				jobProcessor.logger.Debug(fmt.Sprintf("quick recovered job %d", job.ID))
 				jobProcessor.jobExecutor.AddJobSchedule(job)
 			} else {
@@ -191,4 +222,20 @@ func (jobProcessor *jobProcessor) RecoverJobs() {
 			jobProcessor.jobExecutor.ScheduleJobs(jobsToSchedule)
 		}
 	}
+}
+
+func (jobProcessor *jobProcessor) SetSingleNodeMode(singleNodeMode bool) {
+	jobProcessor.singleNodeMode = singleNodeMode
+}
+
+func (jobProcessor *jobProcessor) SetNodeIsLeader(nodeIsLeader bool) {
+	jobProcessor.nodeIsLeader = nodeIsLeader
+}
+
+func (jobProcessor *jobProcessor) GetSingleNodeMode() bool {
+	return jobProcessor.singleNodeMode
+}
+
+func (jobProcessor *jobProcessor) GetNodeIsLeader() bool {
+	return jobProcessor.nodeIsLeader
 }

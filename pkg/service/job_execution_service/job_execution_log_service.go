@@ -2,13 +2,13 @@ package job_execution_service
 
 import (
 	"fmt"
-	"scheduler0/pkg/constants"
-	"scheduler0/pkg/models"
-	account_repo "scheduler0/pkg/repository/account"
-	"scheduler0/pkg/repository/account_job_executions_count"
-	job_repo "scheduler0/pkg/repository/job"
-	"scheduler0/pkg/repository/job_execution"
-	job_queue_repo "scheduler0/pkg/repository/job_queue"
+	"scheduler0-private/pkg/constants"
+	"scheduler0-private/pkg/models"
+	account_repo "scheduler0-private/pkg/repository/account"
+	"scheduler0-private/pkg/repository/account_job_executions_count"
+	job_repo "scheduler0-private/pkg/repository/job"
+	"scheduler0-private/pkg/repository/job_execution"
+	job_queue_repo "scheduler0-private/pkg/repository/job_queue"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
