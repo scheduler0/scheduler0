@@ -36,8 +36,8 @@ build_server_test_dockerfile:
 		.
 
 start_test_db:
-	cd docker/postgres
-	docker build -t scheduler_0_postgres .
+	cd docker/postgres && \
+	docker build -t scheduler_0_postgres . && \
 	docker run -dp 5432:5432 scheduler_0_postgres
 
 stop_test_db:

@@ -69,16 +69,19 @@ Note that the Port is optional. By default the server will use :9090
 		exists, err := afero.DirExists(fs, dbDirPath)
 		if err != nil {
 			cmdLogger.Error("Fatal failed to check id sqlite dir exist: %s", err)
+			return
 		}
 		if !exists {
 			err = fs.Mkdir(dbDirPath, os.ModePerm)
 			if err != nil {
 				cmdLogger.Error("Fatal failed to create sqlite dir: %s", err)
+				return
 			}
 
 			_, err = fs.Create(dbFilePath)
 			if err != nil {
 				cmdLogger.Error("Fatal db file creation error: %s", err)
+				return
 			}
 		}
 		db.RunMigrations(cmdLogger, dbFilePath)

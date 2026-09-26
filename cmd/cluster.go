@@ -341,6 +341,10 @@ var transferLeadershipCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 
+		if targetNodeIdFlag == 0 {
+			logger.Fatalln("--target-node-id is required")
+		}
+
 		confirmPrompt := promptui.Prompt{
 			Label:       fmt.Sprintf("WARNING: This will transfer Raft leadership to node %d. This may cause a brief leadership transition. Are you sure you want to continue? [y/N]:", targetNodeIdFlag),
 			HideEntered: false,
@@ -357,7 +361,11 @@ var transferLeadershipCmd = &cobra.Command{
 			return
 		}
 
-		if err := makeLeaderRequest("POST", "/cluster/transfer-leadership", nil, logger); err != nil {
+		queryParams := map[string]string{
+			"targetNodeId": fmt.Sprintf("%d", targetNodeIdFlag),
+		}
+
+		if err := makeLeaderRequest("POST", "/cluster/transfer-leadership", queryParams, logger); err != nil {
 			logger.Fatalln("failed to transfer leadership:", err)
 		}
 	},

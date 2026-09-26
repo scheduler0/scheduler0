@@ -1,0 +1,62 @@
+{
+  "family": "staging-scheduler0-private-1",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/staging_scheduler0_ecs_task_role",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/staging_scheduler0_ecs_execution_role",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [
+    {
+      "name": "staging-scheduler0-private-1",
+      "image": "PLACEHOLDER_IMAGE",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 9091,
+          "protocol": "tcp"
+        },
+        {
+          "containerPort": 7071,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [],
+      "secrets": [],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/staging-scheduler0-private-1",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "mountPoints": [
+        {
+          "sourceVolume": "efs-sqlite-data",
+          "containerPath": "/app/scheduler0-private-1/sqlite_data"
+        },
+        {
+          "sourceVolume": "efs-raft-data",
+          "containerPath": "/app/scheduler0-private-1/raft_data"
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "efs-sqlite-data",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "PLACEHOLDER_EFS_ID",
+        "rootDirectory": "/scheduler0-private-1/sqlite_data"
+      }
+    },
+    {
+      "name": "efs-raft-data",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "PLACEHOLDER_EFS_ID",
+        "rootDirectory": "/scheduler0-private-1/raft_data"
+      }
+    }
+  ],
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096"
+}

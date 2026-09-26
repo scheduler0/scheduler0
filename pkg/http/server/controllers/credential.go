@@ -62,9 +62,6 @@ func callerMayGrantAdmin(r *http.Request) bool {
 // CreateOneCredential CreateOne create a single credential
 func (credentialController *credentialController) CreateOneCredential(w http.ResponseWriter, r *http.Request) {
 
-	fmt.Println("CreateOneCredential requestID --", r.Context().Value(utils.RequestIDContextKey()))
-	fmt.Println("CreateOneCredential accountID --", r.Context().Value(utils.AccountIDContextKey()))
-
 	requestID := utils.GetRequestID(r.Context())
 	utils.LogWithRequestID(credentialController.logger, requestID, "", fmt.Sprintf("POST %s - CreateOneCredential entry", r.URL.Path))
 
@@ -217,6 +214,17 @@ func (credentialController *credentialController) UpdateOneCredential(w http.Res
 		return
 	}
 	credentialBody.AccountId = accountId
+
+	// Escalation guard: the admin scope can never be self-granted. A request may
+	// mint an admin-scoped credential only when it comes from a peer/operator
+	// (basic auth — no credential in context) or from an api-key caller that
+	// already holds the admin scope.
+	if requestGrantsAdminScope(credentialBody.Scopes) && !callerMayGrantAdmin(r) {
+		utils.LogWithRequestID(credentialController.logger, requestID, "", fmt.Sprintf("PUT %s - UpdateOneCredential error: caller not permitted to grant admin scope, credentialId=%d, accountId=%d", r.URL.Path, credentialId, accountId))
+		utils.SendJSON(w, "admin scope may only be granted by an operator or an admin credential", false, http.StatusForbidden, nil)
+		return
+	}
+
 	utils.LogWithRequestID(credentialController.logger, requestID, "", fmt.Sprintf("PUT %s - UpdateOneCredential entry, credentialId=%d, accountId=%d", r.URL.Path, credentialId, accountId))
 
 	credentialService := credentialController.credentialService
