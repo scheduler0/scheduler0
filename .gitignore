@@ -13,11 +13,13 @@ db.db
 scheduler0
 execs.log
 raft_data/
+sqlite_data/
 e2e/
 db/db.db
 /localhost.key
 /localhost.csr
 recover.db
+/sqlite3/upgrade/upgrade
 *.db
 *.exe
 *.dll
@@ -26,8 +28,9 @@ recover.db
 # VSCode
 .vscode
 
-
 coverage.out
+coverage.html
+output.txt
 
 terraform/.terraform/
 terraform/.terraform.lock.hcl
