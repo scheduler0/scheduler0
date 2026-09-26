@@ -219,7 +219,8 @@ func (jobService *jobService) GetJob(job models.Job) (*models.Job, *utils.Generi
 }
 
 // validateJob validates a single job and returns an error if validation fails
-func (jobService *jobService) validateJob(job *models.Job, hasJobPayloadOf1Mb bool, hasJobRetryMaxBy5 bool) *utils.GenericError {
+// isUpdate should be true when validating a job update (which allows past dates for already-started jobs)
+func (jobService *jobService) validateJob(job *models.Job, hasJobPayloadOf1Mb bool, hasJobRetryMaxBy5 bool, isUpdate bool) *utils.GenericError {
 	// Validate cron spec if provided
 	if job.Spec != "" {
 		if _, err := cron.Parse(job.Spec); err != nil {
@@ -257,19 +258,22 @@ func (jobService *jobService) validateJob(job *models.Job, hasJobPayloadOf1Mb bo
 	loc, _ := time.LoadLocation(job.Timezone) // timezone validity is already validated above
 	nowInLoc := time.Now().In(loc)
 
-	if !job.StartDate.IsZero() {
-		startInLoc := job.StartDate.In(loc)
-		if startInLoc.Before(nowInLoc) {
-			jobService.logger.Debug("job start date is in the past", "job", startInLoc, "now", nowInLoc)
-			return utils.HTTPGenericError(http.StatusBadRequest, "job start date is in the past")
+	// For new jobs, reject past dates. For updates, allow past dates (job may already be running).
+	if !isUpdate {
+		if !job.StartDate.IsZero() {
+			startInLoc := job.StartDate.In(loc)
+			if startInLoc.Before(nowInLoc) {
+				jobService.logger.Debug("job start date is in the past", "job", startInLoc, "now", nowInLoc)
+				return utils.HTTPGenericError(http.StatusBadRequest, "job start date is in the past")
+			}
 		}
-	}
 
-	if !job.EndDate.IsZero() {
-		endInLoc := job.EndDate.In(loc)
-		if endInLoc.Before(nowInLoc) {
-			jobService.logger.Debug("job end date is in the past", "job", endInLoc, "now", nowInLoc)
-			return utils.HTTPGenericError(http.StatusBadRequest, "job end date is in the past")
+		if !job.EndDate.IsZero() {
+			endInLoc := job.EndDate.In(loc)
+			if endInLoc.Before(nowInLoc) {
+				jobService.logger.Debug("job end date is in the past", "job", endInLoc, "now", nowInLoc)
+				return utils.HTTPGenericError(http.StatusBadRequest, "job end date is in the past")
+			}
 		}
 	}
 
@@ -338,7 +342,7 @@ func (jobService *jobService) validateBatch(jobs []models.Job) *utils.GenericErr
 		jobService.logger.Debug("validating jobs", "jobCount", len(jobs))
 		for i := range jobs {
 			normalizeJobDatesToTimezone(&jobs[i])
-			if err := jobService.validateJob(&jobs[i], hasJobPayloadOf1Mb, hasJobRetryMaxBy5); err != nil {
+			if err := jobService.validateJob(&jobs[i], hasJobPayloadOf1Mb, hasJobRetryMaxBy5, false); err != nil {
 				jobService.logger.Error("job validation failed", "error", err, "jobIndex", i, "jobId", jobs[i].ID)
 				return err
 			}
@@ -490,8 +494,16 @@ func (jobService *jobService) BatchInsertJobs(requestId string, jobs []models.Jo
 			jobs[i].LastExecutionDate = now
 		}
 
-		jobService.logger.Debug("queueing inserted jobs", "requestId", requestId, "insertedCount", len(insertedIds))
-		jobService.QueueJobs(jobs)
+		// Filter out inactive jobs before queueing
+		activeJobs := make([]models.Job, 0, len(jobs))
+		for _, job := range jobs {
+			if job.Status == models.JobStatusActive {
+				activeJobs = append(activeJobs, job)
+			}
+		}
+
+		jobService.logger.Debug("queueing inserted jobs", "requestId", requestId, "insertedCount", len(insertedIds), "activeCount", len(activeJobs))
+		jobService.QueueJobs(activeJobs)
 
 		jobService.logger.Debug("marshaling jobs for async task success", "requestId", requestId, "jobCount", len(jobs))
 		jobsJson, errJsonErr := json.Marshal(jobs)
@@ -541,8 +553,16 @@ func (jobService *jobService) BatchInsertJobsSync(requestId string, jobs []model
 		jobs[i].LastExecutionDate = now
 	}
 
-	jobService.logger.Debug("queueing inserted jobs (sync)", "requestId", requestId, "insertedCount", len(insertedIds))
-	jobService.QueueJobs(jobs)
+	// Filter out inactive jobs before queueing
+	activeJobs := make([]models.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if job.Status == models.JobStatusActive {
+			activeJobs = append(activeJobs, job)
+		}
+	}
+
+	jobService.logger.Debug("queueing inserted jobs (sync)", "requestId", requestId, "insertedCount", len(insertedIds), "activeCount", len(activeJobs))
+	jobService.QueueJobs(activeJobs)
 
 	duration := time.Since(startTime)
 	jobService.logger.Info("batch insert jobs (sync) completed", "requestId", requestId, "insertedCount", len(insertedIds), "durationMs", duration.Milliseconds())
@@ -577,6 +597,24 @@ func (jobService *jobService) UpdateJob(job models.Job) (*models.Job, *utils.Gen
 	}
 	if job.CreatedBy == "" {
 		job.CreatedBy = existing.CreatedBy
+	}
+	if job.Spec == "" {
+		job.Spec = existing.Spec
+	}
+	if job.StartDate.IsZero() {
+		job.StartDate = existing.StartDate
+	}
+	if job.EndDate.IsZero() {
+		job.EndDate = existing.EndDate
+	}
+	if job.Data == "" {
+		job.Data = existing.Data
+	}
+	if job.Status == "" {
+		job.Status = existing.Status
+	}
+	if job.RetryMax == 0 {
+		job.RetryMax = existing.RetryMax
 	}
 
 	accountId := job.AccountId
@@ -635,7 +673,7 @@ func (jobService *jobService) UpdateJob(job models.Job) (*models.Job, *utils.Gen
 	jobService.logger.Debug("validating job", "jobId", job.ID)
 	normalizeJobDatesToTimezone(&job)
 	if accountId != 1 {
-		if err := jobService.validateJob(&job, hasJobPayloadOf1Mb, hasJobRetryMaxBy5); err != nil {
+		if err := jobService.validateJob(&job, hasJobPayloadOf1Mb, hasJobRetryMaxBy5, true); err != nil {
 			jobService.logger.Error("job validation failed", "error", err, "jobId", job.ID)
 			return nil, err
 		}

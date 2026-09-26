@@ -433,18 +433,26 @@ func (node *nodeService) BackupDatabase(ctx context.Context, requestId string) e
 		}
 		node.logger.Info("backup path", "path", backupPath)
 
-		s3Key, err := node.UploadBackupToS3(ctx, backupPath)
-		if err != nil {
-			node.logger.Error("upload backup to S3 failed", "error", err)
-			node.alertBackupFailed("backup upload to S3 failed", err, map[string]any{"stage": "s3", "bucket": node.scheduler0Config.GetConfigurations().S3Bucket})
-			node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, err.Error())
-			errorChannel <- err
-			return
+		// Upload to S3 only if S3Bucket is configured
+		configs := node.scheduler0Config.GetConfigurations()
+		var msg string
+		if configs.S3Bucket != "" {
+			s3Key, err := node.UploadBackupToS3(ctx, backupPath)
+			if err != nil {
+				node.logger.Error("upload backup to S3 failed", "error", err)
+				node.alertBackupFailed("backup upload to S3 failed", err, map[string]any{"stage": "s3", "bucket": configs.S3Bucket})
+				node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, err.Error())
+				errorChannel <- err
+				return
+			}
+			msg = fmt.Sprintf("Backup completed, path: %s, s3Key: %s", backupPath, s3Key)
+			node.logger.Info("database backup completed", "path", backupPath, "s3Key", s3Key)
+		} else {
+			msg = fmt.Sprintf("Backup completed (local only), path: %s", backupPath)
+			node.logger.Info("database backup completed (local only)", "path", backupPath)
 		}
 
-		msg := fmt.Sprintf("Backup completed, path: %s, s3Key: %s", backupPath, s3Key)
 		node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskSuccess, msg)
-		node.logger.Info("database backup completed", "path", backupPath, "s3Key", s3Key)
 		successChannel <- backupPath
 	})
 	return nil
