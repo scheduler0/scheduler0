@@ -5,13 +5,6 @@ test_cli:
 	go build ../
 	../scheduler0 start
 
-circle_ci_yaml_validation:
-	brew upgrade circleci
-
-execute_circle_ci_job:
-	circleci local execute --job build
-
-
 clean_test_cache:
 	go clean -testcache
 

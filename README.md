@@ -2,7 +2,6 @@
     <img src="./logo.png" height="250" />
     <br /><br />
     <a href='https://coveralls.io/github/scheduler0/scheduler0?branch=main'><img src='https://coveralls.io/repos/github/scheduler0/scheduler0/badge.svg?branch=main&service=github' alt='Coverage Status' /></a>
-    <a href='https://dl.circleci.com/status-badge/redirect/gh/scheduler0/scheduler0/tree/main'><img src='https://dl.circleci.com/status-badge/img/gh/scheduler0/scheduler0/tree/main.svg?style=svg' alt='CI Status' /></a>
     <a href='https://github.com/scheduler0/scheduler0/blob/main/LICENSE'><img src='https://img.shields.io/badge/License-MIT-blue.svg' alt='License: MIT' /></a>
 </p>
 
