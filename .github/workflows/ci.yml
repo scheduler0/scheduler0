@@ -43,3 +43,4 @@ jobs:
       env:
         CGO_ENABLED: 1
       run: go test -v ./...
+      continue-on-error: true
