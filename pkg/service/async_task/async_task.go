@@ -115,6 +115,7 @@ func (m *asyncTaskService) UpdateTasksById(taskId uint64, state models.AsyncTask
 	}
 	myT := t.(models.AsyncTask)
 	myT.State = state
+	myT.Output = output
 	m.task.Store(taskId, myT)
 	if m.singleNodeMode {
 		err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)
@@ -362,7 +363,7 @@ func (m *asyncTaskService) ListenForNotifications() {
 				t, ok := m.task.Load(taskNotification.Id)
 				if !ok {
 					m.logger.Error("could not find task with id", taskNotification.Id)
-					return
+					continue
 				}
 				myt := t.(models.AsyncTask)
 				sb, ok := m.subscribers.Load(myt.Id)

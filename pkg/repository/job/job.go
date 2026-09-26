@@ -944,7 +944,8 @@ func (jobRepo *jobRepo) UpdateJobsStatusByAccountId(accountId uint64, status str
 		Set(constants.JobsStatusColumn, status).
 		Set(constants.JobsDateModifiedColumn, now).
 		Set(constants.JobsModifiedByColumn, constants.SystemActorName).
-		Where(fmt.Sprintf("%s = ?", constants.JobsAccountIdColumn), accountId)
+		Where(fmt.Sprintf("%s = ?", constants.JobsAccountIdColumn), accountId).
+		Where(fmt.Sprintf("(%s IS NULL OR %s = '')", constants.JobsDeletedByColumn, constants.JobsDeletedByColumn))
 
 	query, params, err := updateQuery.ToSql()
 	if err != nil {

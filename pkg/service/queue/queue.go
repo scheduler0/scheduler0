@@ -249,46 +249,58 @@ func (jobQ *jobQueue) assignJobsByAccountToServers(jobs []models.Job, version ui
 		jobQ.logger.Debug("assigned account to node", "accountId", accountId, "nodeId", targetNodeId, "jobCount", len(jobsForAccount))
 	}
 
-	// Create JobQueueLog entries grouped by node and account
-	// For each node, we can create one or more JobQueueLog entries
-	// We'll group by node, then by account ranges to minimize the number of entries
+	// Create JobQueueLog entries per account to avoid overlapping ranges
+	// Since JobQueueLog doesn't have AccountId, we create separate entries for each account's job ranges
 	jobQueueLogs := make([]models.JobQueueLog, 0)
 
 	for nodeId, accountJobsMap := range nodeAccountJobs {
-		// Collect all job IDs for this node (across all accounts)
-		allJobIds := make([]uint64, 0)
 		for _, jobsForAccount := range accountJobsMap {
-			for _, job := range jobsForAccount {
-				allJobIds = append(allJobIds, job.ID)
+			if len(jobsForAccount) == 0 {
+				continue
 			}
-		}
 
-		if len(allJobIds) == 0 {
-			continue
-		}
+			// Sort jobs by ID to find contiguous ranges
+			sort.Slice(jobsForAccount, func(i, j int) bool {
+				return jobsForAccount[i].ID < jobsForAccount[j].ID
+			})
 
-		// Sort job IDs to create contiguous ranges
-		// For simplicity, we'll create one JobQueueLog per node with min/max job IDs
-		// This ensures all jobs for accounts on this node are included
-		minJobId := allJobIds[0]
-		maxJobId := allJobIds[0]
-		for _, jobId := range allJobIds {
-			if jobId < minJobId {
-				minJobId = jobId
+			// Create separate JobQueueLog entries for contiguous job ID ranges
+			// This prevents jobs from other accounts being included in the range
+			rangeStart := jobsForAccount[0].ID
+			rangeEnd := jobsForAccount[0].ID
+
+			for i := 1; i < len(jobsForAccount); i++ {
+				currentJobId := jobsForAccount[i].ID
+				// If job IDs are contiguous or close, extend the range
+				// Otherwise, create a new log entry for the previous range
+				if currentJobId > rangeEnd+1 {
+					// Gap detected, create log entry for previous range
+					jobQueueLogs = append(jobQueueLogs, models.JobQueueLog{
+						NodeId:          nodeId,
+						LowerBoundJobId: rangeStart,
+						UpperBoundJobId: rangeEnd,
+						Version:         version,
+					})
+					jobQ.logger.Debug("created job queue log for contiguous range", "nodeId", nodeId, "minJobId", rangeStart, "maxJobId", rangeEnd)
+
+					// Start new range
+					rangeStart = currentJobId
+					rangeEnd = currentJobId
+				} else {
+					// Extend current range
+					rangeEnd = currentJobId
+				}
 			}
-			if jobId > maxJobId {
-				maxJobId = jobId
-			}
+
+			// Create log entry for the final range
+			jobQueueLogs = append(jobQueueLogs, models.JobQueueLog{
+				NodeId:          nodeId,
+				LowerBoundJobId: rangeStart,
+				UpperBoundJobId: rangeEnd,
+				Version:         version,
+			})
+			jobQ.logger.Debug("created job queue log for final range", "nodeId", nodeId, "minJobId", rangeStart, "maxJobId", rangeEnd)
 		}
-
-		jobQueueLogs = append(jobQueueLogs, models.JobQueueLog{
-			NodeId:          nodeId,
-			LowerBoundJobId: minJobId,
-			UpperBoundJobId: maxJobId,
-			Version:         version,
-		})
-
-		jobQ.logger.Debug("created job queue log for node", "nodeId", nodeId, "minJobId", minJobId, "maxJobId", maxJobId, "accountCount", len(accountJobsMap), "totalJobs", len(allJobIds))
 	}
 
 	jobQ.logger.Info("completed account-based job assignment", "totalJobs", len(jobs), "totalAccounts", len(accountJobs), "queueLogsCount", len(jobQueueLogs))
@@ -385,19 +397,19 @@ func (jobQ *jobQueue) AllocateQuotasForJobQueue() error {
 	}
 	jobQ.logger.Debug("retrieved account features", "accountFeaturesCount", len(accountFeatures))
 
-	// Step 5: Reconcile usage from committed logs (only if we have a previous queue date)
-	var usageByAccount map[uint64]uint64
+	// Step 5: Get interval usage from committed logs since last queue cycle
+	var intervalUsageByAccount map[uint64]uint64
 	if !mostRecentQueueDate.IsZero() {
 		var usageErr error
-		usageByAccount, usageErr = jobQ.executionsRepo.GetExecutionUsageByAccountIds(accountIds, mostRecentQueueDate)
+		intervalUsageByAccount, usageErr = jobQ.executionsRepo.GetExecutionUsageByAccountIds(accountIds, mostRecentQueueDate)
 		if usageErr != nil {
 			jobQ.logger.Error("failed to get execution usage by account ids", "error", usageErr, "startDate", mostRecentQueueDate)
 			return fmt.Errorf("failed to get execution usage by account ids: %w", usageErr)
 		}
-		jobQ.logger.Debug("retrieved execution usage from committed logs", "usageByAccount", usageByAccount)
+		jobQ.logger.Debug("retrieved interval execution usage from committed logs", "intervalUsageByAccount", intervalUsageByAccount)
 	} else {
-		usageByAccount = make(map[uint64]uint64)
-		jobQ.logger.Debug("no previous queue date, starting with zero usage")
+		intervalUsageByAccount = make(map[uint64]uint64)
+		jobQ.logger.Debug("no previous queue date, starting with zero interval usage")
 	}
 
 	// Step 6: Get current account execution counts (remaining quota)
@@ -429,22 +441,38 @@ func (jobQ *jobQueue) AllocateQuotasForJobQueue() error {
 		}
 		jobQ.logger.Debug("account execution limit", "accountId", accountId, "limit", executionLimit)
 
-		// Reconcile: calculate remaining quota
-		usage := usageByAccount[accountId]
+		// Reconcile: subtract interval usage from current remaining count
+		intervalUsage := intervalUsageByAccount[accountId]
+		currentRemaining := currentCounts[accountId]
 
-		// The remaining quota should be: limit - usage
-		reconciledRemaining := executionLimit
-		if usage > executionLimit {
-			// This shouldn't happen, but handle it gracefully
-			jobQ.logger.Warn("usage exceeds limit, setting remaining to 0", "accountId", accountId, "usage", usage, "limit", executionLimit)
+		// If no current count exists, initialize to full limit
+		if _, exists := currentCounts[accountId]; !exists {
+			currentRemaining = executionLimit
+		}
+
+		// The reconciled remaining should be: currentRemaining - intervalUsage
+		reconciledRemaining := currentRemaining
+		if intervalUsage > currentRemaining {
+			// More was used than available, set to 0
+			jobQ.logger.Warn("interval usage exceeds current remaining, setting to 0", "accountId", accountId, "intervalUsage", intervalUsage, "currentRemaining", currentRemaining)
 			reconciledRemaining = 0
 		} else {
-			reconciledRemaining = executionLimit - usage
+			reconciledRemaining = currentRemaining - intervalUsage
 		}
-		jobQ.logger.Debug("reconciled remaining quota", "accountId", accountId, "limit", executionLimit, "usage", usage, "reconciledRemaining", reconciledRemaining)
+		jobQ.logger.Debug("reconciled remaining quota", "accountId", accountId, "limit", executionLimit, "intervalUsage", intervalUsage, "currentRemaining", currentRemaining, "reconciledRemaining", reconciledRemaining)
 
-		// If quota is exhausted, update job status to inactive
-		if reconciledRemaining == 0 && accountId != 1 {
+		// If quota is exhausted for system account (accountId == 1), reset to 100K
+		if reconciledRemaining == 0 && accountId == 1 {
+			jobQ.logger.Info("quota exhausted for system account, resetting execution count to 100K", "accountId", accountId)
+			reconciledRemaining = constants.DefaultNumberOfJobExecutions100KPerMonth
+			updateErr := jobQ.accountJobExecutionsCountRepo.ResetExecutionCount(accountId, reconciledRemaining)
+			if updateErr != nil {
+				jobQ.logger.Error("failed to reset system account execution count", "error", updateErr, "accountId", accountId)
+				return updateErr
+			}
+			jobQ.logger.Info("successfully reset system account execution count", "accountId", accountId, "newRemaining", reconciledRemaining)
+		} else if reconciledRemaining == 0 && accountId != 1 {
+			// If quota is exhausted for non-system account, update job status to inactive
 			jobQ.logger.Info("quota exhausted for account, updating job status to inactive", "accountId", accountId)
 			updateErr := jobQ.jobRepo.UpdateJobsStatusByAccountId(accountId, models.JobStatusInactive)
 			if updateErr != nil {
@@ -453,14 +481,6 @@ func (jobQ *jobQueue) AllocateQuotasForJobQueue() error {
 			} else {
 				jobQ.logger.Info("successfully updated job status to inactive for exhausted account", "accountId", accountId)
 			}
-		} else if reconciledRemaining == 0 && accountId == 1 {
-			jobQ.logger.Info("quota exhausted for account, resetting execution count to 100K", "accountId", accountId)
-			updateErr := jobQ.accountJobExecutionsCountRepo.ResetExecutionCount(accountId, constants.DefaultNumberOfJobExecutions100KPerMonth)
-			if updateErr != nil {
-				jobQ.logger.Error("failed to reset account execution count", "error", updateErr, "accountId", accountId)
-				return updateErr
-			}
-			jobQ.logger.Info("successfully reset account execution count", "accountId", accountId)
 		}
 
 		// Update the account execution count to the reconciled remaining
