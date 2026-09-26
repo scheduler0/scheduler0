@@ -34,7 +34,7 @@ const (
 )
 
 const (
-	source           = "scheduler0-private"
+	source           = "scheduler0"
 	messageVersion   = 1
 	snsSubjectMaxLen = 100
 	// maxDetailLen bounds every string in Details so error text or a URL can

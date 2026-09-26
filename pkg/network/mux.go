@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"scheduler0-private/pkg/network/stls"
+	"scheduler0/pkg/network/stls"
 )
 
 const (

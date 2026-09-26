@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"scheduler0-private/pkg/constants"
-	"scheduler0-private/pkg/fsm"
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/constants"
+	"scheduler0/pkg/fsm"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/utils"
 
 	sq "github.com/Masterminds/squirrel"
 )

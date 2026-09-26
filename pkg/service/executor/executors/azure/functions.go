@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/models"
 	"time"
 
 	"github.com/hashicorp/go-hclog"

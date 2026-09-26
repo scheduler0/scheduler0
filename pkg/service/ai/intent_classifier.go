@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/models"
 	"strings"
 	"time"
 

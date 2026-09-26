@@ -1,20 +1,22 @@
 package credential
 
 import (
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/raft"
-	"github.com/stretchr/testify/assert"
-	"io/ioutil"
+	"context"
 	"os"
 	"scheduler0/pkg/config"
 	"scheduler0/pkg/db"
 	"scheduler0/pkg/fsm"
 	"scheduler0/pkg/models"
+	account_repo "scheduler0/pkg/repository/account"
 	job_repo "scheduler0/pkg/repository/job"
 	project_repo "scheduler0/pkg/repository/project"
 	"scheduler0/pkg/shared_repo"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/raft"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_CredentialRepo_CreateOne(t *testing.T) {
@@ -25,15 +27,16 @@ func Test_CredentialRepo_CreateOne(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -49,6 +52,17 @@ func Test_CredentialRepo_CreateOne(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new CredentialRepo instance
 	credentialRepo := NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -58,6 +72,8 @@ func Test_CredentialRepo_CreateOne(t *testing.T) {
 		ApiKey:      "mock-api-key",
 		ApiSecret:   "mock-api-secret",
 		DateCreated: time.Now(),
+		AccountId:   1,
+		Scopes:      []string{"read", "write", "execute"},
 	}
 
 	// Call the CreateOne function
@@ -77,15 +93,16 @@ func Test_CredentialRepo_UpdateOneByID(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -101,6 +118,17 @@ func Test_CredentialRepo_UpdateOneByID(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new CredentialRepo instance
 	credentialRepo := NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -111,6 +139,8 @@ func Test_CredentialRepo_UpdateOneByID(t *testing.T) {
 		ApiKey:      "mock-api-key",
 		ApiSecret:   "mock-api-secret",
 		DateCreated: time.Now(),
+		AccountId:   1,
+		Scopes:      []string{"read", "write", "execute"},
 	}
 
 	// Insert the initial credential using CreateOne
@@ -133,7 +163,8 @@ func Test_CredentialRepo_UpdateOneByID(t *testing.T) {
 
 	// Retrieve the updated credential
 	updatedCredential := models.Credential{
-		ID: createdId,
+		ID:        createdId,
+		AccountId: 1,
 	}
 	err = credentialRepo.GetOneID(&updatedCredential)
 	if err != nil {
@@ -154,15 +185,16 @@ func Test_CredentialRepo_DeleteOneByID(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -181,6 +213,17 @@ func Test_CredentialRepo_DeleteOneByID(t *testing.T) {
 	// Create a new CredentialRepo instance
 	credentialRepo := NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a mock credential
 	mockCredential := models.Credential{
 		ID:          1,
@@ -188,6 +231,8 @@ func Test_CredentialRepo_DeleteOneByID(t *testing.T) {
 		ApiKey:      "mock-api-key",
 		ApiSecret:   "mock-api-secret",
 		DateCreated: time.Now(),
+		AccountId:   1,
+		Scopes:      []string{"read", "write", "execute"},
 	}
 
 	// Insert the initial credential using CreateOne
@@ -207,12 +252,16 @@ func Test_CredentialRepo_DeleteOneByID(t *testing.T) {
 
 	// Try to retrieve the deleted credential
 	deletedCredential := models.Credential{
-		ID: mockCredential.ID,
+		ID:        mockCredential.ID,
+		AccountId: 1,
 	}
 	gerErr := credentialRepo.GetOneID(&deletedCredential)
-	if err != nil {
-		t.Fatal("failed to get the credential", gerErr)
+	if gerErr != nil {
+		// Expected: credential should not be found after deletion
+		assert.Contains(t, gerErr.Error(), "credential not found")
+		return
 	}
+	t.Fatal("expected credential not found error, but credential was retrieved")
 	assert.Equal(t, deletedCredential.ApiKey, "")
 	assert.Equal(t, deletedCredential.ApiSecret, "")
 }
@@ -225,15 +274,16 @@ func Test_CredentialRepo_List(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -249,6 +299,17 @@ func Test_CredentialRepo_List(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new CredentialRepo instance
 	credentialRepo := NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -260,6 +321,8 @@ func Test_CredentialRepo_List(t *testing.T) {
 			ApiKey:      "mock-api-key1",
 			ApiSecret:   "mock-api-secret1",
 			DateCreated: time.Now(),
+			AccountId:   1,
+			Scopes:      []string{"read", "write", "execute"},
 		},
 		{
 			ID:          2,
@@ -267,6 +330,8 @@ func Test_CredentialRepo_List(t *testing.T) {
 			ApiKey:      "mock-api-key2",
 			ApiSecret:   "mock-api-secret2",
 			DateCreated: time.Now(),
+			AccountId:   1,
+			Scopes:      []string{"read", "write", "execute"},
 		},
 		{
 			ID:          3,
@@ -274,6 +339,8 @@ func Test_CredentialRepo_List(t *testing.T) {
 			ApiKey:      "mock-api-key3",
 			ApiSecret:   "mock-api-secret3",
 			DateCreated: time.Now(),
+			AccountId:   1,
+			Scopes:      []string{"read", "write", "execute"},
 		},
 	}
 
@@ -288,8 +355,9 @@ func Test_CredentialRepo_List(t *testing.T) {
 	// Call the List function with offset, limit, and orderBy
 	offset := uint64(0)
 	limit := uint64(2)
-	orderBy := "id ASC"
-	credentials, listErr := credentialRepo.List(offset, limit, orderBy)
+	orderByColumn := "id"
+	orderByDirection := "ASC"
+	credentials, listErr := credentialRepo.List(offset, limit, orderByColumn, orderByDirection, 1)
 	if listErr != nil {
 		t.Fatal("failed to retrieve credentials", listErr)
 	}
@@ -300,6 +368,16 @@ func Test_CredentialRepo_List(t *testing.T) {
 	// Assert the order of credentials based on orderBy
 	assert.Equal(t, mockCredentials[0].ID, credentials[0].ID)
 	assert.Equal(t, mockCredentials[1].ID, credentials[1].ID)
+
+	// Test invalid order by column
+	_, invalidColumnErr := credentialRepo.List(offset, limit, "invalid_column", orderByDirection, 1)
+	assert.NotNil(t, invalidColumnErr)
+	assert.Contains(t, invalidColumnErr.Message, "invalid order by column")
+
+	// Test invalid order by direction
+	_, invalidDirectionErr := credentialRepo.List(offset, limit, orderByColumn, "INVALID", 1)
+	assert.NotNil(t, invalidDirectionErr)
+	assert.Contains(t, invalidDirectionErr.Message, "invalid order by direction")
 }
 
 func Test_CredentialRepo_Count(t *testing.T) {
@@ -310,15 +388,16 @@ func Test_CredentialRepo_Count(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -334,6 +413,17 @@ func Test_CredentialRepo_Count(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new CredentialRepo instance
 	credentialRepo := NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -345,6 +435,8 @@ func Test_CredentialRepo_Count(t *testing.T) {
 			ApiKey:      "mock-api-key1",
 			ApiSecret:   "mock-api-secret1",
 			DateCreated: time.Now(),
+			AccountId:   1,
+			Scopes:      []string{"read", "write", "execute"},
 		},
 		{
 			ID:          2,
@@ -352,6 +444,8 @@ func Test_CredentialRepo_Count(t *testing.T) {
 			ApiKey:      "mock-api-key2",
 			ApiSecret:   "mock-api-secret2",
 			DateCreated: time.Now(),
+			AccountId:   1,
+			Scopes:      []string{"read", "write", "execute"},
 		},
 		{
 			ID:          3,
@@ -359,6 +453,8 @@ func Test_CredentialRepo_Count(t *testing.T) {
 			ApiKey:      "mock-api-key3",
 			ApiSecret:   "mock-api-secret3",
 			DateCreated: time.Now(),
+			AccountId:   1,
+			Scopes:      []string{"read", "write", "execute"},
 		},
 	}
 
@@ -371,7 +467,7 @@ func Test_CredentialRepo_Count(t *testing.T) {
 	}
 
 	// Call the Count function
-	count, countErr := credentialRepo.Count()
+	count, countErr := credentialRepo.Count(1)
 	if countErr != nil {
 		t.Fatal("failed to count credentials", countErr)
 	}
@@ -388,15 +484,16 @@ func Test_CredentialRepo_GetByAPIKey(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -412,6 +509,17 @@ func Test_CredentialRepo_GetByAPIKey(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new CredentialRepo instance
 	credentialRepo := NewCredentialRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -421,6 +529,8 @@ func Test_CredentialRepo_GetByAPIKey(t *testing.T) {
 		ApiKey:      "mock-api-key",
 		ApiSecret:   "mock-api-secret",
 		DateCreated: time.Now(),
+		AccountId:   1,
+		Scopes:      []string{"read", "write", "execute"},
 	}
 
 	// Insert the mock credential using CreateOne
@@ -451,15 +561,16 @@ func Test_JobRepo_GetJobsTotalCount(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -475,6 +586,17 @@ func Test_JobRepo_GetJobsTotalCount(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new JobRepo instance
 	jobRepo := job_repo.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -482,6 +604,7 @@ func Test_JobRepo_GetJobsTotalCount(t *testing.T) {
 	project := models.Project{
 		Name:        "Test Project",
 		Description: "Test project description",
+		AccountId:   1,
 	}
 
 	// Create a new ProjectRepo instance
@@ -499,23 +622,27 @@ func Test_JobRepo_GetJobsTotalCount(t *testing.T) {
 			ID:             1,
 			ProjectID:      projectID,
 			Spec:           "0 * * * *",
-			CallbackUrl:    "http://example.com/callback",
-			ExecutionType:  "cron",
 			DateCreated:    time.Now(),
 			Timezone:       "UTC",
 			TimezoneOffset: 0,
 			Data:           "some data",
+			AccountId:      1,
+			CreatedBy:      "test",
+			RetryMax:       3,
+			Status:         "active",
 		},
 		{
 			ID:             2,
 			ProjectID:      projectID,
 			Spec:           "0 12 * * *",
-			CallbackUrl:    "http://example.com/callback",
-			ExecutionType:  "cron",
 			DateCreated:    time.Now(),
 			Timezone:       "UTC",
 			TimezoneOffset: 0,
 			Data:           "some data",
+			AccountId:      1,
+			CreatedBy:      "test",
+			RetryMax:       3,
+			Status:         "active",
 		},
 	}
 

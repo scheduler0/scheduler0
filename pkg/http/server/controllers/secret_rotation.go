@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"scheduler0-private/pkg/service/secret_rotation"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/service/secret_rotation"
+	"scheduler0/pkg/utils"
 )
 
 type SecretRotationHTTPController interface {

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/service/sendtime"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/service/sendtime"
+	"scheduler0/pkg/utils"
 )
 
 // SendTimeHTTPController exposes the deterministic send-time suggestion endpoint.

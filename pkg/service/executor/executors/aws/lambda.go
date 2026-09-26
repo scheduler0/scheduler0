@@ -3,7 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/models"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"

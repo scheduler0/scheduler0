@@ -3,10 +3,10 @@ package middlewares
 import (
 	"net/http"
 	"net/http/httptest"
-	"scheduler0-private/pkg/constants"
-	"scheduler0-private/pkg/constants/headers"
-	"scheduler0-private/pkg/mocks"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/constants"
+	"scheduler0/pkg/constants/headers"
+	"scheduler0/pkg/mocks"
+	"scheduler0/pkg/models"
 	"testing"
 	"time"
 

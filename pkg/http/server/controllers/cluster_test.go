@@ -6,9 +6,9 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"scheduler0-private/pkg/http/server/controllers"
-	async_task "scheduler0-private/pkg/service/async_task"
-	"scheduler0-private/pkg/service/node"
+	"scheduler0/pkg/http/server/controllers"
+	async_task "scheduler0/pkg/service/async_task"
+	"scheduler0/pkg/service/node"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

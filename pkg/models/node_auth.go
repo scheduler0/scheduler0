@@ -6,7 +6,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"io"
 	"log"
-	"scheduler0-private/pkg/protobuffs"
+	"scheduler0/pkg/protobuffs"
 )
 
 type NodeAuth struct {

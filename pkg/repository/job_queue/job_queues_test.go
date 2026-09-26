@@ -1,19 +1,20 @@
 package job_queue
 
 import (
-	sq "github.com/Masterminds/squirrel"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/raft"
-	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	"os"
 	"scheduler0/pkg/config"
 	"scheduler0/pkg/db"
 	"scheduler0/pkg/fsm"
 	"scheduler0/pkg/models"
+	"scheduler0/pkg/scheduler0time"
 	"scheduler0/pkg/shared_repo"
 	"testing"
 	"time"
+
+	sq "github.com/Masterminds/squirrel"
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/raft"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
@@ -24,13 +25,14 @@ func Test_JobQueuesRepo_GetLastJobQueueLogForNode(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
@@ -128,13 +130,14 @@ func Test_JobQueuesRepo_GetLastVersion(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
@@ -182,13 +185,14 @@ func Test_IncrementQueueVersion(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
@@ -243,13 +247,14 @@ func Test_InsertJobQueueLogs(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
@@ -313,13 +318,14 @@ func Test_GetJobQueueByLastInsertedAndRowsAffected(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
@@ -400,10 +406,12 @@ func insertJobQueueLog(logger hclog.Logger, dataStore db.DataStore, log models.J
 }
 
 func insertJobQueueVersion(logger hclog.Logger, dataStore db.DataStore, version uint64) error {
+	schedulerTime := scheduler0time.GetSchedulerTime()
+	now := schedulerTime.GetTime(time.Now())
+
 	insertBuilder := sq.Insert(JobQueuesVersionTableName).
-		Columns(JobQueueVersion).
-		Columns(JobNumberOfActiveNodesVersion).
-		Values(version, 1).
+		Columns(JobQueueVersion, JobNumberOfActiveNodesVersion, JobQueueDateCreatedColumn).
+		Values(version, 1, now).
 		RunWith(dataStore.GetOpenConnection())
 
 	_, err := insertBuilder.Exec()
@@ -413,4 +421,91 @@ func insertJobQueueVersion(logger hclog.Logger, dataStore db.DataStore, version 
 	}
 
 	return nil
+}
+
+func Test_GetMostRecentJobQueueDate(t *testing.T) {
+	scheduler0config := config.NewScheduler0Config()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "job-queues-repo-test",
+		Level: hclog.LevelFromString("DEBUG"),
+	})
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
+	tempFile, err := os.CreateTemp("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tempFile.Close()
+	defer os.Remove(tempFile.Name())
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration(logger)
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
+
+	// Create a mock raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          1,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	defer cluster.Close()
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	// Create a new JobQueuesRepo instance
+	jobQueuesRepo := NewJobQueuesRepo(logger, scheduler0RaftActions, scheduler0Store)
+
+	// Test case 1: No job queue versions exist - should return zero time
+	date, err := jobQueuesRepo.GetMostRecentJobQueueDate()
+	if err != nil {
+		t.Fatalf("Failed to get most recent job queue date: %v", err)
+	}
+	assert.True(t, date.IsZero(), "Expected zero time when no versions exist")
+
+	// Test case 2: Create job queue versions and verify the most recent date
+	versions := []uint64{1, 2, 3}
+
+	// Insert the job queue versions into the database
+	for _, version := range versions {
+		insertErr := insertJobQueueVersion(logger, scheduler0Store.GetDataStore(), version)
+		if insertErr != nil {
+			t.Fatalf("Failed to insert job queue version: %v", insertErr)
+		}
+		// Small delay to ensure different timestamps
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Get the most recent date
+	date, err = jobQueuesRepo.GetMostRecentJobQueueDate()
+	if err != nil {
+		t.Fatalf("Failed to get most recent job queue date: %v", err)
+	}
+
+	// Verify that the date is not zero
+	assert.False(t, date.IsZero(), "Expected non-zero date when versions exist")
+
+	// Store the date for comparison later
+	previousDate := date
+
+	// Test case 3: Add another version and verify the date updates
+	// Wait a bit to ensure the previous operations are complete and timestamps are different
+	time.Sleep(100 * time.Millisecond)
+	insertErr := insertJobQueueVersion(logger, scheduler0Store.GetDataStore(), 4)
+	if insertErr != nil {
+		t.Fatalf("Failed to insert job queue version 4: %v", insertErr)
+	}
+
+	// Get the most recent date again
+	newDate, err := jobQueuesRepo.GetMostRecentJobQueueDate()
+	if err != nil {
+		t.Fatalf("Failed to get most recent job queue date: %v", err)
+	}
+
+	// Verify that the new date is different (and more recent)
+	assert.False(t, newDate.IsZero(), "Expected non-zero date")
+	assert.True(t, newDate.After(previousDate) || newDate.Equal(previousDate), "Expected new date to be equal or after the previous date")
 }

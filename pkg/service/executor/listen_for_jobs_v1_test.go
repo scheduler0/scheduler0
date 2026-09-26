@@ -3,9 +3,9 @@ package executor
 import (
 	"context"
 	"sort"
-	"scheduler0-private/pkg/mocks"
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/mocks"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/utils"
 	"testing"
 	"time"
 

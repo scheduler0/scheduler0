@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/models"
 	"testing"
 	"time"
 

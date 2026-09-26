@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"scheduler0-private/pkg/config"
-	"scheduler0-private/pkg/constants"
-	"scheduler0-private/pkg/db"
-	"scheduler0-private/pkg/fsm"
-	"scheduler0-private/pkg/mocks"
-	"scheduler0-private/pkg/models"
-	account_repo "scheduler0-private/pkg/repository/account"
-	"scheduler0-private/pkg/shared_repo"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/constants"
+	"scheduler0/pkg/db"
+	"scheduler0/pkg/fsm"
+	"scheduler0/pkg/mocks"
+	"scheduler0/pkg/models"
+	account_repo "scheduler0/pkg/repository/account"
+	"scheduler0/pkg/shared_repo"
+	"scheduler0/pkg/utils"
 )
 
 // setupMockFSMStore creates a mock FSM store for unit tests

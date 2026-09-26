@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"scheduler0-private/pkg/config"
+	"scheduler0/pkg/config"
 	"strconv"
 	"testing"
 	"time"

@@ -5,7 +5,7 @@
 package fsm
 
 import (
-	"scheduler0-private/pkg/db"
+	"scheduler0/pkg/db"
 
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/raft-boltdb/v2"

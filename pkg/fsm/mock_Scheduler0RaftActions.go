@@ -5,10 +5,10 @@
 package fsm
 
 import (
-	"scheduler0-private/pkg/constants"
-	"scheduler0-private/pkg/db"
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/constants"
+	"scheduler0/pkg/db"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/utils"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"

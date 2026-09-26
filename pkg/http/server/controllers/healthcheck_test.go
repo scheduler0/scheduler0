@@ -5,8 +5,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"scheduler0-private/pkg/http/server/controllers"
-	"scheduler0-private/pkg/service/node"
+	"scheduler0/pkg/http/server/controllers"
+	"scheduler0/pkg/service/node"
 	"testing"
 
 	"github.com/hashicorp/raft"

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/models"
 	"strings"
 )
 

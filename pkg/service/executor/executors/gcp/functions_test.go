@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/models"
 	"testing"
 	"time"
 

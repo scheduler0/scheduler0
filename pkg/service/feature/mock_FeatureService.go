@@ -5,8 +5,8 @@
 package feature
 
 import (
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/utils"
 
 	mock "github.com/stretchr/testify/mock"
 )

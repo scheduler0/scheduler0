@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"scheduler0-private/pkg/config"
+	"scheduler0/pkg/config"
 	"strings"
 	"sync"
 	"time"

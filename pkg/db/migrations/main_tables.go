@@ -2,7 +2,7 @@ package migrations
 
 import (
 	"database/sql"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/models"
 )
 
 func MainTables() models.Migration {

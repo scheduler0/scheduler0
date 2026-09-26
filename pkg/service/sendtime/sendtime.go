@@ -21,9 +21,9 @@ import (
 	// container images that do not ship /usr/share/zoneinfo.
 	_ "time/tzdata"
 
-	"scheduler0-private/pkg/config"
-	"scheduler0-private/pkg/constants"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/constants"
+	"scheduler0/pkg/models"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/segmentio/ksuid"

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"scheduler0-private/pkg/service/feature"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/service/feature"
+	"scheduler0/pkg/utils"
 )
 
 type FeatureController struct {

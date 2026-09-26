@@ -2,9 +2,9 @@ package ai_credits
 
 import (
 	"net/http"
-	"scheduler0-private/pkg/models"
-	repo "scheduler0-private/pkg/repository/account_ai_credits"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/models"
+	repo "scheduler0/pkg/repository/account_ai_credits"
+	"scheduler0/pkg/utils"
 
 	"github.com/hashicorp/go-hclog"
 )
