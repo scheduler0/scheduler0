@@ -3,7 +3,6 @@ package async_task
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
 	"net/http"
 	"scheduler0/pkg/config"
 	"scheduler0/pkg/fsm"
@@ -11,22 +10,25 @@ import (
 	"scheduler0/pkg/repository/async_task"
 	"scheduler0/pkg/utils"
 	"sync"
+
+	"github.com/hashicorp/go-hclog"
 )
 
-//go:generate mockery --name AsyncTaskService --output ./ --inpackage
 type AsyncTaskService interface {
-	AddTasks(input, requestId, service string) ([]uint64, *utils.GenericError)
+	AddTasks(input, requestId, service string, accountId uint64) ([]uint64, *utils.GenericError)
 	UpdateTasksById(taskId uint64, state models.AsyncTaskState, output string) *utils.GenericError
 	UpdateTasksByRequestId(requestId string, state models.AsyncTaskState, output string) *utils.GenericError
 	AddSubscriber(taskId uint64, subscriber func(task models.AsyncTask)) (uint64, *utils.GenericError)
 	GetTaskBlocking(taskId uint64) (chan models.AsyncTask, uint64, *utils.GenericError)
-	GetTaskWithRequestIdNonBlocking(requestId string) (*models.AsyncTask, *utils.GenericError)
-	GetTaskWithRequestIdBlocking(requestId string) (chan models.AsyncTask, uint64, *utils.GenericError)
-	GetTaskIdWithRequestId(requestId string) (uint64, *utils.GenericError)
+	GetTaskWithRequestIdNonBlocking(requestId string, accountId uint64) (*models.AsyncTask, *utils.GenericError)
+	GetTaskWithRequestIdBlocking(requestId string, accountId uint64) (chan models.AsyncTask, uint64, *utils.GenericError)
+	GetTaskIdWithRequestId(requestId string, accountId uint64) (uint64, *utils.GenericError)
 	DeleteSubscriber(taskId, subscriberId uint64) *utils.GenericError
 	GetUnCommittedTasks() ([]models.AsyncTask, *utils.GenericError)
 	SetSingleNodeMode(singleNodeMode bool)
 	GetSingleNodeMode() bool
+	SetNodeIsLeader(nodeIsLeader bool)
+	GetNodeIsLeader() bool
 	ListenForNotifications()
 	DeleteNewUncommittedAsyncLogs(lastInsertedId, rowsAffected int64)
 }
@@ -42,6 +44,8 @@ type asyncTaskService struct {
 	notificationsCh      chan models.AsyncTask
 	fsm                  fsm.Scheduler0RaftStore
 	singleNodeMode       bool
+	nodeIsLeader         bool
+	mtx                  sync.Mutex
 	scheduler0Config     config.Scheduler0Config
 }
 
@@ -62,12 +66,13 @@ func NewAsyncTaskManager(
 	}
 }
 
-func (m *asyncTaskService) AddTasks(input, requestId, service string) ([]uint64, *utils.GenericError) {
+func (m *asyncTaskService) AddTasks(input, requestId, service string, accountId uint64) ([]uint64, *utils.GenericError) {
 	tasks := []models.AsyncTask{
 		models.AsyncTask{
 			Input:     input,
 			RequestId: requestId,
 			Service:   service,
+			AccountId: accountId,
 		},
 	}
 
@@ -81,8 +86,7 @@ func (m *asyncTaskService) AddTasks(input, requestId, service string) ([]uint64,
 		}
 		sids = ids
 	} else {
-		f := m.fsm.GetRaft().VerifyLeader()
-		if f.Error() != nil {
+		if !m.nodeIsLeader {
 			ids, err := m.asyncTaskManagerRepo.BatchInsert(tasks, false)
 			if err != nil {
 				return nil, err
@@ -115,21 +119,20 @@ func (m *asyncTaskService) UpdateTasksById(taskId uint64, state models.AsyncTask
 	if m.singleNodeMode {
 		err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)
 		if err != nil {
-			m.logger.Error("could not update task with id", taskId)
+			m.logger.Error("could not update task with id", "task-id", taskId)
 			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
 		}
 	} else {
-		f := m.fsm.GetRaft().VerifyLeader()
-		if f.Error() != nil {
+		if !m.nodeIsLeader {
 			err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
 			if err != nil {
-				m.logger.Error("could not update task with id", taskId)
+				m.logger.Error("could not update task with id", "task-id", taskId)
 				return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
 			}
 		} else {
 			err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)
 			if err != nil {
-				m.logger.Error("could not update task with id", taskId)
+				m.logger.Error("could not update task with id", "task-id", taskId)
 				return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", taskId))
 			}
 		}
@@ -156,13 +159,12 @@ func (m *asyncTaskService) UpdateTasksByRequestId(requestId string, state models
 	if m.singleNodeMode {
 		err := m.asyncTaskManagerRepo.RaftUpdateTaskState(myT, state, output)
 		if err != nil {
-			m.logger.Error("could not update task with id", requestId)
+			m.logger.Error("could not update task with id", "request-id", requestId)
 			return utils.HTTPGenericError(http.StatusNotFound, fmt.Sprintf("could not update task with id %v", requestId))
 		}
 	} else {
-		f := m.fsm.GetRaft().VerifyLeader()
-		if f.Error() != nil {
-			m.logger.Error("error updating async task with request id, cannot verify raft leadership.", "raft-error", f.Error())
+		if !m.nodeIsLeader {
+			m.logger.Error("error updating async task with request id, node is not leader.", "request-id", requestId)
 			err := m.asyncTaskManagerRepo.UpdateTaskState(myT, state, output)
 			if err != nil {
 				m.logger.Error("could not update task with id", "request-id", requestId)
@@ -236,11 +238,22 @@ func (m *asyncTaskService) GetTaskBlocking(taskId uint64) (chan models.AsyncTask
 	return taskCh, subs, nil
 }
 
-func (m *asyncTaskService) GetTaskWithRequestIdNonBlocking(requestId string) (*models.AsyncTask, *utils.GenericError) {
+func (m *asyncTaskService) GetTaskWithRequestIdNonBlocking(requestId string, accountId uint64) (*models.AsyncTask, *utils.GenericError) {
 	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if !ok {
-		m.logger.Error("failed to find async task with request id", "request-id", requestId)
-		return nil, utils.HTTPGenericError(http.StatusNotFound, "task doesn't exist")
+		m.logger.Info("task not found in map, getting from repo", "requestId", requestId, "accountId", accountId)
+		task, err := m.asyncTaskManagerRepo.GetTaskByRequestIdAndAccountId(requestId, accountId)
+		if err != nil {
+			m.logger.Error("failed to get async task", "requestId", requestId, "accountId", accountId, "error", err.Message)
+			return nil, err
+		}
+		if task == nil {
+			return nil, utils.HTTPGenericError(http.StatusNotFound, "task doesn't exist")
+		}
+		m.logger.Info("task found in repo", "task", task)
+		m.task.Store(task.Id, *task)
+		m.taskIdRequestIdMap.Store(requestId, task.Id)
+		taskId = task.Id
 	}
 
 	task, err := m.asyncTaskManagerRepo.GetTask(taskId.(uint64))
@@ -248,23 +261,61 @@ func (m *asyncTaskService) GetTaskWithRequestIdNonBlocking(requestId string) (*m
 		m.logger.Error("failed to get async task", "taskId", taskId, "error", err.Message)
 		return nil, err
 	}
+	if task == nil || task.AccountId != accountId {
+		return nil, utils.HTTPGenericError(http.StatusNotFound, "task doesn't exist")
+	}
 	return task, nil
 }
 
-func (m *asyncTaskService) GetTaskWithRequestIdBlocking(requestId string) (chan models.AsyncTask, uint64, *utils.GenericError) {
+func (m *asyncTaskService) GetTaskWithRequestIdBlocking(requestId string, accountId uint64) (chan models.AsyncTask, uint64, *utils.GenericError) {
 	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if !ok {
-		return nil, 0, nil
+		task, err := m.asyncTaskManagerRepo.GetTaskByRequestIdAndAccountId(requestId, accountId)
+		if err != nil {
+			m.logger.Error("failed to get async task", "requestId", requestId, "accountId", accountId, "error", err.Message)
+			return nil, 0, err
+		}
+		if task == nil {
+			return nil, 0, utils.HTTPGenericError(http.StatusNotFound, "task doesn't exist")
+		}
+		m.task.Store(task.Id, *task)
+		m.taskIdRequestIdMap.Store(requestId, task.Id)
+		taskId = task.Id
+
+		return m.GetTaskBlocking(task.Id)
+	}
+
+	task, err := m.asyncTaskManagerRepo.GetTask(taskId.(uint64))
+	if err != nil {
+		m.logger.Error("failed to get async task", "taskId", taskId, "error", err.Message)
+		return nil, 0, err
+	}
+	if task == nil || task.AccountId != accountId {
+		return nil, 0, utils.HTTPGenericError(http.StatusNotFound, "task doesn't exist")
 	}
 	return m.GetTaskBlocking(taskId.(uint64))
 }
 
-func (m *asyncTaskService) GetTaskIdWithRequestId(requestId string) (uint64, *utils.GenericError) {
+func (m *asyncTaskService) GetTaskIdWithRequestId(requestId string, accountId uint64) (uint64, *utils.GenericError) {
 	taskId, ok := m.taskIdRequestIdMap.Load(requestId)
 	if ok {
-		return taskId.(uint64), nil
+		task, err := m.asyncTaskManagerRepo.GetTask(taskId.(uint64))
+		if err != nil {
+			return 0, err
+		}
+		if task == nil || task.AccountId != accountId {
+			return 0, utils.HTTPGenericError(http.StatusNotFound, "task doesn't exist")
+		}
+		return task.Id, nil
 	}
-	return 0, nil
+	task, err := m.asyncTaskManagerRepo.GetTaskByRequestIdAndAccountId(requestId, accountId)
+	if err != nil {
+		return 0, err
+	}
+	if task == nil {
+		return 0, utils.HTTPGenericError(http.StatusNotFound, "task doesn't exist")
+	}
+	return task.Id, nil
 }
 
 func (m *asyncTaskService) DeleteSubscriber(taskId, subscriberId uint64) *utils.GenericError {
@@ -293,6 +344,10 @@ func (m *asyncTaskService) GetUnCommittedTasks() ([]models.AsyncTask, *utils.Gen
 
 func (m *asyncTaskService) SetSingleNodeMode(singleNodeMode bool) {
 	m.singleNodeMode = singleNodeMode
+}
+
+func (m *asyncTaskService) SetNodeIsLeader(nodeIsLeader bool) {
+	m.nodeIsLeader = nodeIsLeader
 }
 
 func (m *asyncTaskService) GetSingleNodeMode() bool {
@@ -332,4 +387,8 @@ func (m *asyncTaskService) ListenForNotifications() {
 }
 
 func (m *asyncTaskService) DeleteNewUncommittedAsyncLogs(lastInsertedId, rowsAffected int64) {
+}
+
+func (m *asyncTaskService) GetNodeIsLeader() bool {
+	return m.nodeIsLeader
 }
