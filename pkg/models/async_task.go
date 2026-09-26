@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
-	"scheduler0-private/pkg/protobuffs"
+	"scheduler0/pkg/protobuffs"
 	"time"
 
 	"google.golang.org/protobuf/proto"

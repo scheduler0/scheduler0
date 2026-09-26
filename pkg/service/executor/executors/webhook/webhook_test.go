@@ -7,9 +7,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"scheduler0-private/pkg/config"
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/utils"
 	"testing"
 	"time"
 

@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"strings"
 
-	"scheduler0-private/pkg/constants"
-	"scheduler0-private/pkg/models"
-	repo "scheduler0-private/pkg/repository/account_ai_settings"
-	"scheduler0-private/pkg/service/ai"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/constants"
+	"scheduler0/pkg/models"
+	repo "scheduler0/pkg/repository/account_ai_settings"
+	"scheduler0/pkg/service/ai"
+	"scheduler0/pkg/utils"
 
 	"github.com/hashicorp/go-hclog"
 )

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"scheduler0-private/pkg/models"
-	svc "scheduler0-private/pkg/service/account_ai_settings"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/models"
+	svc "scheduler0/pkg/service/account_ai_settings"
+	"scheduler0/pkg/utils"
 )
 
 type AccountAISettingsController interface {

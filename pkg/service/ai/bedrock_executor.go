@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"scheduler0-private/pkg/config"
+	"scheduler0/pkg/config"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"

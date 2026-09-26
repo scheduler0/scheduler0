@@ -2,9 +2,9 @@ package prompt_request
 
 import (
 	"fmt"
-	"scheduler0-private/pkg/constants"
-	"scheduler0-private/pkg/fsm"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/constants"
+	"scheduler0/pkg/fsm"
+	"scheduler0/pkg/models"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"

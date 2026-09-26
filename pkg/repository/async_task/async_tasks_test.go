@@ -2,18 +2,20 @@ package async_task
 
 import (
 	"context"
-	"github.com/brianvoe/gofakeit/v6"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/raft"
-	"github.com/stretchr/testify/assert"
-	"io/ioutil"
+	"net/http"
 	"os"
 	"scheduler0/pkg/config"
 	"scheduler0/pkg/db"
 	"scheduler0/pkg/fsm"
 	"scheduler0/pkg/models"
+	account_repo "scheduler0/pkg/repository/account"
 	"scheduler0/pkg/shared_repo"
 	"testing"
+
+	"github.com/brianvoe/gofakeit/v6"
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/raft"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_AsyncTask_BatchInsert(t *testing.T) {
@@ -25,16 +27,43 @@ func Test_AsyncTask_BatchInsert(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
+
+	// Create a mock raft cluster
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          1,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	defer cluster.Close()
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
 	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
 
 	var mockAsyncTasks []models.AsyncTask
 	var numberOfTasks = 20
@@ -44,6 +73,8 @@ func Test_AsyncTask_BatchInsert(t *testing.T) {
 		if err != nil {
 			t.Fatal("failed to create async task", err)
 		}
+		// Ensure account_id exists
+		mockAsyncTask.AccountId = 1
 		mockAsyncTasks = append(mockAsyncTasks, mockAsyncTask)
 	}
 	ids, createErr := asyncTasksRepo.BatchInsert(mockAsyncTasks, true)
@@ -76,22 +107,51 @@ func Test_AsyncTask_GetTask(t *testing.T) {
 			})
 			sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 			scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-			tempFile, err := ioutil.TempFile("", "test-db")
+			tempFile, err := os.CreateTemp("", "test-db")
 			if err != nil {
 				t.Fatalf("Failed to create temp file: %v", err)
 			}
+			tempFile.Close()
 			defer os.Remove(tempFile.Name())
 			sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-			sqliteDb.RunMigration()
+			sqliteDb.RunMigration(logger)
 			sqliteDb.OpenConnectionToExistingDB()
-			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
+
+			// Create a mock raft cluster
+			cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+				Peers:          1,
+				Bootstrap:      true,
+				Conf:           raft.DefaultConfig(),
+				ConfigStoreFSM: false,
+				MakeFSMFunc: func() raft.FSM {
+					return scheduler0Store.GetFSM()
+				},
+			})
+			defer cluster.Close()
+			cluster.FullyConnect()
+			scheduler0Store.UpdateRaft(cluster.Leader())
+
 			asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+
+			// Create an account first (required for foreign key constraint)
+			accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+			account := &models.Account{
+				ID:   1,
+				Name: "Test Account",
+			}
+			_, createAccountErr := accountRepo.CreateAccount(account)
+			if createAccountErr != nil {
+				t.Fatalf("Failed to create account: %v", createAccountErr)
+			}
 
 			var mockAsyncTask models.AsyncTask
 			err = gofakeit.Struct(&mockAsyncTask)
 			if err != nil {
 				t.Fatal("failed to create async task", err)
 			}
+			// Ensure account_id exists
+			mockAsyncTask.AccountId = 1
 			// Insert the mock task into the mockAsyncTask
 			ids, createErr := asyncTasksRepo.BatchInsert([]models.AsyncTask{mockAsyncTask}, testCase.committed)
 			if createErr != nil {
@@ -110,6 +170,7 @@ func Test_AsyncTask_GetTask(t *testing.T) {
 			assert.Equal(t, mockAsyncTask.Output, task.Output)
 			assert.Equal(t, models.AsyncTaskNotStated, task.State)
 			assert.Equal(t, mockAsyncTask.Service, task.Service)
+			assert.Equal(t, mockAsyncTask.AccountId, task.AccountId)
 		})
 	}
 }
@@ -123,17 +184,17 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
-	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -149,6 +210,19 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Generate mock async tasks
 	var mockAsyncTasks []models.AsyncTask
 	var numberOfTasks = 20
@@ -158,6 +232,8 @@ func Test_AsyncTask_RaftBatchInsert(t *testing.T) {
 		if err != nil {
 			t.Fatal("failed to create async task", err)
 		}
+		// Ensure account_id exists
+		mockAsyncTask.AccountId = 1
 		mockAsyncTasks = append(mockAsyncTasks, mockAsyncTask)
 	}
 
@@ -182,17 +258,17 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0Config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0Config, sqliteDb, nil, nil, nil, nil, nil)
-	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0Config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -208,12 +284,27 @@ func Test_AsyncTask_RaftUpdateTaskState(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Generate a mock async task
 	var mockAsyncTask models.AsyncTask
 	err = gofakeit.Struct(&mockAsyncTask)
 	if err != nil {
 		t.Fatal("failed to create async task", err)
 	}
+	// Ensure account_id exists
+	mockAsyncTask.AccountId = 1
 
 	// Batch insert the mock async task
 	ids, insertErr := asyncTasksRepo.BatchInsert([]models.AsyncTask{mockAsyncTask}, true)
@@ -247,18 +338,17 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0Config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0Config, sqliteDb, nil, nil, nil, nil, nil)
-	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
-
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0Config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
 		Peers:          1,
@@ -273,12 +363,27 @@ func Test_AsyncTask_UpdateTaskState(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Generate a mock async task
 	var mockAsyncTask models.AsyncTask
 	err = gofakeit.Struct(&mockAsyncTask)
 	if err != nil {
 		t.Fatal("failed to create async task", err)
 	}
+	// Ensure account_id exists
+	mockAsyncTask.AccountId = 1
 
 	// Insert the mock async task
 	ids, insertErr := asyncTasksRepo.BatchInsert([]models.AsyncTask{mockAsyncTask}, false)
@@ -327,17 +432,17 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 			})
 			sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0Config)
 			scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-			tempFile, err := ioutil.TempFile("", "test-db")
+			tempFile, err := os.CreateTemp("", "test-db")
 			if err != nil {
 				t.Fatalf("Failed to create temp file: %v", err)
 			}
+			tempFile.Close()
 			defer os.Remove(tempFile.Name())
 
 			sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-			sqliteDb.RunMigration()
+			sqliteDb.RunMigration(logger)
 			sqliteDb.OpenConnectionToExistingDB()
-			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0Config, sqliteDb, nil, nil, nil, nil, nil)
-			asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+			scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0Config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 			// Create a mock raft cluster
 			cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -353,6 +458,19 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 			cluster.FullyConnect()
 			scheduler0Store.UpdateRaft(cluster.Leader())
 
+			asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+
+			// Create an account first (required for foreign key constraint)
+			accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+			account := &models.Account{
+				ID:   1,
+				Name: "Test Account",
+			}
+			_, createAccountErr := accountRepo.CreateAccount(account)
+			if createAccountErr != nil {
+				t.Fatalf("Failed to create account: %v", createAccountErr)
+			}
+
 			// Generate mock async tasks
 			var mockAsyncTasks []models.AsyncTask
 			var numberOfTasks = 10
@@ -362,6 +480,8 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 				if err != nil {
 					t.Fatal("failed to create async task", err)
 				}
+				// Ensure account_id exists
+				mockAsyncTask.AccountId = 1
 				mockAsyncTasks = append(mockAsyncTasks, mockAsyncTask)
 			}
 
@@ -381,4 +501,77 @@ func Test_AsyncTask_GetAllTasks(t *testing.T) {
 			assert.Equal(t, len(allTasks), numberOfTasks)
 		})
 	}
+}
+
+func Test_AsyncTask_GetTaskByRequestIdAndAccountId(t *testing.T) {
+	ctx := context.Background()
+	scheduler0config := config.NewScheduler0Config()
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:  "async-task-test",
+		Level: hclog.LevelFromString("ERROR"),
+	})
+	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
+	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
+	tempFile, err := os.CreateTemp("", "test-db")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	tempFile.Close()
+	defer os.Remove(tempFile.Name())
+
+	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
+	sqliteDb.RunMigration(logger)
+	sqliteDb.OpenConnectionToExistingDB()
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
+
+	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
+		Peers:          1,
+		Bootstrap:      true,
+		Conf:           raft.DefaultConfig(),
+		ConfigStoreFSM: false,
+		MakeFSMFunc: func() raft.FSM {
+			return scheduler0Store.GetFSM()
+		},
+	})
+	defer cluster.Close()
+	cluster.FullyConnect()
+	scheduler0Store.UpdateRaft(cluster.Leader())
+
+	asyncTasksRepo := NewAsyncTasksRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+
+	ownerID, createOwnerErr := accountRepo.CreateAccount(&models.Account{Name: "Owner Account"})
+	if createOwnerErr != nil {
+		t.Fatalf("Failed to create owner account: %v", createOwnerErr)
+	}
+	otherID, createOtherErr := accountRepo.CreateAccount(&models.Account{Name: "Other Account"})
+	if createOtherErr != nil {
+		t.Fatalf("Failed to create other account: %v", createOtherErr)
+	}
+
+	requestId := "scoped-request-id"
+	_, insertErr := asyncTasksRepo.BatchInsert([]models.AsyncTask{{
+		RequestId: requestId,
+		Input:     `{"jobs":[]}`,
+		Service:   "create_job",
+		AccountId: ownerID,
+	}}, true)
+	if insertErr != nil {
+		t.Fatalf("Failed to insert async task: %v", insertErr)
+	}
+
+	t.Run("returns task for owning account", func(t *testing.T) {
+		task, getErr := asyncTasksRepo.GetTaskByRequestIdAndAccountId(requestId, ownerID)
+		assert.Nil(t, getErr)
+		assert.NotNil(t, task)
+		assert.Equal(t, requestId, task.RequestId)
+		assert.Equal(t, ownerID, task.AccountId)
+	})
+
+	t.Run("does not return task for another account", func(t *testing.T) {
+		task, getErr := asyncTasksRepo.GetTaskByRequestIdAndAccountId(requestId, otherID)
+		assert.Nil(t, task)
+		assert.NotNil(t, getErr)
+		assert.Equal(t, http.StatusNotFound, getErr.Type)
+	})
 }

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"scheduler0-private/pkg/config"
-	"scheduler0-private/pkg/constants"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/constants"
 	"strings"
 	"time"
 

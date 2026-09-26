@@ -1,21 +1,23 @@
 package job_execution
 
 import (
+	"context"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/raft"
-	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	"os"
 	"scheduler0/pkg/config"
 	"scheduler0/pkg/db"
 	"scheduler0/pkg/fsm"
 	"scheduler0/pkg/models"
+	account_repo "scheduler0/pkg/repository/account"
 	"scheduler0/pkg/repository/job"
 	project_repo "scheduler0/pkg/repository/project"
 	"scheduler0/pkg/shared_repo"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/raft"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_JobExecutionsRepo_BatchInsert(t *testing.T) {
@@ -26,15 +28,16 @@ func Test_JobExecutionsRepo_BatchInsert(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -50,8 +53,38 @@ func Test_JobExecutionsRepo_BatchInsert(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new JobExecutionsRepo instance
 	jobExecutionsRepo := NewExecutionsRepo(logger, scheduler0RaftActions, scheduler0Store)
+
+	// Create a JobRepo instance
+	jobRepo := job.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
+
+	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
+
+	// Create a project
+	project := models.Project{
+		ID:          1,
+		Name:        "Test Project",
+		Description: "Test project description",
+		AccountId:   1,
+	}
+
+	// Insert the project into the database
+	projectID, pcreateErr := projectRepo.CreateOne(&project)
+	if pcreateErr != nil {
+		t.Fatal("failed to create project:", pcreateErr)
+	}
 
 	// Define test data
 	jobs := []models.Job{
@@ -59,36 +92,30 @@ func Test_JobExecutionsRepo_BatchInsert(t *testing.T) {
 			ID:                1,
 			ExecutionId:       "1",
 			Spec:              "*/5 * * * *",
-			ProjectID:         1,
+			ProjectID:         projectID,
 			LastExecutionDate: time.Now().Add(-time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 		{
 			ID:                2,
 			ExecutionId:       "2",
 			Spec:              "0 0 * * *",
-			ProjectID:         1,
+			ProjectID:         projectID,
 			LastExecutionDate: time.Now().Add(-2 * time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
-	}
-
-	// Create a project to delete
-	project := models.Project{
-		ID:          1,
-		Name:        "Test Project",
-		Description: "Test project description",
-	}
-
-	// Create a JobRepo instance
-	jobRepo := job.NewJobRepo(logger, scheduler0RaftActions, scheduler0Store)
-
-	projectRepo := project_repo.NewProjectRepo(logger, scheduler0RaftActions, scheduler0Store, jobRepo)
-
-	// Insert the project into the database
-	_, pcreateErr := projectRepo.CreateOne(&project)
-	if pcreateErr != nil {
-		t.Fatal("failed to create project:", pcreateErr)
 	}
 
 	_, insertErr := jobRepo.BatchInsertJobs(jobs)
@@ -138,15 +165,16 @@ func Test_JobExecutionsRepo_GetLastExecutionLogForJobIds(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -162,6 +190,17 @@ func Test_JobExecutionsRepo_GetLastExecutionLogForJobIds(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new JobExecutionsRepo instance
 	jobExecutionsRepo := NewExecutionsRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -175,6 +214,7 @@ func Test_JobExecutionsRepo_GetLastExecutionLogForJobIds(t *testing.T) {
 		ID:          1,
 		Name:        "Test Project",
 		Description: "Test project description",
+		AccountId:   1,
 	}
 
 	// Insert the project into the database
@@ -191,6 +231,12 @@ func Test_JobExecutionsRepo_GetLastExecutionLogForJobIds(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 		{
 			ID:                2,
@@ -199,6 +245,12 @@ func Test_JobExecutionsRepo_GetLastExecutionLogForJobIds(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-2 * time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 	}
 
@@ -240,15 +292,16 @@ func Test_JobExecutionsRepo_CountLastFailedExecutionLogs(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -264,6 +317,17 @@ func Test_JobExecutionsRepo_CountLastFailedExecutionLogs(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new JobExecutionsRepo instance
 	jobExecutionsRepo := NewExecutionsRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -277,6 +341,7 @@ func Test_JobExecutionsRepo_CountLastFailedExecutionLogs(t *testing.T) {
 		ID:          1,
 		Name:        "Test Project",
 		Description: "Test project description",
+		AccountId:   1,
 	}
 
 	// Insert the project into the database
@@ -293,6 +358,12 @@ func Test_JobExecutionsRepo_CountLastFailedExecutionLogs(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 		{
 			ID:                2,
@@ -301,6 +372,12 @@ func Test_JobExecutionsRepo_CountLastFailedExecutionLogs(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-2 * time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 	}
 
@@ -336,15 +413,16 @@ func Test_JobExecutionsRepo_CountExecutionLogs(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -360,6 +438,17 @@ func Test_JobExecutionsRepo_CountExecutionLogs(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new JobExecutionsRepo instance
 	jobExecutionsRepo := NewExecutionsRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -373,6 +462,7 @@ func Test_JobExecutionsRepo_CountExecutionLogs(t *testing.T) {
 		ID:          1,
 		Name:        "Test Project",
 		Description: "Test project description",
+		AccountId:   1,
 	}
 
 	// Insert the project into the database
@@ -389,6 +479,12 @@ func Test_JobExecutionsRepo_CountExecutionLogs(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 		{
 			ID:                2,
@@ -397,6 +493,12 @@ func Test_JobExecutionsRepo_CountExecutionLogs(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-2 * time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 	}
 
@@ -430,15 +532,16 @@ func Test_JobExecutionsRepo_GetUncommittedExecutionsLogForNode(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -454,6 +557,17 @@ func Test_JobExecutionsRepo_GetUncommittedExecutionsLogForNode(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new JobExecutionsRepo instance
 	jobExecutionsRepo := NewExecutionsRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -467,6 +581,7 @@ func Test_JobExecutionsRepo_GetUncommittedExecutionsLogForNode(t *testing.T) {
 		ID:          1,
 		Name:        "Test Project",
 		Description: "Test project description",
+		AccountId:   1,
 	}
 
 	// Insert the project into the database
@@ -483,6 +598,12 @@ func Test_JobExecutionsRepo_GetUncommittedExecutionsLogForNode(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 		{
 			ID:                2,
@@ -491,6 +612,12 @@ func Test_JobExecutionsRepo_GetUncommittedExecutionsLogForNode(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-2 * time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 	}
 
@@ -532,15 +659,16 @@ func Test_LogJobExecutionStateInRaft(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -556,6 +684,17 @@ func Test_LogJobExecutionStateInRaft(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new JobExecutionsRepo instance
 	jobExecutionsRepo := NewExecutionsRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -569,6 +708,7 @@ func Test_LogJobExecutionStateInRaft(t *testing.T) {
 		ID:          1,
 		Name:        "Test Project",
 		Description: "Test project description",
+		AccountId:   1,
 	}
 
 	// Insert the project into the database
@@ -585,6 +725,12 @@ func Test_LogJobExecutionStateInRaft(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 		{
 			ID:                2,
@@ -593,6 +739,12 @@ func Test_LogJobExecutionStateInRaft(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-2 * time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 	}
 
@@ -633,15 +785,16 @@ func Test_RaftInsertExecutionLogs(t *testing.T) {
 	})
 	sharedRepo := shared_repo.NewSharedRepo(logger, scheduler0config)
 	scheduler0RaftActions := fsm.NewScheduler0RaftActions(sharedRepo, nil)
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
+	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
-	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, nil)
+	scheduler0Store := fsm.NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 
 	// Create a mock raft cluster
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -657,6 +810,17 @@ func Test_RaftInsertExecutionLogs(t *testing.T) {
 	cluster.FullyConnect()
 	scheduler0Store.UpdateRaft(cluster.Leader())
 
+	// Create an account first (required for foreign key constraint)
+	accountRepo := account_repo.NewAccountRepository(context.TODO(), logger, scheduler0RaftActions, scheduler0Store)
+	account := &models.Account{
+		ID:   1,
+		Name: "Test Account",
+	}
+	_, createAccountErr := accountRepo.CreateAccount(account)
+	if createAccountErr != nil {
+		t.Fatalf("Failed to create account: %v", createAccountErr)
+	}
+
 	// Create a new JobExecutionsRepo instance
 	jobExecutionsRepo := NewExecutionsRepo(logger, scheduler0RaftActions, scheduler0Store)
 
@@ -670,6 +834,7 @@ func Test_RaftInsertExecutionLogs(t *testing.T) {
 		ID:          1,
 		Name:        "Test Project",
 		Description: "Test project description",
+		AccountId:   1,
 	}
 
 	// Insert the project into the database
@@ -686,6 +851,12 @@ func Test_RaftInsertExecutionLogs(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 		{
 			ID:                2,
@@ -694,6 +865,12 @@ func Test_RaftInsertExecutionLogs(t *testing.T) {
 			ProjectID:         project.ID,
 			LastExecutionDate: time.Now().Add(-2 * time.Hour),
 			DateCreated:       time.Now(),
+			AccountId:         1,
+			Timezone:          "UTC",
+			TimezoneOffset:    0,
+			CreatedBy:         "test",
+			RetryMax:          3,
+			Status:            "active",
 		},
 	}
 
@@ -716,7 +893,8 @@ func Test_RaftInsertExecutionLogs(t *testing.T) {
 			JobId:                 1,
 			JobQueueVersion:       jobQueueVersion,
 			ExecutionVersion:      1,
-			DataCreated:           time.Now(),
+			DateCreated:           time.Now(),
+			AccountId:             1,
 		},
 		{
 			UniqueId:              "two",
@@ -727,7 +905,8 @@ func Test_RaftInsertExecutionLogs(t *testing.T) {
 			JobId:                 2,
 			JobQueueVersion:       jobQueueVersion,
 			ExecutionVersion:      1,
-			DataCreated:           time.Now(),
+			DateCreated:           time.Now(),
+			AccountId:             1,
 		},
 	}
 

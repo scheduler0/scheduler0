@@ -3,9 +3,9 @@ package middlewares
 import (
 	"net/http"
 	"net/http/httptest"
-	"scheduler0-private/pkg/constants/headers"
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/constants/headers"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/utils"
 	"testing"
 	"time"
 

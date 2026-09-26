@@ -1,8 +1,8 @@
 package fsm
 
 import (
-	"scheduler0-private/pkg/config"
-	"scheduler0-private/pkg/mocks"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/mocks"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"

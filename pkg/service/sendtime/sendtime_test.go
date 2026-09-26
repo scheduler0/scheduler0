@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"scheduler0-private/pkg/config"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/models"
 
 	"github.com/hashicorp/go-hclog"
 )

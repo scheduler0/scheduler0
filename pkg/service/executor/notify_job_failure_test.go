@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/models"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/assert"

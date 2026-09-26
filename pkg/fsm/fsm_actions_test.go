@@ -11,11 +11,11 @@ import (
 	"github.com/hashicorp/raft"
 	"github.com/stretchr/testify/assert"
 
-	"scheduler0-private/pkg/config"
-	"scheduler0-private/pkg/constants"
-	"scheduler0-private/pkg/db"
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/shared_repo"
+	"scheduler0/pkg/config"
+	"scheduler0/pkg/constants"
+	"scheduler0/pkg/db"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/shared_repo"
 )
 
 func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {

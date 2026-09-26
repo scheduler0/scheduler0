@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"scheduler0-private/pkg/scheduler0time"
+	"scheduler0/pkg/scheduler0time"
 	"time"
 
 	"github.com/robfig/cron"

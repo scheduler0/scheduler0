@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"scheduler0-private/pkg/alerts"
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/alerts"
+	"scheduler0/pkg/models"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

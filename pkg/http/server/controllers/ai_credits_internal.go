@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"scheduler0-private/pkg/models"
-	ai_credits_svc "scheduler0-private/pkg/service/ai_credits"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/models"
+	ai_credits_svc "scheduler0/pkg/service/ai_credits"
+	"scheduler0/pkg/utils"
 	"strconv"
 
 	"github.com/gorilla/mux"

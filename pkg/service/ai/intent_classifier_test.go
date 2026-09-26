@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"scheduler0-private/pkg/models"
+	"scheduler0/pkg/models"
 
 	"github.com/hashicorp/go-hclog"
 )

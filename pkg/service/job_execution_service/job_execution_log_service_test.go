@@ -2,8 +2,8 @@ package job_execution_service
 
 import (
 	"errors"
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/mocks"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/mocks"
 	"testing"
 	"time"
 

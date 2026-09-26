@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	stls "scheduler0-private/pkg/network/stls"
-	"scheduler0-private/pkg/testdata/x509"
+	stls "scheduler0/pkg/network/stls"
+	"scheduler0/pkg/testdata/x509"
 )
 
 func Test_NewDialer(t *testing.T) {

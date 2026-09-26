@@ -2,11 +2,11 @@ package secret_rotation
 
 import (
 	"net/http"
-	account_ai_settings_repo "scheduler0-private/pkg/repository/account_ai_settings"
-	credential_repo "scheduler0-private/pkg/repository/credential"
-	executor_repo "scheduler0-private/pkg/repository/executor"
-	"scheduler0-private/pkg/secrets"
-	"scheduler0-private/pkg/utils"
+	account_ai_settings_repo "scheduler0/pkg/repository/account_ai_settings"
+	credential_repo "scheduler0/pkg/repository/credential"
+	executor_repo "scheduler0/pkg/repository/executor"
+	"scheduler0/pkg/secrets"
+	"scheduler0/pkg/utils"
 
 	"github.com/hashicorp/go-hclog"
 )

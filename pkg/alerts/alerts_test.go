@@ -81,15 +81,15 @@ func TestPublish_MessageContract(t *testing.T) {
 
 	in := rec.inputs[0]
 	assert.Equal(t, topic, *in.TopicArn)
-	assert.Equal(t, "[production] scheduler0-private: platform_notify_failed", *in.Subject)
+	assert.Equal(t, "[production] scheduler0: platform_notify_failed", *in.Subject)
 	assert.Equal(t, "ERROR", *in.MessageAttributes["severity"].StringValue)
 	assert.Equal(t, EventPlatformNotifyFailed, *in.MessageAttributes["event"].StringValue)
-	assert.Equal(t, "scheduler0-private", *in.MessageAttributes["source"].StringValue)
+	assert.Equal(t, "scheduler0", *in.MessageAttributes["source"].StringValue)
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal([]byte(*in.Message), &got))
 	assert.Equal(t, float64(1), got["version"])
-	assert.Equal(t, "scheduler0-private", got["source"])
+	assert.Equal(t, "scheduler0", got["source"])
 	assert.Equal(t, "production", got["env"])
 	assert.Equal(t, float64(1), got["nodeId"])
 	assert.Equal(t, EventPlatformNotifyFailed, got["event"])

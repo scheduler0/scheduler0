@@ -1,9 +1,9 @@
 package feature
 
 import (
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/repository/feature"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/repository/feature"
+	"scheduler0/pkg/utils"
 )
 
 type FeatureService interface {

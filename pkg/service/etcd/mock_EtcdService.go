@@ -6,7 +6,7 @@ package etcd
 
 import (
 	"context"
-	"scheduler0-private/pkg/config"
+	"scheduler0/pkg/config"
 
 	mock "github.com/stretchr/testify/mock"
 )

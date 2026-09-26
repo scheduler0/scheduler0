@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"scheduler0-private/pkg/http/server/controllers"
-	"scheduler0-private/pkg/mocks"
-	"scheduler0-private/pkg/models"
-	"scheduler0-private/pkg/utils"
+	"scheduler0/pkg/http/server/controllers"
+	"scheduler0/pkg/mocks"
+	"scheduler0/pkg/models"
+	"scheduler0/pkg/utils"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
