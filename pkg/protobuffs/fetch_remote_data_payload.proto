@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package fetch_remote_data_payload;
+
+message FetchRemoteDataPayload {
+    string phase = 1;
+    string auth_username = 2;
+    string auth_password = 3;
+    string request_id = 4;
+}

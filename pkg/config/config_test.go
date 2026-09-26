@@ -28,10 +28,14 @@ func TestGetConfigFromEnv(t *testing.T) {
 	defer os.Unsetenv("SCHEDULER0_PROTOCOL")
 	os.Setenv("SCHEDULER0_HOST", "localhost")
 	defer os.Unsetenv("SCHEDULER0_HOST")
+	os.Setenv("SCHEDULER0_NODE_PORT", "8080")
+	defer os.Unsetenv("SCHEDULER0_NODE_PORT")
+	os.Setenv("SCHEDULER0_CLIENT_PORT", "8080")
+	defer os.Unsetenv("SCHEDULER0_CLIENT_PORT")
+	os.Setenv("SCHEDULER0_RAFT_PORT", "8080")
+	defer os.Unsetenv("SCHEDULER0_RAFT_PORT")
 	os.Setenv("SCHEDULER0_PORT", "8080")
 	defer os.Unsetenv("SCHEDULER0_PORT")
-	os.Setenv("SCHEDULER0_REPLICAS", `[{"nodeId":1, "address":"localhost:12345"}]`)
-	defer os.Unsetenv("SCHEDULER0_REPLICAS")
 	os.Setenv("SCHEDULER0_PEER_AUTH_REQUEST_TIMEOUT_MS", "5000")
 	defer os.Unsetenv("SCHEDULER0_PEER_AUTH_REQUEST_TIMEOUT_MS")
 	os.Setenv("SCHEDULER0_PEER_CONNECT_RETRY_MAX", "3")
@@ -64,8 +68,6 @@ func TestGetConfigFromEnv(t *testing.T) {
 	defer os.Unsetenv("SCHEDULER0_JOB_EXECUTION_TIMEOUT")
 	os.Setenv("SCHEDULER0_JOB_EXECUTION_RETRY_DELAY", "1000")
 	defer os.Unsetenv("SCHEDULER0_JOB_EXECUTION_RETRY_DELAY")
-	os.Setenv("SCHEDULER0_JOB_EXECUTION_RETRY_MAX", "3")
-	defer os.Unsetenv("SCHEDULER0_JOB_EXECUTION_RETRY_MAX")
 	os.Setenv("SCHEDULER0_MAX_WORKERS", "10")
 	defer os.Unsetenv("SCHEDULER0_MAX_WORKERS")
 	os.Setenv("SCHEDULER0_JOB_QUEUE_DEBOUNCE_DELAY", "1000")
@@ -87,19 +89,18 @@ func TestGetConfigFromEnv(t *testing.T) {
 	// Check if the values are set correctly
 	assert.NotNil(t, config)
 	assert.Equal(t, "info", config.LogLevel)
-	assert.Equal(t, "http", config.Protocol)
 	assert.Equal(t, "localhost", config.Host)
-	assert.Equal(t, "8080", config.Port)
-
-	expectedReplicas := []RaftNode{{NodeId: 1, Address: "localhost:12345"}}
-	assert.Equal(t, expectedReplicas, config.Replicas)
+	assert.Equal(t, "8080", config.NodePort)
+	assert.Equal(t, "8080", config.ClientPort)
+	// RaftPort and RaftAddress have been removed - NodePort is used for both Raft and Node-to-Node communications
+	assert.Equal(t, "8080", config.NodePort)
 
 	assert.Equal(t, uint64(5000), config.PeerAuthRequestTimeoutMs)
 	assert.Equal(t, uint64(3), config.PeerConnectRetryMax)
 	assert.Equal(t, uint64(1), config.PeerConnectRetryDelaySeconds)
 	assert.Equal(t, true, config.Bootstrap)
 	assert.Equal(t, uint64(2), config.NodeId)
-	assert.Equal(t, "localhost:12345", config.RaftAddress)
+	assert.Equal(t, "localhost:8080", config.NodeAddress)
 	assert.Equal(t, uint64(3), config.RaftTransportMaxPool)
 	assert.Equal(t, uint64(1000), config.RaftTransportTimeout)
 	assert.Equal(t, uint64(1000), config.RaftSnapshotInterval)
@@ -110,10 +111,44 @@ func TestGetConfigFromEnv(t *testing.T) {
 	assert.Equal(t, uint64(1000), config.RaftMaxAppendEntries)
 	assert.Equal(t, uint64(1000), config.JobExecutionTimeout)
 	assert.Equal(t, uint64(1000), config.JobExecutionRetryDelay)
-	assert.Equal(t, uint64(3), config.JobExecutionRetryMax)
 	assert.Equal(t, uint64(10), config.MaxWorkers)
 	assert.Equal(t, uint64(1024), config.MaxMemory)
 	assert.Equal(t, uint64(2), config.ExecutionLogFetchFanIn)
 	assert.Equal(t, uint64(10), config.ExecutionLogFetchIntervalSeconds)
-	assert.Equal(t, uint64(5), config.HTTPExecutorPayloadMaxSizeMb)
+}
+
+// The job-execution timing knobs are in seconds (every consumer multiplies by
+// time.Second). The defaults used to be millisecond-scale numbers (30000/5000),
+// which made the webhook HTTP client wait 8.3 h and RetryOnError sleep 83 min
+// between attempts. Pin the corrected defaults.
+func TestGetConfigFromEnv_JobExecutionDefaultsAreSeconds(t *testing.T) {
+	os.Unsetenv("SCHEDULER0_JOB_EXECUTION_TIMEOUT")
+	os.Unsetenv("SCHEDULER0_JOB_EXECUTION_RETRY_DELAY")
+
+	config := getConfigFromEnv()
+
+	assert.Equal(t, uint64(30), config.JobExecutionTimeout, "JobExecutionTimeout default must be 30 seconds")
+	assert.Equal(t, uint64(5), config.JobExecutionRetryDelay, "JobExecutionRetryDelay default must be 5 seconds")
+}
+
+func TestApplyOpsAlertsEnvOverrides(t *testing.T) {
+	cfg := &Scheduler0Configurations{Env: "from-yaml", AlertsSNSTopicARN: "arn:from-yaml"}
+
+	// Unset env leaves YAML values alone.
+	os.Unsetenv("ALERTS_SNS_TOPIC_ARN")
+	os.Unsetenv("SCHEDULER0_ENV")
+	applyOpsAlertsEnvOverrides(cfg)
+	assert.Equal(t, "from-yaml", cfg.Env)
+	assert.Equal(t, "arn:from-yaml", cfg.AlertsSNSTopicARN)
+
+	// Set env (even empty) wins, so the deploy workflow is authoritative.
+	t.Setenv("ALERTS_SNS_TOPIC_ARN", "arn:aws:sns:us-east-1:1:production-scheduler0-alerts")
+	t.Setenv("SCHEDULER0_ENV", "production")
+	applyOpsAlertsEnvOverrides(cfg)
+	assert.Equal(t, "production", cfg.Env)
+	assert.Equal(t, "arn:aws:sns:us-east-1:1:production-scheduler0-alerts", cfg.AlertsSNSTopicARN)
+
+	t.Setenv("ALERTS_SNS_TOPIC_ARN", "")
+	applyOpsAlertsEnvOverrides(cfg)
+	assert.Equal(t, "", cfg.AlertsSNSTopicARN)
 }

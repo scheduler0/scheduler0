@@ -3,21 +3,22 @@ package fsm
 import (
 	"database/sql"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/raft"
-	boltdb "github.com/hashicorp/raft-boltdb/v2"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"scheduler0/pkg/config"
-	"scheduler0/pkg/constants"
-	"scheduler0/pkg/db"
-	"scheduler0/pkg/shared_repo"
-	utils "scheduler0/pkg/utils"
+	"scheduler0-private/pkg/config"
+	"scheduler0-private/pkg/constants"
+	"scheduler0-private/pkg/db"
+	"scheduler0-private/pkg/shared_repo"
+	utils "scheduler0-private/pkg/utils"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/raft"
+	boltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
 type store struct {
@@ -37,7 +38,6 @@ type store struct {
 	raft.BatchingFSM
 }
 
-//go:generate mockery --name Scheduler0RaftStore --output ./ --inpackage
 type Scheduler0RaftStore interface {
 	GetFSM() raft.FSM
 	GetBatchingFSM() raft.BatchingFSM
@@ -53,6 +53,7 @@ type Scheduler0RaftStore interface {
 	RecoverRaftState()
 	GetRaftStats() map[string]string
 	RegisterObserver(or *raft.Observer)
+	UpdateStores(logDb *boltdb.BoltStore, storeDb *boltdb.BoltStore, fileSnapShot *raft.FileSnapshotStore, transportManager raft.Transport)
 }
 
 var _ raft.FSM = &store{}
@@ -68,6 +69,7 @@ func NewFSMStore(
 	tm raft.Transport,
 	sharedRepo shared_repo.SharedRepo,
 ) Scheduler0RaftStore {
+	logger.Info("initializing fsm store")
 	fsmStoreLogger := logger.Named("fsm-store")
 
 	return &store{
@@ -85,18 +87,24 @@ func NewFSMStore(
 }
 
 func (s *store) GetFSM() raft.FSM {
+	s.logger.Debug("getting fsm")
+
 	return s
 }
 
 func (s *store) GetBatchingFSM() raft.BatchingFSM {
+	s.logger.Debug("getting batching fsm")
 	return s
 }
 
 func (s *store) GetRaft() *raft.Raft {
+	s.logger.Debug("getting raft")
 	return s.raft
 }
 
 func (s *store) VerifyLeader() raft.Future {
+	s.logger.Debug("verifying leader")
+
 	return s.raft.VerifyLeader()
 }
 
@@ -105,6 +113,8 @@ func (s *store) LeaderWithID() (raft.ServerAddress, raft.ServerID) {
 }
 
 func (s *store) UpdateRaft(rft *raft.Raft) {
+	s.logger.Debug("updating raft")
+
 	s.raft = rft
 }
 
@@ -115,6 +125,8 @@ func (s *store) GetDataStore() db.DataStore {
 func (s *store) Apply(l *raft.Log) interface{} {
 	s.rwMtx.Lock()
 	defer s.rwMtx.Unlock()
+
+	s.logger.Debug("applying raft log")
 
 	return s.scheduler0RaftActions.ApplyRaftLog(
 		s.logger,
@@ -127,6 +139,8 @@ func (s *store) Apply(l *raft.Log) interface{} {
 func (s *store) ApplyBatch(logs []*raft.Log) []interface{} {
 	s.rwMtx.Lock()
 	defer s.rwMtx.Unlock()
+
+	s.logger.Debug("applying batch")
 
 	results := []interface{}{}
 
@@ -158,7 +172,8 @@ func (s *store) Restore(r io.ReadCloser) error {
 	if err != nil {
 		return fmt.Errorf("restore failed: %s", err.Error())
 	}
-	_, filePath := utils.GetSqliteDbDirAndDbFilePath()
+	configs := s.scheduler0Config.GetConfigurations()
+	_, filePath := utils.GetSqliteDbDirAndDbFilePathForNode(configs.NodeId)
 	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -186,14 +201,20 @@ func (s *store) Restore(r io.ReadCloser) error {
 }
 
 func (s *store) GetServersOnRaftCluster() []raft.Server {
+	s.logger.Debug("getting servers on raft cluster")
+
 	return s.raft.GetConfiguration().Configuration().Servers
 }
 
 func (s *store) GetLeaderChangeChannel() <-chan bool {
+	s.logger.Debug("getting leader change channel")
+
 	return s.raft.LeaderCh()
 }
 
 func (s *store) InitRaft() {
+	s.logger.Debug("initializing raft")
+
 	configs := s.scheduler0Config.GetConfigurations()
 
 	c := raft.DefaultConfig()
@@ -220,22 +241,28 @@ func (s *store) InitRaft() {
 		c.SnapshotThreshold = configs.RaftSnapshotThreshold
 	}
 
+	s.logger.Info("initializing raft object")
+
 	r, err := raft.NewRaft(c, s, s.logDb, s.storeDb, s.fileSnapShot, s.transportManager)
 	if err != nil {
-		s.logger.Error("failed to create raft object", err)
+		s.logger.Error("failed to create raft object", "error", err)
 	}
 	s.raft = r
 }
 
 func (s *store) BootstrapRaftClusterWithConfig(raftServerConfiguration raft.Configuration) {
+	s.logger.Debug("bootstrapping raft cluster with configuration")
+
 	f := s.raft.BootstrapCluster(raftServerConfiguration)
 	if err := f.Error(); err != nil {
-		s.logger.Error("failed to bootstrap raft cluster with configuration", err)
+		s.logger.Error("failed to bootstrap raft cluster with configuration", "error", err, "raftServerConfiguration", raftServerConfiguration)
 	}
 }
 
 func (s *store) RecoverRaftState() {
 	logger := log.New(os.Stderr, "[recover-raft-state] ", log.LstdFlags)
+
+	logger.Println("recovering raft state")
 
 	var (
 		snapshotIndex  uint64
@@ -263,10 +290,6 @@ func (s *store) RecoverRaftState() {
 		err := source.Close()
 		if err != nil {
 			logger.Fatalln("failed to close file snapshot io reader", err)
-			return
-		}
-		if err != nil {
-			// Same here, skip and try the next one.
 			continue
 		}
 
@@ -278,12 +301,8 @@ func (s *store) RecoverRaftState() {
 		logger.Println("failed to restore any of the available snapshots")
 	}
 
-	dir, err := os.Getwd()
-	if err != nil {
-		logger.Fatalln(fmt.Errorf("fatal error getting working dir: %s \n", err))
-	}
-
-	mainDbPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.SqliteDbFileName)
+	configs := s.scheduler0Config.GetConfigurations()
+	_, mainDbPath := utils.GetSqliteDbDirAndDbFilePathForNode(configs.NodeId)
 	dataStore := db.NewSqliteDbConnection(s.logger, mainDbPath)
 	dataStore.OpenConnectionToExistingDB()
 
@@ -297,7 +316,12 @@ func (s *store) RecoverRaftState() {
 		s.logger.Warn("failed to get uncommitted tasks", "error", getErr)
 	}
 
-	recoverDbPath := fmt.Sprintf("%s/%s/%s", dir, constants.SqliteDir, constants.RecoveryDbFileName)
+	dir, err := os.Getwd()
+	if err != nil {
+		logger.Fatalln(fmt.Errorf("fatal error getting working dir: %s \n", err))
+	}
+
+	recoverDbPath := fmt.Sprintf("%s/%s/%d/%s", dir, constants.SqliteDir, configs.NodeId, constants.RecoveryDbFileName)
 
 	fileCreationErr := os.WriteFile(recoverDbPath, lastSnapshotBytes, os.ModePerm)
 	if fileCreationErr != nil {
@@ -309,11 +333,7 @@ func (s *store) RecoverRaftState() {
 	dbConnection := conn.(*sql.DB)
 	defer dbConnection.Close()
 
-	migrations := db.GetSetupSQL()
-	_, err = dbConnection.Exec(migrations)
-	if err != nil {
-		logger.Fatalln(fmt.Errorf("fatal db file migrations error: %s \n", err))
-	}
+	dataStore.RunMigration(s.logger)
 
 	// The snapshot information is the best known end point for the data
 	// until we play back the raft log entries.
@@ -325,21 +345,33 @@ func (s *store) RecoverRaftState() {
 	if err != nil {
 		logger.Fatalf("failed to find last log: %v", err)
 	}
+
+	firstLogIndex, err := s.logDb.FirstIndex()
+	if err != nil {
+		logger.Fatalf("failed to find first log: %v", err)
+	}
+
+	s.logger.Info("firstLogIndex", "value", firstLogIndex)
+	s.logger.Info("lastLogIndex", "value", lastLogIndex)
+	s.logger.Info("snapshotIndex", "value", snapshotIndex)
+
 	for index := snapshotIndex + 1; index <= lastLogIndex; index++ {
 		var entry raft.Log
 		if err = s.logDb.GetLog(index, &entry); err != nil {
-			logger.Fatalf("failed to get log at index %d: %v\n", index, err)
+			logger.Printf("failed to get log at index %d: %v\n", index, err)
+		} else {
+			s.scheduler0RaftActions.ApplyRaftLog(
+				s.logger,
+				&entry,
+				dataStore,
+				true,
+			)
 		}
-		s.scheduler0RaftActions.ApplyRaftLog(
-			s.logger,
-			&entry,
-			dataStore,
-			true,
-		)
 		lastIndex = entry.Index
 		lastTerm = entry.Term
 	}
 
+	s.logger.Debug("inserting execution logs")
 	if len(executionLogs) > 0 {
 		err = s.sharedRepo.InsertExecutionLogs(dataStore, false, executionLogs)
 		if err != nil {
@@ -347,6 +379,7 @@ func (s *store) RecoverRaftState() {
 		}
 	}
 
+	s.logger.Debug("inserting uncommitted tasks")
 	if len(uncommittedTasks) > 0 {
 		err = s.sharedRepo.InsertAsyncTasksLogs(dataStore, false, uncommittedTasks)
 		if err != nil {
@@ -354,13 +387,19 @@ func (s *store) RecoverRaftState() {
 		}
 	}
 
+	s.logger.Debug("creating snapshot")
 	lastConfiguration := s.getRaftConfiguration()
 
+	s.logger.Debug("persisting snapshot")
 	snapshot := NewFSMSnapshot(dataStore)
+
+	s.logger.Debug("creating snapshot sink")
 	sink, err := s.fileSnapShot.Create(1, lastIndex, lastTerm, lastConfiguration, 1, s.transportManager)
 	if err != nil {
 		logger.Fatalf("failed to create snapshot: %v", err)
 	}
+
+	s.logger.Debug("persisting snapshot")
 	if err = snapshot.Persist(sink); err != nil {
 		logger.Fatalf("failed to persist snapshot: %v", err)
 	}
@@ -368,18 +407,32 @@ func (s *store) RecoverRaftState() {
 		logger.Fatalf("failed to finalize snapshot: %v", err)
 	}
 
-	firstLogIndex, err := s.logDb.FirstIndex()
-	if err != nil {
-		logger.Fatalf("failed to get first log index: %v", err)
-	}
+	s.logger.Debug("deleting logs")
 	if err := s.logDb.DeleteRange(firstLogIndex, lastLogIndex); err != nil {
 		logger.Fatalf("log compaction failed: %v", err)
 	}
 
+	s.logger.Debug("deleting recovery db")
 	err = os.Remove(recoverDbPath)
 	if err != nil {
 		logger.Fatalf("failed to delete recovery db: %v", err)
 	}
+
+	s.logDb.Close()
+	s.storeDb.Close()
+
+	s.logger.Debug("re-initializing raft logs and transport")
+	ldb, stb, fss, _, _ := utils.ConnectRaftLogsAndTransport(nil, s.scheduler0Config)
+
+	s.logDb = ldb
+	s.storeDb = stb
+	s.fileSnapShot = fss
+	s.logger.Debug("shutting down raft")
+	s.raft.Shutdown()
+
+	s.logger.Debug("re-initialized raft")
+
+	s.InitRaft()
 }
 
 func (s *store) GetRaftStats() map[string]string {
@@ -387,32 +440,23 @@ func (s *store) GetRaftStats() map[string]string {
 }
 
 func (s *store) RegisterObserver(or *raft.Observer) {
+	s.logger.Debug("registering observer")
+
 	s.raft.RegisterObserver(or)
 }
 
+func (s *store) UpdateStores(logDb *boltdb.BoltStore, storeDb *boltdb.BoltStore, fileSnapShot *raft.FileSnapshotStore, transportManager raft.Transport) {
+	s.logger.Debug("updating stores")
+	s.logDb = logDb
+	s.storeDb = storeDb
+	s.fileSnapShot = fileSnapShot
+	s.transportManager = transportManager
+}
+
 func (s *store) getRaftConfiguration() raft.Configuration {
-	configs := s.scheduler0Config.GetConfigurations()
-	servers := []raft.Server{
-		{
-			ID:       raft.ServerID(strconv.FormatUint(configs.NodeId, 10)),
-			Suffrage: raft.Voter,
-			Address:  raft.ServerAddress(configs.RaftAddress),
-		},
+	// Use the current raft configuration as the source of truth.
+	if s.raft == nil {
+		return raft.Configuration{}
 	}
-
-	for _, replica := range configs.Replicas {
-		if replica.Address != utils.GetServerHTTPAddress() {
-			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(strconv.FormatUint(replica.NodeId, 10)),
-				Suffrage: raft.Voter,
-				Address:  raft.ServerAddress(replica.RaftAddress),
-			})
-		}
-	}
-
-	cfg := raft.Configuration{
-		Servers: servers,
-	}
-
-	return cfg
+	return s.raft.GetConfiguration().Configuration()
 }

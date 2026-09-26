@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package protobuffs;
+
+message AccountExhaustionPayload {
+    string auth_username = 1;
+    string auth_password = 2;
+    uint64 account_id = 3;
+}
+

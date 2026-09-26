@@ -4,14 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
-	_ "github.com/scheduler0/scheduler0-sqlite"
-	"github.com/spf13/afero"
 	"io"
 	"log"
 	"os"
-	"scheduler0/pkg/utils"
+	"path/filepath"
+	"scheduler0-private/pkg/db/migrations"
+	"scheduler0-private/pkg/models"
+	"scheduler0-private/pkg/utils"
+	"slices"
 	"sync"
+	"time"
+
+	"github.com/hashicorp/go-hclog"
+	sqlite3 "github.com/mattn/go-sqlite3"
+	"github.com/spf13/afero"
 )
 
 type dataStore struct {
@@ -25,7 +31,6 @@ type dataStore struct {
 	logger hclog.Logger
 }
 
-//go:generate mockery --name DataStore --output ../mocks
 type DataStore interface {
 	OpenConnectionToExistingDB() io.Closer
 	Serialize() []byte
@@ -36,7 +41,9 @@ type DataStore interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	GetOpenConnection() *sql.DB
 	UpdateOpenConnection(conn *sql.DB)
-	RunMigration()
+	RunMigration(logger hclog.Logger)
+	Backup(ctx context.Context) (string, error)
+	Restore(ctx context.Context, filePath string) error
 }
 
 func NewSqliteDbConnection(logger hclog.Logger, dbFilePath string) DataStore {
@@ -47,7 +54,6 @@ func NewSqliteDbConnection(logger hclog.Logger, dbFilePath string) DataStore {
 	}
 }
 
-// OpenConnectionToExistingDB opens a database connection with one pool
 func (db *dataStore) OpenConnectionToExistingDB() io.Closer {
 	db.fileLock.Lock()
 	defer db.fileLock.Unlock()
@@ -110,45 +116,6 @@ func (db *dataStore) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx,
 	return db.connection.BeginTx(ctx, opts)
 }
 
-func (db *dataStore) RunMigration() {
-	if !db.isInMemDb {
-		fs := afero.NewOsFs()
-
-		err := fs.Remove(db.dbFilePath)
-		if err != nil && !os.IsNotExist(err) {
-			log.Fatalln(fmt.Errorf("Fatal failed to remove db file path error: %s \n", err))
-		}
-		_, err = fs.Create(db.dbFilePath)
-		if err != nil {
-			log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
-		}
-
-		datastore := NewSqliteDbConnection(db.logger, db.dbFilePath)
-		db.connection = datastore.OpenConnectionToExistingDB().(*sql.DB)
-	}
-
-	dbConnection := db.connection
-
-	trx, dbConnErr := dbConnection.Begin()
-	if dbConnErr != nil {
-		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", dbConnErr))
-	}
-
-	_, execErr := trx.Exec(GetSetupSQL())
-	if execErr != nil {
-		errRollback := trx.Rollback()
-		if errRollback != nil {
-			log.Fatalln(fmt.Errorf("Fatal rollback error: %s \n", execErr))
-		}
-		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", execErr))
-	}
-
-	errCommit := trx.Commit()
-	if errCommit != nil {
-		log.Fatalln(fmt.Errorf("Fatal commit error: %s \n", errCommit))
-	}
-}
-
 func CreateConnectionFromNewDbIfNonExists(logger hclog.Logger) DataStore {
 	dirPath, filePath := utils.GetSqliteDbDirAndDbFilePath()
 	fs := afero.NewOsFs()
@@ -158,7 +125,43 @@ func CreateConnectionFromNewDbIfNonExists(logger hclog.Logger) DataStore {
 	}
 
 	if !exists {
-		RunMigration(logger)
+		if mkErr := fs.MkdirAll(dirPath, os.ModePerm); mkErr != nil {
+			log.Fatalln(fmt.Errorf("fatal error creating sqlite dir: %s", mkErr))
+		}
+	}
+
+	if !exists {
+		RunMigrations(logger, filePath)
+	}
+
+	sqliteDb := NewSqliteDbConnection(logger, filePath)
+	conn := sqliteDb.OpenConnectionToExistingDB()
+
+	dbConnection := conn.(*sql.DB)
+	err = dbConnection.Ping()
+	if err != nil {
+		logger.Error("ping error: failed to create file db: %v", err)
+	}
+
+	return sqliteDb
+}
+
+func CreateConnectionFromNewDbIfNonExistsForNode(logger hclog.Logger, nodeId uint64) DataStore {
+	dirPath, filePath := utils.GetSqliteDbDirAndDbFilePathForNode(nodeId)
+	fs := afero.NewOsFs()
+	exists, err := afero.DirExists(fs, dirPath)
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error checking dir exist: %s \n", err))
+	}
+
+	if !exists {
+		if mkErr := fs.MkdirAll(dirPath, os.ModePerm); mkErr != nil {
+			log.Fatalln(fmt.Errorf("fatal error creating sqlite dir: %s", mkErr))
+		}
+	}
+
+	if !exists {
+		RunMigrations(logger, filePath)
 	}
 
 	sqliteDb := NewSqliteDbConnection(logger, filePath)
@@ -184,162 +187,310 @@ func GetDBMEMConnection(logger hclog.Logger) DataStore {
 	}
 }
 
-func GetSetupSQL() string {
-	return `
-CREATE TABLE IF NOT EXISTS credentials
-(
-    id                               INTEGER PRIMARY KEY AUTOINCREMENT,
-    archived                         boolean   NOT NULL,
-    api_key                          TEXT,
-    api_secret                       TEXT,
-    date_created                     datetime NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS projects
-(
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    name         TEXT      NOT NULL UNIQUE,
-    description  TEXT      NOT NULL,
-    date_created datetime NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS jobs
-(
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id     INTEGER   NOT NULL,
-    spec           TEXT      NOT NULL,
-    data           TEXT,
-    callback_url   TEXT      NOT NULL,
-    execution_type TEXT      NOT NULL DEFAULT "http",
-    date_created   datetime NOT NULL,
-	timezone 	   TEXT NOT NULL,
-	timezone_offset INTEGER NOT NULL,
-    FOREIGN KEY (project_id)
-        REFERENCES projects (id)
-        ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS job_executions_committed
-(
-	id						INTEGER PRIMARY KEY AUTOINCREMENT,
-	unique_id 				TEXT,
-	state					INTEGER NOT NULL,
-	node_id					INTEGER NOT NULL,
-	last_execution_time   	datetime NOT NULL,
-	next_execution_time   	datetime NOT NULL,
-	job_id					INTEGER NOT NULL,
-    date_created   			datetime NOT NULL,
-	job_queue_version 		INTEGER NOT NULL,
-	execution_version 		INTEGER NOT NULL,
-    FOREIGN KEY (job_id)
-        REFERENCES jobs (id)
-        ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS job_executions_uncommitted
-(
-	id						INTEGER PRIMARY KEY AUTOINCREMENT,
-	unique_id 				TEXT,
-	state					INTEGER NOT NULL,
-	node_id					INTEGER NOT NULL,
-	last_execution_time   	datetime NOT NULL,
-	next_execution_time   	datetime NOT NULL,
-	job_id					INTEGER NOT NULL,
-    date_created   			datetime NOT NULL,
-	job_queue_version 		INTEGER NOT NULL,
-	execution_version 		INTEGER NOT NULL,
-    FOREIGN KEY (job_id)
-        REFERENCES jobs (id)
-        ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS job_queues
-(
-	id						INTEGER PRIMARY KEY AUTOINCREMENT,
-	node_id					INTEGER NOT NULL,
-	lower_bound_job_id		INTEGER NOT NULL,
-	upper_bound_job_id		INTEGER NOT NULL,
-	version 				INTEGER NOT NULL,
-    date_created  		 	datetime NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS job_queue_versions
-(
-	id						INTEGER PRIMARY KEY AUTOINCREMENT,
-	version 				INTEGER NOT NULL,
-	number_of_active_nodes  INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS async_tasks_committed
-(
-	id						INTEGER PRIMARY KEY AUTOINCREMENT,
-	request_id 				TEXT NOT NULL,
-	input  					TEXT NOT NULL,
-	output  				TEXT,
-	state					INTEGER NOT NULL,
-	service					TEXT NOT NULL,
-    date_created  		 	datetime NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS async_tasks_uncommitted
-(
-	id						INTEGER PRIMARY KEY AUTOINCREMENT,
-	request_id 				TEXT NOT NULL,
-	input  					TEXT NOT NULL,
-	output  				TEXT,
-	state					INTEGER NOT NULL,
-	service					TEXT NOT NULL,
-    date_created  		 	datetime NOT NULL
-);
-`
+func (db *dataStore) RunMigration(logger hclog.Logger) {
+	RunMigrations(logger, db.dbFilePath)
 }
 
-func RunMigration(cmdLogger hclog.Logger) {
-	dbDirPath, dbFilePath := utils.GetSqliteDbDirAndDbFilePath()
-	fs := afero.NewOsFs()
-
-	err := fs.Remove(dbFilePath)
-	if err != nil && !os.IsNotExist(err) {
-		log.Fatalln(fmt.Errorf("Fatal failed to remove db file path error: %s \n", err))
+func (db *dataStore) Backup(ctx context.Context) (string, error) {
+	if db.isInMemDb {
+		return "", fmt.Errorf("cannot backup in-memory database")
 	}
 
-	exists, err := afero.DirExists(fs, dbDirPath)
+	db.connectionLock.Lock()
+	defer db.connectionLock.Unlock()
+
+	if db.connection == nil {
+		return "", fmt.Errorf("no active database connection")
+	}
+
+	backupPath := generateBackupPath(db.dbFilePath)
+
+	db.logger.Info("performing backup", "path", backupPath)
+	if err := db.backupToDestination(ctx, backupPath); err != nil {
+		os.Remove(backupPath)
+		db.logger.Error("backup failed", "error", err)
+		return "", err
+	}
+
+	db.logger.Info("database backup completed", "path", backupPath)
+	return backupPath, nil
+}
+
+func (db *dataStore) backupToDestination(ctx context.Context, destPath string) error {
+	destDB, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", destPath))
 	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal failed to check id sqlite dir exist: %s \n", err))
+		db.logger.Error("failed to open destination database", "error", err)
+		return fmt.Errorf("failed to open destination database: %w", err)
 	}
-	if !exists {
-		err = fs.Mkdir(dbDirPath, os.ModePerm)
+	defer destDB.Close()
+
+	if err := backupDatabase(ctx, db.logger, db.connection, destDB); err != nil {
+		db.logger.Error("backup operation failed", "error", err)
+		return fmt.Errorf("backup operation failed: %w", err)
+	}
+
+	return nil
+}
+
+func (db *dataStore) Restore(ctx context.Context, filePath string) error {
+	if db.isInMemDb {
+		return fmt.Errorf("cannot restore in-memory database")
+	}
+
+	db.connectionLock.Lock()
+	defer db.connectionLock.Unlock()
+
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("backup file does not exist: %s", filePath)
+	}
+
+	if db.connection != nil {
+		if err := db.connection.Close(); err != nil {
+			db.logger.Warn("error closing connection before restore", "error", err)
+		}
+		db.connection = nil
+	}
+
+	currentBackupPath := db.dbFilePath + ".pre-restore-backup"
+	if _, err := os.Stat(db.dbFilePath); err == nil {
+		srcFile, err := os.Open(db.dbFilePath)
 		if err != nil {
-			log.Fatalln(fmt.Errorf("Fatal failed to create sqlite dir: %s \n", err))
+			return fmt.Errorf("failed to open current database for backup: %w", err)
+		}
+		defer srcFile.Close()
+
+		dstFile, err := os.Create(currentBackupPath)
+		if err != nil {
+			return fmt.Errorf("failed to create pre-restore backup: %w", err)
+		}
+		defer dstFile.Close()
+
+		if _, err := io.Copy(dstFile, srcFile); err != nil {
+			return fmt.Errorf("failed to copy current database to backup: %w", err)
+		}
+		db.logger.Info("created pre-restore backup", "path", currentBackupPath)
+	}
+
+	backupDB, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1&mode=ro", filePath))
+	if err != nil {
+		return fmt.Errorf("failed to open backup database: %w", err)
+	}
+	defer backupDB.Close()
+
+	destDB, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", db.dbFilePath))
+	if err != nil {
+		return fmt.Errorf("failed to open destination database: %w", err)
+	}
+	defer destDB.Close()
+
+	if _, err := destDB.Exec("PRAGMA writable_schema=ON; DELETE FROM sqlite_master WHERE type IN ('table', 'index', 'trigger', 'view'); PRAGMA writable_schema=OFF;"); err != nil {
+		rows, err := destDB.Query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+		if err == nil {
+			var tables []string
+			for rows.Next() {
+				var name string
+				rows.Scan(&name)
+				tables = append(tables, name)
+			}
+			rows.Close()
+			for _, table := range tables {
+				destDB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", table))
+			}
 		}
 	}
 
-	_, err = fs.Create(dbFilePath)
-	if err != nil {
-		log.Fatalln(fmt.Errorf("Fatal db file creation error: %s \n", err))
+	if err := backupDatabase(ctx, db.logger, backupDB, destDB); err != nil {
+		db.logger.Error("restore failed, you can recover from pre-restore backup", "backup", currentBackupPath)
+		return fmt.Errorf("restore operation failed: %w", err)
 	}
 
-	datastore := NewSqliteDbConnection(cmdLogger, dbFilePath)
+	if err := destDB.Close(); err != nil {
+		db.logger.Warn("error closing destination after restore", "error", err)
+	}
+
+	connection, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=1", db.dbFilePath))
+	if err != nil {
+		return fmt.Errorf("failed to re-open database after restore: %w", err)
+	}
+
+	db.connection = connection
+
+	if err := db.connection.Ping(); err != nil {
+		return fmt.Errorf("failed to ping database after restore: %w", err)
+	}
+
+	os.Remove(currentBackupPath)
+
+	db.logger.Info("database restore completed", "from", filePath)
+	return nil
+}
+
+var Migrations = []models.Migration{
+	migrations.MainTables(),
+	migrations.AICreditTables(),
+	migrations.SeedAccountFeatures(),
+	migrations.SeedSystemAccount(),
+}
+
+func RunMigrations(logger hclog.Logger, dbFilePath string) {
+	datastore := NewSqliteDbConnection(logger, dbFilePath)
 	conn := datastore.OpenConnectionToExistingDB()
 
 	dbConnection := conn.(*sql.DB)
-
-	trx, dbConnErr := dbConnection.Begin()
-	if dbConnErr != nil {
-		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", dbConnErr))
+	log.Println("Creating migrations table")
+	_, err := dbConnection.Exec("CREATE TABLE IF NOT EXISTS migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)")
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal failed to create migrations table: %s", err))
 	}
 
-	_, execErr := trx.Exec(GetSetupSQL())
-	if execErr != nil {
-		errRollback := trx.Rollback()
-		if errRollback != nil {
-			log.Fatalln(fmt.Errorf("Fatal rollback error: %s \n", execErr))
+	log.Println("Querying migrations")
+	rows, err := dbConnection.Query("SELECT name FROM migrations ORDER BY id")
+	if err != nil {
+		log.Fatalln(fmt.Errorf("Fatal failed to query migrations: %s", err))
+	}
+
+	var migrations []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			log.Fatalln(fmt.Errorf("Fatal failed to scan migration name: %s", err))
 		}
-		log.Fatalln(fmt.Errorf("Fatal open db transaction error: %s \n", execErr))
+		migrations = append(migrations, name)
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Fatalln(fmt.Errorf("Fatal error iterating migrations: %s", err))
+	}
+
+	rows.Close()
+
+	log.Println("Migrations: ", migrations)
+	log.Println("Starting transaction")
+
+	trx, dbConnErr := dbConnection.BeginTx(context.Background(), nil)
+	if dbConnErr != nil {
+		log.Println("open db transaction")
+		log.Fatalln(fmt.Errorf("Fatl open db transaction error: %s", dbConnErr))
+	}
+
+	for _, migration := range Migrations {
+		if slices.Contains(migrations, migration.Name) {
+			log.Println("Migration already exists: ", migration.Name)
+			continue
+		}
+		log.Println("Running migration: ", migration.Name)
+		execErr := migration.Up(trx)
+		log.Println("Inserting migration record: ", migration.Name)
+		_, err := trx.Exec("INSERT INTO migrations (name) VALUES (?)", migration.Name)
+		if err != nil {
+			errRollback := trx.Rollback()
+			if errRollback != nil {
+				log.Fatalln(fmt.Errorf("Fatal rollback error: %s", err))
+			}
+			log.Fatalln(fmt.Errorf("Fatal failed to insert migration record: %s", err))
+		}
+		if execErr != nil {
+			errRollback := trx.Rollback()
+			if errRollback != nil {
+				log.Fatalln(fmt.Errorf("Fatal rollback error: %s", execErr))
+			}
+			log.Fatalln(fmt.Errorf("Fatal closing db transaction error: %s", execErr))
+		}
 	}
 
 	errCommit := trx.Commit()
 	if errCommit != nil {
-		log.Fatalln(fmt.Errorf("Fatal commit error: %s \n", errCommit))
+		log.Fatalln(fmt.Errorf("Fatal commit error: %s", errCommit))
 	}
+}
+
+func generateBackupPath(dbFilePath string) string {
+	timestamp := time.Now().Format("20060102-150405")
+	dir := filepath.Dir(dbFilePath)
+	baseName := filepath.Base(dbFilePath)
+	ext := filepath.Ext(baseName)
+	nameWithoutExt := baseName[:len(baseName)-len(ext)]
+
+	backupDir := filepath.Join(dir, "backups")
+	os.MkdirAll(backupDir, 0755)
+
+	return filepath.Join(backupDir, fmt.Sprintf("%s-%s%s", nameWithoutExt, timestamp, ext))
+}
+
+func backupDatabase(
+	ctx context.Context,
+	logger hclog.Logger,
+	srcDB, destDB *sql.DB,
+) error {
+	srcConn, err := srcDB.Conn(ctx)
+	if err != nil {
+		logger.Error("failed to get source connection", "error", err)
+		return fmt.Errorf("get source connection: %w", err)
+	}
+	defer srcConn.Close()
+
+	destConn, err := destDB.Conn(ctx)
+	if err != nil {
+		logger.Error("failed to get destination connection", "error", err)
+		return fmt.Errorf("get destination connection: %w", err)
+	}
+	defer destConn.Close()
+
+	return destConn.Raw(func(destDriverConn any) error {
+		destSQLite, ok := destDriverConn.(*sqlite3.SQLiteConn)
+		if !ok {
+			logger.Error("destination driver conn is %T, expected *sqlite3.SQLiteConn", destDriverConn)
+			return fmt.Errorf("destination driver conn is %T, expected *sqlite3.SQLiteConn", destDriverConn)
+		}
+
+		return srcConn.Raw(func(srcDriverConn any) error {
+			srcSQLite, ok := srcDriverConn.(*sqlite3.SQLiteConn)
+			if !ok {
+				logger.Error("source driver conn is %T, expected *sqlite3.SQLiteConn", srcDriverConn)
+				return fmt.Errorf("source driver conn is %T, expected *sqlite3.SQLiteConn", srcDriverConn)
+			}
+
+			bk, err := destSQLite.Backup("main", srcSQLite, "main")
+			if err != nil {
+				logger.Error("backup init: %w", err)
+				return fmt.Errorf("backup init: %w", err)
+			}
+			defer func() {
+				_ = bk.Finish()
+			}()
+
+			_, err = bk.Step(0)
+			if err != nil {
+				logger.Error("backup step(0): %w", err)
+				return fmt.Errorf("backup step(0): %w", err)
+			}
+
+			total := bk.PageCount()
+			for {
+				done, err := bk.Step(64)
+				if err != nil {
+					logger.Error("backup step: %w", err)
+					return fmt.Errorf("backup step: %w", err)
+				}
+
+				if done {
+					break
+				}
+
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
+			}
+
+			if err := bk.Finish(); err != nil {
+				logger.Error("backup finish: %w", err)
+				return fmt.Errorf("backup finish: %w", err)
+			}
+
+			logger.Info("sqlite backup completed", "pages", total)
+			return nil
+		})
+	})
 }

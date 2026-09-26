@@ -1,13 +1,18 @@
 package network
 
 import (
+	"crypto/tls"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
 	"sync"
 	"time"
+
+	"scheduler0-private/pkg/network/stls"
 )
 
 const (
@@ -15,64 +20,26 @@ const (
 	DefaultTimeout = 30 * time.Second
 )
 
-type Mux struct {
-	ln   net.Listener
-	m    map[byte]*listener
-	addr net.Addr
+// stats captures stats for the mux system.
+var stats *expvar.Map
 
-	logger *log.Logger
-	wg     sync.WaitGroup
-}
+const (
+	numConnectionsHandled   = "num_connections_handled"
+	numUnregisteredHandlers = "num_unregistered_handlers"
+)
 
-func NewMux(ln net.Listener, adv net.Addr) *Mux {
-	addr := adv
-	if addr == nil {
-		addr = ln.Addr()
-	}
-
-	return &Mux{
-		ln:   ln,
-		addr: addr,
-		m:    make(map[byte]*listener),
-	}
-}
-
-// Serve handles connections from ln and multiplexes then across registered listener.
-func (mux *Mux) Serve() error {
-	for {
-		// Wait for the next connection.
-		// If it returns a temporary error then simply retry.
-		// If it returns any other error then exit immediately.
-		conn, err := mux.ln.Accept()
-		if err, ok := err.(interface {
-			Temporary() bool
-		}); ok && err.Temporary() {
-			continue
-		}
-		if err != nil {
-			// Wait for all connections to be demuxed
-			mux.wg.Wait()
-			mux.logger.Println("closing connection due to error", err.Error())
-
-			for _, ln := range mux.m {
-				close(ln.c)
-			}
-			return err
-		}
-
-		// Demux in a goroutine to
-		mux.wg.Add(1)
-		go mux.handleConn(conn)
-	}
+func init() {
+	stats = expvar.NewMap("mux")
+	stats.Add(numConnectionsHandled, 0)
+	stats.Add(numUnregisteredHandlers, 0)
 }
 
 // Layer represents the connection between nodes. It can be both used to
-// make connections to other nodes, and receive connections from other
-// nodes.
+// make connections to other nodes (client), and receive connections from other
+// nodes (server)
 type Layer struct {
-	ln   net.Listener
-	addr net.Addr
-
+	ln     net.Listener
+	addr   net.Addr
 	dialer *Dialer
 }
 
@@ -92,6 +59,143 @@ func (l *Layer) Addr() net.Addr {
 	return l.addr
 }
 
+// Mux multiplexes a network connection.
+type Mux struct {
+	ln   net.Listener
+	addr net.Addr
+	m    map[byte]*listener
+
+	wg sync.WaitGroup
+
+	// The amount of time to wait for the first header byte.
+	Timeout time.Duration
+
+	// Out-of-band error logger
+	Logger *log.Logger
+
+	tlsConfig *tls.Config
+}
+
+// NewMux returns a new instance of Mux for ln. If adv is nil,
+// then the addr of ln is used.
+func NewMux(ln net.Listener, adv net.Addr) (*Mux, error) {
+	addr := adv
+	if addr == nil {
+		addr = ln.Addr()
+	}
+
+	return &Mux{
+		ln:      ln,
+		addr:    addr,
+		m:       make(map[byte]*listener),
+		Timeout: DefaultTimeout,
+		Logger:  log.New(os.Stderr, "[mux] ", log.LstdFlags),
+	}, nil
+}
+
+// NewTLSMux returns a new instance of Mux for ln, and encrypts all traffic
+// using TLS. If adv is nil, then the addr of ln is used. If insecure is true,
+// then the server will not verify the client's certificate. If mutual is true,
+// then the server will require the client to present a trusted certificate.
+func NewTLSMux(ln net.Listener, adv net.Addr, cert, key, caCert string, insecure, mutual bool) (*Mux, error) {
+	mux, err := NewMux(ln, adv)
+	if err != nil {
+		return nil, err
+	}
+
+	mux.tlsConfig, err = stls.CreateConfig(cert, key, caCert, insecure, mutual, false)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create TLS config: %s", err)
+	}
+
+	mux.ln = tls.NewListener(ln, mux.tlsConfig)
+
+	return mux, nil
+}
+
+// Serve handles connections from ln and multiplexes then across registered listener.
+func (mux *Mux) Serve() error {
+	tlsStr := ""
+	if mux.tlsConfig != nil {
+		tlsStr = "TLS "
+	}
+	mux.Logger.Printf("%smux serving on %s, advertising %s", tlsStr, mux.ln.Addr().String(), mux.addr)
+
+	for {
+		// Wait for the next connection.
+		// If it returns a temporary error then simply retry.
+		// If it returns any other error then exit immediately.
+		conn, err := mux.ln.Accept()
+		if err, ok := err.(interface {
+			Temporary() bool
+		}); ok && err.Temporary() {
+			continue
+		}
+		if err != nil {
+			// Wait for all connections to be demuxed
+			mux.wg.Wait()
+			for _, ln := range mux.m {
+				close(ln.c)
+			}
+			return err
+		}
+
+		// Demux in a goroutine to
+		mux.wg.Add(1)
+		go mux.handleConn(conn)
+	}
+}
+
+// Stats returns status of the mux.
+func (mux *Mux) Stats() (interface{}, error) {
+	s := map[string]string{
+		"addr":    mux.addr.String(),
+		"timeout": mux.Timeout.String(),
+	}
+
+	return s, nil
+}
+
+func (mux *Mux) handleConn(conn net.Conn) {
+	stats.Add(numConnectionsHandled, 1)
+
+	defer mux.wg.Done()
+	// Set a read deadline so connections with no data don't timeout.
+	if err := conn.SetReadDeadline(time.Now().Add(mux.Timeout)); err != nil {
+		conn.Close()
+		mux.Logger.Printf("cannot set read deadline: %s", err)
+		return
+	}
+
+	// Read first byte from connection to determine handler.
+	var typ [1]byte
+	if _, err := io.ReadFull(conn, typ[:]); err != nil {
+		conn.Close()
+		mux.Logger.Printf("cannot read header byte: %s", err)
+		return
+	}
+
+	// Reset read deadline and let the listener handle that.
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		conn.Close()
+		mux.Logger.Printf("cannot reset set read deadline: %s", err)
+		return
+	}
+
+	// Retrieve handler based on first byte.
+	handler := mux.m[typ[0]]
+	if handler == nil {
+		conn.Close()
+		stats.Add(numUnregisteredHandlers, 1)
+		mux.Logger.Printf("handler not registered for request from %s: %d (unsupported protocol?)",
+			conn.RemoteAddr().String(), typ[0])
+		return
+	}
+
+	// Send connection to handler.  The handler is responsible for closing the connection.
+	handler.c <- conn
+}
+
 // Listen returns a Layer associated with the given header. Any connection
 // accepted by mux is multiplexed based on the initial header byte.
 func (mux *Mux) Listen(header byte) *Layer {
@@ -102,8 +206,7 @@ func (mux *Mux) Listen(header byte) *Layer {
 
 	// Create a new listener and assign it.
 	ln := &listener{
-		c:      make(chan net.Conn),
-		logger: mux.logger,
+		c: make(chan net.Conn),
 	}
 	mux.m[header] = ln
 
@@ -111,52 +214,14 @@ func (mux *Mux) Listen(header byte) *Layer {
 		ln:   ln,
 		addr: mux.addr,
 	}
-	layer.dialer = NewDialer(header)
+	layer.dialer = NewDialer(header, mux.tlsConfig)
 
 	return layer
 }
 
-func (mux *Mux) handleConn(conn net.Conn) {
-
-	defer mux.wg.Done()
-	// Set a read deadline so connections with no data don't timeout.
-	if err := conn.SetReadDeadline(time.Now().Add(DefaultTimeout)); err != nil {
-		log.Println("closing connection due to error", err.Error())
-		conn.Close()
-		return
-	}
-
-	// Read first byte from connection to determine handler.
-	var typ [1]byte
-	if _, err := io.ReadFull(conn, typ[:]); err != nil {
-		log.Println("closing connection due to error", err.Error())
-		conn.Close()
-		return
-	}
-
-	// Reset read deadline and let the listener handle that.
-	if err := conn.SetReadDeadline(time.Time{}); err != nil {
-		log.Println("closing connection due to error", err.Error())
-		conn.Close()
-		return
-	}
-
-	// Retrieve handler based on first byte.
-	handler := mux.m[typ[0]]
-	if handler == nil {
-		log.Println("closing connection due to error because no handler for ", conn.RemoteAddr().String())
-		conn.Close()
-		return
-	}
-
-	// Send connection to handler.  The handler is responsible for closing the connection.
-	handler.c <- conn
-}
-
 // listener is a receiver for connections received by Mux.
 type listener struct {
-	c      chan net.Conn
-	logger *log.Logger
+	c chan net.Conn
 }
 
 // Accept waits for and returns the next connection to the listener.

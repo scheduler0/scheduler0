@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package async_task;
+
+import "google/protobuf/timestamp.proto";
+
+enum AsyncTaskState {
+  UNKNOWN = 0;
+  PENDING = 1;
+  RUNNING = 2;
+  FINISHED = 3;
+  ERROR = 4;
+}
+
+message AsyncTask {
+  uint64 id = 1;
+  string request_id = 2;
+  string input = 3;
+  string output = 4;
+  string service = 5;
+  AsyncTaskState state = 6;
+  google.protobuf.Timestamp date_created = 7;
+}

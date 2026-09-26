@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package node_auth;
+
+message NodeAuth {
+  string auth_username = 1;
+  string auth_password = 2;
+}

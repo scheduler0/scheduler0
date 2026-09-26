@@ -22,7 +22,7 @@ func TestNewDialer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dialer := NewDialer(tt.header)
+			dialer := NewDialer(tt.header, nil)
 			if dialer == nil {
 				t.Fatal("NewDialer returned nil")
 			}
@@ -80,7 +80,7 @@ func TestDial(t *testing.T) {
 				tt.addr = ln.Addr().String()
 			}
 
-			dialer := NewDialer(tt.header)
+			dialer := NewDialer(tt.header, nil)
 			conn, err := dialer.Dial(tt.addr, tt.timeout)
 
 			if tt.wantErr && err == nil {
@@ -150,7 +150,7 @@ func TestDialErrorHandling(t *testing.T) {
 			defer ln.Close()
 
 			addr := ln.Addr().String()
-			dialer := NewDialer(0x01)
+			dialer := NewDialer(0x01, nil)
 			_, err := dialer.Dial(addr, time.Second)
 
 			if err == nil {

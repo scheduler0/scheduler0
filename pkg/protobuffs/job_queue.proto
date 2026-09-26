@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+message JobQueueLog {
+  uint64 id = 1;
+  uint64 node_id = 2;
+  uint64 lower_bound_job_id = 3;
+  uint64 upper_bound_job_id = 4;
+  uint64 version = 5;
+  google.protobuf.Timestamp date_created = 6;
+}

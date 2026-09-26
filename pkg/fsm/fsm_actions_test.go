@@ -2,19 +2,20 @@ package fsm
 
 import (
 	"fmt"
+	"os"
+	"testing"
+	"time"
+
 	sq "github.com/Masterminds/squirrel"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/raft"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
-	"os"
-	"scheduler0/pkg/config"
-	"scheduler0/pkg/constants"
-	"scheduler0/pkg/db"
-	"scheduler0/pkg/models"
-	"scheduler0/pkg/shared_repo"
-	"testing"
-	"time"
+
+	"scheduler0-private/pkg/config"
+	"scheduler0-private/pkg/constants"
+	"scheduler0-private/pkg/db"
+	"scheduler0-private/pkg/models"
+	"scheduler0-private/pkg/shared_repo"
 )
 
 func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {
@@ -27,14 +28,15 @@ func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {
 
 	scheduler0RaftActions := NewScheduler0RaftActions(sharedRepo, nil)
 
-	tempFile, err := ioutil.TempFile("", "test-db")
+	tempFile, err := os.CreateTemp("", "test-db")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(tempFile.Name())
+	tempFile.Close()
 
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 	scheduler0Store := NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 	cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -56,12 +58,16 @@ func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {
 			constants.CredentialsApiSecretColumn,
 			constants.CredentialsArchivedColumn,
 			constants.CredentialsDateCreatedColumn,
+			constants.CredentialsAccountIdColumn,
+			constants.CredentialsCreatedByColumn,
 		).
 		Values(
 			"some-api-key",
 			"some-api-secret",
 			false,
 			time.Now().UTC(),
+			uint64(1), // System account ID from seed
+			"test",
 		).ToSql()
 	if err != nil {
 		t.Fatalf("failed to create sql to insert into raft log %v", err)
@@ -71,7 +77,10 @@ func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {
 	if writeErr != nil {
 		t.Fatalf("failed to write to raft log %v", writeErr)
 	}
-	t.Log("response from raft write log", res)
+	assert.NotNil(t, res, "FSMResponse should not be nil")
+	assert.Empty(t, res.Error, "FSMResponse should not have an error")
+	assert.Equal(t, int64(1), res.Data.RowsAffected, "should have 1 row affected")
+	assert.Equal(t, int64(1), res.Data.LastInsertedId, "should have last inserted id of 1")
 
 	conn := sqliteDb.GetOpenConnection()
 	rows, err := conn.Query(fmt.Sprintf("select id, api_key, api_secret, archived, date_created from %s", constants.CredentialTableName))
@@ -93,9 +102,7 @@ func Test_WriteCommandToRaftLog_Executes_SQL(t *testing.T) {
 		}
 	}
 	if rows.Err() != nil {
-		if rows.Err() != nil {
-			t.Fatalf("failed to rows err %v", err)
-		}
+		t.Fatalf("failed to rows err %v", rows.Err())
 	}
 	assert.Equal(t, credential.ID, uint64(1))
 	assert.Equal(t, credential.ApiKey, "some-api-key")
@@ -133,14 +140,15 @@ func Test_WriteCommandToRaftLog_PostProcessChannel(t *testing.T) {
 			postProcessChannel := make(chan models.PostProcess, 1)
 			scheduler0RaftActions := NewScheduler0RaftActions(sharedRepo, postProcessChannel)
 
-			tempFile, err := ioutil.TempFile("", "test-db")
+			tempFile, err := os.CreateTemp("", "test-db")
 			if err != nil {
 				t.Fatalf("Failed to create temp file: %v", err)
 			}
 			defer os.Remove(tempFile.Name())
+			tempFile.Close()
 
 			sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-			sqliteDb.RunMigration()
+			sqliteDb.RunMigration(logger)
 			sqliteDb.OpenConnectionToExistingDB()
 			scheduler0Store := NewFSMStore(logger, scheduler0RaftActions, scheduler0config, sqliteDb, nil, nil, nil, nil, sharedRepo)
 			cluster := raft.MakeClusterCustom(t, &raft.MakeClusterOpts{
@@ -162,12 +170,16 @@ func Test_WriteCommandToRaftLog_PostProcessChannel(t *testing.T) {
 					constants.CredentialsApiSecretColumn,
 					constants.CredentialsArchivedColumn,
 					constants.CredentialsDateCreatedColumn,
+					constants.CredentialsAccountIdColumn,
+					constants.CredentialsCreatedByColumn,
 				).
 				Values(
 					"some-api-key",
 					"some-api-secret",
 					false,
 					time.Now().UTC(),
+					uint64(1), // System account ID from seed
+					"test",
 				).ToSql()
 			if err != nil {
 				t.Fatalf("failed to create sql to insert into raft log %v", err)
@@ -177,7 +189,10 @@ func Test_WriteCommandToRaftLog_PostProcessChannel(t *testing.T) {
 			if writeErr != nil {
 				t.Fatalf("failed to write to raft log %v", writeErr)
 			}
-			t.Log("response from raft write log", res)
+			assert.NotNil(t, res, "FSMResponse should not be nil")
+			assert.Empty(t, res.Error, "FSMResponse should not have an error")
+			assert.Equal(t, int64(1), res.Data.RowsAffected, "should have 1 row affected")
+			assert.Equal(t, int64(1), res.Data.LastInsertedId, "should have last inserted id of 1")
 
 			conn := sqliteDb.GetOpenConnection()
 			rows, err := conn.Query(fmt.Sprintf("select id, api_key, api_secret, archived, date_created from %s", constants.CredentialTableName))
@@ -199,9 +214,7 @@ func Test_WriteCommandToRaftLog_PostProcessChannel(t *testing.T) {
 				}
 			}
 			if rows.Err() != nil {
-				if rows.Err() != nil {
-					t.Fatalf("failed to rows err %v", err)
-				}
+				t.Fatalf("failed to rows err %v", rows.Err())
 			}
 			assert.Equal(t, credential.ID, uint64(1))
 			assert.Equal(t, credential.ApiKey, "some-api-key")

@@ -72,7 +72,78 @@ func Decrypt(encryptedString string, keyString string) (decryptedString string) 
 	return fmt.Sprintf("%s", plaintext)
 }
 
-// GenerateApiAndSecretKey create an api key or api secret
-func GenerateApiAndSecretKey(secretKey string) (string, string) {
-	return Encrypt(GetRandomSha256(), secretKey), Encrypt(GetRandomSha256(), secretKey)
+// GenerateApiKey creates an opaque, unique api key identifier for a credential. It is a
+// random value encrypted under secretKey; the resulting string is both stored and handed
+// to the client, and is only ever compared verbatim as a lookup key (never decrypted), so
+// it stays stable across SecretKey rotations.
+func GenerateApiKey(secretKey string) string {
+	return Encrypt(GetRandomSha256(), secretKey)
+}
+
+// GenerateApiSecret creates a new API secret. It returns the plaintext secret to hand to
+// the client exactly once, and the ciphertext to persist. Authentication decrypts the
+// stored ciphertext and compares it to the plaintext the client presents — so the stored
+// value can be re-encrypted under a new SecretKey (rotation) without changing the secret
+// the client holds.
+func GenerateApiSecret(secretKey string) (plaintext string, ciphertext string) {
+	plaintext = GetRandomSha256()
+	return plaintext, Encrypt(plaintext, secretKey)
+}
+
+// DecryptSafe is a panic-safe wrapper around Decrypt. Decrypt panics on a malformed key
+// or ciphertext, or when the GCM auth tag fails (e.g. the value was encrypted under a
+// different key). DecryptSafe recovers from that and reports ok=false instead, so callers
+// on the authentication path can treat an undecryptable value as an auth failure rather
+// than crashing.
+func DecryptSafe(encryptedString string, keyString string) (plaintext string, ok bool) {
+	if encryptedString == "" {
+		return "", false
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			plaintext = ""
+			ok = false
+		}
+	}()
+	return Decrypt(encryptedString, keyString), true
+}
+
+// IsValidAESHexKey reports whether keyString is a hex-encoded AES key of a valid
+// length (16, 24 or 32 bytes → AES-128/192/256). Encrypt/Decrypt panic on an
+// invalid key, so callers doing key rotation should validate up front.
+func IsValidAESHexKey(keyString string) bool {
+	key, err := hex.DecodeString(keyString)
+	if err != nil {
+		return false
+	}
+	switch len(key) {
+	case 16, 24, 32:
+		return true
+	default:
+		return false
+	}
+}
+
+// ReEncrypt decrypts ciphertext with oldKey and re-encrypts the resulting
+// plaintext with newKey. It is the primitive used by SecretKey rotation to move
+// stored secrets from one AES key to another without exposing the plaintext.
+//
+// It returns (newCiphertext, true) only when the value was successfully
+// decrypted with oldKey. Empty input, or a value that cannot be decrypted with
+// oldKey (e.g. legacy plaintext, or a row already encrypted with newKey), yields
+// ("", false) so the caller can leave the stored value untouched rather than
+// corrupting it. Decrypt panics on malformed input; that panic is recovered here
+// and reported as a failure.
+func ReEncrypt(ciphertext, oldKey, newKey string) (result string, ok bool) {
+	if ciphertext == "" {
+		return "", false
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			result = ""
+			ok = false
+		}
+	}()
+	plaintext := Decrypt(ciphertext, oldKey)
+	return Encrypt(plaintext, newKey), true
 }
