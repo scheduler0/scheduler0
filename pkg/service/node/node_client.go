@@ -6,7 +6,6 @@ import (
 	"scheduler0/pkg/models"
 )
 
-//go:generate mockery --name NodeClient --output ./ --inpackage
 type NodeClient interface {
 	FetchUncommittedLogsFromPeersPhase1(ctx context.Context, node *nodeService, peerFanIns []models.PeerFanIn)
 	FetchUncommittedLogsFromPeersPhase2(ctx context.Context, node *nodeService, peerFanIns []models.PeerFanIn)

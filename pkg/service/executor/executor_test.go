@@ -3,11 +3,6 @@ package executor
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/raft"
-	"github.com/robfig/cron"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"io/ioutil"
 	"os"
 	"scheduler0/pkg/config"
@@ -15,20 +10,36 @@ import (
 	"scheduler0/pkg/db"
 	"scheduler0/pkg/fsm"
 	"scheduler0/pkg/models"
+	account_repo "scheduler0/pkg/repository/account"
+	account_job_executions_count_repo "scheduler0/pkg/repository/account_job_executions_count"
 	async_task_repo "scheduler0/pkg/repository/async_task"
+	executor_repo "scheduler0/pkg/repository/executor"
 	job_repo "scheduler0/pkg/repository/job"
 	job_execution_repo "scheduler0/pkg/repository/job_execution"
 	job_queue_repo "scheduler0/pkg/repository/job_queue"
 	project_repo "scheduler0/pkg/repository/project"
 	"scheduler0/pkg/scheduler0time"
+	"scheduler0/pkg/service/account"
 	"scheduler0/pkg/service/async_task"
+	etcd_service "scheduler0/pkg/service/etcd"
 	"scheduler0/pkg/service/executor/executors"
+	aws_lambda "scheduler0/pkg/service/executor/executors/aws"
+	azure_function "scheduler0/pkg/service/executor/executors/azure"
+	gcp_function "scheduler0/pkg/service/executor/executors/gcp"
+	webhook_executor "scheduler0/pkg/service/executor/executors/webhook"
 	"scheduler0/pkg/service/job"
+	job_execution_service "scheduler0/pkg/service/job_execution_service"
 	"scheduler0/pkg/service/queue"
 	"scheduler0/pkg/shared_repo"
 	"scheduler0/pkg/utils"
 	"testing"
 	"time"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/raft"
+	"github.com/robfig/cron"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
@@ -46,7 +57,7 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 
 	scheduler0config := config.NewScheduler0Config()
@@ -92,12 +103,28 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 
 	dispatcher.Run()
 
-	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	// Create missing dependencies
+	jobExecutorRepo := executor_repo.NewExecutorRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	accountJobExecutionsCountRepo := account_job_executions_count_repo.NewAccountJobExecutionsCountRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionLogService := job_execution_service.NewJobExecutionLogService(jobExecutionsRepo, logger, accountJobExecutionsCountRepo, jobQueueRepo, accountRepo, jobRepo)
+	accountService := account.NewAccountService(accountRepo, accountJobExecutionsCountRepo, nil, nil, nil, nil, jobRepo, nil)
+
+	// Create executor implementations
+	awsLambdaExecutor := aws_lambda.NewLambdaExecutor(logger, ctx)
+	webhookExecutor := webhook_executor.NewWebhookExecutor(logger, ctx, scheduler0config, dispatcher)
+	gcpFunctionExecutor := gcp_function.NewFunctionsExecutor(logger, ctx)
+	azureFunctionExecutor := azure_function.NewFunctionsExecutor(logger, ctx)
+
+	// Create mocks for queue dependencies
+	mockQuotaAllocationSender := queue.NewMockQuotaAllocationSender(t)
+	mockEtcdService := etcd_service.NewMockEtcdService(t)
+	mockEtcdService.On("GetPeers", mock.Anything).Return([]config.RaftNode{}, nil).Maybe()
+
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo, jobRepo, jobExecutionsRepo, accountRepo, accountJobExecutionsCountRepo, mockQuotaAllocationSender, mockEtcdService)
 	queueRepo.SetSingleNodeMode(true)
 	// Create a new JobService instance
-	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
-
-	httpJobExecutor := executors.NewMockHTTPExecutor(t)
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, jobExecutorRepo, dispatcher, asyncTaskManager, jobExecutionLogService, accountService)
 
 	service := NewJobExecutor(
 		ctx,
@@ -106,9 +133,16 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		scheduler0RaftActions,
 		jobRepo,
 		jobExecutionsRepo,
+		jobExecutorRepo,
 		jobQueueRepo,
-		httpJobExecutor,
+		awsLambdaExecutor,
+		webhookExecutor,
+		gcpFunctionExecutor,
+		azureFunctionExecutor,
 		dispatcher,
+		accountRepo,
+		accountJobExecutionsCountRepo,
+		queueRepo,
 	)
 
 	service.SetSingleNodeMode(true)
@@ -163,9 +197,9 @@ func Test_JobExecutor_QueueExecutions_JobsLessThanJobMaxBatch(t *testing.T) {
 		int64(2),
 	)
 
-	_, ok := service.GetScheduledJobs().Load(jobs[0].ID)
+	_, ok := service.GetExecutionsCache().Load(jobs[0].ID)
 	assert.Equal(t, true, ok)
-	_, ok = service.GetScheduledJobs().Load(jobs[1].ID)
+	_, ok = service.GetExecutionsCache().Load(jobs[1].ID)
 	assert.Equal(t, true, ok)
 }
 
@@ -184,7 +218,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 
 	scheduler0config := config.NewScheduler0Config()
@@ -230,12 +264,28 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 
 	dispatcher.Run()
 
-	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	// Create missing dependencies
+	jobExecutorRepo := executor_repo.NewExecutorRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	accountJobExecutionsCountRepo := account_job_executions_count_repo.NewAccountJobExecutionsCountRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionLogService := job_execution_service.NewJobExecutionLogService(jobExecutionsRepo, logger, accountJobExecutionsCountRepo, jobQueueRepo, accountRepo, jobRepo)
+	accountService := account.NewAccountService(accountRepo, accountJobExecutionsCountRepo, nil, nil, nil, nil, jobRepo, nil)
+
+	// Create executor implementations
+	awsLambdaExecutor := aws_lambda.NewLambdaExecutor(logger, ctx)
+	webhookExecutor := webhook_executor.NewWebhookExecutor(logger, ctx, scheduler0config, dispatcher)
+	gcpFunctionExecutor := gcp_function.NewFunctionsExecutor(logger, ctx)
+	azureFunctionExecutor := azure_function.NewFunctionsExecutor(logger, ctx)
+
+	// Create mocks for queue dependencies
+	mockQuotaAllocationSender := queue.NewMockQuotaAllocationSender(t)
+	mockEtcdService := etcd_service.NewMockEtcdService(t)
+	mockEtcdService.On("GetPeers", mock.Anything).Return([]config.RaftNode{}, nil).Maybe()
+
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo, jobRepo, jobExecutionsRepo, accountRepo, accountJobExecutionsCountRepo, mockQuotaAllocationSender, mockEtcdService)
 	queueRepo.SetSingleNodeMode(true)
 	// Create a new JobService instance
-	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
-
-	httpJobExecutor := executors.NewMockHTTPExecutor(t)
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, jobExecutorRepo, dispatcher, asyncTaskManager, jobExecutionLogService, accountService)
 
 	service := NewJobExecutor(
 		ctx,
@@ -244,9 +294,16 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 		scheduler0RaftActions,
 		jobRepo,
 		jobExecutionsRepo,
+		jobExecutorRepo,
 		jobQueueRepo,
-		httpJobExecutor,
+		awsLambdaExecutor,
+		webhookExecutor,
+		gcpFunctionExecutor,
+		azureFunctionExecutor,
 		dispatcher,
+		accountRepo,
+		accountJobExecutionsCountRepo,
+		queueRepo,
 	)
 
 	asyncTaskManager.SetSingleNodeMode(true)
@@ -297,7 +354,7 @@ func Test_JobExecutor_QueueExecutions_JobsMoreThanJobMaxBatch(t *testing.T) {
 
 	i = 0
 	for i < constants.JobMaxBatchSize+99 {
-		_, ok := service.GetScheduledJobs().Load(jobs[i].ID)
+		_, ok := service.GetExecutionsCache().Load(jobs[i].ID)
 		assert.Equal(t, true, ok)
 		i++
 	}
@@ -318,7 +375,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 
 	scheduler0config := config.NewScheduler0Config()
@@ -364,11 +421,27 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 
 	dispatcher.Run()
 
-	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
-	// Create a new JobService instance
-	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	// Create missing dependencies
+	jobExecutorRepo := executor_repo.NewExecutorRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	accountJobExecutionsCountRepo := account_job_executions_count_repo.NewAccountJobExecutionsCountRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionLogService := job_execution_service.NewJobExecutionLogService(jobExecutionsRepo, logger, accountJobExecutionsCountRepo, jobQueueRepo, accountRepo, jobRepo)
+	accountService := account.NewAccountService(accountRepo, accountJobExecutionsCountRepo, nil, nil, nil, nil, jobRepo, nil)
 
-	httpJobExecutor := executors.NewMockHTTPExecutor(t)
+	// Create executor implementations
+	awsLambdaExecutor := aws_lambda.NewLambdaExecutor(logger, ctx)
+	webhookExecutor := webhook_executor.NewWebhookExecutor(logger, ctx, scheduler0config, dispatcher)
+	gcpFunctionExecutor := gcp_function.NewFunctionsExecutor(logger, ctx)
+	azureFunctionExecutor := azure_function.NewFunctionsExecutor(logger, ctx)
+
+	// Create mocks for queue dependencies
+	mockQuotaAllocationSender := queue.NewMockQuotaAllocationSender(t)
+	mockEtcdService := etcd_service.NewMockEtcdService(t)
+	mockEtcdService.On("GetPeers", mock.Anything).Return([]config.RaftNode{}, nil).Maybe()
+
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo, jobRepo, jobExecutionsRepo, accountRepo, accountJobExecutionsCountRepo, mockQuotaAllocationSender, mockEtcdService)
+	// Create a new JobService instance
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, jobExecutorRepo, dispatcher, asyncTaskManager, jobExecutionLogService, accountService)
 
 	service := NewJobExecutor(
 		ctx,
@@ -377,9 +450,16 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 		scheduler0RaftActions,
 		jobRepo,
 		jobExecutionsRepo,
+		jobExecutorRepo,
 		jobQueueRepo,
-		httpJobExecutor,
+		awsLambdaExecutor,
+		webhookExecutor,
+		gcpFunctionExecutor,
+		azureFunctionExecutor,
 		dispatcher,
+		accountRepo,
+		accountJobExecutionsCountRepo,
+		queueRepo,
 	)
 
 	asyncTaskManager.SetSingleNodeMode(true)
@@ -431,7 +511,7 @@ func Test_JobExecutor_QueueExecutions_DoesNotQueueJobsForOtherServers(t *testing
 
 	i = 0
 	for i < constants.JobMaxBatchSize+99 {
-		_, ok := service.GetScheduledJobs().Load(jobs[i].ID)
+		_, ok := service.GetExecutionsCache().Load(jobs[i].ID)
 		assert.Equal(t, ok, false)
 		i++
 	}
@@ -463,7 +543,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		// Create a new SQLite database connection
 		sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-		sqliteDb.RunMigration()
+		sqliteDb.RunMigration(logger)
 		sqliteDb.OpenConnectionToExistingDB()
 
 		scheduler0config := config.NewScheduler0Config()
@@ -509,12 +589,28 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		dispatcher.Run()
 
-		queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+		// Create missing dependencies
+		jobExecutorRepo := executor_repo.NewExecutorRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+		accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+		accountJobExecutionsCountRepo := account_job_executions_count_repo.NewAccountJobExecutionsCountRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+		jobExecutionLogService := job_execution_service.NewJobExecutionLogService(jobExecutionsRepo, logger, accountJobExecutionsCountRepo, jobQueueRepo, accountRepo, jobRepo)
+		accountService := account.NewAccountService(accountRepo, accountJobExecutionsCountRepo, nil, nil, nil, nil, jobRepo, nil)
+
+		// Create executor implementations
+		awsLambdaExecutor := aws_lambda.NewLambdaExecutor(logger, ctx)
+		webhookExecutor := webhook_executor.NewWebhookExecutor(logger, ctx, scheduler0config, dispatcher)
+		gcpFunctionExecutor := gcp_function.NewFunctionsExecutor(logger, ctx)
+		azureFunctionExecutor := azure_function.NewFunctionsExecutor(logger, ctx)
+
+		// Create mocks for queue dependencies
+		mockQuotaAllocationSender := queue.NewMockQuotaAllocationSender(t)
+		mockEtcdService := etcd_service.NewMockEtcdService(t)
+		mockEtcdService.On("GetPeers", mock.Anything).Return([]config.RaftNode{}, nil).Maybe()
+
+		queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo, jobRepo, jobExecutionsRepo, accountRepo, accountJobExecutionsCountRepo, mockQuotaAllocationSender, mockEtcdService)
 		queueRepo.SetSingleNodeMode(true)
 		// Create a new JobService instance
-		jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
-
-		httpJobExecutor := executors.NewMockHTTPExecutor(t)
+		jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, jobExecutorRepo, dispatcher, asyncTaskManager, jobExecutionLogService, accountService)
 
 		service := NewJobExecutor(
 			ctx,
@@ -523,9 +619,16 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			scheduler0RaftActions,
 			jobRepo,
 			jobExecutionsRepo,
+			jobExecutorRepo,
 			jobQueueRepo,
-			httpJobExecutor,
+			awsLambdaExecutor,
+			webhookExecutor,
+			gcpFunctionExecutor,
+			azureFunctionExecutor,
 			dispatcher,
+			accountRepo,
+			accountJobExecutionsCountRepo,
+			queueRepo,
 		)
 
 		asyncTaskManager.SetSingleNodeMode(true)
@@ -619,10 +722,10 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		i = 0
 		for i < 99 {
-			sched, ok := service.GetScheduledJobs().Load(jobs[i].ID)
+			sched, ok := service.GetExecutionsCache().Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
-			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime).Round(1*time.Second) < time.Duration(1)*time.Second, true)
-			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime).Round(1*time.Second) > time.Duration(-1)*time.Second, true)
+			assert.Equal(t, scheduler.MemExecution.NextExecutionDatetime.Sub(nextTime).Round(1*time.Second) < time.Duration(1)*time.Second, true)
+			assert.Equal(t, scheduler.MemExecution.NextExecutionDatetime.Sub(nextTime).Round(1*time.Second) > time.Duration(-1)*time.Second, true)
 			assert.Equal(t, ok, true)
 			i++
 		}
@@ -655,7 +758,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		// Create a new SQLite database connection
 		sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-		sqliteDb.RunMigration()
+		sqliteDb.RunMigration(logger)
 		sqliteDb.OpenConnectionToExistingDB()
 
 		scheduler0config := config.NewScheduler0Config()
@@ -701,12 +804,28 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		dispatcher.Run()
 
-		queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+		// Create missing dependencies
+		jobExecutorRepo := executor_repo.NewExecutorRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+		accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+		accountJobExecutionsCountRepo := account_job_executions_count_repo.NewAccountJobExecutionsCountRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+		jobExecutionLogService := job_execution_service.NewJobExecutionLogService(jobExecutionsRepo, logger, accountJobExecutionsCountRepo, jobQueueRepo, accountRepo, jobRepo)
+		accountService := account.NewAccountService(accountRepo, accountJobExecutionsCountRepo, nil, nil, nil, nil, jobRepo, nil)
+
+		// Create executor implementations
+		awsLambdaExecutor := aws_lambda.NewLambdaExecutor(logger, ctx)
+		webhookExecutor := webhook_executor.NewWebhookExecutor(logger, ctx, scheduler0config, dispatcher)
+		gcpFunctionExecutor := gcp_function.NewFunctionsExecutor(logger, ctx)
+		azureFunctionExecutor := azure_function.NewFunctionsExecutor(logger, ctx)
+
+		// Create mocks for queue dependencies
+		mockQuotaAllocationSender := queue.NewMockQuotaAllocationSender(t)
+		mockEtcdService := etcd_service.NewMockEtcdService(t)
+		mockEtcdService.On("GetPeers", mock.Anything).Return([]config.RaftNode{}, nil).Maybe()
+
+		queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo, jobRepo, jobExecutionsRepo, accountRepo, accountJobExecutionsCountRepo, mockQuotaAllocationSender, mockEtcdService)
 		queueRepo.SetSingleNodeMode(true)
 		// Create a new JobService instance
-		jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
-
-		httpJobExecutor := executors.NewMockHTTPExecutor(t)
+		jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, jobExecutorRepo, dispatcher, asyncTaskManager, jobExecutionLogService, accountService)
 
 		service := NewJobExecutor(
 			ctx,
@@ -715,9 +834,16 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			scheduler0RaftActions,
 			jobRepo,
 			jobExecutionsRepo,
+			jobExecutorRepo,
 			jobQueueRepo,
-			httpJobExecutor,
+			awsLambdaExecutor,
+			webhookExecutor,
+			gcpFunctionExecutor,
+			azureFunctionExecutor,
 			dispatcher,
+			accountRepo,
+			accountJobExecutionsCountRepo,
+			queueRepo,
 		)
 
 		asyncTaskManager.SetSingleNodeMode(true)
@@ -736,8 +862,6 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		nextTime := schedule.Next(now)
 		prevNextTime := nextTime.Add(-nextTime.Sub(now))
 		lastTime := nextTime.Add(-nextTime.Sub(now)).Add(-nextTime.Sub(now))
-
-		fmt.Printf("now:: %v, lastTime:: %v, prevNextTime:: %v, nextTime:: %v ", now, lastTime, prevNextTime, nextTime)
 
 		i := 1
 		for i < 100 {
@@ -814,9 +938,9 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		i = 0
 		for i < 99 {
-			sched, ok := service.GetScheduledJobs().Load(jobs[i].ID)
+			sched, ok := service.GetExecutionsCache().Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
-			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(time.Duration(4)*time.Second)).Round(time.Minute*1) < time.Duration(1)*time.Second, true)
+			assert.Equal(t, scheduler.MemExecution.NextExecutionDatetime.Sub(nextTime.Add(time.Duration(4)*time.Second)).Round(time.Minute*1) < time.Duration(1)*time.Second, true)
 			assert.Equal(t, ok, true)
 			i++
 		}
@@ -849,7 +973,7 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		// Create a new SQLite database connection
 		sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-		sqliteDb.RunMigration()
+		sqliteDb.RunMigration(logger)
 		sqliteDb.OpenConnectionToExistingDB()
 
 		scheduler0config := config.NewScheduler0Config()
@@ -895,11 +1019,28 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		dispatcher.Run()
 
-		queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+		// Create missing dependencies
+		jobExecutorRepo := executor_repo.NewExecutorRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+		accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+		accountJobExecutionsCountRepo := account_job_executions_count_repo.NewAccountJobExecutionsCountRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+		jobExecutionLogService := job_execution_service.NewJobExecutionLogService(jobExecutionsRepo, logger, accountJobExecutionsCountRepo, jobQueueRepo, accountRepo, jobRepo)
+		accountService := account.NewAccountService(accountRepo, accountJobExecutionsCountRepo, nil, nil, nil, nil, jobRepo, nil)
+
+		// Create executor implementations
+		awsLambdaExecutor := aws_lambda.NewLambdaExecutor(logger, ctx)
+		webhookExecutor := webhook_executor.NewWebhookExecutor(logger, ctx, scheduler0config, dispatcher)
+		gcpFunctionExecutor := gcp_function.NewFunctionsExecutor(logger, ctx)
+		azureFunctionExecutor := azure_function.NewFunctionsExecutor(logger, ctx)
+
+		// Create mocks for queue dependencies
+		mockQuotaAllocationSender := queue.NewMockQuotaAllocationSender(t)
+		mockEtcdService := etcd_service.NewMockEtcdService(t)
+		mockEtcdService.On("GetPeers", mock.Anything).Return([]config.RaftNode{}, nil).Maybe()
+
+		queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo, jobRepo, jobExecutionsRepo, accountRepo, accountJobExecutionsCountRepo, mockQuotaAllocationSender, mockEtcdService)
 		queueRepo.SetSingleNodeMode(true)
 		// Create a new JobService instance
-		jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
-		httpJobExecutor := executors.NewMockHTTPExecutor(t)
+		jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, jobExecutorRepo, dispatcher, asyncTaskManager, jobExecutionLogService, accountService)
 
 		service := NewJobExecutor(
 			ctx,
@@ -908,9 +1049,16 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 			scheduler0RaftActions,
 			jobRepo,
 			jobExecutionsRepo,
+			jobExecutorRepo,
 			jobQueueRepo,
-			httpJobExecutor,
+			awsLambdaExecutor,
+			webhookExecutor,
+			gcpFunctionExecutor,
+			azureFunctionExecutor,
 			dispatcher,
+			accountRepo,
+			accountJobExecutionsCountRepo,
+			queueRepo,
 		)
 
 		asyncTaskManager.SetSingleNodeMode(true)
@@ -929,8 +1077,6 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 		nextTime := schedule.Next(now)
 		prevNextTime := nextTime.Add(-nextTime.Sub(now)).Add(-nextTime.Sub(now)).Add(-nextTime.Sub(now))
 		lastTime := nextTime.Add(-nextTime.Sub(now)).Add(-nextTime.Sub(now)).Add(-nextTime.Sub(now)).Add(-nextTime.Sub(now))
-
-		fmt.Printf("now:: %v, lastTime:: %v, prevNextTime:: %v, nextTime:: %v ", now, lastTime, prevNextTime, nextTime)
 
 		i := 1
 		for i < 100 {
@@ -1007,9 +1153,9 @@ func Test_JobExecutor_ScheduleJobs_WithScheduledStateAsLastKnowState_NextTimeExe
 
 		i = 0
 		for i < 99 {
-			sched, ok := service.GetScheduledJobs().Load(jobs[i].ID)
+			sched, ok := service.GetExecutionsCache().Load(jobs[i].ID)
 			scheduler := sched.(models.JobSchedule)
-			assert.Equal(t, scheduler.ExecutionTime.Sub(nextTime.Add(time.Duration(4)*time.Second)).Round(time.Minute*1) < time.Duration(1)*time.Second, true)
+			assert.Equal(t, scheduler.MemExecution.NextExecutionDatetime.Sub(nextTime.Add(time.Duration(4)*time.Second)).Round(time.Minute*1) < time.Duration(1)*time.Second, true)
 			assert.Equal(t, ok, true)
 			i++
 		}
@@ -1031,7 +1177,7 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 
 	scheduler0config := config.NewScheduler0Config()
@@ -1077,9 +1223,27 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 
 	dispatcher.Run()
 
-	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
+	// Create missing dependencies
+	jobExecutorRepo := executor_repo.NewExecutorRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	accountJobExecutionsCountRepo := account_job_executions_count_repo.NewAccountJobExecutionsCountRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionLogService := job_execution_service.NewJobExecutionLogService(jobExecutionsRepo, logger, accountJobExecutionsCountRepo, jobQueueRepo, accountRepo, jobRepo)
+	accountService := account.NewAccountService(accountRepo, accountJobExecutionsCountRepo, nil, nil, nil, nil, jobRepo, nil)
+
+	// Create executor implementations
+	awsLambdaExecutor := aws_lambda.NewLambdaExecutor(logger, ctx)
+	webhookExecutor := webhook_executor.NewWebhookExecutor(logger, ctx, scheduler0config, dispatcher)
+	gcpFunctionExecutor := gcp_function.NewFunctionsExecutor(logger, ctx)
+	azureFunctionExecutor := azure_function.NewFunctionsExecutor(logger, ctx)
+
+	// Create mocks for queue dependencies
+	mockQuotaAllocationSender := queue.NewMockQuotaAllocationSender(t)
+	mockEtcdService := etcd_service.NewMockEtcdService(t)
+	mockEtcdService.On("GetPeers", mock.Anything).Return([]config.RaftNode{}, nil).Maybe()
+
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo, jobRepo, jobExecutionsRepo, accountRepo, accountJobExecutionsCountRepo, mockQuotaAllocationSender, mockEtcdService)
 	// Create a new JobService instance
-	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, jobExecutorRepo, dispatcher, asyncTaskManager, jobExecutionLogService, accountService)
 	httpJobExecutor := executors.NewMockHTTPExecutor(t)
 	httpJobExecutor.On("ExecuteHTTPJob", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	service := NewJobExecutor(
@@ -1089,9 +1253,16 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 		scheduler0RaftActions,
 		jobRepo,
 		jobExecutionsRepo,
+		jobExecutorRepo,
 		jobQueueRepo,
-		httpJobExecutor,
+		awsLambdaExecutor,
+		webhookExecutor,
+		gcpFunctionExecutor,
+		azureFunctionExecutor,
 		dispatcher,
+		accountRepo,
+		accountJobExecutionsCountRepo,
+		queueRepo,
 	)
 
 	asyncTaskManager.SetSingleNodeMode(true)
@@ -1110,12 +1281,11 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 	nextTime := schedule.Next(now)
 
 	job := models.Job{
-		ID:            uint64(1),
-		Spec:          "@every 1h",
-		Timezone:      "America/New_York",
-		ProjectID:     1,
-		ExecutionType: "http",
-		CallbackUrl:   "http://someaddress",
+		ID:        uint64(1),
+		Spec:      "@every 1h",
+		Timezone:  "America/New_York",
+		ProjectID: 1,
+		Data:      "http://someaddress",
 	}
 
 	jobs = []models.Job{job}
@@ -1145,11 +1315,13 @@ func Test_ListenForJobsToInvoke(t *testing.T) {
 		t.Fatal("failed to set env", serr)
 	}
 
-	service.ListenForJobsToInvoke()
+	go service.ListenForJobsToInvokeV1()
 
-	service.GetScheduledJobs().Store(1, models.JobSchedule{
-		Job:           job,
-		ExecutionTime: schedulerTime.GetTime(nextTime),
+	service.GetExecutionsCache().Store(uint64(1), &models.JobSchedule{
+		Job: job,
+		MemExecution: models.MemJobExecution{
+			NextExecutionDatetime: schedulerTime.GetTime(nextTime),
+		},
 	})
 
 	time.Sleep(1*time.Minute + 2*time.Second)
@@ -1170,7 +1342,7 @@ func Test_handleFailedJobs(t *testing.T) {
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 
 	scheduler0config := config.NewScheduler0Config()
@@ -1216,11 +1388,28 @@ func Test_handleFailedJobs(t *testing.T) {
 
 	dispatcher.Run()
 
-	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo)
-	// Create a new JobService instance
-	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, dispatcher, asyncTaskManager)
+	// Create missing dependencies
+	jobExecutorRepo := executor_repo.NewExecutorRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	accountJobExecutionsCountRepo := account_job_executions_count_repo.NewAccountJobExecutionsCountRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	jobExecutionLogService := job_execution_service.NewJobExecutionLogService(jobExecutionsRepo, logger, accountJobExecutionsCountRepo, jobQueueRepo, accountRepo, jobRepo)
+	accountService := account.NewAccountService(accountRepo, accountJobExecutionsCountRepo, nil, nil, nil, nil, jobRepo, nil)
 
-	httpJobExecutor := executors.NewHTTTPExecutor(logger, ctx, scheduler0config, dispatcher)
+	// Create executor implementations
+	awsLambdaExecutor := aws_lambda.NewLambdaExecutor(logger, ctx)
+	webhookExecutor := webhook_executor.NewWebhookExecutor(logger, ctx, scheduler0config, dispatcher)
+	gcpFunctionExecutor := gcp_function.NewFunctionsExecutor(logger, ctx)
+	azureFunctionExecutor := azure_function.NewFunctionsExecutor(logger, ctx)
+
+	// Create mocks for queue dependencies
+	mockQuotaAllocationSender := queue.NewMockQuotaAllocationSender(t)
+	mockEtcdService := etcd_service.NewMockEtcdService(t)
+	mockEtcdService.On("GetPeers", mock.Anything).Return([]config.RaftNode{}, nil).Maybe()
+
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo, jobRepo, jobExecutionsRepo, accountRepo, accountJobExecutionsCountRepo, mockQuotaAllocationSender, mockEtcdService)
+	// Create a new JobService instance
+	jobService := job.NewJobService(ctx, logger, jobRepo, queueRepo, projectRepo, jobExecutorRepo, dispatcher, asyncTaskManager, jobExecutionLogService, accountService)
+
 	service := NewJobExecutor(
 		ctx,
 		logger,
@@ -1228,12 +1417,19 @@ func Test_handleFailedJobs(t *testing.T) {
 		scheduler0RaftActions,
 		jobRepo,
 		jobExecutionsRepo,
+		jobExecutorRepo,
 		jobQueueRepo,
-		httpJobExecutor,
+		awsLambdaExecutor,
+		webhookExecutor,
+		gcpFunctionExecutor,
+		azureFunctionExecutor,
 		dispatcher,
+		accountRepo,
+		accountJobExecutionsCountRepo,
+		queueRepo,
 	)
 
-	service.ListenForJobsToInvoke()
+	go service.ListenForJobsToInvokeV1()
 
 	asyncTaskManager.SetSingleNodeMode(true)
 	asyncTaskManager.ListenForNotifications()
@@ -1241,12 +1437,11 @@ func Test_handleFailedJobs(t *testing.T) {
 	// Define the input jobs
 	jobs := []models.Job{}
 	job := models.Job{
-		ID:            uint64(1),
-		Spec:          "@every 1m",
-		Timezone:      "America/New_York",
-		ProjectID:     1,
-		ExecutionType: "http",
-		CallbackUrl:   "http://%s",
+		ID:        uint64(1),
+		Spec:      "@every 1m",
+		Timezone:  "America/New_York",
+		ProjectID: 1,
+		Data:      "http://%s",
 	}
 
 	time.Sleep(1 * time.Second)
@@ -1293,9 +1488,11 @@ func Test_handleFailedJobs(t *testing.T) {
 	now := schedulerTime.GetTime(time.Now())
 	nextTime := schedule.Next(now)
 
-	service.GetScheduledJobs().Store(1, models.JobSchedule{
-		Job:           job,
-		ExecutionTime: nextTime,
+	service.GetExecutionsCache().Store(uint64(1), &models.JobSchedule{
+		Job: job,
+		MemExecution: models.MemJobExecution{
+			NextExecutionDatetime: nextTime,
+		},
 	})
 
 	service.UpdateRaft(scheduler0Store.GetRaft())
@@ -1327,7 +1524,7 @@ func Test_StopAll(t *testing.T) {
 
 	// Create a new SQLite database connection
 	sqliteDb := db.NewSqliteDbConnection(logger, tempFile.Name())
-	sqliteDb.RunMigration()
+	sqliteDb.RunMigration(logger)
 	sqliteDb.OpenConnectionToExistingDB()
 
 	scheduler0config := config.NewScheduler0Config()
@@ -1370,7 +1567,23 @@ func Test_StopAll(t *testing.T) {
 
 	dispatcher.Run()
 
-	httpJobExecutor := executors.NewMockHTTPExecutor(t)
+	// Create missing dependencies
+	jobExecutorRepo := executor_repo.NewExecutorRepo(logger, scheduler0RaftActions, scheduler0Store, nil)
+	accountRepo := account_repo.NewAccountRepository(ctx, logger, scheduler0RaftActions, scheduler0Store)
+	accountJobExecutionsCountRepo := account_job_executions_count_repo.NewAccountJobExecutionsCountRepo(ctx, logger, scheduler0RaftActions, scheduler0Store)
+
+	// Create executor implementations
+	awsLambdaExecutor := aws_lambda.NewLambdaExecutor(logger, ctx)
+	webhookExecutor := webhook_executor.NewWebhookExecutor(logger, ctx, scheduler0config, dispatcher)
+	gcpFunctionExecutor := gcp_function.NewFunctionsExecutor(logger, ctx)
+	azureFunctionExecutor := azure_function.NewFunctionsExecutor(logger, ctx)
+
+	// Create mocks for queue dependencies
+	mockQuotaAllocationSender := queue.NewMockQuotaAllocationSender(t)
+	mockEtcdService := etcd_service.NewMockEtcdService(t)
+	mockEtcdService.On("GetPeers", mock.Anything).Return([]config.RaftNode{}, nil).Maybe()
+
+	queueRepo := queue.NewJobQueue(ctx, logger, scheduler0config, scheduler0RaftActions, scheduler0Store, jobQueueRepo, jobRepo, jobExecutionsRepo, accountRepo, accountJobExecutionsCountRepo, mockQuotaAllocationSender, mockEtcdService)
 
 	service := NewJobExecutor(
 		ctx,
@@ -1379,17 +1592,24 @@ func Test_StopAll(t *testing.T) {
 		scheduler0RaftActions,
 		jobRepo,
 		jobExecutionsRepo,
+		jobExecutorRepo,
 		jobQueueRepo,
-		httpJobExecutor,
+		awsLambdaExecutor,
+		webhookExecutor,
+		gcpFunctionExecutor,
+		azureFunctionExecutor,
 		dispatcher,
+		accountRepo,
+		accountJobExecutionsCountRepo,
+		queueRepo,
 	)
 
 	for i := 0; i < 10; i++ {
-		service.GetScheduledJobs().Store(i, i)
+		service.GetExecutionsCache().Store(i, i)
 	}
 	service.StopAll()
 	count := 0
-	service.GetScheduledJobs().Range(func(key, value any) bool {
+	service.GetExecutionsCache().Range(func(key, value any) bool {
 		count += 1
 		return true
 	})

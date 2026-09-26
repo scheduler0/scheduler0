@@ -2,17 +2,16 @@ package node
 
 import (
 	"context"
-	_ "embed"
-	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/raft"
-	"log"
-	"math/rand"
+	"io"
+	"os"
+	"path/filepath"
+
+	"scheduler0/pkg/alerts"
 	"scheduler0/pkg/config"
-	"scheduler0/pkg/constants"
 	"scheduler0/pkg/fsm"
 	"scheduler0/pkg/models"
+	"scheduler0/pkg/network"
 	"scheduler0/pkg/repository/async_task"
 	"scheduler0/pkg/repository/job"
 	"scheduler0/pkg/repository/job_execution"
@@ -20,14 +19,21 @@ import (
 	"scheduler0/pkg/repository/project"
 	"scheduler0/pkg/secrets"
 	async_task_service "scheduler0/pkg/service/async_task"
+	"scheduler0/pkg/service/etcd"
 	"scheduler0/pkg/service/executor"
 	"scheduler0/pkg/service/processor"
 	"scheduler0/pkg/service/queue"
 	"scheduler0/pkg/shared_repo"
 	"scheduler0/pkg/utils"
-	"strconv"
 	"sync"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/raft"
+	boltdb "github.com/hashicorp/raft-boltdb/v2"
+	"github.com/segmentio/ksuid"
 )
 
 type Status struct {
@@ -53,7 +59,25 @@ type LogsFetchResponse struct {
 
 type State int
 
+type BackupRestoreProgress struct {
+	OperationType string // "backup" | "restore" | "backup-to-file"
+	Status        string // "idle" | "in-progress" | "completed" | "failed"
+	Progress      int    // 0-100
+	Message       string // Progress message or error
+	StartTime     time.Time
+	EndTime       time.Time
+	BackupPath    string // Result path for backup operations
+	sync.RWMutex
+}
+
 type nodeService struct {
+	// Embedded components
+	raftCluster  *raftClusterManager
+	peerComm     *peerCommunicator
+	eventHandler *eventHandler
+	serviceState *serviceState
+
+	// Shared state
 	acceptClientWrites    bool
 	acceptRequest         bool
 	scheduler0RaftStore   fsm.Scheduler0RaftStore
@@ -68,9 +92,8 @@ type nodeService struct {
 	jobRepo               job.JobRepo
 	projectRepo           project.ProjectRepo
 	jobExecutionRepo      job_execution.JobExecutionsRepo
-	asyncTaskRepo         async_task.AsyncTasksRepo
 	sharedRepo            shared_repo.SharedRepo
-	isExistingNode        bool
+	asyncTaskRepo         async_task.AsyncTasksRepo
 	peerObserverChannels  chan raft.Observation
 	asyncTaskManager      async_task_service.AsyncTaskService
 	dispatcher            *utils.Dispatcher
@@ -80,19 +103,36 @@ type nodeService struct {
 	scheduler0Config      config.Scheduler0Config
 	scheduler0Secrets     secrets.Scheduler0Secrets
 	scheduler0RaftActions fsm.Scheduler0RaftActions
-	nodeHTTPClient        NodeClient
 	postProcessingChannel chan models.PostProcess
+	TransportManager      *raft.NetworkTransport
+	LogDb                 *boltdb.BoltStore
+	StoreDb               *boltdb.BoltStore
+	FileSnapShot          *raft.FileSnapshotStore
+	State                 State
+	FsmStore              fsm.Scheduler0RaftStore
+	isExistingNode        bool
+	client                Client
+	raftLn                network.Listener
+	etcdService           etcd.EtcdService
+	peersFromEtcd         []config.RaftNode
+	peersMutex            sync.RWMutex
+	leadershipDebounce    *utils.Debounce
+	latestIsLeader        bool
+	latestIsLeaderMtx     sync.Mutex
+	sqliteDbExists        bool
+	s3Client              *s3.Client
+	alertPublisher        alerts.Publisher
 }
 
 type NodeService interface {
-	Start()
-	GetUncommittedLogs(requestId string)
-	CanAcceptClientWriteRequest() bool
-	StopJobs()
-	StartJobs()
-	GetRaftLeaderWithId() (raft.ServerAddress, raft.ServerID)
-	GetRaftStats() map[string]string
-	CanAcceptRequest() bool
+	RaftClusterManager
+	PeerCommunicator
+	EventHandler
+	ServiceState
+	GetJobQueuesRepo() job_queue.JobQueuesRepo
+	GetJobExecutor() executor.JobExecutorService
+	BackupDatabase(ctx context.Context, requestId string) error
+	RestoreDatabase(ctx context.Context, filePath string, requestId string) error
 }
 
 func NewNode(
@@ -108,26 +148,48 @@ func NewNode(
 	jobRepo job.JobRepo,
 	sharedRepo shared_repo.SharedRepo,
 	jobExecutionRepo job_execution.JobExecutionsRepo,
+	asyncTaskRepo async_task.AsyncTasksRepo,
 	asyncTaskManager async_task_service.AsyncTaskService,
 	dispatcher *utils.Dispatcher,
-	nodeHTTPClient NodeClient,
 	postProcessingChannel chan models.PostProcess,
 	isExistingNode bool,
+	sqliteDbExists bool,
+	nodeClient Client,
+	raftLn network.Listener,
+	etcdService etcd.EtcdService,
+	logDb *boltdb.BoltStore,
+	storeDb *boltdb.BoltStore,
+	fileSnapShot *raft.FileSnapshotStore,
+	transportManager *raft.NetworkTransport,
+	jobQueuesRepo job_queue.JobQueuesRepo,
+	s3Client *s3.Client,
+	alertPublisher alerts.Publisher,
 ) NodeService {
 	nodeServiceLogger := logger.Named("node-service")
-	numReplicas := len(scheduler0Config.GetConfigurations().Replicas)
+	configs := scheduler0Config.GetConfigurations()
+
+	// Default peer observer channel size; will be updated dynamically from etcd.
+	numReplicas := 10
+	if etcdService != nil && len(configs.EtcdEndpoints) > 0 {
+		// Try to size the channel based on currently registered peers in etcd.
+		if peers, err := etcdService.GetPeers(ctx); err == nil && len(peers) > 0 {
+			numReplicas = len(peers)
+		}
+	}
 
 	nodeServiceLogger.Info("Initializing Node Service")
 
-	return &nodeService{
+	node := &nodeService{
 		logger:                nodeServiceLogger,
 		acceptClientWrites:    false,
 		ctx:                   ctx,
 		jobProcessor:          jobProcessor,
 		jobQueue:              jobQueue,
 		jobExecutor:           jobExecutor,
+		jobQueuesRepo:         jobQueuesRepo,
 		jobRepo:               jobRepo,
 		jobExecutionRepo:      jobExecutionRepo,
+		asyncTaskRepo:         asyncTaskRepo,
 		isExistingNode:        isExistingNode,
 		peerObserverChannels:  make(chan raft.Observation, numReplicas),
 		asyncTaskManager:      asyncTaskManager,
@@ -140,537 +202,425 @@ func NewNode(
 		scheduler0RaftActions: fsmActions,
 		scheduler0RaftStore:   fsmStore,
 		sharedRepo:            sharedRepo,
-		nodeHTTPClient:        nodeHTTPClient,
+		client:                nodeClient,
+		raftLn:                raftLn,
+		sqliteDbExists:        sqliteDbExists,
 		postProcessingChannel: postProcessingChannel,
+		etcdService:           etcdService,
+		peersFromEtcd:         make([]config.RaftNode, 0),
+		LogDb:                 logDb,
+		StoreDb:               storeDb,
+		FileSnapShot:          fileSnapShot,
+		TransportManager:      transportManager,
+		leadershipDebounce:    utils.NewDebounce(),
+		s3Client:              s3Client,
+		alertPublisher:        alertPublisher,
 	}
+
+	// Initialize embedded components
+	node.serviceState = newServiceState(node)
+	node.eventHandler = newEventHandler(node)
+	node.peerComm = newPeerCommunicator(node)
+	node.raftCluster = newRaftClusterManager(node)
+
+	return node
 }
 
+// Delegation methods for NodeService interface - these delegate to embedded components
+
+// RaftClusterManager delegations
 func (node *nodeService) Start() {
-	node.logger.Info("Staring Node Service")
-
-	if node.isExistingNode {
-		node.logger.Info("discovered existing raft dir")
-		node.scheduler0RaftStore.RecoverRaftState()
-	}
-
-	configs := node.scheduler0Config.GetConfigurations()
-
-	if configs.Bootstrap && !node.isExistingNode {
-		cfg := node.authRaftConfiguration()
-		node.scheduler0RaftStore.BootstrapRaftClusterWithConfig(cfg)
-	}
-	myObserver := raft.NewObserver(node.peerObserverChannels, true, func(o *raft.Observation) bool {
-		_, peerObservation := o.Data.(raft.PeerObservation)
-		_, resumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
-		return peerObservation || resumedHeartbeatObservation
-	})
-
-	node.scheduler0RaftStore.RegisterObserver(myObserver)
-	node.beginAcceptingClientRequest()
-
-	go node.listenOnInputQueues()
+	node.raftCluster.Start()
 }
 
-func (node *nodeService) GetUncommittedLogs(requestId string) {
-	taskId, addErr := node.asyncTaskManager.AddTasks("", requestId, constants.JobExecutorAsyncTaskService)
-	if addErr != nil {
-		node.logger.Error("failed to add new async task for job_executor", "error", addErr)
-	}
-	node.logger.Debug("added a new task for job_executor, task id", "task-id", taskId)
+func (node *nodeService) RemoveSelfFromCluster(ctx context.Context) error {
+	return node.raftCluster.RemoveSelfFromCluster(ctx)
+}
 
+func (node *nodeService) AddSelfToCluster(ctx context.Context) error {
+	return node.raftCluster.AddSelfToCluster(ctx)
+}
+
+func (node *nodeService) ForceRebuildCluster(ctx context.Context, seedNodeId uint64) error {
+	return node.raftCluster.ForceRebuildCluster(ctx, seedNodeId)
+}
+
+func (node *nodeService) ResetRaftState(ctx context.Context) error {
+	return node.raftCluster.ResetRaftState(ctx)
+}
+
+func (node *nodeService) RemoveNode(ctx context.Context, nodeId uint64) error {
+	return node.raftCluster.RemoveNode(ctx, nodeId)
+}
+
+func (node *nodeService) AddNode(ctx context.Context, nodeId uint64, nodeAddress string, clientAddress string) error {
+	return node.raftCluster.AddNode(ctx, nodeId, nodeAddress, clientAddress)
+}
+
+func (node *nodeService) PromoteNode(ctx context.Context, nodeId uint64) error {
+	return node.raftCluster.PromoteNode(ctx, nodeId)
+}
+
+func (node *nodeService) DemoteNode(ctx context.Context, nodeId uint64) error {
+	return node.raftCluster.DemoteNode(ctx, nodeId)
+}
+
+func (node *nodeService) TransferLeadership(ctx context.Context) error {
+	return node.raftCluster.TransferLeadership(ctx)
+}
+
+func (node *nodeService) ListNodes(ctx context.Context) ([]config.RaftNode, error) {
+	return node.raftCluster.ListNodes(ctx)
+}
+
+func (node *nodeService) GetRaftStats() map[string]string {
+	return node.raftCluster.GetRaftStats()
+}
+
+func (node *nodeService) GetRaftLeaderWithId() (raft.ServerAddress, raft.ServerID) {
+	return node.raftCluster.GetRaftLeaderWithId()
+}
+
+// PeerCommunicator delegations
+func (node *nodeService) GetUncommittedLogs(requestId string) {
+	node.peerComm.GetUncommittedLogs(requestId)
+}
+
+func (node *nodeService) ReturnUncommittedLogs(requestId string) {
+	node.peerComm.ReturnUncommittedLogs(requestId)
+}
+
+// ServiceState delegations
+func (node *nodeService) CanAcceptClientWriteRequest() bool {
+	return node.serviceState.CanAcceptClientWriteRequest()
+}
+
+func (node *nodeService) CanAcceptRequest() bool {
+	return node.serviceState.CanAcceptRequest()
+}
+
+func (node *nodeService) StopJobs() {
+	node.serviceState.StopJobs()
+}
+
+func (node *nodeService) StartJobs() {
+	node.serviceState.StartJobs()
+}
+
+func (node *nodeService) UpdateLocalQuotaAllocations(accountAllocations map[uint64]uint64) error {
+	return node.serviceState.UpdateLocalQuotaAllocations(accountAllocations)
+}
+
+func (node *nodeService) ResetLocalQuotaAllocations() {
+	node.serviceState.ResetLocalQuotaAllocations()
+}
+
+func (node *nodeService) GetLocalQuotaAllocations() map[uint64]uint64 {
+	return node.serviceState.GetLocalQuotaAllocations()
+}
+
+func (node *nodeService) NotifyLeaderAccountExhaustion(accountId uint64) error {
+	return node.serviceState.NotifyLeaderAccountExhaustion(accountId)
+}
+
+func (node *nodeService) UpdateJobsStatusByAccountId(accountId uint64, status string) error {
+	return node.serviceState.UpdateJobsStatusByAccountId(accountId, status)
+}
+
+func (node *nodeService) UpdateJobOnLeader(job models.Job) error {
+	return node.serviceState.UpdateJobOnLeader(job)
+}
+
+// Additional RaftClusterManager internal method delegations
+func (node *nodeService) AuthRaftConfiguration() raft.Configuration {
+	return node.raftCluster.AuthRaftConfiguration()
+}
+
+func (node *nodeService) ReconcileRaftMembershipWithPeers(peers []config.RaftNode) {
+	node.raftCluster.ReconcileRaftMembershipWithPeers(peers)
+}
+
+func (node *nodeService) HandleRaftLeadershipChanges(isLeader bool) {
+	node.raftCluster.HandleRaftLeadershipChanges(isLeader)
+}
+
+func (node *nodeService) HandleRaftLeadershipChangesDebounced(isLeader bool) {
+	node.raftCluster.HandleRaftLeadershipChangesDebounced(isLeader)
+}
+
+func (node *nodeService) HandleRaftObserverChannelChanges(o raft.Observation) {
+	node.raftCluster.HandleRaftObserverChannelChanges(o)
+}
+
+// Additional PeerCommunicator method delegations
+func (node *nodeService) AuthenticateWithPeersFromEtcd() map[string]Status {
+	return node.peerComm.AuthenticateWithPeersFromEtcd()
+}
+
+func (node *nodeService) WatchPeersFromEtcd() {
+	node.peerComm.WatchPeersFromEtcd()
+}
+
+func (node *nodeService) GetPeers() []config.RaftNode {
+	return node.peerComm.GetPeers()
+}
+
+func (node *nodeService) StopAllJobsOnAllWorkerNodes() {
+	node.peerComm.StopAllJobsOnAllWorkerNodes()
+}
+
+func (node *nodeService) StartJobsOnWorkerNodes() {
+	node.peerComm.StartJobsOnWorkerNodes()
+}
+
+func (node *nodeService) GetRandomFanInPeerHTTPAddresses(excludeList map[string]bool) []string {
+	return node.peerComm.GetRandomFanInPeerHTTPAddresses(excludeList)
+}
+
+func (node *nodeService) FanInLocalDataFromPeersSync() {
+	node.peerComm.FanInLocalDataFromPeersSync()
+}
+
+func (node *nodeService) FanInLocalDataFromPeers() {
+	node.peerComm.FanInLocalDataFromPeers()
+}
+
+func (node *nodeService) SelectRandomPeersToFanIn() []models.PeerFanIn {
+	return node.peerComm.SelectRandomPeersToFanIn()
+}
+
+func (node *nodeService) CommitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
+	node.peerComm.CommitFetchedUnCommittedLogs(peerFanIns)
+}
+
+// Additional EventHandler method delegations
+func (node *nodeService) ListenOnInputQueues() {
+	node.eventHandler.ListenOnInputQueues()
+}
+
+func (node *nodeService) HandleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
+	node.eventHandler.HandleUncommittedAsyncTasks(asyncTasks)
+}
+
+// Additional ServiceState method delegations
+func (node *nodeService) BeginAcceptingClientWriteRequest() {
+	node.serviceState.BeginAcceptingClientWriteRequest()
+}
+
+func (node *nodeService) StopAcceptingClientWriteRequest() {
+	node.serviceState.StopAcceptingClientWriteRequest()
+}
+
+// BackupDatabase creates an automatic timestamped backup
+func (node *nodeService) BackupDatabase(ctx context.Context, requestId string) error {
 	node.dispatcher.NoBlockQueue(func(successChannel chan any, errorChannel chan any) {
 		defer func() {
 			close(successChannel)
 			close(errorChannel)
 		}()
 
-		err := node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskInProgress, "")
+		dataStore := node.scheduler0RaftStore.GetDataStore()
+
+		node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskInProgress, "Backup started")
+
+		backupPath, err := dataStore.Backup(ctx)
 		if err != nil {
-			node.logger.Error("failed to update async task status with request id", requestId, ", error", err)
+			node.logger.Error("backup failed", "error", err)
+			node.alertBackupFailed("sqlite backup failed", err, map[string]any{"stage": "sqlite"})
+			node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, err.Error())
+			errorChannel <- err
 			return
 		}
-		uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
-		uncommittedTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
+		node.logger.Info("backup path", "path", backupPath)
+
+		s3Key, err := node.UploadBackupToS3(ctx, backupPath)
 		if err != nil {
-			node.logger.Error("failed get uncommitted async tasks request id", requestId, ", error", err.Message)
-			uErr := node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, "")
-			if uErr != nil {
-				node.logger.Error("failed to update async task status with request id", "request id", requestId, ", error", uErr)
-			}
+			node.logger.Error("upload backup to S3 failed", "error", err)
+			node.alertBackupFailed("backup upload to S3 failed", err, map[string]any{"stage": "s3", "bucket": node.scheduler0Config.GetConfigurations().S3Bucket})
+			node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, err.Error())
+			errorChannel <- err
 			return
 		}
-		localData := models.LocalData{
-			ExecutionLogs: uncommittedLogs,
-			AsyncTasks:    uncommittedTasks,
-		}
-		data, mErr := json.Marshal(localData)
-		if mErr != nil {
-			node.logger.Error("failed to marshal async task result with request id", requestId, ", error", mErr)
-			uErr := node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, "")
-			if uErr != nil {
-				node.logger.Error("failed to update async task status with request id", requestId, ", error", uErr)
-			}
-			return
-		}
-		uErr := node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskSuccess, string(data))
-		if uErr != nil {
-			node.logger.Error("failed to update async task status with request id", requestId, ", error", uErr)
-			return
-		}
+
+		msg := fmt.Sprintf("Backup completed, path: %s, s3Key: %s", backupPath, s3Key)
+		node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskSuccess, msg)
+		node.logger.Info("database backup completed", "path", backupPath, "s3Key", s3Key)
+		successChannel <- backupPath
 	})
+	return nil
 }
 
-func (node *nodeService) CanAcceptClientWriteRequest() bool {
-	return node.acceptClientWrites
-}
+// RestoreDatabase restores the database from a backup file.
+// When S3 is configured, fileName is the S3 object key (filename) and the file is downloaded from S3 first.
+// When S3 is not configured, fileName is a local file path.
+func (node *nodeService) RestoreDatabase(ctx context.Context, fileName string, requestId string) error {
+	node.dispatcher.NoBlockQueue(func(successChannel chan any, errorChannel chan any) {
+		defer func() {
+			close(successChannel)
+			close(errorChannel)
+		}()
 
-func (node *nodeService) CanAcceptRequest() bool {
-	return node.acceptRequest
-}
+		dataStore := node.scheduler0RaftStore.GetDataStore()
+		node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskInProgress, "Restore started")
 
-func (node *nodeService) StopJobs() {
-	node.jobExecutor.StopAll()
-}
-
-func (node *nodeService) StartJobs() {
-	node.jobProcessor.RecoverJobs()
-}
-
-func (node *nodeService) GetRaftStats() map[string]string {
-	return node.scheduler0RaftStore.GetRaftStats()
-}
-
-func (node *nodeService) GetRaftLeaderWithId() (raft.ServerAddress, raft.ServerID) {
-	return node.scheduler0RaftStore.LeaderWithID()
-}
-
-func (node *nodeService) authenticateWithPeersInConfig() map[string]Status {
-	node.logger.Info("authenticating with nodes...")
-
-	configs := node.scheduler0Config.GetConfigurations()
-	var wg sync.WaitGroup
-
-	results := map[string]Status{}
-	wrlck := sync.Mutex{}
-
-	for _, replica := range configs.Replicas {
-		if replica.Address != utils.GetServerHTTPAddress() {
-			wg.Add(1)
-			go func(rep config.RaftNode, res map[string]Status, wg *sync.WaitGroup, wrlck *sync.Mutex) {
-				wrlck.Lock()
-				err := utils.RetryOnError(func() error {
-					if peerStatus, err := node.nodeHTTPClient.ConnectNode(rep); err == nil {
-						results[rep.Address] = *peerStatus
-						node.logger.Info("successfully authenticated with", "node-address", rep.RaftAddress)
-					} else {
-						return err
-					}
-
-					return nil
-				}, configs.PeerConnectRetryMax, configs.PeerConnectRetryDelaySeconds)
-				wg.Done()
-				wrlck.Unlock()
-				if err != nil {
-					node.logger.Error("failed to authenticate with peer ", "replica address", rep.Address, " error:", err)
-				}
-			}(replica, results, &wg, &wrlck)
-		}
-	}
-	wg.Wait()
-
-	return results
-}
-
-func (node *nodeService) stopAllJobsOnAllWorkerNodes() {
-	node.logger.Info("stopping jobs on worker nodes.")
-
-	configs := node.scheduler0Config.GetConfigurations()
-	var wg sync.WaitGroup
-	semaphore := make(chan struct{}, constants.DefaultMaxConnectedPeers)
-
-	for _, replica := range configs.Replicas {
-		if replica.Address != utils.GetServerHTTPAddress() {
-			wg.Add(1)
-			go func(rep config.RaftNode, wg *sync.WaitGroup) {
-				err := utils.RetryOnError(func() error {
-					semaphore <- struct{}{}
-					defer func() { <-semaphore }()
-					return node.nodeHTTPClient.StopJobs(node.ctx, node, rep)
-				}, constants.DefaultRetryMaxConfig, constants.DefaultRetryIntervalConfig)
-				wg.Done()
-				if err != nil {
-					node.logger.Error("failed to stop jobs on worker node", "address", rep.Address, " error:", err)
-				}
-			}(replica, &wg)
-		}
-	}
-	wg.Wait()
-	node.logger.Error("completed stopping jobs on worker nodes")
-}
-
-func (node *nodeService) startJobsOnWorkerNodes() {
-	node.logger.Info("starting jobs on worker nodes.")
-
-	configs := node.scheduler0Config.GetConfigurations()
-	var wg sync.WaitGroup
-	semaphore := make(chan struct{}, constants.DefaultMaxConnectedPeers)
-
-	for _, replica := range configs.Replicas {
-		if replica.Address != utils.GetServerHTTPAddress() {
-			wg.Add(1)
-			go func(rep config.RaftNode, wg *sync.WaitGroup) {
-				err := utils.RetryOnError(func() error {
-					semaphore <- struct{}{}
-					defer func() { <-semaphore }()
-					return node.nodeHTTPClient.StartJobs(node.ctx, node, rep)
-				}, constants.DefaultRetryMaxConfig, constants.DefaultRetryIntervalConfig)
-				wg.Done()
-				if err != nil {
-					node.logger.Error("failed to stop jobs on worker node", "address", rep.Address, " error:", err)
-				}
-			}(replica, &wg)
-		}
-	}
-	wg.Wait()
-	node.logger.Error("completed starting jobs on worker nodes")
-}
-
-func (node *nodeService) handleRaftLeadershipChanges(isLeader bool) {
-	node.stopAcceptingClientWriteRequest()
-	servers := node.scheduler0RaftStore.GetServersOnRaftCluster()
-	nodeIds := []uint64{}
-	for _, server := range servers {
-		nodeId, err := utils.GetNodeIdWithRaftAddress(server.Address)
-		if err != nil {
-			log.Fatalln("failed to handle raft leadership changes because it failed to get node id for raft address", server.Address)
-		}
-		nodeIds = append(nodeIds, uint64(nodeId))
-	}
-	node.jobQueue.RemoveServers(nodeIds)
-
-	if isLeader {
-		node.jobQueue.AddServers(nodeIds)
-		node.stopAllJobsOnAllWorkerNodes()
-		singleNodeMode := len(servers) == 1
-		node.jobQueue.SetSingleNodeMode(singleNodeMode)
-		node.jobExecutor.SetSingleNodeMode(singleNodeMode)
-		node.SingleNodeMode = singleNodeMode
-		node.asyncTaskManager.SetSingleNodeMode(singleNodeMode)
-		if !node.SingleNodeMode {
-			uncommittedLogs := node.jobExecutor.GetUncommittedLogs()
-			uncommittedAsyncTasks, err := node.asyncTaskManager.GetUnCommittedTasks()
-			if err != nil {
-				log.Fatalln("failed to get uncommitted async tasks after leader selection", "error", err.Error())
-			}
-			if len(uncommittedLogs) > 0 {
-				node.jobExecutionRepo.RaftInsertExecutionLogs(uncommittedLogs, node.scheduler0Config.GetConfigurations().NodeId)
-			}
-
-			if len(uncommittedAsyncTasks) > 0 {
-				_, err := node.asyncTaskRepo.RaftBatchInsert(uncommittedAsyncTasks, node.scheduler0Config.GetConfigurations().NodeId)
-				if err != nil {
-					node.logger.Error("failed to insert uncommitted async tasks from", "raft-leader", "error", err)
-				}
-			}
-
-			node.handleUncommittedAsyncTasks(uncommittedAsyncTasks)
-			node.fanInLocalDataFromPeers()
-		} else {
-			if node.isExistingNode {
-				node.jobProcessor.StartJobs()
-			} else {
-				node.jobProcessor.StartJobs()
-			}
-			node.beginAcceptingClientWriteRequest()
-		}
-	}
-}
-
-func (node *nodeService) handleRaftObserverChannelChanges(o raft.Observation) {
-	peerObservation, isPeerObservation := o.Data.(raft.PeerObservation)
-	resumedHeartbeatObservation, isResumedHeartbeatObservation := o.Data.(raft.ResumedHeartbeatObservation)
-
-	if isPeerObservation && !peerObservation.Removed {
-		node.logger.Debug("A new node joined the cluster")
-	}
-	if isPeerObservation && peerObservation.Removed {
-		node.logger.Debug("A node got removed from the cluster")
-	}
-	if isResumedHeartbeatObservation {
-		node.logger.Debug(fmt.Sprintf("A node resumed execution. Peer ID %s ", string(resumedHeartbeatObservation.PeerID)))
-		node.startJobsOnWorkerNodes()
-	}
-}
-
-func (node *nodeService) handleUncommittedAsyncTasks(asyncTasks []models.AsyncTask) {
-	for _, asyncTask := range asyncTasks {
-		if asyncTask.State == models.AsyncTaskNotStated || asyncTask.State == models.AsyncTaskInProgress && asyncTask.Service == constants.CreateJobAsyncTaskService {
-			var jobsPayload []models.Job
-			err := json.Unmarshal([]byte(asyncTask.Input), &jobsPayload)
-			if err != nil {
-				node.logger.Error("failed to convert jobs payload from async task with id", "id", asyncTask.Id, "error", err.Error())
-			}
-			jobIds, batchInsertErr := node.jobRepo.BatchInsertJobs(jobsPayload)
-			if batchInsertErr != nil {
-				node.logger.Error("failed to create jobs from async task with id", "id", asyncTask.Id, "error", batchInsertErr.Error())
-			}
-			resObj := utils.Response{Data: jobIds, Success: true}
-			updateTaskErr := node.asyncTaskManager.UpdateTasksByRequestId(asyncTask.RequestId, models.AsyncTaskSuccess, string(resObj.ToJSON()))
-			if updateTaskErr != nil {
-				node.logger.Error("failed to update state of uncommitted async task", "error", updateTaskErr)
-			}
-			node.logger.Info("successfully created jobs from async task with id", "id", asyncTask.Id, "job-ids", jobIds)
-		}
-		if asyncTask.State == models.AsyncTaskInProgress && asyncTask.Service == constants.JobExecutorAsyncTaskService {
-			err := node.asyncTaskManager.UpdateTasksByRequestId(asyncTask.RequestId, models.AsyncTaskSuccess, "")
-			if err != nil {
-				node.logger.Error("failed to update state of uncommitted job executor async tasks to success", "error", err.Message)
-			}
-		}
-	}
-}
-
-func (node *nodeService) handleCompletedPeerFanIn(peerFanIn models.PeerFanIn) {
-	configs := node.scheduler0Config.GetConfigurations()
-	node.completedFanInCh.Store(peerFanIn.PeerHTTPAddress, peerFanIn)
-	completed := 0
-	node.completedFanInCh.Range(func(key, value any) bool {
-		completed += 1
-		return true
-	})
-	if completed == len(configs.Replicas)-1 && !node.CanAcceptClientWriteRequest() {
-		node.jobProcessor.StartJobs()
-		node.beginAcceptingClientWriteRequest()
-	}
-}
-
-func (node *nodeService) authRaftConfiguration() raft.Configuration {
-	node.mtx.Lock()
-	defer node.mtx.Unlock()
-
-	configs := node.scheduler0Config.GetConfigurations()
-	results := node.authenticateWithPeersInConfig()
-	servers := []raft.Server{
-		{
-			ID:       raft.ServerID(strconv.FormatUint(configs.NodeId, 10)),
-			Suffrage: raft.Voter,
-			Address:  raft.ServerAddress(configs.RaftAddress),
-		},
-	}
-
-	for _, replica := range configs.Replicas {
-		if repStatus, ok := results[replica.Address]; ok && repStatus.IsAlive && repStatus.IsAuth {
-			servers = append(servers, raft.Server{
-				ID:       raft.ServerID(strconv.FormatUint(replica.NodeId, 10)),
-				Suffrage: raft.Voter,
-				Address:  raft.ServerAddress(replica.RaftAddress),
-			})
-		}
-	}
-
-	cfg := raft.Configuration{
-		Servers: servers,
-	}
-
-	return cfg
-}
-
-func (node *nodeService) getRandomFanInPeerHTTPAddresses(excludeList map[string]bool) []string {
-	configs := node.scheduler0Config.GetConfigurations()
-	numReplicas := len(configs.Replicas)
-	servers := make([]raft.ServerAddress, 0, numReplicas)
-	httpAddresses := make([]string, 0, numReplicas)
-
-	for _, server := range node.scheduler0RaftStore.GetServersOnRaftCluster() {
-		if string(server.Address) != configs.RaftAddress {
-			servers = append(servers, server.Address)
-		}
-	}
-
-	if uint64(len(servers)) < configs.ExecutionLogFetchFanIn {
-		for _, server := range servers {
-			if ok := excludeList[utils.GetNodeServerAddressWithRaftAddress(server)]; !ok {
-				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(server))
-			}
-		}
-	} else {
-		shuffledServers := servers
-		copy(shuffledServers, servers)
-		lastIndex := len(shuffledServers) - 1
-
-		for lastIndex > 0 {
-			randInt := rand.Intn(lastIndex)
-			temp := shuffledServers[lastIndex]
-			shuffledServers[lastIndex] = shuffledServers[randInt]
-			shuffledServers[randInt] = temp
-			lastIndex -= 1
-		}
-
-		for i := 0; i < len(shuffledServers); i++ {
-			if _, ok := excludeList[utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i])]; !ok {
-				httpAddresses = append(httpAddresses, utils.GetNodeServerAddressWithRaftAddress(shuffledServers[i]))
-			}
-		}
-	}
-	if len(httpAddresses) > int(configs.ExecutionLogFetchFanIn) {
-		return httpAddresses[:configs.ExecutionLogFetchFanIn]
-	}
-
-	return httpAddresses
-}
-
-func (node *nodeService) listenOnInputQueues() {
-	node.logger.Info("begin listening on input channels")
-
-	for {
-		select {
-		case isLeader := <-node.scheduler0RaftStore.GetLeaderChangeChannel():
-			go node.handleRaftLeadershipChanges(isLeader)
-		case o := <-node.peerObserverChannels:
-			go node.handleRaftObserverChannelChanges(o)
-		case peerFanIn := <-node.fanInCh:
-			go node.handleCompletedPeerFanIn(peerFanIn)
-		case postProcess := <-node.postProcessingChannel:
-			{
-				for _, postProcessTargetNode := range postProcess.TargetNodes {
-					if postProcessTargetNode == node.scheduler0Config.GetConfigurations().NodeId {
-						switch postProcess.Action {
-						case constants.CommandActionQueueJob:
-							go node.jobExecutor.QueueExecutions(postProcess.Data.LastInsertedId, postProcess.Data.RowsAffected)
-						case constants.CommandActionCleanUncommittedAsyncTasksLogs:
-							go node.asyncTaskManager.DeleteNewUncommittedAsyncLogs(postProcess.Data.LastInsertedId, postProcess.Data.RowsAffected)
-						case constants.CommandActionCleanUncommittedExecutionLogs:
-							go node.jobExecutor.DeleteNewUncommittedExecutionLogs(postProcess.Data.LastInsertedId, postProcess.Data.RowsAffected)
-						}
-					}
-				}
-			}
-		case <-node.ctx.Done():
-			return
-		}
-	}
-}
-
-func (node *nodeService) beginAcceptingClientWriteRequest() {
-	node.acceptClientWrites = true
-	node.logger.Info("ready to accept write requests")
-}
-
-func (node *nodeService) stopAcceptingClientWriteRequest() {
-	node.acceptClientWrites = false
-	node.logger.Info("stopped accepting httpClient write requests")
-}
-
-func (node *nodeService) beginAcceptingClientRequest() {
-	node.acceptRequest = true
-	node.logger.Info("being accepting httpClient requests")
-}
-
-func (node *nodeService) selectRandomPeersToFanIn() []models.PeerFanIn {
-	excludeList := map[string]bool{}
-	node.fanIns.Range(func(key, value any) bool {
-		excludeList[key.(string)] = true
-		return true
-	})
-	httpAddresses := node.getRandomFanInPeerHTTPAddresses(excludeList)
-	peerFanIns := make([]models.PeerFanIn, 0, len(httpAddresses))
-	for _, httpAddress := range httpAddresses {
-		_, ok := node.fanIns.Load(httpAddress)
-		if !ok {
-			newFanIn := models.PeerFanIn{
-				PeerHTTPAddress: httpAddress,
-				State:           models.PeerFanInStateNotStated,
-			}
-			node.fanIns.Store(httpAddress, newFanIn)
-			peerFanIns = append(peerFanIns, newFanIn)
-		}
-	}
-	return peerFanIns
-}
-
-func (node *nodeService) fanInLocalDataFromPeers() {
-	go func() {
 		configs := node.scheduler0Config.GetConfigurations()
-		ticker := time.NewTicker(time.Duration(configs.ExecutionLogFetchIntervalSeconds) * time.Second)
-		ctx, cancelFunc := context.WithCancel(node.ctx)
+		restorePath := fileName
 
-		var currentContext context.Context
-		var currentContextCancelFunc func()
-
-		for {
-			select {
-			case <-ticker.C:
-				if currentContext != nil {
-					currentContextCancelFunc()
-					ctx, cancelFunc = context.WithCancel(context.Background())
-					currentContext = ctx
-					currentContextCancelFunc = cancelFunc
-				}
-
-				peers := node.selectRandomPeersToFanIn()
-
-				phase1 := make([]models.PeerFanIn, 0, len(peers))
-				phase2 := make([]models.PeerFanIn, 0, len(peers))
-				phase3 := make([]models.PeerFanIn, 0, len(peers))
-
-				for _, peer := range peers {
-					if peer.State == models.PeerFanInStateNotStated {
-						phase1 = append(phase1, peer)
-					}
-					if peer.State == models.PeerFanInStateGetRequestId {
-						phase2 = append(phase2, peer)
-					}
-					if peer.State == models.PeerFanInStateGetExecutionsLogs {
-						phase3 = append(phase3, peer)
-					}
-				}
-
-				node.fanIns.Range(func(key, value any) bool {
-					fanIn := value.(models.PeerFanIn)
-					if fanIn.State == models.PeerFanInStateNotStated {
-						phase1 = append(phase1, fanIn)
-					}
-					if fanIn.State == models.PeerFanInStateGetRequestId {
-						phase2 = append(phase2, fanIn)
-					}
-					if fanIn.State == models.PeerFanInStateGetExecutionsLogs {
-						phase3 = append(phase3, fanIn)
-					}
-					return true
-				})
-
-				if len(phase1) > 0 {
-					go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase1(ctx, node, phase1)
-				}
-				if len(phase2) > 0 {
-					go node.nodeHTTPClient.FetchUncommittedLogsFromPeersPhase2(ctx, node, phase2)
-				}
-				if len(phase3) > 0 {
-					go node.commitFetchedUnCommittedLogs(phase3)
-				}
-			case <-node.ctx.Done():
-				cancelFunc()
+		if configs.S3Bucket != "" {
+			node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskInProgress, "Downloading backup from S3")
+			localPath, err := node.downloadBackupFromS3(ctx, fileName)
+			if err != nil {
+				node.logger.Error("failed to download backup from S3", "error", err, "key", fileName)
+				node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, fmt.Sprintf("download from S3: %v", err))
+				errorChannel <- err
 				return
 			}
+			defer os.Remove(localPath)
+			restorePath = localPath
+		}
+
+		if err := dataStore.Restore(ctx, restorePath); err != nil {
+			node.logger.Error("restore failed", "error", err)
+			node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, err.Error())
+			errorChannel <- err
+			return
+		}
+
+		node.logger.Info("sqlite db exists, creating snapshot from sqlite db")
+		snapshot := fsm.NewFSMSnapshot(dataStore)
+		rCfg := node.scheduler0RaftStore.GetRaft().GetConfiguration().Configuration()
+		sink, err := node.FileSnapShot.Create(1, 1, 1, rCfg, 1, node.TransportManager)
+		if err != nil {
+			node.logger.Error("failed to create snapshot sink from sqlite db on bootstrap", "error", err)
+			node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, fmt.Sprintf("snapshot sink: %v", err))
+			errorChannel <- err
+			return
+		}
+		node.logger.Info("snapshot sink created from sqlite db on bootstrap")
+
+		if err := snapshot.Persist(sink); err != nil {
+			node.logger.Error("failed to persist snapshot from sqlite db on bootstrap", "error", err)
+			_ = sink.Close()
+			node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, fmt.Sprintf("snapshot persist: %v", err))
+			errorChannel <- err
+			return
+		}
+		node.logger.Info("snapshot persisted from sqlite db on bootstrap")
+
+		if err := sink.Close(); err != nil {
+			node.logger.Error("failed to close snapshot sink from sqlite db on bootstrap", "error", err)
+			node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskFail, fmt.Sprintf("snapshot close: %v", err))
+			errorChannel <- err
+			return
+		}
+		node.logger.Info("snapshot sink closed from sqlite db on bootstrap")
+
+		node.asyncTaskManager.UpdateTasksByRequestId(requestId, models.AsyncTaskSuccess, "Restore completed")
+		node.logger.Info("database restore completed", "from", fileName)
+		successChannel <- true
+	})
+
+	return nil
+}
+
+// downloadBackupFromS3 downloads the object with the given key from S3 to a temp file and returns its path.
+func (node *nodeService) downloadBackupFromS3(ctx context.Context, s3Key string) (string, error) {
+	configs := node.scheduler0Config.GetConfigurations()
+	if configs.S3Bucket == "" {
+		return "", fmt.Errorf("S3Bucket is not defined")
+	}
+
+	out, err := node.s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(configs.S3Bucket),
+		Key:    aws.String(s3Key),
+	})
+	if err != nil {
+		return "", fmt.Errorf("get object: %w", err)
+	}
+	defer out.Body.Close()
+
+	tmpFile, err := os.CreateTemp("", "scheduler0-restore-*.db")
+	if err != nil {
+		return "", fmt.Errorf("create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	_, err = io.Copy(tmpFile, out.Body)
+	if err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("write temp file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return "", fmt.Errorf("close temp file: %w", err)
+	}
+
+	node.logger.Info("downloaded backup from S3", "bucket", configs.S3Bucket, "key", s3Key, "path", tmpPath)
+	return tmpPath, nil
+}
+
+func (node *nodeService) BeginAcceptingClientRequest() {
+	node.serviceState.BeginAcceptingClientRequest()
+}
+
+func (node *nodeService) GetJobQueuesRepo() job_queue.JobQueuesRepo {
+	return node.jobQueuesRepo
+}
+
+func (node *nodeService) GetJobExecutor() executor.JobExecutorService {
+	return node.jobExecutor
+}
+
+// alertBackupFailed publishes backup_failed to the ops alert topic. Fire-and-
+// forget: backup failure handling never waits on SNS.
+func (node *nodeService) alertBackupFailed(summary string, cause error, details map[string]any) {
+	if node.alertPublisher == nil {
+		return
+	}
+	configs := node.scheduler0Config.GetConfigurations()
+	if details == nil {
+		details = map[string]any{}
+	}
+	details["error"] = cause
+	details["nodeId"] = configs.NodeId
+	go func() {
+		if err := node.alertPublisher.Publish(context.Background(), alerts.Alert{
+			Event:    alerts.EventBackupFailed,
+			Severity: alerts.SeverityError,
+			Summary:  summary + ": " + cause.Error(),
+			Details:  details,
+		}); err != nil {
+			node.logger.Error("ops alert publish failed", "event", alerts.EventBackupFailed, "error", err)
 		}
 	}()
 }
 
-func (node *nodeService) commitFetchedUnCommittedLogs(peerFanIns []models.PeerFanIn) {
-	for _, peerFanIn := range peerFanIns {
-
-		if len(peerFanIn.Data.ExecutionLogs) > 0 {
-			node.jobExecutionRepo.RaftInsertExecutionLogs(peerFanIn.Data.ExecutionLogs, node.scheduler0Config.GetConfigurations().NodeId)
-		}
-
-		if len(peerFanIn.Data.AsyncTasks) > 0 {
-			_, err := node.asyncTaskRepo.RaftBatchInsert(peerFanIn.Data.AsyncTasks, node.scheduler0Config.GetConfigurations().NodeId)
-			if err != nil {
-				node.logger.Error("failed to insert uncommitted async tasks from", "peer", peerFanIn.PeerHTTPAddress, "error", err)
-			}
-		}
-
-		node.fanIns.Delete(peerFanIn.PeerHTTPAddress)
-		node.fanInCh <- peerFanIn
+// UploadBackupToS3 uploads backupPath to S3 and returns the object key used.
+func (node *nodeService) UploadBackupToS3(ctx context.Context, backupPath string) (string, error) {
+	configs := node.scheduler0Config.GetConfigurations()
+	if configs.S3Bucket == "" {
+		return "", fmt.Errorf("S3Bucket is not defined")
 	}
+
+	file, err := os.Open(backupPath)
+	if err != nil {
+		return "", fmt.Errorf("open backup file: %w", err)
+	}
+	defer file.Close()
+
+	key := fmt.Sprintf("%d-%s-%s", configs.NodeId, ksuid.New().String(), filepath.Base(backupPath))
+
+	node.logger.Info("uploading backup to S3", "bucket", configs.S3Bucket, "key", key, "region", configs.AWSRegion)
+
+	_, err = node.s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(configs.S3Bucket),
+		Key:    aws.String(key),
+		Body:   file,
+	})
+	if err != nil {
+		return "", fmt.Errorf("upload backup to S3: %w", err)
+	}
+	node.logger.Info("backup uploaded to S3", "bucket", configs.S3Bucket, "key", key)
+	return key, nil
 }

@@ -1,0 +1,21 @@
+name: Deploy Scheduler0-Private to Amazon ECS (staging)
+
+on:
+  push:
+    branches: [ "staging" ]
+  workflow_dispatch:
+
+concurrency:
+  group: scheduler0-private-deploy-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: staging
+      env_name: staging
+      log_level: "DEBUG"
+      max_workers: "10"
+      platform_webhook_url: https://app.staging.scheduler0.com/scheduler0_callback
+    secrets: inherit
