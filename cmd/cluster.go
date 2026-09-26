@@ -31,7 +31,6 @@ var promoteNodeIdFlag uint64
 var demoteNodeIdFlag uint64
 var targetNodeIdFlag uint64
 var seedNodeIdFlag uint64
-var resetRaftNodeAddressFlag string
 
 // Helper function to make HTTP request to leader
 func makeLeaderRequest(method, endpoint string, queryParams map[string]string, logger *log.Logger) error {
@@ -342,6 +341,10 @@ var transferLeadershipCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 
+		if targetNodeIdFlag == 0 {
+			logger.Fatalln("--target-node-id is required")
+		}
+
 		confirmPrompt := promptui.Prompt{
 			Label:       fmt.Sprintf("WARNING: This will transfer Raft leadership to node %d. This may cause a brief leadership transition. Are you sure you want to continue? [y/N]:", targetNodeIdFlag),
 			HideEntered: false,
@@ -358,9 +361,8 @@ var transferLeadershipCmd = &cobra.Command{
 			return
 		}
 
-		queryParams := map[string]string{}
-		if targetNodeIdFlag != 0 {
-			queryParams["targetNodeId"] = fmt.Sprintf("%d", targetNodeIdFlag)
+		queryParams := map[string]string{
+			"targetNodeId": fmt.Sprintf("%d", targetNodeIdFlag),
 		}
 
 		if err := makeLeaderRequest("POST", "/cluster/transfer-leadership", queryParams, logger); err != nil {
@@ -409,17 +411,12 @@ var forceRebuildCmd = &cobra.Command{
 var resetRaftCmd = &cobra.Command{
 	Use:   "reset-raft",
 	Short: "Reset local Raft state",
-	Long:  `Reset local Raft state on the target node. This will clear Raft logs, stable store, and snapshots, then exit the process. Use --node-address to target a specific node, or it will use the base URL from secrets.`,
+	Long:  `Reset local Raft state on the target node. This will clear Raft logs, stable store, and snapshots, then exit the process. This command forwards the request to the base URL.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
 
-		targetDesc := "the base URL node"
-		if resetRaftNodeAddressFlag != "" {
-			targetDesc = resetRaftNodeAddressFlag
-		}
-
 		confirmPrompt := promptui.Prompt{
-			Label:       fmt.Sprintf("WARNING: This will RESET the Raft state on %s and cause the process to EXIT. The node will need to be restarted after this operation. Are you sure you want to continue? [y/N]:", targetDesc),
+			Label:       "WARNING: This will RESET the Raft state on the target node and cause the process to EXIT. The node will need to be restarted after this operation. Are you sure you want to continue? [y/N]:",
 			HideEntered: false,
 			Default:     "N",
 		}
@@ -434,17 +431,10 @@ var resetRaftCmd = &cobra.Command{
 			return
 		}
 
-		if resetRaftNodeAddressFlag != "" {
-			_, err := makeNodeRequest(resetRaftNodeAddressFlag, "POST", "/cluster/reset-raft", logger)
-			if err != nil {
-				logger.Fatalln("failed to reset raft state:", err)
-			}
-			fmt.Println("Raft state reset request sent successfully")
-		} else {
-			queryParams := map[string]string{}
-			if err := makeLeaderRequest("POST", "/cluster/reset-raft", queryParams, logger); err != nil {
-				logger.Fatalln("failed to reset raft state:", err)
-			}
+		queryParams := map[string]string{}
+
+		if err := makeLeaderRequest("POST", "/cluster/reset-raft", queryParams, logger); err != nil {
+			logger.Fatalln("failed to reset raft state:", err)
 		}
 	},
 }
@@ -620,8 +610,7 @@ func init() {
 	demoteNodeCmd.Flags().Uint64Var(&demoteNodeIdFlag, "node-id", 0, "Node ID to demote to non-voter")
 	transferLeadershipCmd.Flags().Uint64Var(&targetNodeIdFlag, "target-node-id", 0, "Target node ID for leadership transfer")
 	forceRebuildCmd.Flags().Uint64Var(&seedNodeIdFlag, "seed-node-id", 0, "Seed node ID for force rebuild")
-	resetRaftCmd.Flags().StringVar(&resetRaftNodeAddressFlag, "node-address", "", "Node address to reset (e.g., 127.0.0.1:9090). If not specified, uses base URL from secrets.")
-	// list-nodes doesn't need any flags
+	// reset-raft and list-nodes don't need any flags
 
 	ClusterCmd.AddCommand(removeNodeCmd)
 	ClusterCmd.AddCommand(addNodeCmd)
