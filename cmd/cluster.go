@@ -362,7 +362,11 @@ var transferLeadershipCmd = &cobra.Command{
 		}
 
 		queryParams := map[string]string{
+<<<<<<< HEAD
 			"targetNodeId": fmt.Sprintf("%d", targetNodeIdFlag),
+=======
+			"nodeId": fmt.Sprintf("%d", targetNodeIdFlag),
+>>>>>>> 00eb8f2 (Fix 9 critical bugs: variable shadowing, mutex leaks, quota logic, nil callbacks, panic handling, recovery state, CLI flags, secret exposure, and workflow triggers)
 		}
 
 		if err := makeLeaderRequest("POST", "/cluster/transfer-leadership", queryParams, logger); err != nil {

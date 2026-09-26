@@ -107,7 +107,11 @@ Use the --show-password flag if you want the password to be visible.
 		if showPasswordFlag {
 			logger.Println("AuthPassword:", secrets.AuthPassword)
 		} else {
+<<<<<<< HEAD
 			logger.Println("AuthPassword: ********")
+=======
+			logger.Println("AuthPassword: [hidden]")
+>>>>>>> 00eb8f2 (Fix 9 critical bugs: variable shadowing, mutex leaks, quota logic, nil callbacks, panic handling, recovery state, CLI flags, secret exposure, and workflow triggers)
 		}
 		if secrets.BaseURL != "" {
 			logger.Println("BaseURL:", secrets.BaseURL)
@@ -116,7 +120,11 @@ Use the --show-password flag if you want the password to be visible.
 }
 
 func init() {
+<<<<<<< HEAD
 	showSecretsCmd.Flags().BoolVar(&showPasswordFlag, "show-password", false, "Show password and secret key in plaintext")
+=======
+	showSecretsCmd.Flags().BoolVar(&showPasswordFlag, "show-password", false, "Show the password in plaintext")
+>>>>>>> 00eb8f2 (Fix 9 critical bugs: variable shadowing, mutex leaks, quota logic, nil callbacks, panic handling, recovery state, CLI flags, secret exposure, and workflow triggers)
 	SecretsCmd.AddCommand(initSecretsCmd)
 	SecretsCmd.AddCommand(showSecretsCmd)
 }

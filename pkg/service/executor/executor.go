@@ -333,13 +333,22 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 
 	if !jobExecutor.singleNodeMode {
 		for _, job := range jobs {
+			if job.AccountId == 1 {
+				accountToScheduleJobs[job.AccountId] = true
+				continue
+			}
+
 			quotaRemaining, hasQuota := jobExecutor.GetLocalQuotaRemaining(job.AccountId)
 			if !hasQuota {
 				jobExecutor.logger.Debug("no local quota allocation for account, skipping schedule", "accountId", job.AccountId)
 				continue
 			}
 
+<<<<<<< HEAD
 			if job.AccountId == 1 || quotaRemaining > 0 {
+=======
+			if quotaRemaining > 0 {
+>>>>>>> 00eb8f2 (Fix 9 critical bugs: variable shadowing, mutex leaks, quota logic, nil callbacks, panic handling, recovery state, CLI flags, secret exposure, and workflow triggers)
 				accountToScheduleJobs[job.AccountId] = true
 				jobExecutor.logger.Debug("account has local quota available", "accountId", job.AccountId, "quotaRemaining", quotaRemaining)
 			} else {
@@ -1017,7 +1026,68 @@ func (jobExecutor *jobExecutor) reschedule(jobs []models.Job, newState models.Jo
 		return
 	}
 
+<<<<<<< HEAD
 	accountsExhausted := make(map[uint64]bool)
+=======
+	accountToRescheduleJobs := make(map[uint64]bool)
+
+	for _, accountId := range accountIds {
+		if jobExecutor.singleNodeMode {
+			count, ok := accountJobExecutionsCount[accountId]
+			if !ok {
+				jobExecutor.logger.Error("account job executions count not found, skipping reschedule", "accountId", accountId)
+				continue
+			}
+
+			if count > 0 {
+				accountToRescheduleJobs[accountId] = true
+				jobExecutor.accountJobExecutionsCountRepo.UpdateExecutionCount(accountId, count-1)
+			} else {
+				jobExecutor.logger.Debug("account job executions count is 0, setting jobs to inactive", "accountId", accountId)
+				if accountId != 1 {
+					updateErr := jobExecutor.jobRepo.UpdateJobsStatusByAccountId(accountId, models.JobStatusInactive)
+					if updateErr != nil {
+						jobExecutor.logger.Error("failed to update jobs status to inactive", "accountId", accountId, "error", updateErr)
+					}
+				} else {
+					jobExecutor.logger.Debug("account id is 1, skipping update jobs status to inactive", "accountId", accountId)
+				}
+			}
+		} else {
+			if accountId == 1 {
+				accountToRescheduleJobs[accountId] = true
+				continue
+			}
+
+			quotaRemaining, hasQuota := jobExecutor.GetLocalQuotaRemaining(accountId)
+			if !hasQuota {
+				jobExecutor.logger.Debug("no local quota allocation for account, skipping reschedule", "accountId", accountId)
+				continue
+			}
+
+			if quotaRemaining > 0 {
+				if jobExecutor.DecrementLocalQuota(accountId) {
+					accountToRescheduleJobs[accountId] = true
+					jobExecutor.logger.Debug("decremented local quota for reschedule", "accountId", accountId, "remainingQuota", quotaRemaining-1)
+				} else {
+					jobExecutor.logger.Debug("failed to decrement local quota, quota may be exhausted", "accountId", accountId)
+				}
+			} else {
+				jobExecutor.logger.Debug("local quota exhausted, skipping reschedule for account on this worker", "accountId", accountId)
+
+				if jobExecutor.notifyAccountExhaustion != nil {
+					if err := jobExecutor.notifyAccountExhaustion(accountId); err != nil {
+						jobExecutor.logger.Warn("failed to notify leader of account exhaustion", "accountId", accountId, "error", err)
+					} else {
+						jobExecutor.logger.Debug("notified leader of account exhaustion", "accountId", accountId)
+					}
+				}
+			}
+		}
+	}
+
+	jobExecutor.logger.Debug("account to reschedule jobs", "accountToRescheduleJobs", accountToRescheduleJobs)
+>>>>>>> 00eb8f2 (Fix 9 critical bugs: variable shadowing, mutex leaks, quota logic, nil callbacks, panic handling, recovery state, CLI flags, secret exposure, and workflow triggers)
 
 	jobsToInactivate := make([]models.Job, 0)
 
@@ -1566,6 +1636,7 @@ func (jobExecutor *jobExecutor) handleSuccessJobs(successfulJob models.Job) {
 	jobExecutor.mtx.Lock()
 	cachedJobExecutionsLog, exists := jobExecutor.jobExecutionsCache.Load(successfulJob.ID)
 	if !exists || cachedJobExecutionsLog == nil {
+		jobExecutor.mtx.Unlock()
 		jobExecutor.logger.Error(fmt.Sprintf("job execution log not found in cache for successful job ID %v", successfulJob.ID))
 		jobExecutor.mtx.Unlock()
 		return
@@ -1594,6 +1665,7 @@ func (jobExecutor *jobExecutor) handleFailedJobs(erroredJob models.Job) {
 	jobExecutor.mtx.Lock()
 	cachedJobExecutionsLog, exists := jobExecutor.jobExecutionsCache.Load(erroredJob.ID)
 	if !exists || cachedJobExecutionsLog == nil {
+		jobExecutor.mtx.Unlock()
 		jobExecutor.logger.Error(fmt.Sprintf("job execution log not found in cache for errored job ID %v", erroredJob.ID))
 		jobExecutor.mtx.Unlock()
 		return
