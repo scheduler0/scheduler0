@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var showPasswordFlag bool
+
 var SecretsCmd = &cobra.Command{
 	Use:   "secrets",
 	Short: "create, view or modify scheduler0 secrets",
@@ -96,9 +98,17 @@ Use the --show-password flag if you want the password to be visible.
 		scheduler0Secrets := secrets.NewScheduler0Secrets()
 		secrets := scheduler0Secrets.GetSecrets()
 		logger.Println("Secrets:")
-		logger.Println("SecretKey:", secrets.SecretKey)
+		if showPasswordFlag {
+			logger.Println("SecretKey:", secrets.SecretKey)
+		} else {
+			logger.Println("SecretKey: [REDACTED]")
+		}
 		logger.Println("AuthUsername:", secrets.AuthUsername)
-		logger.Println("AuthPassword:", secrets.AuthPassword)
+		if showPasswordFlag {
+			logger.Println("AuthPassword:", secrets.AuthPassword)
+		} else {
+			logger.Println("AuthPassword: [REDACTED]")
+		}
 		if secrets.BaseURL != "" {
 			logger.Println("BaseURL:", secrets.BaseURL)
 		}
@@ -106,6 +116,7 @@ Use the --show-password flag if you want the password to be visible.
 }
 
 func init() {
+	showSecretsCmd.Flags().BoolVar(&showPasswordFlag, "show-password", false, "Show password and secret key values")
 	SecretsCmd.AddCommand(initSecretsCmd)
 	SecretsCmd.AddCommand(showSecretsCmd)
 }

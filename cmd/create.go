@@ -50,7 +50,9 @@ var credentialCmd = &cobra.Command{
 			return
 		}
 
-		credentialModel := models.Credential{}
+		credentialModel := models.Credential{
+			CreatedBy: secrets.AuthUsername,
+		}
 		data, err := credentialModel.ToJSON()
 		if err != nil {
 			logger.Fatalln(err)

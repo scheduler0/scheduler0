@@ -32,7 +32,7 @@ type RaftClusterManager interface {
 	AddNode(ctx context.Context, nodeId uint64, nodeAddress string, clientAddress string) error
 	PromoteNode(ctx context.Context, nodeId uint64) error
 	DemoteNode(ctx context.Context, nodeId uint64) error
-	TransferLeadership(ctx context.Context) error
+	TransferLeadership(ctx context.Context, targetNodeId *uint64) error
 	ListNodes(ctx context.Context) ([]config.RaftNode, error)
 }
 
@@ -906,7 +906,7 @@ func (r *raftClusterManager) DemoteNode(ctx context.Context, nodeId uint64) erro
 }
 
 // TransferLeadership transfers leadership to another node. Only the leader can perform this operation.
-func (r *raftClusterManager) TransferLeadership(ctx context.Context) error {
+func (r *raftClusterManager) TransferLeadership(ctx context.Context, targetNodeId *uint64) error {
 	raftObj := r.node.scheduler0RaftStore.GetRaft()
 	if raftObj == nil {
 		return fmt.Errorf("raft not initialized")
@@ -916,9 +916,33 @@ func (r *raftClusterManager) TransferLeadership(ctx context.Context) error {
 		return fmt.Errorf("node is not leader; cannot transfer leadership")
 	}
 
-	raftObj.LeadershipTransfer()
+	if targetNodeId != nil {
+		targetID := raft.ServerID(fmt.Sprintf("%d", *targetNodeId))
+		targetAddress := raft.ServerAddress("")
 
-	r.node.logger.Info("transferred leadership")
+		currentCfg := raftObj.GetConfiguration()
+		cfg := currentCfg.Configuration()
+		for _, server := range cfg.Servers {
+			if server.ID == targetID {
+				targetAddress = server.Address
+				break
+			}
+		}
+
+		if targetAddress == "" {
+			return fmt.Errorf("target node %d not found in cluster", *targetNodeId)
+		}
+
+		future := raftObj.LeadershipTransferToServer(targetID, targetAddress)
+		if err := future.Error(); err != nil {
+			return fmt.Errorf("failed to transfer leadership to node %d: %w", *targetNodeId, err)
+		}
+		r.node.logger.Info("transferred leadership to node", "targetNodeId", *targetNodeId)
+	} else {
+		raftObj.LeadershipTransfer()
+		r.node.logger.Info("transferred leadership")
+	}
+
 	return nil
 }
 
