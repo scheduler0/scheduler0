@@ -18,12 +18,6 @@ test_cli:
 	go build scheduler0.go
 	./scheduler0 start
 
-circle_ci_yaml_validation:
-	brew upgrade circleci
-
-execute_circle_ci_job:
-	circleci local execute --job build
-
 build_server_test_dockerfile:
 	docker build --file docker/server/Dockerfile.server-test \
 		--build-arg PORT=4321 \
