@@ -15,13 +15,13 @@ Read more documentation on https://scheduler0.com
 }
 
 func init() {
-	rootCmd.AddCommand(ListCmd)
 	rootCmd.AddCommand(VersionCmd)
 	rootCmd.AddCommand(StartCmd)
-	rootCmd.AddCommand(ConfigCmd)
-	rootCmd.AddCommand(CredentialCmd)
+	rootCmd.AddCommand(InitCmd)
+	rootCmd.AddCommand(SecretsCmd)
 	rootCmd.AddCommand(CreateCmd)
 	rootCmd.AddCommand(ResetCmd)
+	rootCmd.AddCommand(ClusterCmd)
 }
 
 // Execute executes root command

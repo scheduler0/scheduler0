@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"github.com/spf13/cobra"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,7 +12,12 @@ import (
 	"scheduler0/pkg/constants/headers"
 	"scheduler0/pkg/models"
 	"scheduler0/pkg/secrets"
+	"strings"
+
+	"github.com/spf13/cobra"
 )
+
+var accountId uint64
 
 var CreateCmd = &cobra.Command{
 	Use:   "create",
@@ -22,8 +26,13 @@ var CreateCmd = &cobra.Command{
 Use this 
 
 Usage:
-	create credential
+	create credential --account-id 1
 `,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if accountId == 0 {
+			log.Fatal("--account-id is required")
+		}
+	},
 }
 
 var credentialCmd = &cobra.Command{
@@ -34,9 +43,9 @@ var credentialCmd = &cobra.Command{
 		logger := log.New(os.Stdout, "[cmd] ", log.LstdFlags)
 
 		configs := config.NewScheduler0Config().GetConfigurations()
-		credentials := secrets.NewScheduler0Secrets().GetSecrets()
+		secrets := secrets.NewScheduler0Secrets().GetSecrets()
 
-		if credentials == nil {
+		if secrets == nil {
 			logger.Println("Scheduler0 secrets have not been set. Run ./scheduler0 config init to setup your secrets.")
 			return
 		}
@@ -53,8 +62,9 @@ var credentialCmd = &cobra.Command{
 				body := bytes.NewReader(data)
 				rc := ioutil.NopCloser(body)
 				req.Body = rc
-				req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+				req.SetBasicAuth(secrets.AuthUsername, secrets.AuthPassword)
 				req.Header.Add(headers.PeerHeader, headers.PeerHeaderCMDValue)
+				req.Header.Add(headers.AccountIDHeader, fmt.Sprintf("%d", accountId))
 				req.Header.Add("Content-Type", "application/json")
 
 				if len(via) > 5 {
@@ -64,14 +74,35 @@ var credentialCmd = &cobra.Command{
 				return nil
 			},
 		}
+
+		// Determine the base URL - use base URL from secrets if available, otherwise fall back to config
+		var requestURL string
+		if secrets.BaseURL != "" && strings.TrimSpace(secrets.BaseURL) != "" {
+			// Use base URL as-is
+			baseURL := strings.TrimRight(secrets.BaseURL, "/")
+			requestURL = fmt.Sprintf("%s/%s/credentials", baseURL, constants.APIV1Base)
+		} else {
+			// Fall back to config-based URL construction
+			protocol := "http"
+			if configs.HTTPCert != "" {
+				protocol = "https"
+			}
+			baseURL := fmt.Sprintf("%s://%s:%s", protocol, configs.Host, configs.ClientPort)
+			requestURL = fmt.Sprintf("%s/%s/credentials", baseURL, constants.APIV1Base)
+		}
+
 		req, err := http.NewRequest(
 			"POST",
-			fmt.Sprintf("%s://%s:%s/%s/credentials", configs.Protocol, configs.Host, configs.Port, constants.APIV1Base),
+			requestURL,
 			bytes.NewReader(data),
 		)
+		if err != nil {
+			logger.Fatalln(err)
+		}
 
-		req.SetBasicAuth(credentials.AuthUsername, credentials.AuthPassword)
+		req.SetBasicAuth(secrets.AuthUsername, secrets.AuthPassword)
 		req.Header.Add(headers.PeerHeader, headers.PeerHeaderCMDValue)
+		req.Header.Add(headers.AccountIDHeader, fmt.Sprintf("%d", accountId))
 		req.Header.Add("Content-Type", "application/json")
 		res, err := client.Do(req)
 		if err != nil {
@@ -93,5 +124,6 @@ var credentialCmd = &cobra.Command{
 }
 
 func init() {
+	CreateCmd.PersistentFlags().Uint64Var(&accountId, "account-id", 0, "Account ID for the resource")
 	CreateCmd.AddCommand(credentialCmd)
 }

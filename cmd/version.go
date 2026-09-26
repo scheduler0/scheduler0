@@ -1,9 +1,10 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	"log"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 // VersionCmd used to get current version of scheduler0
@@ -13,6 +14,6 @@ var VersionCmd = &cobra.Command{
 	Long:  `All software has versions. This is scheduler0's`,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := log.New(os.Stderr, "[cmd] ", log.LstdFlags)
-		logger.Println("scheduler0 v0.0.1")
+		logger.Println("scheduler0 v1.0.0.alpha")
 	},
 }
