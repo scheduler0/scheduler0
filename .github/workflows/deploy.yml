@@ -3,14 +3,10 @@ name: Deploy Scheduler0-Private to Amazon ECS (production)
 on:
   release:
     types: [published]
-    tags: [ "v*.*.*" ]
-    branches: [ "main" ]
-  push:
-    branches: [ "main" ]
 
 concurrency:
   group: scheduler0-private-deploy-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
