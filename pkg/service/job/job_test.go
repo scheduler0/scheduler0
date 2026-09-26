@@ -1594,7 +1594,7 @@ func Test_JobService_validateJob_Unit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := service.validateJob(&tt.job, tt.hasJobPayloadOf1Mb, tt.hasJobRetryMaxBy5)
+			err := service.validateJob(&tt.job, tt.hasJobPayloadOf1Mb, tt.hasJobRetryMaxBy5, false)
 
 			if tt.expectedError {
 				assert.NotNil(t, err)
