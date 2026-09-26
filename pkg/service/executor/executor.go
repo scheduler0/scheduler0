@@ -208,7 +208,7 @@ func (jobExecutor *jobExecutor) QueueExecutions(lastInsertedId, rowsAffected int
 			return workerNodes[i] < workerNodes[j]
 		})
 
-		numberOfWorkerNodes := uint64(len(workerNodes))
+		numberOfWorkerNodes = uint64(len(workerNodes))
 		jobExecutor.logger.Debug("determined node count for account hashing", "nodeCount", numberOfWorkerNodes, "workerNodes", workerNodes, "currentNodeId", currentNodeId, "leaderNodeId", leaderNodeId)
 	}
 
@@ -339,12 +339,14 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 				continue
 			}
 
-			if quotaRemaining > 0 && job.AccountId != 1 {
+			if job.AccountId == 1 || quotaRemaining > 0 {
 				accountToScheduleJobs[job.AccountId] = true
 				jobExecutor.logger.Debug("account has local quota available", "accountId", job.AccountId, "quotaRemaining", quotaRemaining)
 			} else {
 				jobExecutor.logger.Debug("local quota exhausted, notifying leader of account exhaustion", "accountId", job.AccountId)
-				jobExecutor.notifyAccountExhaustion(job.AccountId)
+				if jobExecutor.notifyAccountExhaustion != nil {
+					jobExecutor.notifyAccountExhaustion(job.AccountId)
+				}
 			}
 		}
 	} else {
@@ -354,6 +356,8 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 	}
 
 	jobExecutor.logger.Debug("account to schedule jobs", "accountToScheduleJobs", accountToScheduleJobs)
+
+	scheduledJobIds := make(map[uint64]bool)
 
 	for i, job := range jobs {
 		if _, ok := accountToScheduleJobs[job.AccountId]; !ok {
@@ -376,6 +380,8 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 			jobExecutor.logger.Debug("job has an end date in the past, skipping", "jobId", job.ID)
 			continue
 		}
+
+		scheduledJobIds[job.ID] = true
 
 		if _, ok := executionLogsMap[job.ID]; !ok {
 			nextExecutionTime, err := jobs[i].GetNextExecutionTime()
@@ -443,8 +449,8 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 				MemExecution: models.MemJobExecution{
 					ExecutionVersion:      jobLastLog.ExecutionVersion,
 					FailCount:             0,
-					LastState:             models.ExecutionLogSuccessState,
-					LastExecutionDatetime: jobLastLog.NextExecutionDatetime,
+					LastState:             models.ExecutionLogScheduleState,
+					LastExecutionDatetime: jobLastLog.LastExecutionDatetime,
 					NextExecutionDatetime: *nextExecutionTime,
 				},
 			})
@@ -546,7 +552,12 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 	lastVersion := jobExecutor.jobQueuesRepo.GetLastVersion()
 	lastExecutionVersions := make(map[uint64]uint64)
 
+	jobsToLog := make([]models.Job, 0, len(jobs))
 	for _, job := range jobs {
+		if _, wasScheduled := scheduledJobIds[job.ID]; !wasScheduled {
+			continue
+		}
+		jobsToLog = append(jobsToLog, job)
 		if _, ok := lastExecutionVersions[job.ID]; !ok {
 			if _, ok := executionLogsMap[job.ID]; ok {
 				cachedJobExecutionsLog, exists := jobExecutor.jobExecutionsCache.Load(job.ID)
@@ -568,15 +579,17 @@ func (jobExecutor *jobExecutor) ScheduleJobs(jobs []models.Job) {
 		}
 	}
 
-	jobExecutor.logger.Debug("batch inserting jobs", "jobs", jobs, "lastExecutionVersions", lastExecutionVersions, "lastVersion", lastVersion, "nodeId", configs.NodeId)
-	jobExecutor.jobExecutionsRepo.BatchInsert(jobs, configs.NodeId, models.ExecutionLogScheduleState, lastVersion, lastExecutionVersions)
+	if len(jobsToLog) > 0 {
+		jobExecutor.logger.Debug("batch inserting jobs", "jobs", jobsToLog, "lastExecutionVersions", lastExecutionVersions, "lastVersion", lastVersion, "nodeId", configs.NodeId)
+		jobExecutor.jobExecutionsRepo.BatchInsert(jobsToLog, configs.NodeId, models.ExecutionLogScheduleState, lastVersion, lastExecutionVersions)
 
-	if jobExecutor.singleNodeMode {
-		jobExecutor.logger.Debug("logging job execution state in raft", "jobs", jobs, "lastExecutionVersions", lastExecutionVersions, "lastVersion", lastVersion, "nodeId", configs.NodeId)
-		jobExecutor.jobExecutionsRepo.LogJobExecutionStateInRaft(jobs, models.ExecutionLogScheduleState, lastExecutionVersions, lastVersion, configs.NodeId)
+		if jobExecutor.singleNodeMode {
+			jobExecutor.logger.Debug("logging job execution state in raft", "jobs", jobsToLog, "lastExecutionVersions", lastExecutionVersions, "lastVersion", lastVersion, "nodeId", configs.NodeId)
+			jobExecutor.jobExecutionsRepo.LogJobExecutionStateInRaft(jobsToLog, models.ExecutionLogScheduleState, lastExecutionVersions, lastVersion, configs.NodeId)
+		}
+
+		jobExecutor.logger.Debug("scheduled jobs", "from", jobsToLog[0].ID, "to", jobsToLog[len(jobsToLog)-1].ID)
 	}
-
-	jobExecutor.logger.Debug("scheduled jobs", "from", jobs[0].ID, "to", jobs[len(jobs)-1].ID)
 }
 
 func (jobExecutor *jobExecutor) addJobToScheduleQueue(jobScheduleKey models.JobScheduleKey) {
@@ -1001,65 +1014,65 @@ func (jobExecutor *jobExecutor) reschedule(jobs []models.Job, newState models.Jo
 	accountJobExecutionsCount, getErr := jobExecutor.accountJobExecutionsCountRepo.GetExecutionCountsByAccountIds(accountIds)
 	if getErr != nil {
 		jobExecutor.logger.Error("failed to get account job executions count", "error", getErr)
+		return
 	}
 
-	accountToRescheduleJobs := make(map[uint64]bool)
-
-	for _, accountId := range accountIds {
-		if jobExecutor.singleNodeMode {
-			if count, ok := accountJobExecutionsCount[accountId]; !ok {
-				panic("account job executions count not found")
-			} else {
-				if count > 0 {
-					accountToRescheduleJobs[accountId] = true
-					jobExecutor.accountJobExecutionsCountRepo.UpdateExecutionCount(accountId, count-1)
-				} else {
-					jobExecutor.logger.Debug("account job executions count is 0, setting jobs to inactive", "accountId", accountId)
-					if accountId != 1 {
-						updateErr := jobExecutor.jobRepo.UpdateJobsStatusByAccountId(accountId, models.JobStatusInactive)
-						if updateErr != nil {
-							jobExecutor.logger.Error("failed to update jobs status to inactive", "accountId", accountId, "error", updateErr)
-						}
-					} else {
-						jobExecutor.logger.Debug("account id is 1, skipping update jobs status to inactive", "accountId", accountId)
-					}
-				}
-			}
-		} else {
-			quotaRemaining, hasQuota := jobExecutor.GetLocalQuotaRemaining(accountId)
-			if !hasQuota {
-				jobExecutor.logger.Debug("no local quota allocation for account, skipping reschedule", "accountId", accountId)
-				continue
-			}
-
-			if quotaRemaining > 0 && accountId != 1 {
-				if jobExecutor.DecrementLocalQuota(accountId) {
-					accountToRescheduleJobs[accountId] = true
-					jobExecutor.logger.Debug("decremented local quota for reschedule", "accountId", accountId, "remainingQuota", quotaRemaining-1)
-				} else {
-					jobExecutor.logger.Debug("failed to decrement local quota, quota may be exhausted", "accountId", accountId)
-				}
-			} else {
-				jobExecutor.logger.Debug("local quota exhausted, skipping reschedule for account on this worker", "accountId", accountId)
-
-				if accountId != 1 {
-					if err := jobExecutor.notifyAccountExhaustion(accountId); err != nil {
-						jobExecutor.logger.Warn("failed to notify leader of account exhaustion", "accountId", accountId, "error", err)
-					} else {
-						jobExecutor.logger.Debug("notified leader of account exhaustion", "accountId", accountId)
-					}
-				}
-			}
-		}
-	}
-
-	jobExecutor.logger.Debug("account to reschedule jobs", "accountToRescheduleJobs", accountToRescheduleJobs)
+	accountsExhausted := make(map[uint64]bool)
 
 	jobsToInactivate := make([]models.Job, 0)
 
 	for i, job := range jobs {
-		jobExecutor.logger.Debug("rescheduling job", "job", job, "accountToRescheduleJobs", accountToRescheduleJobs)
-		if _, ok := accountToRescheduleJobs[job.AccountId]; !ok {
+		jobExecutor.logger.Debug("rescheduling job", "job", job)
+
+		canReschedule := false
+		if jobExecutor.singleNodeMode {
+			if count, ok := accountJobExecutionsCount[job.AccountId]; !ok {
+				jobExecutor.logger.Error("account job executions count not found", "accountId", job.AccountId)
+			} else if count > 0 {
+				canReschedule = true
+				accountJobExecutionsCount[job.AccountId] = count - 1
+				jobExecutor.accountJobExecutionsCountRepo.UpdateExecutionCount(job.AccountId, count-1)
+			} else if !accountsExhausted[job.AccountId] {
+				accountsExhausted[job.AccountId] = true
+				jobExecutor.logger.Debug("account job executions count is 0, setting jobs to inactive", "accountId", job.AccountId)
+				if job.AccountId != 1 {
+					updateErr := jobExecutor.jobRepo.UpdateJobsStatusByAccountId(job.AccountId, models.JobStatusInactive)
+					if updateErr != nil {
+						jobExecutor.logger.Error("failed to update jobs status to inactive", "accountId", job.AccountId, "error", updateErr)
+					}
+				} else {
+					jobExecutor.logger.Debug("account id is 1, skipping update jobs status to inactive", "accountId", job.AccountId)
+				}
+			}
+		} else {
+			if job.AccountId == 1 {
+				canReschedule = true
+			} else {
+				quotaRemaining, hasQuota := jobExecutor.GetLocalQuotaRemaining(job.AccountId)
+				if !hasQuota {
+					jobExecutor.logger.Debug("no local quota allocation for account, skipping reschedule", "accountId", job.AccountId)
+				} else if quotaRemaining > 0 {
+					if jobExecutor.DecrementLocalQuota(job.AccountId) {
+						canReschedule = true
+						jobExecutor.logger.Debug("decremented local quota for reschedule", "accountId", job.AccountId, "jobId", job.ID, "remainingQuota", quotaRemaining-1)
+					} else {
+						jobExecutor.logger.Debug("failed to decrement local quota, quota may be exhausted", "accountId", job.AccountId)
+					}
+				} else if !accountsExhausted[job.AccountId] {
+					accountsExhausted[job.AccountId] = true
+					jobExecutor.logger.Debug("local quota exhausted, skipping reschedule for account on this worker", "accountId", job.AccountId)
+					if jobExecutor.notifyAccountExhaustion != nil {
+						if err := jobExecutor.notifyAccountExhaustion(job.AccountId); err != nil {
+							jobExecutor.logger.Warn("failed to notify leader of account exhaustion", "accountId", job.AccountId, "error", err)
+						} else {
+							jobExecutor.logger.Debug("notified leader of account exhaustion", "accountId", job.AccountId)
+						}
+					}
+				}
+			}
+		}
+
+		if !canReschedule {
 			jobExecutor.jobExecutionsCache.Delete(job.ID)
 			continue
 		}
@@ -1554,6 +1567,7 @@ func (jobExecutor *jobExecutor) handleSuccessJobs(successfulJob models.Job) {
 	cachedJobExecutionsLog, exists := jobExecutor.jobExecutionsCache.Load(successfulJob.ID)
 	if !exists || cachedJobExecutionsLog == nil {
 		jobExecutor.logger.Error(fmt.Sprintf("job execution log not found in cache for successful job ID %v", successfulJob.ID))
+		jobExecutor.mtx.Unlock()
 		return
 	}
 	cachedJobExecutionLog := (cachedJobExecutionsLog).(*models.JobSchedule)
@@ -1581,6 +1595,7 @@ func (jobExecutor *jobExecutor) handleFailedJobs(erroredJob models.Job) {
 	cachedJobExecutionsLog, exists := jobExecutor.jobExecutionsCache.Load(erroredJob.ID)
 	if !exists || cachedJobExecutionsLog == nil {
 		jobExecutor.logger.Error(fmt.Sprintf("job execution log not found in cache for errored job ID %v", erroredJob.ID))
+		jobExecutor.mtx.Unlock()
 		return
 	}
 	cachedJobExecutionLog := (cachedJobExecutionsLog).(*models.JobSchedule)
